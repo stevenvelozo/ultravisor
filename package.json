@@ -1,0 +1,51 @@
+{
+    "name": "ultravisor",
+    "version": "1.0.0",
+    "description": "Cyclic process execution with ai integration.",
+    "main": "source/Ultravisor.js",
+    "bin": {
+        "ultravisor": "./source/cli/Ultravisor-Run.cjs"
+    },
+    "scripts": {
+        "start": "node source/cli/Ultravisor-Run.cjs",
+        "test": "npx mocha -u tdd -R spec",
+        "tests": "npx mocha -u tdd --exit -R spec --grep",
+        "coverage": "npx nyc --reporter=lcov --reporter=text-lcov npx mocha -- -u tdd -R spec",
+        "build": "npx quack build"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/stevenvelozo/ultravisor.git"
+    },
+    "author": "steven@velozo.com",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/stevenvelozo/ultravisor/issues"
+    },
+    "homepage": "https://github.com/stevenvelozo/ultravisor#readme",
+    "dependencies": {
+        "orator": "^5.0.1",
+        "orator-serviceserver-restify": "^2.0.5",
+        "pict": "^1.0.343",
+        "pict-service-commandlineutility": "^1.0.17",
+        "pict-serviceproviderbase": "^1.0.0"
+    },
+    "mocha": {
+        "diff": true,
+        "extension": [
+            "js"
+        ],
+        "package": "./package.json",
+        "reporter": "spec",
+        "slow": "75",
+        "timeout": "5000",
+        "ui": "tdd",
+        "watch-files": [
+            "source/**/*.js",
+            "test/**/*.js"
+        ],
+        "watch-ignore": [
+            "lib/vendor"
+        ]
+    }
+}
