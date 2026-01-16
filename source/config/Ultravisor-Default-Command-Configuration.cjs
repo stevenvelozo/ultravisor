@@ -1,5 +1,6 @@
 module.exports = (
 	{
 		"UltravisorAPIServerPort": 54321,
-		"UltravisorFileStorePath": `${process.cwd()}/dist/ultravisor_datastore`
+		"UltravisorFileStorePath": `${process.cwd()}/dist/ultravisor_datastore`,
+		"UltravisorTickIntervalMilliseconds": 60000
 	});

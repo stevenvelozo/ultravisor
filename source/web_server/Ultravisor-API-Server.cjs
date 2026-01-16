@@ -27,12 +27,26 @@ class UltravisorAPIServer extends libPictService
 		this._OratorServer.get
 			(
 				'/package',
-				(pRequest, pResponse, fNext) =>
+				function (pRequest, pResponse, fNext)
 				{
 					// Send back the request parameters
 					pResponse.send(this.pict.settings.Package);
 					return fNext();
-				}
+				}.bind(this)
+			);
+
+		this._OratorServer.get
+			(
+				'/stop',
+				function (pRequest, pResponse, fNext)
+				{
+					// Stop the web server
+					// TODO: Should we check if operations or tasks are running?
+					this.log.info(`Ultravisor API Server: Received stop request via API; stopping server.`);
+					pResponse.send({ "Status": "STOPPING" });
+					pResponse.end();
+					return this._Orator.stopService(fNext);
+				}.bind(this)
 			);
 
 		return fCallback();

@@ -6,6 +6,11 @@ class UltravisorHypervisor extends libPictService
 	{
 		super(pPict, pOptions, pServiceHash);
 	}
+
+	scheduleData()
+	{
+		return [];
+	}
 }
 
 module.exports = UltravisorHypervisor;
