@@ -62,6 +62,26 @@ Tasks can be executed based on a number of scenarios:
 * After a condition is met (a condition in a browser, a disk drops below 5g)
 * After another task is completed (ffmpeg returns successfully transcoding)
 
+#### Task Model
+
+Each task has at minimum a GUID, Code and Name, as well as a type and
+parameters.  There is also a description to store markdown content about the
+task.
+
+#### Task Types
+
+Tasks have a type which dictates how they are executed:
+
+* Command - a shell command executed on the node
+* Browser - a headless browser task that can navigate, click and interact
+* Browser Read - a headless browser task that only reads data from pages
+* Browser Action - a click, navigation or data fill action for a browser
+* Request - an HTTP request task for pulling/pushing data from/to APIs
+* Store File - a task for storing files in the output file store
+* Read File - a task for reading files from the output file store
+* Database Table - a task for creating a table in the output data store
+* Integration - a meadow integration task
+
 ### Nodes
 
 Any execution of Ultravisor.  Can be distributed across multiple machines.

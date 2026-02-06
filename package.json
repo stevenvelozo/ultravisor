@@ -24,6 +24,7 @@
     },
     "homepage": "https://github.com/stevenvelozo/ultravisor#readme",
     "dependencies": {
+        "cron": "^4.4.0",
         "orator": "^5.0.1",
         "orator-serviceserver-restify": "^2.0.5",
         "pict": "^1.0.343",

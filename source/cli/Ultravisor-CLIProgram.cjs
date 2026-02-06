@@ -1,6 +1,7 @@
 const libCLIProgram = require('pict-service-commandlineutility');
 
 const libServiceHypervisor = require(`../services/Ultravisor-Hypervisor.cjs`);
+const libServiceHypervisorState = require(`../services/Ultravisor-Hypervisor-State.cjs`);
 
 const libServiceHypervisorEventBase = require(`../services/Ultravisor-Hypervisor-Event-Base.cjs`);
 const libServiceHypervisorEventCron = require(`../services/events/Ultravisor-Hypervisor-Event-Cron.cjs`);
@@ -48,6 +49,7 @@ let _Ultravisor_Pict = new libCLIProgram(
 		// Add a task or operation to the current ultravisor schedule
 		require('./commands/Ultravisor-Command-ScheduleOperation.cjs'),
 		require('./commands/Ultravisor-Command-ScheduleTask.cjs'),
+		require('./commands/Ultravisor-Command-UpdateTask.cjs'),
 
 		// Execute a single operation or task immediately, no matter what
 		require('./commands/Ultravisor-Command-SingleOperation.cjs'),
@@ -64,6 +66,7 @@ _Ultravisor_Pict.instantiateServiceProvider('FilePersistence');
 _Ultravisor_Pict.instantiateServiceProvider('DataGeneration');
 
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('Ultravisor-Hypervisor', libServiceHypervisor);
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('Ultravisor-Hypervisor-State', libServiceHypervisorState);
 
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('Ultravisor-Hypervisor-Event-Base', libServiceHypervisorEventBase);
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('Ultravisor-Hypervisor-Event-Cron', libServiceHypervisorEventCron);

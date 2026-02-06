@@ -9,7 +9,7 @@ class UltravisorCommandScheduleTask extends libCommandLineCommand
 		this.options.CommandKeyword = 'schedule_task';
 		this.options.Description = 'Add a task to the schedule.';
 
-		this.options.CommandArguments.push({ Name: '<task>', Description: 'The task to add to the schedule.' });
+		this.options.CommandArguments.push({ Name: '<task_guid>', Description: 'The task to add to the schedule.' });
 
 		this.options.CommandOptions.push({ Name: '-t, --type [event_schedule_type]', Description: 'The event schedule type (cron, daily, hourly, solver).', Default: 'cron' });
 		this.options.CommandOptions.push({ Name: '-p, --parameters [event_schedule_parameters]', Description: 'The parameters for the schedule (e.g. the crontab entry or solver string).', Default: '' });
