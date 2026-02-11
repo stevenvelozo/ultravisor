@@ -14,6 +14,10 @@ class UltravisorCommandStopService extends libCommandLineCommand
 
 	onRunAsync(fCallback)
 	{
+		console.log(`Stopping Ultravisor...`);
+		let tmpHypervisor = this.fable['Ultravisor-Hypervisor'];
+		tmpHypervisor.stopSchedule();
+		console.log(`Ultravisor schedule stopped.`);
 		return fCallback();
 	}
 }

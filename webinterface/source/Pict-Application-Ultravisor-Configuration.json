@@ -1,0 +1,15 @@
+{
+	"Name": "Ultravisor Web Interface",
+	"Hash": "Ultravisor",
+
+	"MainViewportViewIdentifier": "Ultravisor-Layout",
+
+	"AutoSolveAfterInitialize": true,
+	"AutoRenderMainViewportViewAfterInitialize": false,
+	"AutoRenderViewsAfterInitialize": false,
+
+	"pict_configuration":
+		{
+			"Product": "Ultravisor-Pict-Application"
+		}
+}

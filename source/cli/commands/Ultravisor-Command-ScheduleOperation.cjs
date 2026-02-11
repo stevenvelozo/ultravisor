@@ -21,7 +21,31 @@ class UltravisorCommandScheduleOperation extends libCommandLineCommand
 
 	onRunAsync(fCallback)
 	{
-		return fCallback();
+		let tmpOperationGUID = this.CommandArguments[0];
+		let tmpType = this.CommandOptions.event_schedule_type || 'cron';
+		let tmpParameters = this.CommandOptions.event_schedule_parameters || '';
+
+		if (!tmpOperationGUID)
+		{
+			console.log(`Error: operation_guid argument is required.`);
+			return fCallback();
+		}
+
+		let tmpHypervisor = this.fable['Ultravisor-Hypervisor'];
+
+		tmpHypervisor.scheduleOperation(tmpOperationGUID, tmpType, tmpParameters,
+			function (pError, pEntry)
+			{
+				if (pError)
+				{
+					console.log(`Error scheduling operation: ${pError.message}`);
+					return fCallback();
+				}
+				console.log(`Operation ${tmpOperationGUID} scheduled successfully.`);
+				console.log(`  Schedule GUID: ${pEntry.GUID}`);
+				console.log(`  Cron Expression: ${pEntry.CronExpression}`);
+				return fCallback();
+			});
 	}
 }
 

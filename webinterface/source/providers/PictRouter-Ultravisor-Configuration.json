@@ -1,0 +1,38 @@
+{
+	"ProviderIdentifier": "Pict-Router",
+
+	"AutoInitialize": true,
+	"AutoInitializeOrdinal": 0,
+
+	"Routes":
+	[
+		{
+			"path": "/Home",
+			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-Dashboard`)~}"
+		},
+		{
+			"path": "/Tasks",
+			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-TaskList`)~}"
+		},
+		{
+			"path": "/TaskEdit",
+			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-TaskEdit`)~}"
+		},
+		{
+			"path": "/Operations",
+			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-OperationList`)~}"
+		},
+		{
+			"path": "/OperationEdit",
+			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-OperationEdit`)~}"
+		},
+		{
+			"path": "/Schedule",
+			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-Schedule`)~}"
+		},
+		{
+			"path": "/Manifests",
+			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-ManifestList`)~}"
+		}
+	]
+}

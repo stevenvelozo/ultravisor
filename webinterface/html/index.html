@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="X-UA-Compatible" content="IE=edge">
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<meta name="description" content="Ultravisor Task Server Web Interface">
+
+		<title>Ultravisor</title>
+
+		<!-- Application Stylesheet -->
+		<link href="css/ultravisor.css" rel="stylesheet">
+		<!-- PICT Dynamic View CSS Container -->
+		<style id="PICT-CSS"></style>
+
+		<!-- Load the PICT library -->
+		<script src="./js/pict.min.js" type="text/javascript"></script>
+		<!-- Bootstrap the Application -->
+		<script type="text/javascript">
+//<![CDATA[
+		Pict.safeOnDocumentReady(() => { Pict.safeLoadPictApplication(UltravisorWebinterface, 2)});
+//]]>
+		</script>
+	</head>
+	<body>
+		<!-- The root container for the Pict application -->
+		<div id="Ultravisor-Application-Container"></div>
+
+		<!-- Load the Ultravisor Web Interface PICT Application Bundle -->
+		<script src="./ultravisor-webinterface.min.js" type="text/javascript"></script>
+	</body>
+</html>

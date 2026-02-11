@@ -18,6 +18,28 @@ class UltravisorCommandScheduleView extends libCommandLineCommand
 
 	onRunAsync(fCallback)
 	{
+		let tmpHypervisor = this.fable['Ultravisor-Hypervisor'];
+		let tmpSchedule = tmpHypervisor.getSchedule();
+
+		if (tmpSchedule.length === 0)
+		{
+			console.log(`No schedule entries found.`);
+			console.log(`Use 'schedule_task' or 'schedule_operation' to add entries.`);
+			return fCallback();
+		}
+
+		console.log(`\n=== Ultravisor Schedule (${tmpSchedule.length} entries) ===\n`);
+
+		for (let i = 0; i < tmpSchedule.length; i++)
+		{
+			let tmpEntry = tmpSchedule[i];
+			let tmpStatus = tmpEntry.Active ? 'ACTIVE' : 'INACTIVE';
+			console.log(`  [${tmpStatus}] ${tmpEntry.TargetType}: ${tmpEntry.TargetGUID}`);
+			console.log(`           Schedule: ${tmpEntry.ScheduleType} (${tmpEntry.CronExpression})`);
+			console.log(`           GUID: ${tmpEntry.GUID}`);
+			console.log(``);
+		}
+
 		return fCallback();
 	}
 }

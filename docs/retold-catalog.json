@@ -1,0 +1,121 @@
+{
+	"Generated": "2026-02-11T04:04:46.614Z",
+	"GitHubOrg": "stevenvelozo",
+	"DefaultBranch": "master",
+	"Groups": [
+		{
+			"Name": "Dist",
+			"Key": "dist",
+			"Description": "",
+			"Modules": [
+				{
+					"Name": "indoctrinate_content_staging",
+					"Repo": "indoctrinate_content_staging",
+					"Group": "dist",
+					"Branch": "master",
+					"HasDocs": false,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": []
+				}
+			]
+		},
+		{
+			"Name": "Docs",
+			"Key": "docs",
+			"Description": "",
+			"Modules": [
+				{
+					"Name": "css",
+					"Repo": "css",
+					"Group": "docs",
+					"Branch": "master",
+					"HasDocs": true,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": [
+						"css/docuserve.css"
+					]
+				},
+				{
+					"Name": "features",
+					"Repo": "features",
+					"Group": "docs",
+					"Branch": "master",
+					"HasDocs": true,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": [
+						"features/api.md",
+						"features/cli.md",
+						"features/configuration.md",
+						"features/manifests.md",
+						"features/operations.md",
+						"features/scheduling.md",
+						"features/tasks.md"
+					]
+				},
+				{
+					"Name": "js",
+					"Repo": "js",
+					"Group": "docs",
+					"Branch": "master",
+					"HasDocs": true,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": [
+						"js/pict.min.js",
+						"js/pict.min.js.map"
+					]
+				}
+			]
+		},
+		{
+			"Name": "Source",
+			"Key": "source",
+			"Description": "",
+			"Modules": [
+				{
+					"Name": "cli",
+					"Repo": "cli",
+					"Group": "source",
+					"Branch": "master",
+					"HasDocs": false,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": []
+				},
+				{
+					"Name": "config",
+					"Repo": "config",
+					"Group": "source",
+					"Branch": "master",
+					"HasDocs": false,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": []
+				},
+				{
+					"Name": "services",
+					"Repo": "services",
+					"Group": "source",
+					"Branch": "master",
+					"HasDocs": false,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": []
+				},
+				{
+					"Name": "web_server",
+					"Repo": "web_server",
+					"Group": "source",
+					"Branch": "master",
+					"HasDocs": false,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": []
+				}
+			]
+		}
+	]
+}
