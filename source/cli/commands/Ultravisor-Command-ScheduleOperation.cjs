@@ -21,7 +21,7 @@ class UltravisorCommandScheduleOperation extends libCommandLineCommand
 
 	onRunAsync(fCallback)
 	{
-		let tmpOperationGUID = this.CommandArguments[0];
+		let tmpOperationGUID = this.ArgumentString;
 		let tmpType = this.CommandOptions.event_schedule_type || 'cron';
 		let tmpParameters = this.CommandOptions.event_schedule_parameters || '';
 

@@ -19,7 +19,7 @@ class UltravisorCommandSingleOperationRun extends libCommandLineCommand
 
 	onRunAsync(fCallback)
 	{
-		let tmpOperationGUID = this.CommandArguments[0];
+		let tmpOperationGUID = this.ArgumentString;
 
 		if (!tmpOperationGUID)
 		{

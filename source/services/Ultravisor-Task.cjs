@@ -1,10 +1,41 @@
 const libPictService = require(`pict-serviceproviderbase`);
 
-const libChildProcess = require('child_process');
-const libFS = require('fs');
-const libPath = require('path');
-const libHTTP = require('http');
-const libHTTPS = require('https');
+const _TaskTypes = {
+	'command': require('./tasks/Ultravisor-Task-Command.cjs'),
+	'request': require('./tasks/Ultravisor-Task-Request.cjs'),
+	'conditional': require('./tasks/Ultravisor-Task-Conditional.cjs'),
+	'solver': require('./tasks/Ultravisor-Task-Solver.cjs'),
+	'linematch': require('./tasks/Ultravisor-Task-LineMatch.cjs'),
+
+	'listfiles': require('./tasks/stagingfiles/Ultravisor-Task-ListFiles.cjs'),
+	'readjson': require('./tasks/stagingfiles/Ultravisor-Task-ReadJSON.cjs'),
+	'writejson': require('./tasks/stagingfiles/Ultravisor-Task-WriteJSON.cjs'),
+	'readtext': require('./tasks/stagingfiles/Ultravisor-Task-ReadText.cjs'),
+	'writetext': require('./tasks/stagingfiles/Ultravisor-Task-WriteText.cjs'),
+	'readxml': require('./tasks/stagingfiles/Ultravisor-Task-ReadXML.cjs'),
+	'writexml': require('./tasks/stagingfiles/Ultravisor-Task-WriteXML.cjs'),
+	'readbinary': require('./tasks/stagingfiles/Ultravisor-Task-ReadBinary.cjs'),
+	'writebinary': require('./tasks/stagingfiles/Ultravisor-Task-WriteBinary.cjs'),
+	'copyfile': require('./tasks/stagingfiles/Ultravisor-Task-CopyFile.cjs'),
+
+	'getjson': require('./tasks/rest/Ultravisor-Task-GetJSON.cjs'),
+	'getbinary': require('./tasks/rest/Ultravisor-Task-GetBinary.cjs'),
+	'gettext': require('./tasks/rest/Ultravisor-Task-GetText.cjs'),
+	'getxml': require('./tasks/rest/Ultravisor-Task-GetXML.cjs'),
+	'sendjson': require('./tasks/rest/Ultravisor-Task-SendJSON.cjs'),
+	'restrequest': require('./tasks/rest/Ultravisor-Task-RestRequest.cjs'),
+
+	'generatepagedoperation': require('./tasks/Ultravisor-Task-GeneratePagedOperation.cjs'),
+
+	'collectvalues': require('./tasks/Ultravisor-Task-CollectValues.cjs'),
+	'commandeach': require('./tasks/Ultravisor-Task-CommandEach.cjs'),
+
+	'datewindow': require('./tasks/Ultravisor-Task-DateWindow.cjs'),
+	'templatestring': require('./tasks/Ultravisor-Task-TemplateString.cjs'),
+
+	'launchoperation': require('./tasks/Ultravisor-Task-LaunchOperation.cjs'),
+	'launchtask': require('./tasks/Ultravisor-Task-LaunchTask.cjs'),
+};
 
 class UltravisorTask extends libPictService
 {
@@ -57,6 +88,23 @@ class UltravisorTask extends libPictService
 
 		tmpManifestEntry.Log.push(`Task ${tmpManifestEntry.GUIDTask} started at ${tmpManifestEntry.StartTime}`);
 
+		// Set up per-task progress timing
+		let tmpProgressTrackerSet = this.fable.instantiateServiceProviderIfNotExists('ProgressTrackerSet');
+		let tmpTaskTimerHash = `Task-${pTaskDefinition.GUIDTask}-${Date.now()}`;
+		tmpProgressTrackerSet.createProgressTracker(tmpTaskTimerHash, 1);
+		tmpProgressTrackerSet.startProgressTracker(tmpTaskTimerHash);
+
+		// Ensure GlobalState is accessible via AppData for fable services
+		if (!pContext.GlobalState || typeof(pContext.GlobalState) !== 'object')
+		{
+			pContext.GlobalState = {};
+		}
+		if (!this.fable.AppData || typeof(this.fable.AppData) !== 'object')
+		{
+			this.fable.AppData = {};
+		}
+		this.fable.AppData.GlobalState = pContext.GlobalState;
+
 		// --- onBefore ---
 		this.executeSubsequentSet(pTaskDefinition, 'onBefore', pContext, tmpManifestEntry,
 			(pBeforeError) =>
@@ -102,6 +150,13 @@ class UltravisorTask extends libPictService
 						this.executeSubsequentPhases(pTaskDefinition, tmpSubsequentPhases, pContext, tmpManifestEntry,
 							() =>
 							{
+								// Record task timing
+								tmpProgressTrackerSet.endProgressTracker(tmpTaskTimerHash);
+								let tmpTrackerData = tmpProgressTrackerSet.getProgressTrackerData(tmpTaskTimerHash);
+								tmpManifestEntry.ElapsedMs = tmpTrackerData.ElapsedTime;
+								tmpManifestEntry.ElapsedFormatted = this.fable.ProgressTime.formatTimeDuration(tmpTrackerData.ElapsedTime);
+								tmpManifestEntry.Log.push(`Task ${tmpManifestEntry.Name} completed in ${tmpManifestEntry.ElapsedFormatted}`);
+								this.log.info(`Ultravisor Task: ${tmpManifestEntry.Name} [${tmpManifestEntry.Status}] completed in ${tmpManifestEntry.ElapsedFormatted}`);
 								return fCallback(null, tmpManifestEntry);
 							});
 					});
@@ -109,60 +164,25 @@ class UltravisorTask extends libPictService
 	}
 
 	/**
-	 * Execute the core task logic (the actual command/request/etc).
+	 * Execute the core task logic by dispatching to the appropriate task type service.
 	 */
 	executeCoreTask(pTaskDefinition, pContext, pManifestEntry, fCallback)
 	{
 		let tmpType = (pTaskDefinition.Type || 'Command').toLowerCase();
 
-		switch (tmpType)
+		let tmpTaskTypeClass = _TaskTypes[tmpType];
+
+		if (!tmpTaskTypeClass)
 		{
-			case 'command':
-				this.executeCommandTask(pTaskDefinition, pContext, pManifestEntry,
-					() => { return fCallback(null); });
-				break;
-			case 'request':
-				this.executeRequestTask(pTaskDefinition, pContext, pManifestEntry,
-					() => { return fCallback(null); });
-				break;
-			case 'listfiles':
-				this.executeListFilesTask(pTaskDefinition, pContext, pManifestEntry,
-					() => { return fCallback(null); });
-				break;
-			case 'writejson':
-				this.executeWriteJSONTask(pTaskDefinition, pContext, pManifestEntry,
-					() => { return fCallback(null); });
-				break;
-			case 'writetext':
-				this.executeWriteTextTask(pTaskDefinition, pContext, pManifestEntry,
-					() => { return fCallback(null); });
-				break;
-			case 'readjson':
-				this.executeReadJSONTask(pTaskDefinition, pContext, pManifestEntry,
-					() => { return fCallback(null); });
-				break;
-			case 'readtext':
-				this.executeReadTextTask(pTaskDefinition, pContext, pManifestEntry,
-					() => { return fCallback(null); });
-				break;
-			case 'getjson':
-				this.executeGetJSONTask(pTaskDefinition, pContext, pManifestEntry,
-					() => { return fCallback(null); });
-				break;
-			case 'sendjson':
-				this.executeSendJSONTask(pTaskDefinition, pContext, pManifestEntry,
-					() => { return fCallback(null); });
-				break;
-			case 'conditional':
-				this.executeConditionalTask(pTaskDefinition, pContext, pManifestEntry,
-					() => { return fCallback(null); });
-				break;
-			default:
-				pManifestEntry.StopTime = new Date().toISOString();
-				pManifestEntry.Status = 'Unsupported';
-				pManifestEntry.Log.push(`Task type "${pTaskDefinition.Type}" is not yet implemented.`);
-				return fCallback(null);
+			pManifestEntry.StopTime = new Date().toISOString();
+			pManifestEntry.Status = 'Unsupported';
+			pManifestEntry.Log.push(`Task type "${pTaskDefinition.Type}" is not yet implemented.`);
+			return fCallback(null);
 		}
+
+		let tmpTaskTypeInstance = new tmpTaskTypeClass(this.fable);
+		tmpTaskTypeInstance.execute(pTaskDefinition, pContext, pManifestEntry,
+			() => { return fCallback(null); });
 	}
 
 	/**
@@ -323,816 +343,6 @@ class UltravisorTask extends libPictService
 			{
 				return fCallback(null, tmpManifestEntry);
 			});
-	}
-
-	/**
-	 * Execute a shell command task.
-	 */
-	executeCommandTask(pTaskDefinition, pContext, pManifestEntry, fCallback)
-	{
-		let tmpCommand = pTaskDefinition.Command || pTaskDefinition.Parameters || '';
-
-		if (!tmpCommand || tmpCommand.length === 0)
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`Command task has no command to execute.`);
-			return fCallback(null, pManifestEntry);
-		}
-
-		pManifestEntry.Log.push(`Executing command: ${tmpCommand}`);
-
-		let tmpTimeout = (this.fable?.ProgramConfiguration?.UltravisorCommandTimeoutMilliseconds) || 300000;
-		let tmpMaxBuffer = (this.fable?.ProgramConfiguration?.UltravisorCommandMaxBufferBytes) || 10485760;
-
-		libChildProcess.exec(tmpCommand, { timeout: tmpTimeout, maxBuffer: tmpMaxBuffer },
-			(pError, pStdOut, pStdErr) =>
-			{
-				pManifestEntry.StopTime = new Date().toISOString();
-
-				if (pStdOut)
-				{
-					pManifestEntry.Output = pStdOut;
-					pManifestEntry.Log.push(`stdout: ${pStdOut.substring(0, 500)}`);
-				}
-				if (pStdErr)
-				{
-					pManifestEntry.Log.push(`stderr: ${pStdErr.substring(0, 500)}`);
-				}
-
-				if (pError)
-				{
-					pManifestEntry.Status = 'Error';
-					pManifestEntry.Success = false;
-					pManifestEntry.Log.push(`Command failed: ${pError.message}`);
-				}
-				else
-				{
-					pManifestEntry.Status = 'Complete';
-					pManifestEntry.Success = true;
-					pManifestEntry.Log.push(`Command completed successfully.`);
-				}
-
-				return fCallback(null, pManifestEntry);
-			});
-	}
-
-	/**
-	 * Execute an HTTP request task.
-	 */
-	executeRequestTask(pTaskDefinition, pContext, pManifestEntry, fCallback)
-	{
-		let tmpURL = pTaskDefinition.URL || pTaskDefinition.Parameters || '';
-
-		if (!tmpURL || tmpURL.length === 0)
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`Request task has no URL to request.`);
-			return fCallback(null, pManifestEntry);
-		}
-
-		let tmpMethod = (pTaskDefinition.Method || 'GET').toUpperCase();
-
-		pManifestEntry.Log.push(`Executing ${tmpMethod} request to: ${tmpURL}`);
-
-		// Use curl for HTTP requests
-		let tmpCurlCommand = `curl -s -X ${tmpMethod} "${tmpURL}"`;
-		this.executeCommandTask(
-			Object.assign({}, pTaskDefinition, { Command: tmpCurlCommand }),
-			pContext, pManifestEntry, fCallback);
-	}
-
-	// =========================================================================
-	// Staging path resolution
-	// =========================================================================
-
-	/**
-	 * Resolve the staging folder path.
-	 *
-	 * Priority:
-	 *   1. pContext.StagingPath (per-operation override)
-	 *   2. UltravisorFileStorePath from ProgramConfiguration
-	 *   3. ${cwd}/dist/ultravisor_datastore (fallback)
-	 *
-	 * @param {object} pContext - Execution context.
-	 * @returns {string} Absolute path to the staging folder.
-	 */
-	resolveStagingPath(pContext)
-	{
-		if (pContext && pContext.StagingPath && pContext.StagingPath.length > 0)
-		{
-			return pContext.StagingPath;
-		}
-		return (this.fable?.ProgramConfiguration?.UltravisorFileStorePath)
-			|| `${process.cwd()}/dist/ultravisor_datastore`;
-	}
-
-	/**
-	 * Build a full file path inside the staging folder.
-	 * Prevents path traversal by rejecting paths containing "..".
-	 *
-	 * @param {string} pStagingPath - Base staging folder.
-	 * @param {string} pFileName - Relative file name or path.
-	 * @returns {string|false} Full path or false if invalid.
-	 */
-	resolveStagingFilePath(pStagingPath, pFileName)
-	{
-		if (!pFileName || typeof(pFileName) !== 'string' || pFileName.length === 0)
-		{
-			return false;
-		}
-		if (pFileName.indexOf('..') !== -1)
-		{
-			return false;
-		}
-		return libPath.resolve(pStagingPath, pFileName);
-	}
-
-	// =========================================================================
-	// ListFiles -- list files in the staging folder
-	// =========================================================================
-
-	/**
-	 * List files in the staging folder (or a sub-path within it).
-	 *
-	 * Task definition fields:
-	 *   - Path (optional): sub-directory within the staging folder
-	 */
-	executeListFilesTask(pTaskDefinition, pContext, pManifestEntry, fCallback)
-	{
-		let tmpStagingPath = this.resolveStagingPath(pContext);
-		let tmpTargetPath = tmpStagingPath;
-
-		if (pTaskDefinition.Path && typeof(pTaskDefinition.Path) === 'string' && pTaskDefinition.Path.length > 0)
-		{
-			let tmpResolved = this.resolveStagingFilePath(tmpStagingPath, pTaskDefinition.Path);
-			if (!tmpResolved)
-			{
-				pManifestEntry.StopTime = new Date().toISOString();
-				pManifestEntry.Status = 'Error';
-				pManifestEntry.Log.push(`ListFiles: invalid path "${pTaskDefinition.Path}".`);
-				return fCallback(null, pManifestEntry);
-			}
-			tmpTargetPath = tmpResolved;
-		}
-
-		pManifestEntry.Log.push(`ListFiles: listing files in ${tmpTargetPath}`);
-
-		try
-		{
-			if (!libFS.existsSync(tmpTargetPath))
-			{
-				pManifestEntry.StopTime = new Date().toISOString();
-				pManifestEntry.Status = 'Error';
-				pManifestEntry.Log.push(`ListFiles: path does not exist: ${tmpTargetPath}`);
-				return fCallback(null, pManifestEntry);
-			}
-
-			let tmpFiles = libFS.readdirSync(tmpTargetPath);
-			let tmpResults = [];
-
-			for (let i = 0; i < tmpFiles.length; i++)
-			{
-				let tmpFullPath = libPath.join(tmpTargetPath, tmpFiles[i]);
-				try
-				{
-					let tmpStat = libFS.statSync(tmpFullPath);
-					tmpResults.push(
-						{
-							Name: tmpFiles[i],
-							Size: tmpStat.size,
-							IsDirectory: tmpStat.isDirectory(),
-							Modified: tmpStat.mtime.toISOString()
-						});
-				}
-				catch (pStatError)
-				{
-					tmpResults.push({ Name: tmpFiles[i], Error: pStatError.message });
-				}
-			}
-
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Complete';
-			pManifestEntry.Success = true;
-			pManifestEntry.Output = JSON.stringify(tmpResults);
-			pManifestEntry.Log.push(`ListFiles: found ${tmpResults.length} entries.`);
-		}
-		catch (pError)
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`ListFiles: ${pError.message}`);
-		}
-
-		return fCallback(null, pManifestEntry);
-	}
-
-	// =========================================================================
-	// WriteJSON -- write a JSON object to a file in the staging folder
-	// =========================================================================
-
-	/**
-	 * Write JSON data to a file in the staging folder.
-	 *
-	 * Task definition fields:
-	 *   - File: relative file path inside the staging folder
-	 *   - Data: the object/value to serialise as JSON
-	 */
-	executeWriteJSONTask(pTaskDefinition, pContext, pManifestEntry, fCallback)
-	{
-		let tmpStagingPath = this.resolveStagingPath(pContext);
-		let tmpFilePath = this.resolveStagingFilePath(tmpStagingPath, pTaskDefinition.File);
-
-		if (!tmpFilePath)
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`WriteJSON: missing or invalid File field.`);
-			return fCallback(null, pManifestEntry);
-		}
-
-		if (!pTaskDefinition.hasOwnProperty('Data'))
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`WriteJSON: missing Data field.`);
-			return fCallback(null, pManifestEntry);
-		}
-
-		pManifestEntry.Log.push(`WriteJSON: writing to ${tmpFilePath}`);
-
-		try
-		{
-			let tmpDir = libPath.dirname(tmpFilePath);
-			if (!libFS.existsSync(tmpDir))
-			{
-				libFS.mkdirSync(tmpDir, { recursive: true });
-			}
-
-			let tmpContent = JSON.stringify(pTaskDefinition.Data, null, 4);
-			libFS.writeFileSync(tmpFilePath, tmpContent, 'utf8');
-
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Complete';
-			pManifestEntry.Success = true;
-			pManifestEntry.Output = `${tmpContent.length} bytes written`;
-			pManifestEntry.Log.push(`WriteJSON: wrote ${tmpContent.length} bytes.`);
-		}
-		catch (pError)
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`WriteJSON: ${pError.message}`);
-		}
-
-		return fCallback(null, pManifestEntry);
-	}
-
-	// =========================================================================
-	// WriteText -- write text content to a file in the staging folder
-	// =========================================================================
-
-	/**
-	 * Write text content to a file in the staging folder.
-	 *
-	 * Task definition fields:
-	 *   - File: relative file path inside the staging folder
-	 *   - Data: the string to write
-	 */
-	executeWriteTextTask(pTaskDefinition, pContext, pManifestEntry, fCallback)
-	{
-		let tmpStagingPath = this.resolveStagingPath(pContext);
-		let tmpFilePath = this.resolveStagingFilePath(tmpStagingPath, pTaskDefinition.File);
-
-		if (!tmpFilePath)
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`WriteText: missing or invalid File field.`);
-			return fCallback(null, pManifestEntry);
-		}
-
-		if (!pTaskDefinition.hasOwnProperty('Data'))
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`WriteText: missing Data field.`);
-			return fCallback(null, pManifestEntry);
-		}
-
-		let tmpContent = (typeof(pTaskDefinition.Data) === 'string')
-			? pTaskDefinition.Data
-			: String(pTaskDefinition.Data);
-
-		pManifestEntry.Log.push(`WriteText: writing to ${tmpFilePath}`);
-
-		try
-		{
-			let tmpDir = libPath.dirname(tmpFilePath);
-			if (!libFS.existsSync(tmpDir))
-			{
-				libFS.mkdirSync(tmpDir, { recursive: true });
-			}
-
-			libFS.writeFileSync(tmpFilePath, tmpContent, 'utf8');
-
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Complete';
-			pManifestEntry.Success = true;
-			pManifestEntry.Output = `${tmpContent.length} bytes written`;
-			pManifestEntry.Log.push(`WriteText: wrote ${tmpContent.length} bytes.`);
-		}
-		catch (pError)
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`WriteText: ${pError.message}`);
-		}
-
-		return fCallback(null, pManifestEntry);
-	}
-
-	// =========================================================================
-	// ReadJSON -- read a JSON file from the staging folder
-	// =========================================================================
-
-	/**
-	 * Read a JSON file from the staging folder and parse it.
-	 *
-	 * Task definition fields:
-	 *   - File: relative file path inside the staging folder
-	 */
-	executeReadJSONTask(pTaskDefinition, pContext, pManifestEntry, fCallback)
-	{
-		let tmpStagingPath = this.resolveStagingPath(pContext);
-		let tmpFilePath = this.resolveStagingFilePath(tmpStagingPath, pTaskDefinition.File);
-
-		if (!tmpFilePath)
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`ReadJSON: missing or invalid File field.`);
-			return fCallback(null, pManifestEntry);
-		}
-
-		pManifestEntry.Log.push(`ReadJSON: reading from ${tmpFilePath}`);
-
-		try
-		{
-			if (!libFS.existsSync(tmpFilePath))
-			{
-				pManifestEntry.StopTime = new Date().toISOString();
-				pManifestEntry.Status = 'Error';
-				pManifestEntry.Log.push(`ReadJSON: file does not exist: ${tmpFilePath}`);
-				return fCallback(null, pManifestEntry);
-			}
-
-			let tmpRaw = libFS.readFileSync(tmpFilePath, 'utf8');
-			let tmpParsed = JSON.parse(tmpRaw);
-
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Complete';
-			pManifestEntry.Success = true;
-			pManifestEntry.Output = JSON.stringify(tmpParsed);
-			pManifestEntry.Log.push(`ReadJSON: read ${tmpRaw.length} bytes, parsed successfully.`);
-		}
-		catch (pError)
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`ReadJSON: ${pError.message}`);
-		}
-
-		return fCallback(null, pManifestEntry);
-	}
-
-	// =========================================================================
-	// ReadText -- read a text file from the staging folder
-	// =========================================================================
-
-	/**
-	 * Read a text file from the staging folder.
-	 *
-	 * Task definition fields:
-	 *   - File: relative file path inside the staging folder
-	 */
-	executeReadTextTask(pTaskDefinition, pContext, pManifestEntry, fCallback)
-	{
-		let tmpStagingPath = this.resolveStagingPath(pContext);
-		let tmpFilePath = this.resolveStagingFilePath(tmpStagingPath, pTaskDefinition.File);
-
-		if (!tmpFilePath)
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`ReadText: missing or invalid File field.`);
-			return fCallback(null, pManifestEntry);
-		}
-
-		pManifestEntry.Log.push(`ReadText: reading from ${tmpFilePath}`);
-
-		try
-		{
-			if (!libFS.existsSync(tmpFilePath))
-			{
-				pManifestEntry.StopTime = new Date().toISOString();
-				pManifestEntry.Status = 'Error';
-				pManifestEntry.Log.push(`ReadText: file does not exist: ${tmpFilePath}`);
-				return fCallback(null, pManifestEntry);
-			}
-
-			let tmpContent = libFS.readFileSync(tmpFilePath, 'utf8');
-
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Complete';
-			pManifestEntry.Success = true;
-			pManifestEntry.Output = tmpContent;
-			pManifestEntry.Log.push(`ReadText: read ${tmpContent.length} bytes.`);
-		}
-		catch (pError)
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`ReadText: ${pError.message}`);
-		}
-
-		return fCallback(null, pManifestEntry);
-	}
-
-	// =========================================================================
-	// GetJSON -- GET JSON from a REST URL using native http/https
-	// =========================================================================
-
-	/**
-	 * Perform an HTTP/HTTPS GET and parse the response as JSON.
-	 *
-	 * Task definition fields:
-	 *   - URL: the endpoint to request
-	 *   - Headers (optional): object of request headers
-	 */
-	executeGetJSONTask(pTaskDefinition, pContext, pManifestEntry, fCallback)
-	{
-		let tmpURL = pTaskDefinition.URL || pTaskDefinition.Parameters || '';
-
-		if (!tmpURL || tmpURL.length === 0)
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`GetJSON: missing URL.`);
-			return fCallback(null, pManifestEntry);
-		}
-
-		pManifestEntry.Log.push(`GetJSON: GET ${tmpURL}`);
-
-		let tmpHeaders = Object.assign({ 'Accept': 'application/json' }, pTaskDefinition.Headers || {});
-
-		let tmpParsedURL;
-		try
-		{
-			tmpParsedURL = new URL(tmpURL);
-		}
-		catch (pParseError)
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`GetJSON: invalid URL: ${pParseError.message}`);
-			return fCallback(null, pManifestEntry);
-		}
-
-		let tmpTransport = (tmpParsedURL.protocol === 'https:') ? libHTTPS : libHTTP;
-		let tmpTimeout = (this.fable?.ProgramConfiguration?.UltravisorCommandTimeoutMilliseconds) || 300000;
-
-		let tmpRequestOptions = {
-			method: 'GET',
-			headers: tmpHeaders,
-			timeout: tmpTimeout
-		};
-
-		let tmpRequest = tmpTransport.request(tmpURL, tmpRequestOptions,
-			(pResponse) =>
-			{
-				let tmpData = '';
-
-				pResponse.on('data', (pChunk) => { tmpData += pChunk; });
-
-				pResponse.on('end', () =>
-				{
-					pManifestEntry.StopTime = new Date().toISOString();
-					pManifestEntry.Log.push(`GetJSON: received ${tmpData.length} bytes, status ${pResponse.statusCode}.`);
-
-					try
-					{
-						let tmpParsed = JSON.parse(tmpData);
-						pManifestEntry.Output = JSON.stringify(tmpParsed);
-						pManifestEntry.Status = 'Complete';
-						pManifestEntry.Success = true;
-						pManifestEntry.Log.push(`GetJSON: parsed JSON successfully.`);
-					}
-					catch (pJsonError)
-					{
-						pManifestEntry.Output = tmpData.substring(0, 2000);
-						pManifestEntry.Status = 'Error';
-						pManifestEntry.Log.push(`GetJSON: failed to parse response as JSON: ${pJsonError.message}`);
-					}
-
-					return fCallback(null, pManifestEntry);
-				});
-			});
-
-		tmpRequest.on('error', (pError) =>
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`GetJSON: request error: ${pError.message}`);
-			return fCallback(null, pManifestEntry);
-		});
-
-		tmpRequest.on('timeout', () =>
-		{
-			tmpRequest.destroy();
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`GetJSON: request timed out after ${tmpTimeout}ms.`);
-			return fCallback(null, pManifestEntry);
-		});
-
-		tmpRequest.end();
-	}
-
-	// =========================================================================
-	// SendJSON -- POST/PUT/PATCH/DELETE JSON to a REST URL
-	// =========================================================================
-
-	/**
-	 * Send JSON data to a REST URL using any HTTP method.
-	 *
-	 * Task definition fields:
-	 *   - URL: the endpoint to request
-	 *   - Method (optional): HTTP method (defaults to POST)
-	 *   - Data (optional): object to serialise and send as the request body
-	 *   - Headers (optional): object of request headers
-	 */
-	executeSendJSONTask(pTaskDefinition, pContext, pManifestEntry, fCallback)
-	{
-		let tmpURL = pTaskDefinition.URL || pTaskDefinition.Parameters || '';
-
-		if (!tmpURL || tmpURL.length === 0)
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`SendJSON: missing URL.`);
-			return fCallback(null, pManifestEntry);
-		}
-
-		let tmpMethod = (pTaskDefinition.Method || 'POST').toUpperCase();
-		let tmpBody = pTaskDefinition.hasOwnProperty('Data')
-			? JSON.stringify(pTaskDefinition.Data)
-			: '';
-
-		pManifestEntry.Log.push(`SendJSON: ${tmpMethod} ${tmpURL} (${tmpBody.length} bytes body)`);
-
-		let tmpHeaders = Object.assign(
-			{
-				'Content-Type': 'application/json',
-				'Accept': 'application/json'
-			},
-			pTaskDefinition.Headers || {});
-
-		if (tmpBody.length > 0)
-		{
-			tmpHeaders['Content-Length'] = Buffer.byteLength(tmpBody);
-		}
-
-		let tmpParsedURL;
-		try
-		{
-			tmpParsedURL = new URL(tmpURL);
-		}
-		catch (pParseError)
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`SendJSON: invalid URL: ${pParseError.message}`);
-			return fCallback(null, pManifestEntry);
-		}
-
-		let tmpTransport = (tmpParsedURL.protocol === 'https:') ? libHTTPS : libHTTP;
-		let tmpTimeout = (this.fable?.ProgramConfiguration?.UltravisorCommandTimeoutMilliseconds) || 300000;
-
-		let tmpRequestOptions = {
-			method: tmpMethod,
-			headers: tmpHeaders,
-			timeout: tmpTimeout
-		};
-
-		let tmpRequest = tmpTransport.request(tmpURL, tmpRequestOptions,
-			(pResponse) =>
-			{
-				let tmpData = '';
-
-				pResponse.on('data', (pChunk) => { tmpData += pChunk; });
-
-				pResponse.on('end', () =>
-				{
-					pManifestEntry.StopTime = new Date().toISOString();
-					pManifestEntry.Log.push(`SendJSON: received ${tmpData.length} bytes, status ${pResponse.statusCode}.`);
-
-					try
-					{
-						let tmpParsed = JSON.parse(tmpData);
-						pManifestEntry.Output = JSON.stringify(tmpParsed);
-					}
-					catch (pJsonError)
-					{
-						pManifestEntry.Output = tmpData.substring(0, 2000);
-					}
-
-					pManifestEntry.Status = 'Complete';
-					pManifestEntry.Success = true;
-					pManifestEntry.Log.push(`SendJSON: ${tmpMethod} completed successfully.`);
-
-					return fCallback(null, pManifestEntry);
-				});
-			});
-
-		tmpRequest.on('error', (pError) =>
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`SendJSON: request error: ${pError.message}`);
-			return fCallback(null, pManifestEntry);
-		});
-
-		tmpRequest.on('timeout', () =>
-		{
-			tmpRequest.destroy();
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`SendJSON: request timed out after ${tmpTimeout}ms.`);
-			return fCallback(null, pManifestEntry);
-		});
-
-		if (tmpBody.length > 0)
-		{
-			tmpRequest.write(tmpBody);
-		}
-
-		tmpRequest.end();
-	}
-
-	// =========================================================================
-	// Conditional -- branch to one task or another based on an address
-	// =========================================================================
-
-	/**
-	 * Evaluate an address and execute one task if truthy, another if falsy.
-	 *
-	 * The "Address" field is resolved from pContext.GlobalState (dot-notation).
-	 * Alternatively, the "Value" field can provide a literal to test.
-	 *
-	 * Task definition fields:
-	 *   - Address: dot-notation path into pContext.GlobalState
-	 *   - Value (optional): literal value to evaluate instead of Address
-	 *   - TrueTask: GUID of the task to run when the value is truthy
-	 *   - FalseTask: GUID of the task to run when the value is falsy
-	 */
-	executeConditionalTask(pTaskDefinition, pContext, pManifestEntry, fCallback)
-	{
-		let tmpValue = undefined;
-
-		// Resolve the value to test
-		if (pTaskDefinition.hasOwnProperty('Value'))
-		{
-			tmpValue = pTaskDefinition.Value;
-			pManifestEntry.Log.push(`Conditional: evaluating literal Value: ${JSON.stringify(tmpValue)}`);
-		}
-		else if (pTaskDefinition.Address && typeof(pTaskDefinition.Address) === 'string')
-		{
-			tmpValue = this.resolveAddress(pTaskDefinition.Address, pContext);
-			pManifestEntry.Log.push(`Conditional: resolved Address "${pTaskDefinition.Address}" to: ${JSON.stringify(tmpValue)}`);
-		}
-		else
-		{
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Error';
-			pManifestEntry.Log.push(`Conditional: task requires an Address or Value field.`);
-			return fCallback(null, pManifestEntry);
-		}
-
-		let tmpIsTruthy = !!tmpValue;
-		let tmpTargetGUID = tmpIsTruthy ? pTaskDefinition.TrueTask : pTaskDefinition.FalseTask;
-
-		pManifestEntry.Log.push(`Conditional: value is ${tmpIsTruthy ? 'truthy' : 'falsy'}, selected ${tmpIsTruthy ? 'TrueTask' : 'FalseTask'}: ${tmpTargetGUID || '(none)'}`);
-
-		if (!tmpTargetGUID || typeof(tmpTargetGUID) !== 'string' || tmpTargetGUID.length === 0)
-		{
-			// No task to execute for this branch -- that is a valid no-op
-			pManifestEntry.StopTime = new Date().toISOString();
-			pManifestEntry.Status = 'Complete';
-			pManifestEntry.Success = true;
-			pManifestEntry.Output = JSON.stringify({ Branch: tmpIsTruthy ? 'true' : 'false', Task: null });
-			pManifestEntry.Log.push(`Conditional: no task defined for this branch; completing as no-op.`);
-			return fCallback(null, pManifestEntry);
-		}
-
-		// Look up and execute the selected task
-		let tmpStateService = this.fable['Ultravisor-Hypervisor-State'];
-
-		tmpStateService.getTask(tmpTargetGUID,
-			(pError, pBranchTaskDefinition) =>
-			{
-				if (pError)
-				{
-					pManifestEntry.StopTime = new Date().toISOString();
-					pManifestEntry.Status = 'Error';
-					pManifestEntry.Log.push(`Conditional: could not find task ${tmpTargetGUID}: ${pError.message}`);
-					return fCallback(null, pManifestEntry);
-				}
-
-				this.executeCoreTaskStandalone(pBranchTaskDefinition, pContext,
-					(pExecError, pResult) =>
-					{
-						pManifestEntry.StopTime = new Date().toISOString();
-
-						if (pExecError)
-						{
-							pManifestEntry.Status = 'Error';
-							pManifestEntry.Log.push(`Conditional: error executing branch task ${tmpTargetGUID}: ${pExecError.message}`);
-							return fCallback(null, pManifestEntry);
-						}
-
-						pManifestEntry.Status = pResult.Status;
-						pManifestEntry.Success = pResult.Success;
-						pManifestEntry.Output = JSON.stringify(
-							{
-								Branch: tmpIsTruthy ? 'true' : 'false',
-								Task: tmpTargetGUID,
-								Result: pResult
-							});
-						pManifestEntry.Log.push(`Conditional: branch task ${tmpTargetGUID} completed with status ${pResult.Status}.`);
-
-						return fCallback(null, pManifestEntry);
-					});
-			});
-	}
-
-	/**
-	 * Resolve a dot-notation address from the execution context.
-	 *
-	 * Looks up the address in:
-	 *   1. pContext.GlobalState
-	 *   2. pContext.NodeState
-	 *
-	 * @param {string} pAddress - Dot-notation path (e.g. "Flags.Enabled").
-	 * @param {object} pContext - Execution context.
-	 * @returns {*} The resolved value, or undefined if not found.
-	 */
-	resolveAddress(pAddress, pContext)
-	{
-		if (!pAddress || !pContext)
-		{
-			return undefined;
-		}
-
-		let tmpParts = pAddress.split('.');
-
-		// Try GlobalState first
-		let tmpValue = this.walkObject(pContext.GlobalState, tmpParts);
-		if (tmpValue !== undefined)
-		{
-			return tmpValue;
-		}
-
-		// Fall back to NodeState
-		return this.walkObject(pContext.NodeState, tmpParts);
-	}
-
-	/**
-	 * Walk an object by a path array.
-	 *
-	 * @param {object} pObject - Object to walk.
-	 * @param {array} pParts - Array of keys.
-	 * @returns {*} Value at the path, or undefined.
-	 */
-	walkObject(pObject, pParts)
-	{
-		if (!pObject || typeof(pObject) !== 'object')
-		{
-			return undefined;
-		}
-
-		let tmpCurrent = pObject;
-		for (let i = 0; i < pParts.length; i++)
-		{
-			if (tmpCurrent === null || tmpCurrent === undefined || typeof(tmpCurrent) !== 'object')
-			{
-				return undefined;
-			}
-			tmpCurrent = tmpCurrent[pParts[i]];
-		}
-
-		return tmpCurrent;
 	}
 }
 

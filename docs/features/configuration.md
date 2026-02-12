@@ -23,6 +23,7 @@ task/operation definitions.
 {
     "UltravisorAPIServerPort": 54321,
     "UltravisorFileStorePath": "/var/data/ultravisor_datastore",
+    "UltravisorStagingRoot": "/var/data/ultravisor_staging",
     "UltravisorTickIntervalMilliseconds": 60000,
     "Tasks": {
         "my-task": {
@@ -48,6 +49,7 @@ task/operation definitions.
 |-----|------|---------|-------------|
 | `UltravisorAPIServerPort` | Number | `54321` | Port for the REST API server |
 | `UltravisorFileStorePath` | String | `${cwd}/dist/ultravisor_datastore` | Path for the output file store |
+| `UltravisorStagingRoot` | String | `${cwd}/dist/ultravisor_staging` | Root folder for per-operation staging directories |
 | `UltravisorTickIntervalMilliseconds` | Number | `60000` | Base tick interval in milliseconds |
 | `UltravisorCommandTimeoutMilliseconds` | Number | `300000` | Timeout for command task execution (5 minutes) |
 | `UltravisorCommandMaxBufferBytes` | Number | `10485760` | Max stdout/stderr buffer size for commands (10 MB) |
@@ -65,6 +67,7 @@ Configuration is resolved in order (later layers override earlier):
    {
        "UltravisorAPIServerPort": 54321,
        "UltravisorFileStorePath": "${cwd}/dist/ultravisor_datastore",
+       "UltravisorStagingRoot": "${cwd}/dist/ultravisor_staging",
        "UltravisorTickIntervalMilliseconds": 60000,
        "UltravisorCommandTimeoutMilliseconds": 300000,
        "UltravisorCommandMaxBufferBytes": 10485760

@@ -20,7 +20,7 @@ class UltravisorCommandSingleTaskRun extends libCommandLineCommand
 
 	onRunAsync(fCallback)
 	{
-		let tmpTaskGUID = this.CommandArguments[0];
+		let tmpTaskGUID = this.ArgumentString;
 
 		if (!tmpTaskGUID)
 		{

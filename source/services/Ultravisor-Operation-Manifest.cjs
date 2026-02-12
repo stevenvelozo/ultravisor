@@ -1,5 +1,8 @@
 const libPictService = require(`pict-serviceproviderbase`);
 
+const libFS = require('fs');
+const libPath = require('path');
+
 class UltravisorOperationManifest extends libPictService
 {
 	constructor(pPict, pOptions, pServiceHash)
@@ -44,7 +47,7 @@ class UltravisorOperationManifest extends libPictService
 		pManifest.Log.push(`Task ${pTaskResult.GUIDTask} completed with status: ${pTaskResult.Status}`);
 	}
 
-	finalizeManifest(pManifest)
+	finalizeManifest(pManifest, pStagingPath)
 	{
 		if (!pManifest)
 		{
@@ -64,8 +67,44 @@ class UltravisorOperationManifest extends libPictService
 
 		pManifest.Success = tmpAllSucceeded;
 		pManifest.Status = tmpAllSucceeded ? 'Complete' : 'Error';
-		pManifest.Summary = `Operation ${pManifest.GUIDOperation} ${pManifest.Status}: ${pManifest.TaskResults.length} task(s) executed.`;
+
+		// Compute elapsed time from ISO timestamps
+		let tmpElapsedMs = new Date(pManifest.StopTime).getTime() - new Date(pManifest.StartTime).getTime();
+		if (!pManifest.ElapsedMs)
+		{
+			pManifest.ElapsedMs = tmpElapsedMs;
+		}
+		if (!pManifest.ElapsedFormatted)
+		{
+			pManifest.ElapsedFormatted = this.fable.ProgressTime.formatTimeDuration(tmpElapsedMs);
+		}
+
+		pManifest.Summary = `Operation ${pManifest.GUIDOperation} ${pManifest.Status}: ${pManifest.TaskResults.length} task(s) executed in ${pManifest.ElapsedFormatted}.`;
 		pManifest.Log.push(pManifest.Summary);
+
+		// Write the manifest JSON to the staging folder
+		if (pStagingPath && typeof(pStagingPath) === 'string' && pStagingPath.length > 0)
+		{
+			try
+			{
+				if (!libFS.existsSync(pStagingPath))
+				{
+					libFS.mkdirSync(pStagingPath, { recursive: true });
+				}
+
+				let tmpManifestFileName = `Manifest_${pManifest.GUIDOperation}.json`;
+				let tmpManifestFilePath = libPath.resolve(pStagingPath, tmpManifestFileName);
+				let tmpContent = JSON.stringify(pManifest, null, 4);
+				libFS.writeFileSync(tmpManifestFilePath, tmpContent, 'utf8');
+
+				pManifest.ManifestFilePath = tmpManifestFilePath;
+				pManifest.Log.push(`Manifest written to ${tmpManifestFilePath}`);
+			}
+			catch (pError)
+			{
+				pManifest.Log.push(`Error writing manifest file: ${pError.message}`);
+			}
+		}
 
 		return pManifest;
 	}

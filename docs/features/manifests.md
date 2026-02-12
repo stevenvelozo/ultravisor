@@ -11,6 +11,8 @@ results and logs.
     "GUIDOperation": "etl-pipeline",
     "GUIDRun": "etl-pipeline-1707566400000",
     "Name": "ETL Pipeline",
+    "StagingPath": "/var/data/ultravisor_staging/etl-pipeline",
+    "ManifestFilePath": "/var/data/ultravisor_staging/etl-pipeline/Manifest_etl-pipeline.json",
     "StartTime": "2026-02-10T02:00:00.000Z",
     "StopTime": "2026-02-10T02:00:12.500Z",
     "Status": "Complete",
@@ -73,6 +75,8 @@ results and logs.
 | `Status` | `Running`, `Complete`, or `Error` |
 | `Success` | `true` if all tasks succeeded, `false` otherwise |
 | `Summary` | Human-readable one-line summary |
+| `StagingPath` | Absolute path to the operation's staging folder |
+| `ManifestFilePath` | Absolute path to the manifest JSON file on disk |
 | `TaskResults` | Array of task manifest entries (see below) |
 | `Log` | Array of log messages from the operation lifecycle |
 
@@ -97,7 +101,8 @@ results and logs.
 2. **Add Results** -- as each task completes, `addTaskResult()` appends the
    task result to `TaskResults`
 3. **Finalize** -- `finalizeManifest()` sets `StopTime`, calculates overall
-   `Success` (all tasks must succeed), sets `Status` and `Summary`
+   `Success` (all tasks must succeed), sets `Status` and `Summary`, and
+   writes the manifest JSON to the operation's staging folder
 
 ## Success Determination
 
@@ -107,9 +112,25 @@ in the `TaskResults` array has `Success: true`. If any task has
 
 ## Storage
 
-Manifests are stored in memory for the duration of the server session. They
-are accessible via the API but are not persisted to disk. Restarting the
-server clears all manifests.
+Manifests are stored in two places:
+
+1. **In memory** -- for the duration of the server session, accessible via
+   the API. Restarting the server clears the in-memory manifest store.
+
+2. **On disk** -- when an operation completes, a
+   `Manifest_{GUIDOperation}.json` file is written to the operation's
+   staging folder. This provides a persistent record that survives
+   restarts. The file path is recorded in the manifest's
+   `ManifestFilePath` field.
+
+The on-disk manifest contains the complete manifest object including all
+task results, timing data and logs. It is written as pretty-printed JSON
+(4-space indentation).
+
+The staging folder location defaults to
+`./dist/ultravisor_staging/{GUIDOperation}/` and can be configured via
+`UltravisorStagingRoot` in `.ultravisor.json` (see
+[Configuration](configuration.md)).
 
 ## Accessing Manifests
 

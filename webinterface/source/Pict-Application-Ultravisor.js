@@ -12,6 +12,7 @@ const libViewOperationList = require('./views/PictView-Ultravisor-OperationList.
 const libViewOperationEdit = require('./views/PictView-Ultravisor-OperationEdit.js');
 const libViewSchedule = require('./views/PictView-Ultravisor-Schedule.js');
 const libViewManifestList = require('./views/PictView-Ultravisor-ManifestList.js');
+const libViewTimingView = require('./views/PictView-Ultravisor-TimingView.js');
 
 class UltravisorApplication extends libPictApplication
 {
@@ -37,6 +38,7 @@ class UltravisorApplication extends libPictApplication
 		this.pict.addView('Ultravisor-OperationEdit', libViewOperationEdit.default_configuration, libViewOperationEdit);
 		this.pict.addView('Ultravisor-Schedule', libViewSchedule.default_configuration, libViewSchedule);
 		this.pict.addView('Ultravisor-ManifestList', libViewManifestList.default_configuration, libViewManifestList);
+		this.pict.addView('Ultravisor-TimingView', libViewTimingView.default_configuration, libViewTimingView);
 	}
 
 	onAfterInitializeAsync(fCallback)

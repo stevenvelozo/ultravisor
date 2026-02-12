@@ -13,6 +13,27 @@ class UltravisorHypervisorState extends libPictService
 		this._Operations = {};
 
 		this._ConfigurationOutcome = this.fable.gatherProgramConfiguration(false);
+
+		// Load tasks and operations from the gathered configuration
+		let tmpConfig = this.fable.ProgramConfiguration || {};
+
+		if (tmpConfig.Tasks && typeof(tmpConfig.Tasks) === 'object')
+		{
+			let tmpTaskKeys = Object.keys(tmpConfig.Tasks);
+			for (let i = 0; i < tmpTaskKeys.length; i++)
+			{
+				this._Tasks[tmpTaskKeys[i]] = tmpConfig.Tasks[tmpTaskKeys[i]];
+			}
+		}
+
+		if (tmpConfig.Operations && typeof(tmpConfig.Operations) === 'object')
+		{
+			let tmpOperationKeys = Object.keys(tmpConfig.Operations);
+			for (let i = 0; i < tmpOperationKeys.length; i++)
+			{
+				this._Operations[tmpOperationKeys[i]] = tmpConfig.Operations[tmpOperationKeys[i]];
+			}
+		}
 	}
 
 	persistState()

@@ -86,6 +86,7 @@ const _ViewConfiguration =
 		<a onclick="{~P~}.PictApplication.navigateTo('/Operations')">Operations</a>
 		<a onclick="{~P~}.PictApplication.navigateTo('/Schedule')">Schedule</a>
 		<a onclick="{~P~}.PictApplication.navigateTo('/Manifests')">Manifests</a>
+		<a onclick="{~P~}.PictApplication.navigateTo('/Timing')">Timing</a>
 	</div>
 	<div class="ultravisor-topbar-status" id="Ultravisor-TopBar-StatusArea"></div>
 </div>

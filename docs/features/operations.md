@@ -27,16 +27,74 @@ results of the entire run.
 | `Tasks` | No | Ordered array of task GUIDs to execute |
 | `GlobalState` | No | JSON object passed as context to all tasks |
 | `NodeState` | No | Node-specific context passed to tasks |
-| `StagingPath` | No | Temporary storage path for the operation |
+| `StagingPath` | No | Override for the operation staging folder (see below) |
 
 ## Execution Flow
 
-1. Operation service creates a manifest via the Manifest service
-2. Each task GUID in the `Tasks` array is looked up from state
-3. Tasks execute sequentially (in order)
-4. Each task result is added to the manifest
-5. After all tasks complete, the manifest is finalized
-6. Overall success is `true` only if every task succeeded
+1. The operation's staging folder is created (or an explicit `StagingPath` is used)
+2. A manifest is created via the Manifest service
+3. `GlobalState` is exposed at `fable.AppData.GlobalState` so fable
+   services (e.g. ExpressionParser in Solver tasks) can access it
+4. Each task GUID in the `Tasks` array is looked up from state
+5. Tasks execute sequentially, with the staging folder set as context
+6. Each task result is added to the manifest
+7. After all tasks complete, the manifest is finalized
+8. A `Manifest_{GUIDOperation}.json` file is written to the staging folder
+9. Overall success is `true` only if every task succeeded
+
+## Per-Operation Staging Folder
+
+Every operation automatically gets its own staging folder. This keeps
+each operation's intermediate files, output and manifest isolated from
+other operations.
+
+The staging folder is created at:
+
+```
+{UltravisorStagingRoot}/{GUIDOperation}/
+```
+
+By default, `UltravisorStagingRoot` is `./dist/ultravisor_staging`
+relative to the working directory. This can be changed in
+`.ultravisor.json`:
+
+```json
+{
+    "UltravisorStagingRoot": "/var/data/ultravisor_staging"
+}
+```
+
+All file-based task types (`WriteJSON`, `WriteText`, `WriteBinary`,
+`ReadJSON`, `ReadText`, `ReadBinary`, `ListFiles`) resolve their `File`
+paths relative to this staging folder. This means a task with
+`"File": "output/report.json"` will write to
+`{UltravisorStagingRoot}/{GUIDOperation}/output/report.json`.
+
+When the operation completes, the manifest is written to:
+
+```
+{UltravisorStagingRoot}/{GUIDOperation}/Manifest_{GUIDOperation}.json
+```
+
+This provides a persistent on-disk record of everything the operation
+produced.
+
+### Overriding the Staging Path
+
+You can set an explicit `StagingPath` on the operation definition to
+bypass the automatic per-GUID folder:
+
+```json
+{
+    "GUIDOperation": "custom-output",
+    "Name": "Custom Output Location",
+    "Tasks": ["write-report"],
+    "StagingPath": "/mnt/shared/reports/2026-02"
+}
+```
+
+When `StagingPath` is set, the operation uses that path directly instead
+of creating a subfolder under `UltravisorStagingRoot`.
 
 If a task GUID is not found in state, the operation logs a warning and
 continues with the next task. Task execution errors are captured in the
@@ -120,13 +178,17 @@ curl http://localhost:54321/Operation/etl-pipeline/Execute
 
 ## Operation Execution Result
 
-Executing an operation returns a manifest:
+Executing an operation returns a manifest. The `StagingPath` field shows
+where the operation's files were written, and `ManifestFilePath` shows
+the location of the manifest JSON on disk:
 
 ```json
 {
     "GUIDOperation": "etl-pipeline",
     "GUIDRun": "etl-pipeline-1707566400000",
     "Name": "ETL Pipeline",
+    "StagingPath": "/var/data/ultravisor_staging/etl-pipeline",
+    "ManifestFilePath": "/var/data/ultravisor_staging/etl-pipeline/Manifest_etl-pipeline.json",
     "StartTime": "2026-02-10T12:00:00.000Z",
     "StopTime": "2026-02-10T12:00:05.200Z",
     "Status": "Complete",
