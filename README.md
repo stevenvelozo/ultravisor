@@ -137,3 +137,17 @@ meant to be a persistent storage location that is accessible across nodes.
 The output data store is a flexible database for storing final output data from
 operations.  This can be used to store structured data, metadata, or any other
 information that needs to be queried or analyzed later.
+
+## Related Packages
+
+- [orator](https://github.com/stevenvelozo/orator) - API server abstraction
+- [pict](https://github.com/stevenvelozo/pict) - MVC application framework
+- [fable](https://github.com/stevenvelozo/fable) - Application services framework
+
+## License
+
+MIT
+
+## Contributing
+
+Pull requests are welcome. For details on our code of conduct, contribution process, and testing requirements, see the [Retold Contributing Guide](https://github.com/stevenvelozo/retold/blob/main/docs/contributing.md).
