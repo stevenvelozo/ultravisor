@@ -1,36 +1,24 @@
 # Ultravisor Overview
 
-Ultravisor is a cyclic process execution tool with AI integration. It runs
-commands, HTTP requests and other tasks on schedule, producing structured
-output manifests that track timing, success/failure and logs for every
-execution.
+Ultravisor is a cyclic process execution tool with AI integration. It runs commands, HTTP requests and other tasks on schedule, producing structured output manifests that track timing, success/failure and logs for every execution.
 
 ## What It Does
 
-Ultravisor manages two core primitives -- **Tasks** and **Operations** --
-and provides multiple ways to run them: immediately via CLI or API, or on a
-recurring schedule via cron expressions.
+Ultravisor manages two core primitives -- **Tasks** and **Operations** -- and provides multiple ways to run them: immediately via CLI or API, or on a recurring schedule via cron expressions.
 
-**Tasks** are individual units of work: shell commands, HTTP requests or
-other executable actions. **Operations** compose multiple tasks into a
-sequential pipeline with a unified output manifest.
+**Tasks** are individual units of work: shell commands, HTTP requests or other executable actions. **Operations** compose multiple tasks into a sequential pipeline with a unified output manifest.
 
 ## How It Runs
 
 Ultravisor can be used in three modes:
 
 1. **CLI** -- run individual tasks or operations from the command line
-2. **API Server** -- start a Restify-based HTTP server exposing full CRUD
-   and execution endpoints for tasks, operations, schedules and manifests
-3. **Scheduled** -- define cron schedules that automatically execute tasks
-   or operations at the configured intervals
+2. **API Server** -- start a Restify-based HTTP server exposing full CRUD and execution endpoints for tasks, operations, schedules and manifests
+3. **Scheduled** -- define cron schedules that automatically execute tasks or operations at the configured intervals
 
 ## Configuration
 
-Ultravisor uses a layered configuration system. The default configuration
-ships with the module and can be overridden by a `.ultravisor.json` file in
-the working directory. Tasks and operations are persisted into this same
-configuration file.
+Ultravisor uses a layered configuration system. The default configuration ships with the module and can be overridden by a `.ultravisor.json` file in the working directory. Tasks and operations are persisted into this same configuration file.
 
 ```json
 {
