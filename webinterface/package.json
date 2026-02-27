@@ -17,7 +17,7 @@
 		"pict-provider": "^1.0.3"
 	},
 	"devDependencies": {
-		"quackage": "^1.0.41"
+		"quackage": "^1.0.59"
 	},
 	"copyFilesSettings": {
 		"whenFileExists": "overwrite"

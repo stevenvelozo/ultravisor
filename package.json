@@ -34,7 +34,7 @@
         "pict-serviceproviderbase": "^1.0.4"
     },
     "devDependencies": {
-        "quackage": "^1.0.58"
+        "quackage": "^1.0.59"
     },
     "mocha": {
         "diff": true,
