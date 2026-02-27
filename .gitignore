@@ -151,3 +151,8 @@ debug/testenv
 .browserslistrc-BACKUP
 .gulpfile-quackage.js
 .gulpfile-quackage-config.json
+
+# Added by quackage update-node-gitignore
+
+# Quackage takes care of these for me!
+*.quackage.bak
