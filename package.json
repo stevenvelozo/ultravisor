@@ -33,6 +33,9 @@
         "pict-service-commandlineutility": "^1.0.17",
         "pict-serviceproviderbase": "^1.0.0"
     },
+    "devDependencies": {
+        "quackage": "^1.0.57"
+    },
     "mocha": {
         "diff": true,
         "extension": [
