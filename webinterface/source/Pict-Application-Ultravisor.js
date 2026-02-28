@@ -1,5 +1,7 @@
 const libPictApplication = require('pict-application');
 const libPictRouter = require('pict-router');
+const libPictSectionForm = require('pict-section-form');
+const libPictSectionContent = require('pict-section-content');
 
 // Views
 const libViewLayout = require('./views/PictView-Ultravisor-Layout.js');
@@ -13,6 +15,7 @@ const libViewOperationEdit = require('./views/PictView-Ultravisor-OperationEdit.
 const libViewSchedule = require('./views/PictView-Ultravisor-Schedule.js');
 const libViewManifestList = require('./views/PictView-Ultravisor-ManifestList.js');
 const libViewTimingView = require('./views/PictView-Ultravisor-TimingView.js');
+const libViewFlowEditor = require('./views/PictView-Ultravisor-FlowEditor.js');
 
 class UltravisorApplication extends libPictApplication
 {
@@ -39,6 +42,13 @@ class UltravisorApplication extends libPictApplication
 		this.pict.addView('Ultravisor-Schedule', libViewSchedule.default_configuration, libViewSchedule);
 		this.pict.addView('Ultravisor-ManifestList', libViewManifestList.default_configuration, libViewManifestList);
 		this.pict.addView('Ultravisor-TimingView', libViewTimingView.default_configuration, libViewTimingView);
+		this.pict.addView('Ultravisor-FlowEditor', libViewFlowEditor.default_configuration, libViewFlowEditor);
+
+		// Register pict-section-form service types so Form panels can use them
+		this.pict.addServiceType('PictFormMetacontroller', libPictSectionForm.PictFormMetacontroller);
+
+		// Register pict-section-content service types so Markdown panels can render content
+		this.pict.addServiceType('PictContentProvider', libPictSectionContent.PictContentProvider);
 	}
 
 	onAfterInitializeAsync(fCallback)
@@ -55,7 +65,8 @@ class UltravisorApplication extends libPictApplication
 			Schedule: [],
 			Manifests: [],
 			CurrentEditTask: null,
-			CurrentEditOperation: null
+			CurrentEditOperation: null,
+			Flows: {}
 		};
 
 		// Render the layout shell first, then the initial content

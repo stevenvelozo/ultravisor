@@ -14,7 +14,10 @@
 		"pict-application": "^1.0.28",
 		"pict-router": "^1.0.4",
 		"pict-view": "^1.0.64",
-		"pict-provider": "^1.0.3"
+		"pict-provider": "^1.0.3",
+		"pict-section-flow": "file:../../../../pict/pict-section-flow",
+		"pict-section-form": "^1.0.192",
+		"pict-section-content": "^0.0.6"
 	},
 	"devDependencies": {
 		"quackage": "^1.0.59"

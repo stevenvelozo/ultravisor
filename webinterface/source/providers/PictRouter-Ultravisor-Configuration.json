@@ -37,6 +37,10 @@
 		{
 			"path": "/Timing",
 			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-TimingView`)~}"
+		},
+		{
+			"path": "/FlowEditor",
+			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-FlowEditor`)~}"
 		}
 	]
 }
