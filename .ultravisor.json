@@ -1,0 +1,1078 @@
+{
+    "UltravisorAPIServerPort": 54321,
+    "UltravisorFileStorePath": "/Users/steven/Code/retold/modules/utility/ultravisor/dist/ultravisor_datastore",
+    "UltravisorStagingRoot": "/Users/steven/Code/retold/modules/utility/ultravisor/dist/ultravisor_staging",
+    "UltravisorTickIntervalMilliseconds": 60000,
+    "UltravisorCommandTimeoutMilliseconds": 300000,
+    "UltravisorCommandMaxBufferBytes": 10485760,
+    "UltravisorWebInterfacePath": false,
+    "Tasks": {
+        "TEST-TASK-001": {
+            "GUIDTask": "TEST-TASK-001",
+            "Name": "Test Task One Updated",
+            "Type": "Command",
+            "Command": "echo updated"
+        },
+        "OP-EXEC-TASK-001": {
+            "GUIDTask": "OP-EXEC-TASK-001",
+            "Name": "Op Exec Task",
+            "Type": "Command",
+            "Command": "echo op_task_output"
+        },
+        "SUB-BEFORE-A": {
+            "GUIDTask": "SUB-BEFORE-A",
+            "Name": "Before A",
+            "Type": "Command",
+            "Command": "echo before_a"
+        },
+        "SUB-BEFORE-B": {
+            "GUIDTask": "SUB-BEFORE-B",
+            "Name": "Before B",
+            "Type": "Command",
+            "Command": "echo before_b"
+        },
+        "SUB-COMPLETE-A": {
+            "GUIDTask": "SUB-COMPLETE-A",
+            "Name": "Complete A",
+            "Type": "Command",
+            "Command": "echo complete_a"
+        },
+        "SUB-COMPLETE-B": {
+            "GUIDTask": "SUB-COMPLETE-B",
+            "Name": "Complete B",
+            "Type": "Command",
+            "Command": "echo complete_b"
+        },
+        "SUB-SUBSEQUENT-A": {
+            "GUIDTask": "SUB-SUBSEQUENT-A",
+            "Name": "Subsequent A",
+            "Type": "Command",
+            "Command": "echo subsequent_a"
+        },
+        "SUB-FAILURE-A": {
+            "GUIDTask": "SUB-FAILURE-A",
+            "Name": "Failure A",
+            "Type": "Command",
+            "Command": "echo failure_a"
+        },
+        "SUB-ERROR-A": {
+            "GUIDTask": "SUB-ERROR-A",
+            "Name": "Error A",
+            "Type": "Command",
+            "Command": "echo error_a"
+        },
+        "SUB-ERROR-B": {
+            "GUIDTask": "SUB-ERROR-B",
+            "Name": "Error B",
+            "Type": "Command",
+            "Command": "echo error_b"
+        },
+        "COND-TRUE-TASK": {
+            "GUIDTask": "COND-TRUE-TASK",
+            "Name": "True Branch",
+            "Type": "Command",
+            "Command": "echo true_branch"
+        },
+        "COND-FALSE-TASK": {
+            "GUIDTask": "COND-FALSE-TASK",
+            "Name": "False Branch",
+            "Type": "Command",
+            "Command": "echo false_branch"
+        },
+        "STAGING-TASK-001": {
+            "GUIDTask": "STAGING-TASK-001",
+            "Name": "Staging Echo",
+            "Type": "Command",
+            "Command": "echo staging_test"
+        },
+        "STAGING-WRITE-TASK": {
+            "GUIDTask": "STAGING-WRITE-TASK",
+            "Name": "Write to Staging",
+            "Type": "WriteJSON",
+            "File": "output.json",
+            "Data": {
+                "message": "written to staging"
+            }
+        },
+        "STAGING-CUSTOM-TASK": {
+            "GUIDTask": "STAGING-CUSTOM-TASK",
+            "Name": "Custom Staging Echo",
+            "Type": "Command",
+            "Command": "echo custom_staging"
+        },
+        "STAGING-WRITEBINARY-TASK": {
+            "GUIDTask": "STAGING-WRITEBINARY-TASK",
+            "Name": "Write Binary to Staging",
+            "Type": "WriteBinary",
+            "File": "binary_output.bin",
+            "Data": [
+                255,
+                216,
+                255,
+                224
+            ]
+        },
+        "PAGED-GEN-001": {
+            "GUIDTask": "PAGED-GEN-001",
+            "Name": "Generate Pages",
+            "Type": "GeneratePagedOperation",
+            "RecordCount": 7,
+            "PageSize": 3,
+            "AutoExecute": false,
+            "TaskTemplate": {
+                "Type": "Command",
+                "Command": "echo page {PageIndex}"
+            }
+        },
+        "PAGED-GEN-001-paged-1772255694987-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-GEN-001-paged-1772255694987-page-0",
+            "Name": "Page 1 of 3",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-GEN-001-paged-1772255694987-page-1": {
+            "Type": "Command",
+            "Command": "echo page 1",
+            "GUIDTask": "PAGED-GEN-001-paged-1772255694987-page-1",
+            "Name": "Page 2 of 3",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-GEN-001-paged-1772255694987-page-2": {
+            "Type": "Command",
+            "Command": "echo page 2",
+            "GUIDTask": "PAGED-GEN-001-paged-1772255694987-page-2",
+            "Name": "Page 3 of 3",
+            "Destination": "Pages[2]"
+        },
+        "PAGED-INTERP-001": {
+            "GUIDTask": "PAGED-INTERP-001",
+            "Name": "Interpolation Test",
+            "Type": "GeneratePagedOperation",
+            "RecordCount": 50,
+            "PageSize": 25,
+            "AutoExecute": false,
+            "TaskTemplate": {
+                "Type": "Command",
+                "Command": "echo offset={PageStart} size={PageSize} index={PageIndex} total={PageCount}",
+                "URL": "https://example.com/api/{PageStart}/{PageSize}",
+                "Body": {
+                    "Offset": "{PageStart}",
+                    "Limit": "{PageSize}"
+                }
+            }
+        },
+        "PAGED-INTERP-001-paged-1772255694989-page-0": {
+            "Type": "Command",
+            "Command": "echo offset=0 size=25 index=0 total=2",
+            "URL": "https://example.com/api/0/25",
+            "Body": {
+                "Offset": "0",
+                "Limit": "25"
+            },
+            "GUIDTask": "PAGED-INTERP-001-paged-1772255694989-page-0",
+            "Name": "Page 1 of 2",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-INTERP-001-paged-1772255694989-page-1": {
+            "Type": "Command",
+            "Command": "echo offset=25 size=25 index=1 total=2",
+            "URL": "https://example.com/api/25/25",
+            "Body": {
+                "Offset": "25",
+                "Limit": "25"
+            },
+            "GUIDTask": "PAGED-INTERP-001-paged-1772255694989-page-1",
+            "Name": "Page 2 of 2",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-ADDR-001": {
+            "GUIDTask": "PAGED-ADDR-001",
+            "Name": "Address Resolve Test",
+            "Type": "GeneratePagedOperation",
+            "RecordCount": "TotalCount",
+            "PageSize": 10,
+            "AutoExecute": false,
+            "TaskTemplate": {
+                "Type": "Command",
+                "Command": "echo page {PageIndex}"
+            }
+        },
+        "PAGED-ADDR-001-paged-1772255694990-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772255694990-page-0",
+            "Name": "Page 1 of 4",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-ADDR-001-paged-1772255694990-page-1": {
+            "Type": "Command",
+            "Command": "echo page 1",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772255694990-page-1",
+            "Name": "Page 2 of 4",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-ADDR-001-paged-1772255694990-page-2": {
+            "Type": "Command",
+            "Command": "echo page 2",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772255694990-page-2",
+            "Name": "Page 3 of 4",
+            "Destination": "Pages[2]"
+        },
+        "PAGED-ADDR-001-paged-1772255694990-page-3": {
+            "Type": "Command",
+            "Command": "echo page 3",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772255694990-page-3",
+            "Name": "Page 4 of 4",
+            "Destination": "Pages[3]"
+        },
+        "PAGED-ZERO-001": {
+            "GUIDTask": "PAGED-ZERO-001",
+            "Name": "Zero Records Test",
+            "Type": "GeneratePagedOperation",
+            "RecordCount": 0,
+            "PageSize": 25,
+            "AutoExecute": false,
+            "TaskTemplate": {
+                "Type": "Command",
+                "Command": "echo page {PageIndex}"
+            }
+        },
+        "PAGED-NOCOUNT-001": {
+            "GUIDTask": "PAGED-NOCOUNT-001",
+            "Name": "Missing Count Test",
+            "Type": "GeneratePagedOperation",
+            "RecordCount": "NonExistent.Address",
+            "PageSize": 25,
+            "AutoExecute": false,
+            "TaskTemplate": {
+                "Type": "Command",
+                "Command": "echo page {PageIndex}"
+            }
+        },
+        "PAGED-NOTEMPL-001": {
+            "GUIDTask": "PAGED-NOTEMPL-001",
+            "Name": "Missing Template Test",
+            "Type": "GeneratePagedOperation",
+            "RecordCount": 10,
+            "PageSize": 5,
+            "AutoExecute": false
+        },
+        "PAGED-AUTOEXEC-001": {
+            "GUIDTask": "PAGED-AUTOEXEC-001",
+            "Name": "Auto Execute Test",
+            "Type": "GeneratePagedOperation",
+            "RecordCount": 4,
+            "PageSize": 2,
+            "AutoExecute": true,
+            "TaskTemplate": {
+                "Type": "Command",
+                "Command": "echo page {PageIndex} of {PageCount}"
+            }
+        },
+        "PAGED-RETRY-001": {
+            "GUIDTask": "PAGED-RETRY-001",
+            "Name": "Retries Test",
+            "Type": "GeneratePagedOperation",
+            "RecordCount": 5,
+            "PageSize": 5,
+            "AutoExecute": false,
+            "Retries": 3,
+            "TaskTemplate": {
+                "Type": "Command",
+                "Command": "echo page {PageIndex}"
+            }
+        },
+        "PAGED-RETRY-001-paged-1772255695005-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-RETRY-001-paged-1772255695005-page-0",
+            "Name": "Page 1 of 1",
+            "Destination": "Pages[0]",
+            "Retries": 3
+        },
+        "PAGED-MAXCOUNT-001": {
+            "GUIDTask": "PAGED-MAXCOUNT-001",
+            "Name": "MaximumRecordCount Test",
+            "Type": "GeneratePagedOperation",
+            "RecordCount": 200,
+            "MaximumRecordCount": 50,
+            "PageSize": 25,
+            "AutoExecute": false,
+            "TaskTemplate": {
+                "Type": "Command",
+                "Command": "echo page {PageIndex}"
+            }
+        },
+        "PAGED-MAXCOUNT-001-paged-1772255695006-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-MAXCOUNT-001-paged-1772255695006-page-0",
+            "Name": "Page 1 of 2",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-MAXCOUNT-001-paged-1772255695006-page-1": {
+            "Type": "Command",
+            "Command": "echo page 1",
+            "GUIDTask": "PAGED-MAXCOUNT-001-paged-1772255695006-page-1",
+            "Name": "Page 2 of 2",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-MAXCOUNT-002": {
+            "GUIDTask": "PAGED-MAXCOUNT-002",
+            "Name": "MaximumRecordCount No-Cap Test",
+            "Type": "GeneratePagedOperation",
+            "RecordCount": 30,
+            "MaximumRecordCount": 500,
+            "PageSize": 10,
+            "AutoExecute": false,
+            "TaskTemplate": {
+                "Type": "Command",
+                "Command": "echo page {PageIndex}"
+            }
+        },
+        "PAGED-GEN-001-paged-1772255835389-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-GEN-001-paged-1772255835389-page-0",
+            "Name": "Page 1 of 3",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-GEN-001-paged-1772255835389-page-1": {
+            "Type": "Command",
+            "Command": "echo page 1",
+            "GUIDTask": "PAGED-GEN-001-paged-1772255835389-page-1",
+            "Name": "Page 2 of 3",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-GEN-001-paged-1772255835389-page-2": {
+            "Type": "Command",
+            "Command": "echo page 2",
+            "GUIDTask": "PAGED-GEN-001-paged-1772255835389-page-2",
+            "Name": "Page 3 of 3",
+            "Destination": "Pages[2]"
+        },
+        "PAGED-INTERP-001-paged-1772255835391-page-0": {
+            "Type": "Command",
+            "Command": "echo offset=0 size=25 index=0 total=2",
+            "URL": "https://example.com/api/0/25",
+            "Body": {
+                "Offset": "0",
+                "Limit": "25"
+            },
+            "GUIDTask": "PAGED-INTERP-001-paged-1772255835391-page-0",
+            "Name": "Page 1 of 2",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-INTERP-001-paged-1772255835391-page-1": {
+            "Type": "Command",
+            "Command": "echo offset=25 size=25 index=1 total=2",
+            "URL": "https://example.com/api/25/25",
+            "Body": {
+                "Offset": "25",
+                "Limit": "25"
+            },
+            "GUIDTask": "PAGED-INTERP-001-paged-1772255835391-page-1",
+            "Name": "Page 2 of 2",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-ADDR-001-paged-1772255835392-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772255835392-page-0",
+            "Name": "Page 1 of 4",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-ADDR-001-paged-1772255835392-page-1": {
+            "Type": "Command",
+            "Command": "echo page 1",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772255835392-page-1",
+            "Name": "Page 2 of 4",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-ADDR-001-paged-1772255835392-page-2": {
+            "Type": "Command",
+            "Command": "echo page 2",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772255835392-page-2",
+            "Name": "Page 3 of 4",
+            "Destination": "Pages[2]"
+        },
+        "PAGED-ADDR-001-paged-1772255835392-page-3": {
+            "Type": "Command",
+            "Command": "echo page 3",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772255835392-page-3",
+            "Name": "Page 4 of 4",
+            "Destination": "Pages[3]"
+        },
+        "PAGED-RETRY-001-paged-1772255835404-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-RETRY-001-paged-1772255835404-page-0",
+            "Name": "Page 1 of 1",
+            "Destination": "Pages[0]",
+            "Retries": 3
+        },
+        "PAGED-MAXCOUNT-001-paged-1772255835405-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-MAXCOUNT-001-paged-1772255835405-page-0",
+            "Name": "Page 1 of 2",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-MAXCOUNT-001-paged-1772255835405-page-1": {
+            "Type": "Command",
+            "Command": "echo page 1",
+            "GUIDTask": "PAGED-MAXCOUNT-001-paged-1772255835405-page-1",
+            "Name": "Page 2 of 2",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-GEN-001-paged-1772255990622-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-GEN-001-paged-1772255990622-page-0",
+            "Name": "Page 1 of 3",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-GEN-001-paged-1772255990622-page-1": {
+            "Type": "Command",
+            "Command": "echo page 1",
+            "GUIDTask": "PAGED-GEN-001-paged-1772255990622-page-1",
+            "Name": "Page 2 of 3",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-GEN-001-paged-1772255990622-page-2": {
+            "Type": "Command",
+            "Command": "echo page 2",
+            "GUIDTask": "PAGED-GEN-001-paged-1772255990622-page-2",
+            "Name": "Page 3 of 3",
+            "Destination": "Pages[2]"
+        },
+        "PAGED-INTERP-001-paged-1772255990624-page-0": {
+            "Type": "Command",
+            "Command": "echo offset=0 size=25 index=0 total=2",
+            "URL": "https://example.com/api/0/25",
+            "Body": {
+                "Offset": "0",
+                "Limit": "25"
+            },
+            "GUIDTask": "PAGED-INTERP-001-paged-1772255990624-page-0",
+            "Name": "Page 1 of 2",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-INTERP-001-paged-1772255990624-page-1": {
+            "Type": "Command",
+            "Command": "echo offset=25 size=25 index=1 total=2",
+            "URL": "https://example.com/api/25/25",
+            "Body": {
+                "Offset": "25",
+                "Limit": "25"
+            },
+            "GUIDTask": "PAGED-INTERP-001-paged-1772255990624-page-1",
+            "Name": "Page 2 of 2",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-ADDR-001-paged-1772255990625-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772255990625-page-0",
+            "Name": "Page 1 of 4",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-ADDR-001-paged-1772255990625-page-1": {
+            "Type": "Command",
+            "Command": "echo page 1",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772255990625-page-1",
+            "Name": "Page 2 of 4",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-ADDR-001-paged-1772255990625-page-2": {
+            "Type": "Command",
+            "Command": "echo page 2",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772255990625-page-2",
+            "Name": "Page 3 of 4",
+            "Destination": "Pages[2]"
+        },
+        "PAGED-ADDR-001-paged-1772255990625-page-3": {
+            "Type": "Command",
+            "Command": "echo page 3",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772255990625-page-3",
+            "Name": "Page 4 of 4",
+            "Destination": "Pages[3]"
+        },
+        "PAGED-RETRY-001-paged-1772255990638-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-RETRY-001-paged-1772255990638-page-0",
+            "Name": "Page 1 of 1",
+            "Destination": "Pages[0]",
+            "Retries": 3
+        },
+        "PAGED-MAXCOUNT-001-paged-1772255990639-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-MAXCOUNT-001-paged-1772255990639-page-0",
+            "Name": "Page 1 of 2",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-MAXCOUNT-001-paged-1772255990639-page-1": {
+            "Type": "Command",
+            "Command": "echo page 1",
+            "GUIDTask": "PAGED-MAXCOUNT-001-paged-1772255990639-page-1",
+            "Name": "Page 2 of 2",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-GEN-001-paged-1772256037490-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-GEN-001-paged-1772256037490-page-0",
+            "Name": "Page 1 of 3",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-GEN-001-paged-1772256037490-page-1": {
+            "Type": "Command",
+            "Command": "echo page 1",
+            "GUIDTask": "PAGED-GEN-001-paged-1772256037490-page-1",
+            "Name": "Page 2 of 3",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-GEN-001-paged-1772256037490-page-2": {
+            "Type": "Command",
+            "Command": "echo page 2",
+            "GUIDTask": "PAGED-GEN-001-paged-1772256037490-page-2",
+            "Name": "Page 3 of 3",
+            "Destination": "Pages[2]"
+        },
+        "PAGED-INTERP-001-paged-1772256037491-page-0": {
+            "Type": "Command",
+            "Command": "echo offset=0 size=25 index=0 total=2",
+            "URL": "https://example.com/api/0/25",
+            "Body": {
+                "Offset": "0",
+                "Limit": "25"
+            },
+            "GUIDTask": "PAGED-INTERP-001-paged-1772256037491-page-0",
+            "Name": "Page 1 of 2",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-INTERP-001-paged-1772256037491-page-1": {
+            "Type": "Command",
+            "Command": "echo offset=25 size=25 index=1 total=2",
+            "URL": "https://example.com/api/25/25",
+            "Body": {
+                "Offset": "25",
+                "Limit": "25"
+            },
+            "GUIDTask": "PAGED-INTERP-001-paged-1772256037491-page-1",
+            "Name": "Page 2 of 2",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-ADDR-001-paged-1772256037492-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772256037492-page-0",
+            "Name": "Page 1 of 4",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-ADDR-001-paged-1772256037492-page-1": {
+            "Type": "Command",
+            "Command": "echo page 1",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772256037492-page-1",
+            "Name": "Page 2 of 4",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-ADDR-001-paged-1772256037492-page-2": {
+            "Type": "Command",
+            "Command": "echo page 2",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772256037492-page-2",
+            "Name": "Page 3 of 4",
+            "Destination": "Pages[2]"
+        },
+        "PAGED-ADDR-001-paged-1772256037492-page-3": {
+            "Type": "Command",
+            "Command": "echo page 3",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772256037492-page-3",
+            "Name": "Page 4 of 4",
+            "Destination": "Pages[3]"
+        },
+        "PAGED-RETRY-001-paged-1772256037504-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-RETRY-001-paged-1772256037504-page-0",
+            "Name": "Page 1 of 1",
+            "Destination": "Pages[0]",
+            "Retries": 3
+        },
+        "PAGED-MAXCOUNT-001-paged-1772256037505-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-MAXCOUNT-001-paged-1772256037505-page-0",
+            "Name": "Page 1 of 2",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-MAXCOUNT-001-paged-1772256037505-page-1": {
+            "Type": "Command",
+            "Command": "echo page 1",
+            "GUIDTask": "PAGED-MAXCOUNT-001-paged-1772256037505-page-1",
+            "Name": "Page 2 of 2",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-GEN-001-paged-1772256098263-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-GEN-001-paged-1772256098263-page-0",
+            "Name": "Page 1 of 3",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-GEN-001-paged-1772256098263-page-1": {
+            "Type": "Command",
+            "Command": "echo page 1",
+            "GUIDTask": "PAGED-GEN-001-paged-1772256098263-page-1",
+            "Name": "Page 2 of 3",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-GEN-001-paged-1772256098263-page-2": {
+            "Type": "Command",
+            "Command": "echo page 2",
+            "GUIDTask": "PAGED-GEN-001-paged-1772256098263-page-2",
+            "Name": "Page 3 of 3",
+            "Destination": "Pages[2]"
+        },
+        "PAGED-INTERP-001-paged-1772256098265-page-0": {
+            "Type": "Command",
+            "Command": "echo offset=0 size=25 index=0 total=2",
+            "URL": "https://example.com/api/0/25",
+            "Body": {
+                "Offset": "0",
+                "Limit": "25"
+            },
+            "GUIDTask": "PAGED-INTERP-001-paged-1772256098265-page-0",
+            "Name": "Page 1 of 2",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-INTERP-001-paged-1772256098265-page-1": {
+            "Type": "Command",
+            "Command": "echo offset=25 size=25 index=1 total=2",
+            "URL": "https://example.com/api/25/25",
+            "Body": {
+                "Offset": "25",
+                "Limit": "25"
+            },
+            "GUIDTask": "PAGED-INTERP-001-paged-1772256098265-page-1",
+            "Name": "Page 2 of 2",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-ADDR-001-paged-1772256098266-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772256098266-page-0",
+            "Name": "Page 1 of 4",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-ADDR-001-paged-1772256098266-page-1": {
+            "Type": "Command",
+            "Command": "echo page 1",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772256098266-page-1",
+            "Name": "Page 2 of 4",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-ADDR-001-paged-1772256098266-page-2": {
+            "Type": "Command",
+            "Command": "echo page 2",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772256098266-page-2",
+            "Name": "Page 3 of 4",
+            "Destination": "Pages[2]"
+        },
+        "PAGED-ADDR-001-paged-1772256098266-page-3": {
+            "Type": "Command",
+            "Command": "echo page 3",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772256098266-page-3",
+            "Name": "Page 4 of 4",
+            "Destination": "Pages[3]"
+        },
+        "PAGED-RETRY-001-paged-1772256098279-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-RETRY-001-paged-1772256098279-page-0",
+            "Name": "Page 1 of 1",
+            "Destination": "Pages[0]",
+            "Retries": 3
+        },
+        "PAGED-MAXCOUNT-001-paged-1772256098280-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-MAXCOUNT-001-paged-1772256098280-page-0",
+            "Name": "Page 1 of 2",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-MAXCOUNT-001-paged-1772256098280-page-1": {
+            "Type": "Command",
+            "Command": "echo page 1",
+            "GUIDTask": "PAGED-MAXCOUNT-001-paged-1772256098280-page-1",
+            "Name": "Page 2 of 2",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-GEN-001-paged-1772256258395-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-GEN-001-paged-1772256258395-page-0",
+            "Name": "Page 1 of 3",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-GEN-001-paged-1772256258395-page-1": {
+            "Type": "Command",
+            "Command": "echo page 1",
+            "GUIDTask": "PAGED-GEN-001-paged-1772256258395-page-1",
+            "Name": "Page 2 of 3",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-GEN-001-paged-1772256258395-page-2": {
+            "Type": "Command",
+            "Command": "echo page 2",
+            "GUIDTask": "PAGED-GEN-001-paged-1772256258395-page-2",
+            "Name": "Page 3 of 3",
+            "Destination": "Pages[2]"
+        },
+        "PAGED-INTERP-001-paged-1772256258396-page-0": {
+            "Type": "Command",
+            "Command": "echo offset=0 size=25 index=0 total=2",
+            "URL": "https://example.com/api/0/25",
+            "Body": {
+                "Offset": "0",
+                "Limit": "25"
+            },
+            "GUIDTask": "PAGED-INTERP-001-paged-1772256258396-page-0",
+            "Name": "Page 1 of 2",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-INTERP-001-paged-1772256258396-page-1": {
+            "Type": "Command",
+            "Command": "echo offset=25 size=25 index=1 total=2",
+            "URL": "https://example.com/api/25/25",
+            "Body": {
+                "Offset": "25",
+                "Limit": "25"
+            },
+            "GUIDTask": "PAGED-INTERP-001-paged-1772256258396-page-1",
+            "Name": "Page 2 of 2",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-ADDR-001-paged-1772256258397-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772256258397-page-0",
+            "Name": "Page 1 of 4",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-ADDR-001-paged-1772256258397-page-1": {
+            "Type": "Command",
+            "Command": "echo page 1",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772256258397-page-1",
+            "Name": "Page 2 of 4",
+            "Destination": "Pages[1]"
+        },
+        "PAGED-ADDR-001-paged-1772256258397-page-2": {
+            "Type": "Command",
+            "Command": "echo page 2",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772256258397-page-2",
+            "Name": "Page 3 of 4",
+            "Destination": "Pages[2]"
+        },
+        "PAGED-ADDR-001-paged-1772256258397-page-3": {
+            "Type": "Command",
+            "Command": "echo page 3",
+            "GUIDTask": "PAGED-ADDR-001-paged-1772256258397-page-3",
+            "Name": "Page 4 of 4",
+            "Destination": "Pages[3]"
+        },
+        "PAGED-RETRY-001-paged-1772256258410-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-RETRY-001-paged-1772256258410-page-0",
+            "Name": "Page 1 of 1",
+            "Destination": "Pages[0]",
+            "Retries": 3
+        },
+        "PAGED-MAXCOUNT-001-paged-1772256258411-page-0": {
+            "Type": "Command",
+            "Command": "echo page 0",
+            "GUIDTask": "PAGED-MAXCOUNT-001-paged-1772256258411-page-0",
+            "Name": "Page 1 of 2",
+            "Destination": "Pages[0]"
+        },
+        "PAGED-MAXCOUNT-001-paged-1772256258411-page-1": {
+            "Type": "Command",
+            "Command": "echo page 1",
+            "GUIDTask": "PAGED-MAXCOUNT-001-paged-1772256258411-page-1",
+            "Name": "Page 2 of 2",
+            "Destination": "Pages[1]"
+        }
+    },
+    "Operations": {
+        "TEST-OP-001": {
+            "GUIDOperation": "TEST-OP-001",
+            "Name": "Test Operation One",
+            "Tasks": [
+                "TEST-TASK-001"
+            ]
+        },
+        "OP-EXEC-001": {
+            "GUIDOperation": "OP-EXEC-001",
+            "Name": "Execution Test Op",
+            "Tasks": [
+                "OP-EXEC-TASK-001"
+            ]
+        },
+        "PAGED-GEN-001-paged-1772255694987": {
+            "GUIDOperation": "PAGED-GEN-001-paged-1772255694987",
+            "Name": "Paged Operation (3 pages)",
+            "Tasks": [
+                "PAGED-GEN-001-paged-1772255694987-page-0",
+                "PAGED-GEN-001-paged-1772255694987-page-1",
+                "PAGED-GEN-001-paged-1772255694987-page-2"
+            ]
+        },
+        "PAGED-INTERP-001-paged-1772255694989": {
+            "GUIDOperation": "PAGED-INTERP-001-paged-1772255694989",
+            "Name": "Paged Operation (2 pages)",
+            "Tasks": [
+                "PAGED-INTERP-001-paged-1772255694989-page-0",
+                "PAGED-INTERP-001-paged-1772255694989-page-1"
+            ]
+        },
+        "PAGED-ADDR-001-paged-1772255694990": {
+            "GUIDOperation": "PAGED-ADDR-001-paged-1772255694990",
+            "Name": "Paged Operation (4 pages)",
+            "Tasks": [
+                "PAGED-ADDR-001-paged-1772255694990-page-0",
+                "PAGED-ADDR-001-paged-1772255694990-page-1",
+                "PAGED-ADDR-001-paged-1772255694990-page-2",
+                "PAGED-ADDR-001-paged-1772255694990-page-3"
+            ]
+        },
+        "PAGED-RETRY-001-paged-1772255695005": {
+            "GUIDOperation": "PAGED-RETRY-001-paged-1772255695005",
+            "Name": "Paged Operation (1 pages)",
+            "Tasks": [
+                "PAGED-RETRY-001-paged-1772255695005-page-0"
+            ]
+        },
+        "PAGED-MAXCOUNT-001-paged-1772255695006": {
+            "GUIDOperation": "PAGED-MAXCOUNT-001-paged-1772255695006",
+            "Name": "Paged Operation (2 pages)",
+            "Tasks": [
+                "PAGED-MAXCOUNT-001-paged-1772255695006-page-0",
+                "PAGED-MAXCOUNT-001-paged-1772255695006-page-1"
+            ]
+        },
+        "PAGED-GEN-001-paged-1772255835389": {
+            "GUIDOperation": "PAGED-GEN-001-paged-1772255835389",
+            "Name": "Paged Operation (3 pages)",
+            "Tasks": [
+                "PAGED-GEN-001-paged-1772255835389-page-0",
+                "PAGED-GEN-001-paged-1772255835389-page-1",
+                "PAGED-GEN-001-paged-1772255835389-page-2"
+            ]
+        },
+        "PAGED-INTERP-001-paged-1772255835391": {
+            "GUIDOperation": "PAGED-INTERP-001-paged-1772255835391",
+            "Name": "Paged Operation (2 pages)",
+            "Tasks": [
+                "PAGED-INTERP-001-paged-1772255835391-page-0",
+                "PAGED-INTERP-001-paged-1772255835391-page-1"
+            ]
+        },
+        "PAGED-ADDR-001-paged-1772255835392": {
+            "GUIDOperation": "PAGED-ADDR-001-paged-1772255835392",
+            "Name": "Paged Operation (4 pages)",
+            "Tasks": [
+                "PAGED-ADDR-001-paged-1772255835392-page-0",
+                "PAGED-ADDR-001-paged-1772255835392-page-1",
+                "PAGED-ADDR-001-paged-1772255835392-page-2",
+                "PAGED-ADDR-001-paged-1772255835392-page-3"
+            ]
+        },
+        "PAGED-RETRY-001-paged-1772255835404": {
+            "GUIDOperation": "PAGED-RETRY-001-paged-1772255835404",
+            "Name": "Paged Operation (1 pages)",
+            "Tasks": [
+                "PAGED-RETRY-001-paged-1772255835404-page-0"
+            ]
+        },
+        "PAGED-MAXCOUNT-001-paged-1772255835405": {
+            "GUIDOperation": "PAGED-MAXCOUNT-001-paged-1772255835405",
+            "Name": "Paged Operation (2 pages)",
+            "Tasks": [
+                "PAGED-MAXCOUNT-001-paged-1772255835405-page-0",
+                "PAGED-MAXCOUNT-001-paged-1772255835405-page-1"
+            ]
+        },
+        "PAGED-GEN-001-paged-1772255990622": {
+            "GUIDOperation": "PAGED-GEN-001-paged-1772255990622",
+            "Name": "Paged Operation (3 pages)",
+            "Tasks": [
+                "PAGED-GEN-001-paged-1772255990622-page-0",
+                "PAGED-GEN-001-paged-1772255990622-page-1",
+                "PAGED-GEN-001-paged-1772255990622-page-2"
+            ]
+        },
+        "PAGED-INTERP-001-paged-1772255990624": {
+            "GUIDOperation": "PAGED-INTERP-001-paged-1772255990624",
+            "Name": "Paged Operation (2 pages)",
+            "Tasks": [
+                "PAGED-INTERP-001-paged-1772255990624-page-0",
+                "PAGED-INTERP-001-paged-1772255990624-page-1"
+            ]
+        },
+        "PAGED-ADDR-001-paged-1772255990625": {
+            "GUIDOperation": "PAGED-ADDR-001-paged-1772255990625",
+            "Name": "Paged Operation (4 pages)",
+            "Tasks": [
+                "PAGED-ADDR-001-paged-1772255990625-page-0",
+                "PAGED-ADDR-001-paged-1772255990625-page-1",
+                "PAGED-ADDR-001-paged-1772255990625-page-2",
+                "PAGED-ADDR-001-paged-1772255990625-page-3"
+            ]
+        },
+        "PAGED-RETRY-001-paged-1772255990638": {
+            "GUIDOperation": "PAGED-RETRY-001-paged-1772255990638",
+            "Name": "Paged Operation (1 pages)",
+            "Tasks": [
+                "PAGED-RETRY-001-paged-1772255990638-page-0"
+            ]
+        },
+        "PAGED-MAXCOUNT-001-paged-1772255990639": {
+            "GUIDOperation": "PAGED-MAXCOUNT-001-paged-1772255990639",
+            "Name": "Paged Operation (2 pages)",
+            "Tasks": [
+                "PAGED-MAXCOUNT-001-paged-1772255990639-page-0",
+                "PAGED-MAXCOUNT-001-paged-1772255990639-page-1"
+            ]
+        },
+        "PAGED-GEN-001-paged-1772256037490": {
+            "GUIDOperation": "PAGED-GEN-001-paged-1772256037490",
+            "Name": "Paged Operation (3 pages)",
+            "Tasks": [
+                "PAGED-GEN-001-paged-1772256037490-page-0",
+                "PAGED-GEN-001-paged-1772256037490-page-1",
+                "PAGED-GEN-001-paged-1772256037490-page-2"
+            ]
+        },
+        "PAGED-INTERP-001-paged-1772256037491": {
+            "GUIDOperation": "PAGED-INTERP-001-paged-1772256037491",
+            "Name": "Paged Operation (2 pages)",
+            "Tasks": [
+                "PAGED-INTERP-001-paged-1772256037491-page-0",
+                "PAGED-INTERP-001-paged-1772256037491-page-1"
+            ]
+        },
+        "PAGED-ADDR-001-paged-1772256037492": {
+            "GUIDOperation": "PAGED-ADDR-001-paged-1772256037492",
+            "Name": "Paged Operation (4 pages)",
+            "Tasks": [
+                "PAGED-ADDR-001-paged-1772256037492-page-0",
+                "PAGED-ADDR-001-paged-1772256037492-page-1",
+                "PAGED-ADDR-001-paged-1772256037492-page-2",
+                "PAGED-ADDR-001-paged-1772256037492-page-3"
+            ]
+        },
+        "PAGED-RETRY-001-paged-1772256037504": {
+            "GUIDOperation": "PAGED-RETRY-001-paged-1772256037504",
+            "Name": "Paged Operation (1 pages)",
+            "Tasks": [
+                "PAGED-RETRY-001-paged-1772256037504-page-0"
+            ]
+        },
+        "PAGED-MAXCOUNT-001-paged-1772256037505": {
+            "GUIDOperation": "PAGED-MAXCOUNT-001-paged-1772256037505",
+            "Name": "Paged Operation (2 pages)",
+            "Tasks": [
+                "PAGED-MAXCOUNT-001-paged-1772256037505-page-0",
+                "PAGED-MAXCOUNT-001-paged-1772256037505-page-1"
+            ]
+        },
+        "PAGED-GEN-001-paged-1772256098263": {
+            "GUIDOperation": "PAGED-GEN-001-paged-1772256098263",
+            "Name": "Paged Operation (3 pages)",
+            "Tasks": [
+                "PAGED-GEN-001-paged-1772256098263-page-0",
+                "PAGED-GEN-001-paged-1772256098263-page-1",
+                "PAGED-GEN-001-paged-1772256098263-page-2"
+            ]
+        },
+        "PAGED-INTERP-001-paged-1772256098265": {
+            "GUIDOperation": "PAGED-INTERP-001-paged-1772256098265",
+            "Name": "Paged Operation (2 pages)",
+            "Tasks": [
+                "PAGED-INTERP-001-paged-1772256098265-page-0",
+                "PAGED-INTERP-001-paged-1772256098265-page-1"
+            ]
+        },
+        "PAGED-ADDR-001-paged-1772256098266": {
+            "GUIDOperation": "PAGED-ADDR-001-paged-1772256098266",
+            "Name": "Paged Operation (4 pages)",
+            "Tasks": [
+                "PAGED-ADDR-001-paged-1772256098266-page-0",
+                "PAGED-ADDR-001-paged-1772256098266-page-1",
+                "PAGED-ADDR-001-paged-1772256098266-page-2",
+                "PAGED-ADDR-001-paged-1772256098266-page-3"
+            ]
+        },
+        "PAGED-RETRY-001-paged-1772256098279": {
+            "GUIDOperation": "PAGED-RETRY-001-paged-1772256098279",
+            "Name": "Paged Operation (1 pages)",
+            "Tasks": [
+                "PAGED-RETRY-001-paged-1772256098279-page-0"
+            ]
+        },
+        "PAGED-MAXCOUNT-001-paged-1772256098280": {
+            "GUIDOperation": "PAGED-MAXCOUNT-001-paged-1772256098280",
+            "Name": "Paged Operation (2 pages)",
+            "Tasks": [
+                "PAGED-MAXCOUNT-001-paged-1772256098280-page-0",
+                "PAGED-MAXCOUNT-001-paged-1772256098280-page-1"
+            ]
+        },
+        "PAGED-GEN-001-paged-1772256258395": {
+            "GUIDOperation": "PAGED-GEN-001-paged-1772256258395",
+            "Name": "Paged Operation (3 pages)",
+            "Tasks": [
+                "PAGED-GEN-001-paged-1772256258395-page-0",
+                "PAGED-GEN-001-paged-1772256258395-page-1",
+                "PAGED-GEN-001-paged-1772256258395-page-2"
+            ]
+        },
+        "PAGED-INTERP-001-paged-1772256258396": {
+            "GUIDOperation": "PAGED-INTERP-001-paged-1772256258396",
+            "Name": "Paged Operation (2 pages)",
+            "Tasks": [
+                "PAGED-INTERP-001-paged-1772256258396-page-0",
+                "PAGED-INTERP-001-paged-1772256258396-page-1"
+            ]
+        },
+        "PAGED-ADDR-001-paged-1772256258397": {
+            "GUIDOperation": "PAGED-ADDR-001-paged-1772256258397",
+            "Name": "Paged Operation (4 pages)",
+            "Tasks": [
+                "PAGED-ADDR-001-paged-1772256258397-page-0",
+                "PAGED-ADDR-001-paged-1772256258397-page-1",
+                "PAGED-ADDR-001-paged-1772256258397-page-2",
+                "PAGED-ADDR-001-paged-1772256258397-page-3"
+            ]
+        },
+        "PAGED-RETRY-001-paged-1772256258410": {
+            "GUIDOperation": "PAGED-RETRY-001-paged-1772256258410",
+            "Name": "Paged Operation (1 pages)",
+            "Tasks": [
+                "PAGED-RETRY-001-paged-1772256258410-page-0"
+            ]
+        },
+        "PAGED-MAXCOUNT-001-paged-1772256258411": {
+            "GUIDOperation": "PAGED-MAXCOUNT-001-paged-1772256258411",
+            "Name": "Paged Operation (2 pages)",
+            "Tasks": [
+                "PAGED-MAXCOUNT-001-paged-1772256258411-page-0",
+                "PAGED-MAXCOUNT-001-paged-1772256258411-page-1"
+            ]
+        }
+    }
+}

@@ -1,11 +1,11 @@
 const libPictService = require(`pict-serviceproviderbase`);
 
 const _TaskTypes = {
-	'command': require('./tasks/Ultravisor-Task-Command.cjs'),
-	'request': require('./tasks/Ultravisor-Task-Request.cjs'),
-	'conditional': require('./tasks/Ultravisor-Task-Conditional.cjs'),
-	'solver': require('./tasks/Ultravisor-Task-Solver.cjs'),
-	'linematch': require('./tasks/Ultravisor-Task-LineMatch.cjs'),
+	'command': require('./tasks/operation/Ultravisor-Task-Command.cjs'),
+	'request': require('./tasks/network/Ultravisor-Task-Request.cjs'),
+	'conditional': require('./tasks/logic/Ultravisor-Task-Conditional.cjs'),
+	'solver': require('./tasks/data/Ultravisor-Task-Solver.cjs'),
+	'linematch': require('./tasks/data/Ultravisor-Task-LineMatch.cjs'),
 
 	'listfiles': require('./tasks/stagingfiles/Ultravisor-Task-ListFiles.cjs'),
 	'readjson': require('./tasks/stagingfiles/Ultravisor-Task-ReadJSON.cjs'),
@@ -18,23 +18,23 @@ const _TaskTypes = {
 	'writebinary': require('./tasks/stagingfiles/Ultravisor-Task-WriteBinary.cjs'),
 	'copyfile': require('./tasks/stagingfiles/Ultravisor-Task-CopyFile.cjs'),
 
-	'getjson': require('./tasks/rest/Ultravisor-Task-GetJSON.cjs'),
-	'getbinary': require('./tasks/rest/Ultravisor-Task-GetBinary.cjs'),
-	'gettext': require('./tasks/rest/Ultravisor-Task-GetText.cjs'),
-	'getxml': require('./tasks/rest/Ultravisor-Task-GetXML.cjs'),
-	'sendjson': require('./tasks/rest/Ultravisor-Task-SendJSON.cjs'),
-	'restrequest': require('./tasks/rest/Ultravisor-Task-RestRequest.cjs'),
+	'getjson': require('./tasks/network/Ultravisor-Task-GetJSON.cjs'),
+	'getbinary': require('./tasks/network/Ultravisor-Task-GetBinary.cjs'),
+	'gettext': require('./tasks/network/Ultravisor-Task-GetText.cjs'),
+	'getxml': require('./tasks/network/Ultravisor-Task-GetXML.cjs'),
+	'sendjson': require('./tasks/network/Ultravisor-Task-SendJSON.cjs'),
+	'restrequest': require('./tasks/network/Ultravisor-Task-RestRequest.cjs'),
 
-	'generatepagedoperation': require('./tasks/Ultravisor-Task-GeneratePagedOperation.cjs'),
+	'generatepagedoperation': require('./tasks/operation/Ultravisor-Task-GeneratePagedOperation.cjs'),
 
-	'collectvalues': require('./tasks/Ultravisor-Task-CollectValues.cjs'),
-	'commandeach': require('./tasks/Ultravisor-Task-CommandEach.cjs'),
+	'collectvalues': require('./tasks/data/Ultravisor-Task-CollectValuesFromArray.cjs'),
+	'commandeach': require('./tasks/logic/Ultravisor-Task-CommandEach.cjs'),
 
-	'datewindow': require('./tasks/Ultravisor-Task-DateWindow.cjs'),
-	'templatestring': require('./tasks/Ultravisor-Task-TemplateString.cjs'),
+	'datewindow': require('./tasks/datageneration/Ultravisor-Task-DateWindow.cjs'),
+	'templatestring': require('./tasks/data/Ultravisor-Task-TemplateString.cjs'),
 
-	'launchoperation': require('./tasks/Ultravisor-Task-LaunchOperation.cjs'),
-	'launchtask': require('./tasks/Ultravisor-Task-LaunchTask.cjs'),
+	'launchoperation': require('./tasks/operation/Ultravisor-Task-LaunchOperation.cjs'),
+	'launchtask': require('./tasks/operation/Ultravisor-Task-LaunchTask.cjs'),
 };
 
 class UltravisorTask extends libPictService

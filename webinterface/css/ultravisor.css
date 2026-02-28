@@ -113,6 +113,29 @@ th {
 	background: #4a4a6c;
 }
 
+/* Flow panel overrides — restore light inputs inside the white panel */
+.pict-flow-panel input,
+.pict-flow-panel select,
+.pict-flow-panel textarea {
+	background-color: #fff;
+	color: #333;
+	border: 1px solid #ccc;
+}
+
+.pict-flow-panel input:focus,
+.pict-flow-panel select:focus,
+.pict-flow-panel textarea:focus {
+	border-color: #4fc3f7;
+}
+
+.pict-flow-panel label {
+	color: #555;
+}
+
+.pict-flow-panel-body {
+	color: #333;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
 	html {

@@ -1,5 +1,5 @@
-const libUltravisorTaskBase = require('./Ultravisor-Task-Base.cjs');
-const libUltravisorTaskCommand = require('./Ultravisor-Task-Command.cjs');
+const libUltravisorTaskBase = require('../Ultravisor-Task-Base.cjs');
+const libUltravisorTaskCommand = require('../operation/Ultravisor-Task-Command.cjs');
 
 class UltravisorTaskRequest extends libUltravisorTaskBase
 {

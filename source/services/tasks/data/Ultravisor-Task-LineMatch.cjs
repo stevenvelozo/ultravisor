@@ -1,4 +1,4 @@
-const libUltravisorTaskBase = require('./Ultravisor-Task-Base.cjs');
+const libUltravisorTaskBase = require('../Ultravisor-Task-Base.cjs');
 
 class UltravisorTaskLineMatch extends libUltravisorTaskBase
 {
