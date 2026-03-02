@@ -44,8 +44,6 @@ class UltravisorTaskBase
 		return fCallback(null, pManifestEntry);
 	}
 
-	
-
 	/**
 	 * Resolve the staging folder path.
 	 *
