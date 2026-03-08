@@ -135,8 +135,8 @@ const _ViewConfiguration =
 	<div class="ultravisor-stat-card-value" id="Ultravisor-Dashboard-StatusValue">{~D:AppData.Ultravisor.ServerStatus.Status~}</div>
 </div>
 <div class="ultravisor-stat-card">
-	<div class="ultravisor-stat-card-label">Tasks</div>
-	<div class="ultravisor-stat-card-value" id="Ultravisor-Dashboard-TaskCount">--</div>
+	<div class="ultravisor-stat-card-label">Templates</div>
+	<div class="ultravisor-stat-card-value" id="Ultravisor-Dashboard-TemplateCount">--</div>
 </div>
 <div class="ultravisor-stat-card">
 	<div class="ultravisor-stat-card-label">Operations</div>
@@ -203,14 +203,14 @@ class UltravisorDashboardView extends libPictView
 					tmpRunEl.className = 'ultravisor-stat-card-value ' + (tmpRunning ? 'running' : 'stopped');
 				}
 
-				// Load task count
-				tmpApp.loadTasks(
+				// Load template count
+				tmpApp.loadNodeTemplates(
 					function ()
 					{
-						let tmpCountEl = document.getElementById('Ultravisor-Dashboard-TaskCount');
+						let tmpCountEl = document.getElementById('Ultravisor-Dashboard-TemplateCount');
 						if (tmpCountEl)
 						{
-							tmpCountEl.textContent = this.pict.AppData.Ultravisor.TaskList.length;
+							tmpCountEl.textContent = this.pict.AppData.Ultravisor.NodeTemplateList.length;
 						}
 					}.bind(this));
 

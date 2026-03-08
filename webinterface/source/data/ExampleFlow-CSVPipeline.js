@@ -1,16 +1,12 @@
 /**
- * Example Flow: CSV Pipeline
+ * Example Flow: Config File Processor
  *
- * Demonstrates a file-based data processing pipeline:
- *   Start → Read CSV File → Parse CSV → Histogram (score distribution) → Write JSON Results → End
+ * Demonstrates a file-based config processing pipeline using the new engine task types:
+ *   Start -> Read File (config template) -> If Conditional (has placeholder?)
+ *     -> True:  Replace String (fill in value) -> Write File (output config) -> End
+ *     -> False: Error Message (missing placeholder) -> End
  *
- * Uses the meadow-integration test-small.csv demo data:
- *   id, name, city, country, score
- *   1, Alice, Seattle, USA, 95
- *   2, Bob, Portland, USA, 87
- *   3, Carol, Vancouver, CAN, 92
- *   4, Dave, Seattle, USA, 78
- *   5, Eve, Portland, USA, 88
+ * Shows branching, error handling, and file I/O with the event-driven execution engine.
  */
 module.exports =
 {
@@ -18,7 +14,7 @@ module.exports =
 	[
 		// ── Entry ────────────────────────────────────────────────
 		{
-			Hash: 'csv-start',
+			Hash: 'cfg-start',
 			Type: 'start',
 			X: 50,
 			Y: 200,
@@ -27,206 +23,200 @@ module.exports =
 			Title: 'Start',
 			Ports:
 			[
-				{ Hash: 'csv-start-out', Direction: 'output', Side: 'right', Label: 'Out' }
+				{ Hash: 'cfg-start-out', Direction: 'output', Side: 'right', Label: 'Out' }
 			],
 			Data: {}
 		},
-		// ── Read the raw CSV text ────────────────────────────────
+		// ── Read the config template ─────────────────────────────
 		{
-			Hash: 'csv-readtext',
-			Type: 'RTXT',
+			Hash: 'cfg-read',
+			Type: 'read-file',
 			X: 270,
 			Y: 180,
-			Width: 180,
-			Height: 80,
-			Title: 'Read CSV File',
-			Ports:
-			[
-				{ Hash: 'csv-rt-in', Direction: 'input', Side: 'left', Label: 'Trigger' },
-				{ Hash: 'csv-rt-data', Direction: 'output', Side: 'right', Label: 'Data' },
-				{ Hash: 'csv-rt-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
-			],
-			Data: { File: 'test-small.csv', Destination: 'RawCSV' }
-		},
-		// ── Parse CSV into records ───────────────────────────────
-		{
-			Hash: 'csv-parse',
-			Type: 'PARSECSV',
-			X: 530,
-			Y: 180,
-			Width: 180,
-			Height: 80,
-			Title: 'Parse CSV',
-			Ports:
-			[
-				{ Hash: 'csv-p-in', Direction: 'input', Side: 'left', Label: 'Raw Text' },
-				{ Hash: 'csv-p-out', Direction: 'output', Side: 'right', Label: 'Records' }
-			],
-			Data: { Delimiter: ',', HasHeaders: true, Destination: 'ParsedRecords' }
-		},
-		// ── Conditional: check we have records ───────────────────
-		{
-			Hash: 'csv-cond',
-			Type: 'COND',
-			X: 790,
-			Y: 160,
 			Width: 200,
+			Height: 80,
+			Title: 'Read Config Template',
+			Ports:
+			[
+				{ Hash: 'cfg-read-in', Direction: 'input', Side: 'left', Label: 'BeginRead' },
+				{ Hash: 'cfg-read-done', Direction: 'output', Side: 'right', Label: 'ReadComplete' },
+				{ Hash: 'cfg-read-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
+			],
+			Data: { FilePath: 'config.template.json', Encoding: 'utf8' }
+		},
+		// ── Check if placeholder exists in the content ───────────
+		{
+			Hash: 'cfg-check',
+			Type: 'if-conditional',
+			X: 550,
+			Y: 160,
+			Width: 220,
 			Height: 100,
-			Title: 'Has Records?',
+			Title: 'Has Placeholder?',
 			Ports:
 			[
-				{ Hash: 'csv-cond-in', Direction: 'input', Side: 'left', Label: 'In' },
-				{ Hash: 'csv-cond-true', Direction: 'output', Side: 'right', Label: 'True' },
-				{ Hash: 'csv-cond-false', Direction: 'output', Side: 'bottom', Label: 'False' }
+				{ Hash: 'cfg-check-in', Direction: 'input', Side: 'left', Label: 'Evaluate' },
+				{ Hash: 'cfg-check-true', Direction: 'output', Side: 'right', Label: 'True' },
+				{ Hash: 'cfg-check-false', Direction: 'output', Side: 'bottom', Label: 'False' }
 			],
-			Data: { Address: 'ParsedRecords.length', Value: '0', Operator: '>' }
+			Data: { DataAddress: 'TaskOutput.cfg-read.FileContent', CompareValue: '{{API_KEY}}', Operator: 'contains' }
 		},
-		// ── Histogram: visualize score distribution ──────────────
+		// ── Replace the placeholder with the real value ──────────
 		{
-			Hash: 'csv-histogram',
-			Type: 'HIST',
-			X: 1070,
+			Hash: 'cfg-replace',
+			Type: 'replace-string',
+			X: 850,
 			Y: 140,
-			Width: 240,
-			Height: 140,
-			Title: 'Score Distribution',
-			Ports:
-			[
-				{ Hash: 'csv-hist-in', Direction: 'input', Side: 'left', Label: 'Data' },
-				{ Hash: 'csv-hist-out', Direction: 'output', Side: 'right', Label: 'Stats' }
-			],
-			Data: { Field: 'score', Bins: 5, Values: [95, 87, 92, 78, 88], Destination: 'HistogramStats' }
-		},
-		// ── Write the histogram results as JSON ──────────────────
-		{
-			Hash: 'csv-writejson',
-			Type: 'WJSON',
-			X: 1390,
-			Y: 180,
-			Width: 180,
+			Width: 220,
 			Height: 80,
-			Title: 'Write Results',
+			Title: 'Fill In API Key',
 			Ports:
 			[
-				{ Hash: 'csv-wj-in', Direction: 'input', Side: 'left', Label: 'Data' },
-				{ Hash: 'csv-wj-done', Direction: 'output', Side: 'right', Label: 'Done' },
-				{ Hash: 'csv-wj-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
+				{ Hash: 'cfg-replace-in', Direction: 'input', Side: 'left', Label: 'Replace' },
+				{ Hash: 'cfg-replace-done', Direction: 'output', Side: 'right', Label: 'ReplaceComplete' },
+				{ Hash: 'cfg-replace-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
 			],
-			Data: { File: 'histogram-results.json', Address: 'HistogramStats' }
+			Data: { InputString: '{~D:TaskOutput.cfg-read.FileContent~}', SearchString: '{{API_KEY}}', ReplaceString: 'sk-live-abc123def456' }
 		},
-		// ── Solver: compute the average score ────────────────────
+		// ── Write the processed config ──────────────────────────
 		{
-			Hash: 'csv-solver',
-			Type: 'SOLV',
-			X: 1070,
-			Y: 380,
-			Width: 180,
+			Hash: 'cfg-write',
+			Type: 'write-file',
+			X: 1150,
+			Y: 140,
+			Width: 200,
 			Height: 80,
-			Title: 'Compute Average',
+			Title: 'Write Config',
 			Ports:
 			[
-				{ Hash: 'csv-solv-in', Direction: 'input', Side: 'left', Label: 'In' },
-				{ Hash: 'csv-solv-out', Direction: 'output', Side: 'right', Label: 'Result' }
+				{ Hash: 'cfg-write-in', Direction: 'input', Side: 'left', Label: 'BeginWrite' },
+				{ Hash: 'cfg-write-done', Direction: 'output', Side: 'right', Label: 'WriteComplete' },
+				{ Hash: 'cfg-write-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
 			],
-			Data: { Expression: 'Average = (95 + 87 + 92 + 78 + 88) / 5', Destination: 'AverageScore' }
+			Data: { FilePath: 'config.json', Content: '{~D:TaskOutput.cfg-replace.ReplacedString~}', Encoding: 'utf8' }
+		},
+		// ── Error: placeholder not found ─────────────────────────
+		{
+			Hash: 'cfg-error',
+			Type: 'error-message',
+			X: 850,
+			Y: 340,
+			Width: 220,
+			Height: 80,
+			Title: 'Missing Placeholder',
+			Ports:
+			[
+				{ Hash: 'cfg-error-in', Direction: 'input', Side: 'left', Label: 'Trigger' },
+				{ Hash: 'cfg-error-done', Direction: 'output', Side: 'right', Label: 'Complete' }
+			],
+			Data: { MessageTemplate: 'Config template does not contain the {{API_KEY}} placeholder' }
 		},
 		// ── Exit ─────────────────────────────────────────────────
 		{
-			Hash: 'csv-end',
+			Hash: 'cfg-end',
 			Type: 'end',
-			X: 1650,
-			Y: 200,
+			X: 1430,
+			Y: 220,
 			Width: 140,
 			Height: 80,
 			Title: 'End',
 			Ports:
 			[
-				{ Hash: 'csv-end-in', Direction: 'input', Side: 'left', Label: 'In' }
+				{ Hash: 'cfg-end-in', Direction: 'input', Side: 'left', Label: 'In' }
 			],
 			Data: {}
 		}
 	],
 	Connections:
 	[
-		// Start → Read CSV File
+		// Start -> Read Config Template
 		{
-			Hash: 'csv-c1',
-			SourceNodeHash: 'csv-start',
-			SourcePortHash: 'csv-start-out',
-			TargetNodeHash: 'csv-readtext',
-			TargetPortHash: 'csv-rt-in',
+			Hash: 'cfg-c1',
+			SourceNodeHash: 'cfg-start',
+			SourcePortHash: 'cfg-start-out',
+			TargetNodeHash: 'cfg-read',
+			TargetPortHash: 'cfg-read-in',
 			Data: {}
 		},
-		// Read CSV File → Parse CSV
+		// Read Config Template -> Has Placeholder?
 		{
-			Hash: 'csv-c2',
-			SourceNodeHash: 'csv-readtext',
-			SourcePortHash: 'csv-rt-data',
-			TargetNodeHash: 'csv-parse',
-			TargetPortHash: 'csv-p-in',
+			Hash: 'cfg-c2',
+			SourceNodeHash: 'cfg-read',
+			SourcePortHash: 'cfg-read-done',
+			TargetNodeHash: 'cfg-check',
+			TargetPortHash: 'cfg-check-in',
 			Data: {}
 		},
-		// Parse CSV → Has Records?
+		// Has Placeholder? (True) -> Fill In API Key
 		{
-			Hash: 'csv-c3',
-			SourceNodeHash: 'csv-parse',
-			SourcePortHash: 'csv-p-out',
-			TargetNodeHash: 'csv-cond',
-			TargetPortHash: 'csv-cond-in',
+			Hash: 'cfg-c3',
+			SourceNodeHash: 'cfg-check',
+			SourcePortHash: 'cfg-check-true',
+			TargetNodeHash: 'cfg-replace',
+			TargetPortHash: 'cfg-replace-in',
 			Data: {}
 		},
-		// Has Records? (True) → Histogram
+		// Fill In API Key -> Write Config
 		{
-			Hash: 'csv-c4',
-			SourceNodeHash: 'csv-cond',
-			SourcePortHash: 'csv-cond-true',
-			TargetNodeHash: 'csv-histogram',
-			TargetPortHash: 'csv-hist-in',
+			Hash: 'cfg-c4',
+			SourceNodeHash: 'cfg-replace',
+			SourcePortHash: 'cfg-replace-done',
+			TargetNodeHash: 'cfg-write',
+			TargetPortHash: 'cfg-write-in',
 			Data: {}
 		},
-		// Histogram → Write Results
+		// Write Config -> End
 		{
-			Hash: 'csv-c5',
-			SourceNodeHash: 'csv-histogram',
-			SourcePortHash: 'csv-hist-out',
-			TargetNodeHash: 'csv-writejson',
-			TargetPortHash: 'csv-wj-in',
+			Hash: 'cfg-c5',
+			SourceNodeHash: 'cfg-write',
+			SourcePortHash: 'cfg-write-done',
+			TargetNodeHash: 'cfg-end',
+			TargetPortHash: 'cfg-end-in',
 			Data: {}
 		},
-		// Write Results → End
+		// Has Placeholder? (False) -> Missing Placeholder
 		{
-			Hash: 'csv-c6',
-			SourceNodeHash: 'csv-writejson',
-			SourcePortHash: 'csv-wj-done',
-			TargetNodeHash: 'csv-end',
-			TargetPortHash: 'csv-end-in',
+			Hash: 'cfg-c6',
+			SourceNodeHash: 'cfg-check',
+			SourcePortHash: 'cfg-check-false',
+			TargetNodeHash: 'cfg-error',
+			TargetPortHash: 'cfg-error-in',
 			Data: {}
 		},
-		// Has Records? (False) → Compute Average (alternative branch)
+		// Missing Placeholder -> End
 		{
-			Hash: 'csv-c7',
-			SourceNodeHash: 'csv-cond',
-			SourcePortHash: 'csv-cond-false',
-			TargetNodeHash: 'csv-solver',
-			TargetPortHash: 'csv-solv-in',
+			Hash: 'cfg-c7',
+			SourceNodeHash: 'cfg-error',
+			SourcePortHash: 'cfg-error-done',
+			TargetNodeHash: 'cfg-end',
+			TargetPortHash: 'cfg-end-in',
 			Data: {}
 		},
-		// Compute Average → End
+		// Read Config Template error -> End
 		{
-			Hash: 'csv-c8',
-			SourceNodeHash: 'csv-solver',
-			SourcePortHash: 'csv-solv-out',
-			TargetNodeHash: 'csv-end',
-			TargetPortHash: 'csv-end-in',
+			Hash: 'cfg-c8',
+			SourceNodeHash: 'cfg-read',
+			SourcePortHash: 'cfg-read-err',
+			TargetNodeHash: 'cfg-end',
+			TargetPortHash: 'cfg-end-in',
 			Data: {}
 		},
-		// Read CSV File error → End
+		// Fill In API Key error -> End
 		{
-			Hash: 'csv-c9',
-			SourceNodeHash: 'csv-readtext',
-			SourcePortHash: 'csv-rt-err',
-			TargetNodeHash: 'csv-end',
-			TargetPortHash: 'csv-end-in',
+			Hash: 'cfg-c9',
+			SourceNodeHash: 'cfg-replace',
+			SourcePortHash: 'cfg-replace-err',
+			TargetNodeHash: 'cfg-end',
+			TargetPortHash: 'cfg-end-in',
+			Data: {}
+		},
+		// Write Config error -> End
+		{
+			Hash: 'cfg-c10',
+			SourceNodeHash: 'cfg-write',
+			SourcePortHash: 'cfg-write-err',
+			TargetNodeHash: 'cfg-end',
+			TargetPortHash: 'cfg-end-in',
 			Data: {}
 		}
 	],

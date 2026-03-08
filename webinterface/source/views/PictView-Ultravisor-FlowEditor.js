@@ -80,6 +80,31 @@ const _ViewConfiguration =
 			align-items: center;
 			flex-wrap: wrap;
 		}
+		.ultravisor-flow-meta {
+			flex-shrink: 0;
+			display: flex;
+			gap: 0.75em;
+			align-items: center;
+			margin-bottom: 0.5em;
+			padding-bottom: 0.5em;
+			border-bottom: 1px solid #1a1a2e;
+		}
+		.ultravisor-flow-meta label {
+			font-size: 0.8em;
+			font-weight: 600;
+			color: #78909c;
+			text-transform: uppercase;
+			margin-right: 0.25em;
+		}
+		.ultravisor-flow-meta input {
+			flex: 1;
+			min-width: 120px;
+		}
+		.ultravisor-flow-meta-hash {
+			font-size: 0.8em;
+			color: #607d8b;
+			font-family: monospace;
+		}
 		#Ultravisor-FlowEditor-Container {
 			flex: 1;
 			min-height: 0;
@@ -93,12 +118,17 @@ const _ViewConfiguration =
 			Template: /*html*/`
 <div class="ultravisor-floweditor">
 	<div class="ultravisor-floweditor-header">
-		<h1>Flow Editor</h1>
+		<h1 id="Ultravisor-FlowEditor-Title">Flow Editor</h1>
 		<div class="ultravisor-flow-actions">
-			<button class="ultravisor-btn ultravisor-btn-primary" onclick="{~P~}.views['Ultravisor-FlowEditor'].loadExample('CSVPipeline')">Example: CSV Pipeline</button>
-			<button class="ultravisor-btn ultravisor-btn-primary" onclick="{~P~}.views['Ultravisor-FlowEditor'].loadExample('MeadowPipeline')">Example: Meadow Pipeline</button>
-			<button class="ultravisor-btn ultravisor-btn-secondary" onclick="{~P~}.views['Ultravisor-FlowEditor'].exportToOperation()">Export as Operation</button>
+			<button class="ultravisor-btn ultravisor-btn-primary" onclick="{~P~}.views['Ultravisor-FlowEditor'].saveOperation()">Save Operation</button>
 		</div>
+	</div>
+	<div class="ultravisor-flow-meta">
+		<span id="Ultravisor-FlowEditor-HashDisplay" class="ultravisor-flow-meta-hash"></span>
+		<label>Name</label>
+		<input type="text" id="Ultravisor-FlowEditor-Name" placeholder="Operation name...">
+		<label>Description</label>
+		<input type="text" id="Ultravisor-FlowEditor-Description" placeholder="Description...">
 	</div>
 	<div id="Ultravisor-FlowEditor-Container"></div>
 </div>
@@ -185,6 +215,35 @@ class UltravisorFlowEditorView extends libPictView
 
 	onAfterRender(pRenderable, pRenderDestinationAddress, pRecord, pContent)
 	{
+		// Populate the metadata fields from CurrentEditOperation
+		let tmpOp = this.pict.AppData.Ultravisor.CurrentEditOperation;
+		if (tmpOp)
+		{
+			let tmpTitleEl = document.getElementById('Ultravisor-FlowEditor-Title');
+			if (tmpTitleEl)
+			{
+				tmpTitleEl.textContent = tmpOp.Hash ? ('Flow Editor: ' + (tmpOp.Name || tmpOp.Hash)) : 'Flow Editor: New Operation';
+			}
+
+			let tmpHashEl = document.getElementById('Ultravisor-FlowEditor-HashDisplay');
+			if (tmpHashEl && tmpOp.Hash)
+			{
+				tmpHashEl.textContent = tmpOp.Hash;
+			}
+
+			let tmpNameEl = document.getElementById('Ultravisor-FlowEditor-Name');
+			if (tmpNameEl)
+			{
+				tmpNameEl.value = tmpOp.Name || '';
+			}
+
+			let tmpDescEl = document.getElementById('Ultravisor-FlowEditor-Description');
+			if (tmpDescEl)
+			{
+				tmpDescEl.value = tmpOp.Description || '';
+			}
+		}
+
 		// Create and render the flow section view into its container
 		if (!this._FlowView)
 		{
@@ -269,6 +328,10 @@ class UltravisorFlowEditorView extends libPictView
 		{
 			tmpFlowData = require('../data/ExampleFlow-MeadowPipeline.js');
 		}
+		else if (pExampleName === 'FileProcessor')
+		{
+			tmpFlowData = require('../data/ExampleFlow-FileProcessor.js');
+		}
 
 		if (tmpFlowData)
 		{
@@ -289,7 +352,7 @@ class UltravisorFlowEditorView extends libPictView
 		}
 	}
 
-	exportToOperation()
+	saveOperation()
 	{
 		if (!this._FlowView)
 		{
@@ -299,39 +362,69 @@ class UltravisorFlowEditorView extends libPictView
 		let tmpFlowData = this._FlowView.getFlowData();
 		if (!tmpFlowData || !tmpFlowData.Nodes || tmpFlowData.Nodes.length === 0)
 		{
-			alert('No flow data to export. Add some nodes first.');
+			alert('No flow data to save. Add some nodes first.');
 			return;
 		}
 
-		// Walk nodes in left-to-right order by X position
-		let tmpSortedNodes = tmpFlowData.Nodes.slice().sort(
-			function (a, b)
-			{
-				return a.X - b.X;
-			});
+		// Read the metadata from the form fields
+		let tmpName = document.getElementById('Ultravisor-FlowEditor-Name').value.trim();
+		let tmpDescription = document.getElementById('Ultravisor-FlowEditor-Description').value.trim();
 
-		let tmpTasks = [];
-		for (let i = 0; i < tmpSortedNodes.length; i++)
+		if (!tmpName)
 		{
-			let tmpNode = tmpSortedNodes[i];
-			// Skip flow control nodes (start/end) since they are not real tasks
-			if (tmpNode.Type === 'start' || tmpNode.Type === 'end')
-			{
-				continue;
-			}
-			tmpTasks.push(tmpNode.Data.GUIDTask || tmpNode.Hash);
+			alert('Please enter an operation name.');
+			return;
 		}
 
-		// Pre-populate the OperationEdit form with the extracted task list
-		this.pict.AppData.Ultravisor.CurrentEditOperation =
+		// Build the operation data with the graph
+		let tmpOpData =
 		{
-			GUIDOperation: '',
-			Name: 'Flow-Generated Operation',
-			Description: 'Generated from Flow Editor on ' + new Date().toISOString(),
-			Tasks: tmpTasks
+			Name: tmpName,
+			Description: tmpDescription,
+			Graph:
+			{
+				Nodes: tmpFlowData.Nodes,
+				Connections: tmpFlowData.Connections,
+				ViewState: tmpFlowData.ViewState || {}
+			}
 		};
 
-		this.pict.PictApplication.navigateTo('/OperationEdit');
+		// Include Hash if editing an existing operation
+		let tmpOp = this.pict.AppData.Ultravisor.CurrentEditOperation;
+		if (tmpOp && tmpOp.Hash)
+		{
+			tmpOpData.Hash = tmpOp.Hash;
+		}
+
+		this.pict.PictApplication.saveOperation(tmpOpData,
+			function (pError, pData)
+			{
+				if (pError)
+				{
+					alert('Error saving operation: ' + pError.message);
+					return;
+				}
+
+				// Update the current edit operation with the saved data
+				if (pData && pData.Hash)
+				{
+					if (!this.pict.AppData.Ultravisor.CurrentEditOperation)
+					{
+						this.pict.AppData.Ultravisor.CurrentEditOperation = {};
+					}
+					this.pict.AppData.Ultravisor.CurrentEditOperation.Hash = pData.Hash;
+					this.pict.AppData.Ultravisor.CurrentEditOperation.Name = tmpName;
+					this.pict.AppData.Ultravisor.CurrentEditOperation.Description = tmpDescription;
+
+					let tmpHashEl = document.getElementById('Ultravisor-FlowEditor-HashDisplay');
+					if (tmpHashEl)
+					{
+						tmpHashEl.textContent = pData.Hash;
+					}
+				}
+
+				alert('Operation saved successfully.');
+			}.bind(this));
 	}
 }
 

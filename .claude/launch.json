@@ -1,0 +1,11 @@
+{
+	"version": "0.0.1",
+	"configurations": [
+		{
+			"name": "ultravisor-dev",
+			"runtimeExecutable": "node",
+			"runtimeArgs": ["source/cli/Ultravisor-Run.cjs", "start", "--config", ".claude/ultravisor-dev-config.json"],
+			"port": 54321
+		}
+	]
+}

@@ -26,33 +26,6 @@ const _ViewConfiguration =
 			font-weight: 300;
 			color: #e0e0e0;
 		}
-		.ultravisor-task-list-editor {
-			background: #16213e;
-			border: 1px solid #2a2a4a;
-			border-radius: 6px;
-			padding: 1em;
-		}
-		.ultravisor-task-list-item {
-			display: flex;
-			align-items: center;
-			justify-content: space-between;
-			padding: 0.5em 0.75em;
-			background: #1a1a2e;
-			border-radius: 4px;
-			margin-bottom: 0.5em;
-		}
-		.ultravisor-task-list-item code {
-			color: #4fc3f7;
-			font-size: 0.9em;
-		}
-		.ultravisor-task-list-add {
-			display: flex;
-			gap: 0.5em;
-			margin-top: 0.75em;
-		}
-		.ultravisor-task-list-add input {
-			flex: 1;
-		}
 	`,
 
 	Templates:
@@ -93,15 +66,19 @@ class UltravisorOperationEditView extends libPictView
 		let tmpOp = this.pict.AppData.Ultravisor.CurrentEditOperation;
 		if (!tmpOp)
 		{
-			tmpOp = { GUIDOperation: '', Name: '', Description: '', Tasks: [] };
+			tmpOp =
+			{
+				Hash: '', Name: '', Description: '',
+				Graph: { Nodes: [], Connections: [], ViewState: {} }
+			};
 			this.pict.AppData.Ultravisor.CurrentEditOperation = tmpOp;
 		}
 
-		let tmpIsNew = !tmpOp.GUIDOperation;
+		let tmpIsNew = !tmpOp.Hash;
 		let tmpTitleEl = document.getElementById('Ultravisor-OperationEdit-Title');
 		if (tmpTitleEl)
 		{
-			tmpTitleEl.textContent = tmpIsNew ? 'New Operation' : ('Edit Operation: ' + (tmpOp.Name || tmpOp.GUIDOperation));
+			tmpTitleEl.textContent = tmpIsNew ? 'New Operation' : ('Edit Operation: ' + (tmpOp.Name || tmpOp.Hash));
 		}
 
 		this.renderForm();
@@ -124,13 +101,19 @@ class UltravisorOperationEditView extends libPictView
 	renderForm()
 	{
 		let tmpOp = this.pict.AppData.Ultravisor.CurrentEditOperation;
-		let tmpIsNew = !tmpOp.GUIDOperation;
+		let tmpIsNew = !tmpOp.Hash;
 		let tmpGlobalRef = '_Pict';
 		let tmpViewRef = tmpGlobalRef + ".views['Ultravisor-OperationEdit']";
 
+		let tmpNodeCount = (tmpOp.Graph && tmpOp.Graph.Nodes) ? tmpOp.Graph.Nodes.length : 0;
+
 		let tmpHTML = '';
-		tmpHTML += '<div class="ultravisor-form-group"><label>GUID Operation</label>';
-		tmpHTML += '<input type="text" id="Ultravisor-OperationEdit-GUIDOperation" value="' + this.escapeAttr(tmpOp.GUIDOperation) + '" ' + (tmpIsNew ? '' : 'readonly') + '></div>';
+
+		if (!tmpIsNew)
+		{
+			tmpHTML += '<div class="ultravisor-form-group"><label>Hash</label>';
+			tmpHTML += '<input type="text" id="Ultravisor-OperationEdit-Hash" value="' + this.escapeAttr(tmpOp.Hash) + '" readonly></div>';
+		}
 
 		tmpHTML += '<div class="ultravisor-form-group"><label>Name</label>';
 		tmpHTML += '<input type="text" id="Ultravisor-OperationEdit-Name" value="' + this.escapeAttr(tmpOp.Name || '') + '"></div>';
@@ -138,91 +121,53 @@ class UltravisorOperationEditView extends libPictView
 		tmpHTML += '<div class="ultravisor-form-group"><label>Description</label>';
 		tmpHTML += '<textarea id="Ultravisor-OperationEdit-Description">' + this.escapeHTML(tmpOp.Description || '') + '</textarea></div>';
 
-		tmpHTML += '<div class="ultravisor-form-group"><label>Tasks (executed in order)</label>';
-		tmpHTML += '<div class="ultravisor-task-list-editor">';
-
-		let tmpTasks = tmpOp.Tasks || [];
-		if (tmpTasks.length === 0)
+		if (!tmpIsNew)
 		{
-			tmpHTML += '<div style="color: #607d8b; font-size: 0.9em; padding: 0.5em;">No tasks added yet.</div>';
+			tmpHTML += '<div class="ultravisor-form-group"><label>Graph</label>';
+			tmpHTML += '<p style="color:#78909c;">' + tmpNodeCount + ' node' + (tmpNodeCount !== 1 ? 's' : '') + ' in graph. Use the Flow Editor to modify the operation graph.</p>';
+			tmpHTML += '</div>';
 		}
-		else
-		{
-			for (let i = 0; i < tmpTasks.length; i++)
-			{
-				let tmpEscTask = tmpTasks[i].replace(/'/g, "\\'");
-				tmpHTML += '<div class="ultravisor-task-list-item">';
-				tmpHTML += '<code>' + this.escapeHTML(tmpTasks[i]) + '</code>';
-				tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-delete" onclick="' + tmpViewRef + '.removeTaskFromOperation(' + i + ')">Remove</button>';
-				tmpHTML += '</div>';
-			}
-		}
-
-		tmpHTML += '<div class="ultravisor-task-list-add">';
-		tmpHTML += '<input type="text" id="Ultravisor-OperationEdit-NewTaskGUID" placeholder="Task GUID to add...">';
-		tmpHTML += '<button class="ultravisor-btn ultravisor-btn-secondary" onclick="' + tmpViewRef + '.addTaskToOperation()">Add</button>';
-		tmpHTML += '</div>';
-		tmpHTML += '</div></div>';
 
 		tmpHTML += '<div class="ultravisor-form-actions">';
-		tmpHTML += '<button class="ultravisor-btn ultravisor-btn-primary" onclick="' + tmpViewRef + '.saveOperation()">Save Operation</button>';
+		tmpHTML += '<button class="ultravisor-btn ultravisor-btn-primary" onclick="' + tmpViewRef + '.saveOperation()">Save Metadata</button>';
+		tmpHTML += '<button class="ultravisor-btn ultravisor-btn-primary" onclick="' + tmpViewRef + '.openFlowEditor()">Open in Flow Editor</button>';
 		tmpHTML += '<button class="ultravisor-btn ultravisor-btn-secondary" onclick="' + tmpGlobalRef + '.PictApplication.navigateTo(\'/Operations\')">Cancel</button>';
 		tmpHTML += '</div>';
 
 		this.pict.ContentAssignment.assignContent('#Ultravisor-OperationEdit-Form', tmpHTML);
 	}
 
-	addTaskToOperation()
+	openFlowEditor()
 	{
-		let tmpInput = document.getElementById('Ultravisor-OperationEdit-NewTaskGUID');
-		let tmpGUID = tmpInput ? tmpInput.value.trim() : '';
-		if (!tmpGUID) return;
-
+		// Sync form values back to the model before navigating
 		let tmpOp = this.pict.AppData.Ultravisor.CurrentEditOperation;
-		if (!tmpOp.Tasks)
-		{
-			tmpOp.Tasks = [];
-		}
-		tmpOp.Tasks.push(tmpGUID);
-
-		// Preserve current form field values before re-render
-		tmpOp.GUIDOperation = document.getElementById('Ultravisor-OperationEdit-GUIDOperation').value.trim();
 		tmpOp.Name = document.getElementById('Ultravisor-OperationEdit-Name').value.trim();
 		tmpOp.Description = document.getElementById('Ultravisor-OperationEdit-Description').value.trim();
 
-		this.renderForm();
-	}
-
-	removeTaskFromOperation(pIndex)
-	{
-		let tmpOp = this.pict.AppData.Ultravisor.CurrentEditOperation;
-		if (tmpOp.Tasks && pIndex >= 0 && pIndex < tmpOp.Tasks.length)
+		// Load the graph into FlowEditor data
+		if (tmpOp.Graph)
 		{
-			tmpOp.Tasks.splice(pIndex, 1);
+			this.pict.AppData.Ultravisor.Flows.Current = JSON.parse(JSON.stringify(tmpOp.Graph));
 		}
 
-		// Preserve current form field values before re-render
-		tmpOp.GUIDOperation = document.getElementById('Ultravisor-OperationEdit-GUIDOperation').value.trim();
-		tmpOp.Name = document.getElementById('Ultravisor-OperationEdit-Name').value.trim();
-		tmpOp.Description = document.getElementById('Ultravisor-OperationEdit-Description').value.trim();
-
-		this.renderForm();
+		this.pict.PictApplication.navigateTo('/FlowEditor');
 	}
 
 	saveOperation()
 	{
+		let tmpOp = this.pict.AppData.Ultravisor.CurrentEditOperation;
+
 		let tmpOpData =
 		{
-			GUIDOperation: document.getElementById('Ultravisor-OperationEdit-GUIDOperation').value.trim(),
 			Name: document.getElementById('Ultravisor-OperationEdit-Name').value.trim(),
 			Description: document.getElementById('Ultravisor-OperationEdit-Description').value.trim(),
-			Tasks: this.pict.AppData.Ultravisor.CurrentEditOperation.Tasks || []
+			Graph: tmpOp.Graph || { Nodes: [], Connections: [], ViewState: {} }
 		};
 
-		if (!tmpOpData.GUIDOperation)
+		let tmpHashEl = document.getElementById('Ultravisor-OperationEdit-Hash');
+		if (tmpHashEl)
 		{
-			alert('GUID Operation is required.');
-			return;
+			tmpOpData.Hash = tmpHashEl.value.trim();
 		}
 
 		this.pict.PictApplication.saveOperation(tmpOpData,

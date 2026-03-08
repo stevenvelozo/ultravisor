@@ -15,8 +15,16 @@ class FlowCardMeadowCreate extends libPictFlowCard
 				BodyStyle: { fill: '#e8f5e9', stroke: '#2e7d32' },
 				Width: 200,
 				Height: 80,
-				Inputs: [{ Name: 'Data', Side: 'left', MinimumInputCount: 1, MaximumInputCount: 1 }],
-				Outputs: [{ Name: 'Created', Side: 'right' }, { Name: 'Error', Side: 'bottom' }],
+				Inputs:
+				[
+					{ Name: 'Data', Side: 'left', PortType: 'value', MinimumInputCount: 1, MaximumInputCount: 1 },
+					{ Name: 'Entity', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
+				],
+				Outputs:
+				[
+					{ Name: 'Created', Side: 'right', PortType: 'value' },
+					{ Name: 'Error', Side: 'bottom', PortType: 'error' }
+				],
 				PropertiesPanel:
 				{
 					PanelType: 'Form', DefaultWidth: 360, DefaultHeight: 260, Title: 'Meadow Create Settings',

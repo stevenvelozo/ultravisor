@@ -1,7 +1,8 @@
 {
-    "EntrypointInputSourceFile": "/Users/stevenvelozo/Code/retold/modules/utility/ultravisor/source/Ultravisor.js",
+    "EntrypointInputSourceFile": "/Users/stevenvelozo/Code/retold/modules/apps/ultravisor/source/Ultravisor.js",
     "LibraryObjectName": "Ultravisor",
-    "LibraryOutputFolder": "/Users/stevenvelozo/Code/retold/modules/utility/ultravisor/dist/",
+    "LibraryOutputFolder": "/Users/stevenvelozo/Code/retold/modules/apps/ultravisor/dist/",
     "LibraryUniminifiedFileName": "ultravisor.compatible.js",
-    "LibraryMinifiedFileName": "ultravisor.compatible.min.js"
+    "LibraryMinifiedFileName": "ultravisor.compatible.min.js",
+    "BrowserifyIgnore": []
 }

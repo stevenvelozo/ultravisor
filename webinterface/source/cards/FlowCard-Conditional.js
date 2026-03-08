@@ -17,12 +17,14 @@ class FlowCardConditional extends libPictFlowCard
 				Height: 100,
 				Inputs:
 				[
-					{ Name: 'In', Side: 'left', MinimumInputCount: 1, MaximumInputCount: 1 }
+					{ Name: 'In', Side: 'left', PortType: 'event-in', MinimumInputCount: 1, MaximumInputCount: 1 },
+					{ Name: 'Address', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 },
+					{ Name: 'Value', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
 				],
 				Outputs:
 				[
-					{ Name: 'True', Side: 'right' },
-					{ Name: 'False', Side: 'bottom' }
+					{ Name: 'True', Side: 'right', PortType: 'event-out' },
+					{ Name: 'False', Side: 'bottom', PortType: 'event-out' }
 				],
 				PropertiesPanel:
 				{

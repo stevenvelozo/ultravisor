@@ -82,12 +82,11 @@ const _ViewConfiguration =
 	<a class="ultravisor-topbar-brand" onclick="{~P~}.PictApplication.navigateTo('/Home')">Ultravisor</a>
 	<div class="ultravisor-topbar-nav">
 		<a onclick="{~P~}.PictApplication.navigateTo('/Home')">Dashboard</a>
-		<a onclick="{~P~}.PictApplication.navigateTo('/Tasks')">Tasks</a>
 		<a onclick="{~P~}.PictApplication.navigateTo('/Operations')">Operations</a>
 		<a onclick="{~P~}.PictApplication.navigateTo('/Schedule')">Schedule</a>
 		<a onclick="{~P~}.PictApplication.navigateTo('/Manifests')">Manifests</a>
 		<a onclick="{~P~}.PictApplication.navigateTo('/Timing')">Timing</a>
-		<a onclick="{~P~}.PictApplication.navigateTo('/FlowEditor')">Flow Editor</a>
+		<a onclick="{~P~}.PictApplication.editOperation()">Flow Editor</a>
 	</div>
 	<div class="ultravisor-topbar-status" id="Ultravisor-TopBar-StatusArea"></div>
 </div>

@@ -17,11 +17,12 @@ class FlowCardSolver extends libPictFlowCard
 				Height: 80,
 				Inputs:
 				[
-					{ Name: 'In', Side: 'left', MinimumInputCount: 1, MaximumInputCount: 1 }
+					{ Name: 'In', Side: 'left', PortType: 'event-in', MinimumInputCount: 1, MaximumInputCount: 1 },
+					{ Name: 'Expression', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
 				],
 				Outputs:
 				[
-					{ Name: 'Result', Side: 'right' }
+					{ Name: 'Result', Side: 'right', PortType: 'value' }
 				],
 				PropertiesPanel:
 				{

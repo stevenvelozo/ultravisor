@@ -58,6 +58,10 @@ const _ViewConfiguration =
 			background-color: #c62828;
 			color: #ffcdd2;
 		}
+		.ultravisor-manifest-status.waiting {
+			background-color: #f57f17;
+			color: #fff9c4;
+		}
 		.ultravisor-manifest-detail {
 			background: #16213e;
 			border: 1px solid #2a2a4a;
@@ -100,12 +104,6 @@ const _ViewConfiguration =
 			max-height: 200px;
 			overflow-y: auto;
 			margin-top: 0.5em;
-		}
-		.ultravisor-manifest-success-true {
-			color: #66bb6a;
-		}
-		.ultravisor-manifest-success-false {
-			color: #ef5350;
 		}
 	`,
 
@@ -169,28 +167,28 @@ class UltravisorManifestListView extends libPictView
 		}
 
 		let tmpHTML = '<table class="ultravisor-manifest-table">';
-		tmpHTML += '<thead><tr><th>Run GUID</th><th>Operation</th><th>Status</th><th>Success</th><th>Started</th><th>Actions</th></tr></thead>';
+		tmpHTML += '<thead><tr><th>Run Hash</th><th>Operation</th><th>Status</th><th>Elapsed</th><th>Started</th><th>Actions</th></tr></thead>';
 		tmpHTML += '<tbody>';
 
 		for (let i = 0; i < tmpManifests.length; i++)
 		{
 			let tmpManifest = tmpManifests[i];
-			let tmpGUIDRun = tmpManifest.GUIDRun || '';
-			let tmpEscGUID = tmpGUIDRun.replace(/'/g, "\\'");
+			let tmpRunHash = tmpManifest.Hash || '';
+			let tmpEscHash = tmpRunHash.replace(/'/g, "\\'");
 			let tmpStatus = tmpManifest.Status || 'Unknown';
 			let tmpStatusClass = tmpStatus.toLowerCase();
-			if (tmpStatusClass !== 'complete' && tmpStatusClass !== 'running' && tmpStatusClass !== 'error')
+			if (tmpStatusClass !== 'complete' && tmpStatusClass !== 'running' && tmpStatusClass !== 'error' && tmpStatusClass !== 'waiting')
 			{
 				tmpStatusClass = '';
 			}
 
 			tmpHTML += '<tr>';
-			tmpHTML += '<td><code style="font-size:0.8em;">' + tmpGUIDRun + '</code></td>';
-			tmpHTML += '<td>' + (tmpManifest.Name || tmpManifest.GUIDOperation || '') + '</td>';
-			tmpHTML += '<td><span class="ultravisor-manifest-status ' + tmpStatusClass + '">' + tmpStatus + '</span></td>';
-			tmpHTML += '<td><span class="ultravisor-manifest-success-' + (tmpManifest.Success ? 'true' : 'false') + '">' + (tmpManifest.Success ? 'Yes' : 'No') + '</span></td>';
-			tmpHTML += '<td>' + (tmpManifest.StartTime || '') + '</td>';
-			tmpHTML += '<td><button class="ultravisor-btn-sm ultravisor-btn-edit" onclick="' + tmpViewRef + '.showManifestDetail(\'' + tmpEscGUID + '\')">Details</button></td>';
+			tmpHTML += '<td><code style="font-size:0.8em;">' + this.escapeHTML(tmpRunHash) + '</code></td>';
+			tmpHTML += '<td>' + this.escapeHTML(tmpManifest.OperationHash || '') + '</td>';
+			tmpHTML += '<td><span class="ultravisor-manifest-status ' + tmpStatusClass + '">' + this.escapeHTML(tmpStatus) + '</span></td>';
+			tmpHTML += '<td>' + (tmpManifest.ElapsedMs ? tmpManifest.ElapsedMs + 'ms' : '') + '</td>';
+			tmpHTML += '<td>' + this.escapeHTML(tmpManifest.StartTime || '') + '</td>';
+			tmpHTML += '<td><button class="ultravisor-btn-sm ultravisor-btn-edit" onclick="' + tmpViewRef + '.showManifestDetail(\'' + tmpEscHash + '\')">Details</button></td>';
 			tmpHTML += '</tr>';
 		}
 
@@ -198,9 +196,9 @@ class UltravisorManifestListView extends libPictView
 		this.pict.ContentAssignment.assignContent('#Ultravisor-ManifestList-Body', tmpHTML);
 	}
 
-	showManifestDetail(pGUIDRun)
+	showManifestDetail(pRunHash)
 	{
-		this.pict.PictApplication.loadManifest(pGUIDRun,
+		this.pict.PictApplication.loadManifest(pRunHash,
 			function (pError, pManifest)
 			{
 				if (pError || !pManifest)
@@ -211,48 +209,52 @@ class UltravisorManifestListView extends libPictView
 				}
 
 				let tmpHTML = '<div class="ultravisor-manifest-detail visible">';
-				tmpHTML += '<h3>Run: ' + (pManifest.GUIDRun || '') + '</h3>';
-				tmpHTML += '<p><strong>Operation:</strong> ' + (pManifest.Name || pManifest.GUIDOperation || '') + '</p>';
-				tmpHTML += '<p><strong>Status:</strong> ' + (pManifest.Status || '') + ' &middot; <strong>Success:</strong> ' + (pManifest.Success ? 'Yes' : 'No') + '</p>';
-				tmpHTML += '<p><strong>Start:</strong> ' + (pManifest.StartTime || '') + ' &middot; <strong>Stop:</strong> ' + (pManifest.StopTime || '') + '</p>';
+				tmpHTML += '<h3>Run: ' + this.escapeHTML(pManifest.Hash || '') + '</h3>';
+				tmpHTML += '<p><strong>Operation:</strong> ' + this.escapeHTML(pManifest.OperationHash || '') + '</p>';
+				tmpHTML += '<p><strong>Status:</strong> ' + this.escapeHTML(pManifest.Status || '') + '</p>';
+				tmpHTML += '<p><strong>Start:</strong> ' + this.escapeHTML(pManifest.StartTime || '') + ' &middot; <strong>Stop:</strong> ' + this.escapeHTML(pManifest.StopTime || '') + '</p>';
+				tmpHTML += '<p><strong>Elapsed:</strong> ' + (pManifest.ElapsedMs || 0) + 'ms</p>';
 
-				if (pManifest.Summary)
+				// Task Outputs
+				if (pManifest.TaskOutputs && Object.keys(pManifest.TaskOutputs).length > 0)
 				{
-					tmpHTML += '<p><strong>Summary:</strong> ' + this.escapeHTML(pManifest.Summary) + '</p>';
+					tmpHTML += '<h3>Task Outputs</h3>';
+					tmpHTML += '<div class="ultravisor-manifest-output">' + this.escapeHTML(JSON.stringify(pManifest.TaskOutputs, null, 2)) + '</div>';
 				}
 
-				// Task results
-				let tmpTaskResults = pManifest.TaskResults || [];
-				if (tmpTaskResults.length > 0)
+				// Task Manifests (object keyed by node hash)
+				if (pManifest.TaskManifests && Object.keys(pManifest.TaskManifests).length > 0)
 				{
-					tmpHTML += '<h3>Task Results</h3>';
-					for (let i = 0; i < tmpTaskResults.length; i++)
+					tmpHTML += '<h3>Task Manifests</h3>';
+					let tmpNodeHashes = Object.keys(pManifest.TaskManifests);
+					for (let i = 0; i < tmpNodeHashes.length; i++)
 					{
-						let tmpResult = tmpTaskResults[i];
+						let tmpNodeHash = tmpNodeHashes[i];
+						let tmpTaskManifest = pManifest.TaskManifests[tmpNodeHash];
 						tmpHTML += '<div class="ultravisor-manifest-task-result">';
 						tmpHTML += '<div class="ultravisor-manifest-task-result-header">';
-						tmpHTML += '<code>' + (tmpResult.GUIDTask || '') + '</code>';
-						tmpHTML += '<span class="ultravisor-manifest-status ' + (tmpResult.Status || '').toLowerCase() + '">' + (tmpResult.Status || '') + '</span>';
+						tmpHTML += '<code>' + this.escapeHTML(tmpNodeHash) + '</code>';
+						tmpHTML += '<span class="ultravisor-manifest-status ' + (tmpTaskManifest.Status || '').toLowerCase() + '">' + this.escapeHTML(tmpTaskManifest.Status || '') + '</span>';
 						tmpHTML += '</div>';
-						tmpHTML += '<p style="margin:0.25em 0; font-size:0.85em; color:#78909c;">' + (tmpResult.Name || '') + ' (' + (tmpResult.Type || '') + ')</p>';
-
-						if (tmpResult.Output)
+						if (tmpTaskManifest.Output)
 						{
-							tmpHTML += '<div class="ultravisor-manifest-output">' + this.escapeHTML(String(tmpResult.Output)) + '</div>';
-						}
-
-						if (tmpResult.Log && tmpResult.Log.length > 0)
-						{
-							tmpHTML += '<div class="ultravisor-manifest-output">' + this.escapeHTML(tmpResult.Log.join('\n')) + '</div>';
+							tmpHTML += '<div class="ultravisor-manifest-output">' + this.escapeHTML(JSON.stringify(tmpTaskManifest.Output, null, 2)) + '</div>';
 						}
 						tmpHTML += '</div>';
 					}
 				}
 
-				// Operation log
+				// Errors
+				if (pManifest.Errors && pManifest.Errors.length > 0)
+				{
+					tmpHTML += '<h3 style="color:#ef5350;">Errors</h3>';
+					tmpHTML += '<div class="ultravisor-manifest-output" style="border: 1px solid #ef5350;">' + this.escapeHTML(pManifest.Errors.join('\n')) + '</div>';
+				}
+
+				// Log
 				if (pManifest.Log && pManifest.Log.length > 0)
 				{
-					tmpHTML += '<h3>Operation Log</h3>';
+					tmpHTML += '<h3>Log</h3>';
 					tmpHTML += '<div class="ultravisor-manifest-output">' + this.escapeHTML(pManifest.Log.join('\n')) + '</div>';
 				}
 

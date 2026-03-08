@@ -18,7 +18,7 @@ class FlowCardStart extends libPictFlowCard
 				Inputs: [],
 				Outputs:
 				[
-					{ Name: 'Out', Side: 'right' }
+					{ Name: 'Out', Side: 'right', PortType: 'event-out' }
 				]
 			},
 			pOptions),

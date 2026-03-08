@@ -17,12 +17,13 @@ class FlowCardRestRequest extends libPictFlowCard
 				Height: 80,
 				Inputs:
 				[
-					{ Name: 'In', Side: 'left', MinimumInputCount: 0, MaximumInputCount: 1 }
+					{ Name: 'In', Side: 'left', PortType: 'event-in', MinimumInputCount: 0, MaximumInputCount: 1 },
+					{ Name: 'URL', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
 				],
 				Outputs:
 				[
-					{ Name: 'Response', Side: 'right' },
-					{ Name: 'Error', Side: 'bottom' }
+					{ Name: 'Response', Side: 'right', PortType: 'value' },
+					{ Name: 'Error', Side: 'bottom', PortType: 'error' }
 				],
 				PropertiesPanel:
 				{

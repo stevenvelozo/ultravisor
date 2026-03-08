@@ -11,14 +11,6 @@
 			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-Dashboard`)~}"
 		},
 		{
-			"path": "/Tasks",
-			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-TaskList`)~}"
-		},
-		{
-			"path": "/TaskEdit",
-			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-TaskEdit`)~}"
-		},
-		{
 			"path": "/Operations",
 			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-OperationList`)~}"
 		},

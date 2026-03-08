@@ -1,18 +1,16 @@
 /**
- * Example Flow: Meadow Data Pipeline
+ * Example Flow: Template Processor
  *
- * Demonstrates a Meadow integration workflow:
- *   Start → Read JSON seed data → Meadow Create records → Meadow Reads (fetch all)
- *     → Meadow Count → CSV Transform → Write CSV export → End
+ * Demonstrates a multi-step text processing pipeline using the new engine task types:
+ *   Start -> Set Values (initialize project metadata)
+ *         -> Read File (template)
+ *         -> Replace String (project name)
+ *         -> Replace String (version)
+ *         -> If Conditional (check for remaining placeholders)
+ *           -> True:  Error Message (warn about unresolved placeholders) -> End
+ *           -> False: String Appender (add header comment) -> Write File (output) -> End
  *
- * Uses the meadow-integration test-small.json demo data:
- *   [
- *     { id: "1", name: "Alice", city: "Seattle", country: "USA", score: "95" },
- *     { id: "2", name: "Bob", city: "Portland", country: "USA", score: "87" },
- *     { id: "3", name: "Carol", city: "Vancouver", country: "CAN", score: "92" },
- *     { id: "4", name: "Dave", city: "Seattle", country: "USA", score: "78" },
- *     { id: "5", name: "Eve", city: "Portland", country: "USA", score: "88" }
- *   ]
+ * Shows chained string operations, state management, and conditional validation.
  */
 module.exports =
 {
@@ -20,7 +18,7 @@ module.exports =
 	[
 		// ── Entry ────────────────────────────────────────────────
 		{
-			Hash: 'mdw-start',
+			Hash: 'tpl-start',
 			Type: 'start',
 			X: 50,
 			Y: 220,
@@ -29,233 +27,293 @@ module.exports =
 			Title: 'Start',
 			Ports:
 			[
-				{ Hash: 'mdw-start-out', Direction: 'output', Side: 'right', Label: 'Out' }
+				{ Hash: 'tpl-start-out', Direction: 'output', Side: 'right', Label: 'Out' }
 			],
 			Data: {}
 		},
-		// ── Read seed data from JSON file ────────────────────────
+		// ── Initialize project metadata ─────────────────────────
 		{
-			Hash: 'mdw-readjson',
-			Type: 'RJSON',
+			Hash: 'tpl-setvals',
+			Type: 'set-values',
 			X: 270,
 			Y: 200,
-			Width: 180,
+			Width: 200,
 			Height: 80,
-			Title: 'Read Seed Data',
+			Title: 'Set Project Info',
 			Ports:
 			[
-				{ Hash: 'mdw-rj-in', Direction: 'input', Side: 'left', Label: 'Trigger' },
-				{ Hash: 'mdw-rj-data', Direction: 'output', Side: 'right', Label: 'Data' },
-				{ Hash: 'mdw-rj-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
+				{ Hash: 'tpl-sv-in', Direction: 'input', Side: 'left', Label: 'Execute' },
+				{ Hash: 'tpl-sv-out', Direction: 'output', Side: 'right', Label: 'Complete' }
 			],
-			Data: { File: 'test-small.json', Destination: 'SeedData' }
+			Data:
+			{
+				Mappings:
+				[
+					{ Address: 'Operation.ProjectName', Value: 'Retold' },
+					{ Address: 'Operation.Version', Value: '3.0.0' },
+					{ Address: 'Operation.Author', Value: 'Steven Velozo' }
+				]
+			}
 		},
-		// ── Create records via Meadow ────────────────────────────
+		// ── Read the template file ──────────────────────────────
 		{
-			Hash: 'mdw-create',
-			Type: 'MCREATE',
-			X: 530,
+			Hash: 'tpl-read',
+			Type: 'read-file',
+			X: 550,
 			Y: 200,
 			Width: 200,
 			Height: 80,
-			Title: 'Create Persons',
+			Title: 'Read Template',
 			Ports:
 			[
-				{ Hash: 'mdw-mc-in', Direction: 'input', Side: 'left', Label: 'Data' },
-				{ Hash: 'mdw-mc-out', Direction: 'output', Side: 'right', Label: 'Created' },
-				{ Hash: 'mdw-mc-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
+				{ Hash: 'tpl-read-in', Direction: 'input', Side: 'left', Label: 'BeginRead' },
+				{ Hash: 'tpl-read-done', Direction: 'output', Side: 'right', Label: 'ReadComplete' },
+				{ Hash: 'tpl-read-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
 			],
-			Data: { Entity: 'Person', Endpoint: '/1.0/Person', DataAddress: 'SeedData' }
+			Data: { FilePath: 'readme.template.md', Encoding: 'utf8' }
 		},
-		// ── Read all records back ────────────────────────────────
+		// ── Replace project name placeholder ────────────────────
 		{
-			Hash: 'mdw-reads',
-			Type: 'MREADS',
-			X: 810,
-			Y: 200,
-			Width: 200,
+			Hash: 'tpl-replace-name',
+			Type: 'replace-string',
+			X: 830,
+			Y: 180,
+			Width: 220,
 			Height: 80,
-			Title: 'Read All Persons',
+			Title: 'Set Project Name',
 			Ports:
 			[
-				{ Hash: 'mdw-mr-in', Direction: 'input', Side: 'left', Label: 'Trigger' },
-				{ Hash: 'mdw-mr-out', Direction: 'output', Side: 'right', Label: 'Records' },
-				{ Hash: 'mdw-mr-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
+				{ Hash: 'tpl-rn-in', Direction: 'input', Side: 'left', Label: 'Replace' },
+				{ Hash: 'tpl-rn-done', Direction: 'output', Side: 'right', Label: 'ReplaceComplete' },
+				{ Hash: 'tpl-rn-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
 			],
-			Data: { Entity: 'Person', Endpoint: '/1.0/Persons/0/100', Filter: '', Destination: 'AllPersons' }
+			Data: { InputString: '{~D:TaskOutput.tpl-read.FileContent~}', SearchString: '${PROJECT_NAME}', ReplaceString: '{~D:Operation.ProjectName~}' }
 		},
-		// ── Count records ────────────────────────────────────────
+		// ── Replace version placeholder ─────────────────────────
 		{
-			Hash: 'mdw-count',
-			Type: 'MCOUNT',
-			X: 810,
+			Hash: 'tpl-replace-ver',
+			Type: 'replace-string',
+			X: 1130,
+			Y: 180,
+			Width: 220,
+			Height: 80,
+			Title: 'Set Version',
+			Ports:
+			[
+				{ Hash: 'tpl-rv-in', Direction: 'input', Side: 'left', Label: 'Replace' },
+				{ Hash: 'tpl-rv-done', Direction: 'output', Side: 'right', Label: 'ReplaceComplete' },
+				{ Hash: 'tpl-rv-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
+			],
+			Data: { InputString: '{~D:TaskOutput.tpl-replace-name.ReplacedString~}', SearchString: '${VERSION}', ReplaceString: '{~D:Operation.Version~}' }
+		},
+		// ── Check for remaining unresolved placeholders ─────────
+		{
+			Hash: 'tpl-validate',
+			Type: 'if-conditional',
+			X: 1430,
+			Y: 160,
+			Width: 240,
+			Height: 100,
+			Title: 'Unresolved Placeholders?',
+			Ports:
+			[
+				{ Hash: 'tpl-val-in', Direction: 'input', Side: 'left', Label: 'Evaluate' },
+				{ Hash: 'tpl-val-true', Direction: 'output', Side: 'bottom', Label: 'True' },
+				{ Hash: 'tpl-val-false', Direction: 'output', Side: 'right', Label: 'False' }
+			],
+			Data: { DataAddress: 'TaskOutput.tpl-replace-ver.ReplacedString', CompareValue: '${', Operator: 'contains' }
+		},
+		// ── Error: unresolved placeholders remain ────────────────
+		{
+			Hash: 'tpl-warn',
+			Type: 'error-message',
+			X: 1430,
 			Y: 380,
+			Width: 240,
+			Height: 80,
+			Title: 'Warn: Unresolved',
+			Ports:
+			[
+				{ Hash: 'tpl-warn-in', Direction: 'input', Side: 'left', Label: 'Trigger' },
+				{ Hash: 'tpl-warn-done', Direction: 'output', Side: 'right', Label: 'Complete' }
+			],
+			Data: { MessageTemplate: 'Warning: Template still contains unresolved ${...} placeholders after processing' }
+		},
+		// ── Prepend a generated-by header comment ───────────────
+		{
+			Hash: 'tpl-header',
+			Type: 'string-appender',
+			X: 1750,
+			Y: 160,
+			Width: 220,
+			Height: 80,
+			Title: 'Add Header',
+			Ports:
+			[
+				{ Hash: 'tpl-hdr-in', Direction: 'input', Side: 'left', Label: 'Append' },
+				{ Hash: 'tpl-hdr-done', Direction: 'output', Side: 'right', Label: 'Completed' }
+			],
+			Data: { InputString: '{~D:TaskOutput.tpl-replace-ver.ReplacedString~}', OutputAddress: 'Operation.FinalContent' }
+		},
+		// ── Write the processed output ──────────────────────────
+		{
+			Hash: 'tpl-write',
+			Type: 'write-file',
+			X: 2050,
+			Y: 160,
 			Width: 200,
 			Height: 80,
-			Title: 'Count Persons',
+			Title: 'Write Output',
 			Ports:
 			[
-				{ Hash: 'mdw-cnt-in', Direction: 'input', Side: 'left', Label: 'Trigger' },
-				{ Hash: 'mdw-cnt-out', Direction: 'output', Side: 'right', Label: 'Count' },
-				{ Hash: 'mdw-cnt-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
+				{ Hash: 'tpl-write-in', Direction: 'input', Side: 'left', Label: 'BeginWrite' },
+				{ Hash: 'tpl-write-done', Direction: 'output', Side: 'right', Label: 'WriteComplete' },
+				{ Hash: 'tpl-write-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
 			],
-			Data: { Entity: 'Person', Endpoint: '/1.0/Persons/Count', Destination: 'PersonCount' }
-		},
-		// ── Transform to CSV format ──────────────────────────────
-		{
-			Hash: 'mdw-csvxf',
-			Type: 'CSVXF',
-			X: 1090,
-			Y: 200,
-			Width: 200,
-			Height: 80,
-			Title: 'To CSV Format',
-			Ports:
-			[
-				{ Hash: 'mdw-xf-in', Direction: 'input', Side: 'left', Label: 'CSV Data' },
-				{ Hash: 'mdw-xf-out', Direction: 'output', Side: 'right', Label: 'Records' }
-			],
-			Data: { SourceAddress: 'AllPersons', Destination: 'CSVOutput', Delimiter: ',' }
-		},
-		// ── Write the CSV export ─────────────────────────────────
-		{
-			Hash: 'mdw-writetext',
-			Type: 'WTXT',
-			X: 1370,
-			Y: 200,
-			Width: 180,
-			Height: 80,
-			Title: 'Write CSV Export',
-			Ports:
-			[
-				{ Hash: 'mdw-wt-in', Direction: 'input', Side: 'left', Label: 'Data' },
-				{ Hash: 'mdw-wt-done', Direction: 'output', Side: 'right', Label: 'Done' },
-				{ Hash: 'mdw-wt-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
-			],
-			Data: { File: 'persons-export.csv', Address: 'CSVOutput' }
-		},
-		// ── Template: generate summary ───────────────────────────
-		{
-			Hash: 'mdw-template',
-			Type: 'TMPL',
-			X: 1090,
-			Y: 380,
-			Width: 190,
-			Height: 80,
-			Title: 'Build Summary',
-			Ports:
-			[
-				{ Hash: 'mdw-tmpl-in', Direction: 'input', Side: 'left', Label: 'In' },
-				{ Hash: 'mdw-tmpl-out', Direction: 'output', Side: 'right', Label: 'Result' }
-			],
-			Data: { Template: 'Processed {PersonCount} person records', Destination: 'SummaryText' }
+			Data: { FilePath: 'README.md', Content: '{~D:Operation.FinalContent~}', Encoding: 'utf8' }
 		},
 		// ── Exit ─────────────────────────────────────────────────
 		{
-			Hash: 'mdw-end',
+			Hash: 'tpl-end',
 			Type: 'end',
-			X: 1630,
+			X: 2330,
 			Y: 260,
 			Width: 140,
 			Height: 80,
 			Title: 'End',
 			Ports:
 			[
-				{ Hash: 'mdw-end-in', Direction: 'input', Side: 'left', Label: 'In' }
+				{ Hash: 'tpl-end-in', Direction: 'input', Side: 'left', Label: 'In' }
 			],
 			Data: {}
 		}
 	],
 	Connections:
 	[
-		// Start → Read Seed Data
+		// Start -> Set Project Info
 		{
-			Hash: 'mdw-c1',
-			SourceNodeHash: 'mdw-start',
-			SourcePortHash: 'mdw-start-out',
-			TargetNodeHash: 'mdw-readjson',
-			TargetPortHash: 'mdw-rj-in',
+			Hash: 'tpl-c1',
+			SourceNodeHash: 'tpl-start',
+			SourcePortHash: 'tpl-start-out',
+			TargetNodeHash: 'tpl-setvals',
+			TargetPortHash: 'tpl-sv-in',
 			Data: {}
 		},
-		// Read Seed Data → Create Persons
+		// Set Project Info -> Read Template
 		{
-			Hash: 'mdw-c2',
-			SourceNodeHash: 'mdw-readjson',
-			SourcePortHash: 'mdw-rj-data',
-			TargetNodeHash: 'mdw-create',
-			TargetPortHash: 'mdw-mc-in',
+			Hash: 'tpl-c2',
+			SourceNodeHash: 'tpl-setvals',
+			SourcePortHash: 'tpl-sv-out',
+			TargetNodeHash: 'tpl-read',
+			TargetPortHash: 'tpl-read-in',
 			Data: {}
 		},
-		// Create Persons → Read All Persons
+		// Read Template -> Set Project Name
 		{
-			Hash: 'mdw-c3',
-			SourceNodeHash: 'mdw-create',
-			SourcePortHash: 'mdw-mc-out',
-			TargetNodeHash: 'mdw-reads',
-			TargetPortHash: 'mdw-mr-in',
+			Hash: 'tpl-c3',
+			SourceNodeHash: 'tpl-read',
+			SourcePortHash: 'tpl-read-done',
+			TargetNodeHash: 'tpl-replace-name',
+			TargetPortHash: 'tpl-rn-in',
 			Data: {}
 		},
-		// Read All Persons → To CSV Format
+		// Set Project Name -> Set Version
 		{
-			Hash: 'mdw-c4',
-			SourceNodeHash: 'mdw-reads',
-			SourcePortHash: 'mdw-mr-out',
-			TargetNodeHash: 'mdw-csvxf',
-			TargetPortHash: 'mdw-xf-in',
+			Hash: 'tpl-c4',
+			SourceNodeHash: 'tpl-replace-name',
+			SourcePortHash: 'tpl-rn-done',
+			TargetNodeHash: 'tpl-replace-ver',
+			TargetPortHash: 'tpl-rv-in',
 			Data: {}
 		},
-		// To CSV Format → Write CSV Export
+		// Set Version -> Unresolved Placeholders?
 		{
-			Hash: 'mdw-c5',
-			SourceNodeHash: 'mdw-csvxf',
-			SourcePortHash: 'mdw-xf-out',
-			TargetNodeHash: 'mdw-writetext',
-			TargetPortHash: 'mdw-wt-in',
+			Hash: 'tpl-c5',
+			SourceNodeHash: 'tpl-replace-ver',
+			SourcePortHash: 'tpl-rv-done',
+			TargetNodeHash: 'tpl-validate',
+			TargetPortHash: 'tpl-val-in',
 			Data: {}
 		},
-		// Write CSV Export → End
+		// Unresolved Placeholders? (True) -> Warn
 		{
-			Hash: 'mdw-c6',
-			SourceNodeHash: 'mdw-writetext',
-			SourcePortHash: 'mdw-wt-done',
-			TargetNodeHash: 'mdw-end',
-			TargetPortHash: 'mdw-end-in',
+			Hash: 'tpl-c6',
+			SourceNodeHash: 'tpl-validate',
+			SourcePortHash: 'tpl-val-true',
+			TargetNodeHash: 'tpl-warn',
+			TargetPortHash: 'tpl-warn-in',
 			Data: {}
 		},
-		// Create Persons → Count Persons (parallel branch)
+		// Warn -> End
 		{
-			Hash: 'mdw-c7',
-			SourceNodeHash: 'mdw-create',
-			SourcePortHash: 'mdw-mc-out',
-			TargetNodeHash: 'mdw-count',
-			TargetPortHash: 'mdw-cnt-in',
+			Hash: 'tpl-c7',
+			SourceNodeHash: 'tpl-warn',
+			SourcePortHash: 'tpl-warn-done',
+			TargetNodeHash: 'tpl-end',
+			TargetPortHash: 'tpl-end-in',
 			Data: {}
 		},
-		// Count Persons → Build Summary
+		// Unresolved Placeholders? (False) -> Add Header
 		{
-			Hash: 'mdw-c8',
-			SourceNodeHash: 'mdw-count',
-			SourcePortHash: 'mdw-cnt-out',
-			TargetNodeHash: 'mdw-template',
-			TargetPortHash: 'mdw-tmpl-in',
+			Hash: 'tpl-c8',
+			SourceNodeHash: 'tpl-validate',
+			SourcePortHash: 'tpl-val-false',
+			TargetNodeHash: 'tpl-header',
+			TargetPortHash: 'tpl-hdr-in',
 			Data: {}
 		},
-		// Build Summary → End
+		// Add Header -> Write Output
 		{
-			Hash: 'mdw-c9',
-			SourceNodeHash: 'mdw-template',
-			SourcePortHash: 'mdw-tmpl-out',
-			TargetNodeHash: 'mdw-end',
-			TargetPortHash: 'mdw-end-in',
+			Hash: 'tpl-c9',
+			SourceNodeHash: 'tpl-header',
+			SourcePortHash: 'tpl-hdr-done',
+			TargetNodeHash: 'tpl-write',
+			TargetPortHash: 'tpl-write-in',
 			Data: {}
 		},
-		// Read Seed Data error → End
+		// Write Output -> End
 		{
-			Hash: 'mdw-c10',
-			SourceNodeHash: 'mdw-readjson',
-			SourcePortHash: 'mdw-rj-err',
-			TargetNodeHash: 'mdw-end',
-			TargetPortHash: 'mdw-end-in',
+			Hash: 'tpl-c10',
+			SourceNodeHash: 'tpl-write',
+			SourcePortHash: 'tpl-write-done',
+			TargetNodeHash: 'tpl-end',
+			TargetPortHash: 'tpl-end-in',
+			Data: {}
+		},
+		// Read Template error -> End
+		{
+			Hash: 'tpl-c11',
+			SourceNodeHash: 'tpl-read',
+			SourcePortHash: 'tpl-read-err',
+			TargetNodeHash: 'tpl-end',
+			TargetPortHash: 'tpl-end-in',
+			Data: {}
+		},
+		// Set Project Name error -> End
+		{
+			Hash: 'tpl-c12',
+			SourceNodeHash: 'tpl-replace-name',
+			SourcePortHash: 'tpl-rn-err',
+			TargetNodeHash: 'tpl-end',
+			TargetPortHash: 'tpl-end-in',
+			Data: {}
+		},
+		// Set Version error -> End
+		{
+			Hash: 'tpl-c13',
+			SourceNodeHash: 'tpl-replace-ver',
+			SourcePortHash: 'tpl-rv-err',
+			TargetNodeHash: 'tpl-end',
+			TargetPortHash: 'tpl-end-in',
+			Data: {}
+		},
+		// Write Output error -> End
+		{
+			Hash: 'tpl-c14',
+			SourceNodeHash: 'tpl-write',
+			SourcePortHash: 'tpl-write-err',
+			TargetNodeHash: 'tpl-end',
+			TargetPortHash: 'tpl-end-in',
 			Data: {}
 		}
 	],

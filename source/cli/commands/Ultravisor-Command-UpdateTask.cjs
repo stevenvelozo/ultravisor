@@ -10,18 +10,23 @@ class UltravisorCommandAddTask extends libCommandLineCommand
 		super(pFable, pManifest, pServiceHash);
 
 		this.options.CommandKeyword = 'updatetask';
-		this.options.Description = 'Update (or add) a task to the available tasks.';
+		this.options.Description = 'Update (or add) a task definition.';
 
 		this.options.CommandOptions.push({ Name:'-f, --file [json_filepath]', Description:'JSON Task definition file path.', Default:false });
 
-		this.options.CommandOptions.push({ Name:'-g, --guid [task_guid]', Description:'The guid for the task.', Default:false });
-		this.options.CommandOptions.push({ Name:'-c, --code [task_code]', Description:'The code for the task.', Default:false });
+		this.options.CommandOptions.push({ Name:'-h, --hash [task_hash]', Description:'The hash for the task definition.', Default:false });
 		this.options.CommandOptions.push({ Name:'-n, --name [task_name]', Description:'The name of the task.', Default:false });
 
-		this.options.CommandOptions.push({ Name:'-t, --type [task_type]', Description:'The type of task.', Default:'CRON' });
-		this.options.CommandOptions.push({ Name:'-p, --parameters [task_parameters]', Description:'The parameters of the task.', Default:'0 0 * * * *' });
+		this.options.CommandOptions.push({ Name:'-t, --type [task_type]', Description:'The type of task (e.g. read-file, write-file, set-values).', Default:false });
 
 		this.addCommand();
+	}
+
+	_getService(pTypeName)
+	{
+		return this.fable.servicesMap[pTypeName]
+			? Object.values(this.fable.servicesMap[pTypeName])[0]
+			: null;
 	}
 
 	onRunAsync(fCallback)
@@ -64,24 +69,31 @@ class UltravisorCommandAddTask extends libCommandLineCommand
 
 		tmpOperationState.TaskDefinition_Parameterized = {};
 
-		tmpOperationState.TaskDefinition_Parameterized.GUIDTask = this.CommandOptions.guid;
-		tmpOperationState.TaskDefinition_Parameterized.Code = this.CommandOptions.code;
-		tmpOperationState.TaskDefinition_Parameterized.Name = this.CommandOptions.name;
-
-		tmpOperationState.TaskDefinition_Parameterized.Type = this.CommandOptions.type;
-		tmpOperationState.TaskDefinition_Parameterized.Parameters = this.CommandOptions.parameters;
+		if (this.CommandOptions.hash)
+		{
+			tmpOperationState.TaskDefinition_Parameterized.Hash = this.CommandOptions.hash;
+		}
+		if (this.CommandOptions.name)
+		{
+			tmpOperationState.TaskDefinition_Parameterized.Name = this.CommandOptions.name;
+		}
+		if (this.CommandOptions.type)
+		{
+			tmpOperationState.TaskDefinition_Parameterized.Type = this.CommandOptions.type;
+		}
 
 		tmpOperationState.TaskDefinition = Object.assign({}, tmpOperationState.TaskDefinition_Parameterized, tmpOperationState.JSONFile);
 
-		this.fable['Ultravisor-Hypervisor-State'].updateTask(tmpOperationState.TaskDefinition,
+		let tmpStateService = this._getService('UltravisorHypervisorState');
+		tmpStateService.updateTaskDefinition(tmpOperationState.TaskDefinition,
 			function (pError, pUpdatedTask)
 			{
 				if (pError)
 				{
-					return fCallback(new Error(`Could not update task: ${pError.message}`));
+					return fCallback(new Error(`Could not update task definition: ${pError.message}`));
 				}
 
-				console.log(`Task with GUID ${pUpdatedTask.GUIDTask} updated successfully.`);
+				console.log(`Task definition ${pUpdatedTask.Hash} updated successfully.`);
 
 				return fCallback();
 			}.bind(this));

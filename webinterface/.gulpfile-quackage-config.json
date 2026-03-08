@@ -1,7 +1,8 @@
 {
-    "EntrypointInputSourceFile": "/Users/steven/Code/retold/modules/utility/ultravisor/webinterface/source/Pict-Application-Ultravisor.js",
+    "EntrypointInputSourceFile": "/Users/stevenvelozo/Code/retold/modules/apps/ultravisor/webinterface/source/Pict-Application-Ultravisor.js",
     "LibraryObjectName": "UltravisorWebinterface",
-    "LibraryOutputFolder": "/Users/steven/Code/retold/modules/utility/ultravisor/webinterface/dist/",
+    "LibraryOutputFolder": "/Users/stevenvelozo/Code/retold/modules/apps/ultravisor/webinterface/dist/",
     "LibraryUniminifiedFileName": "ultravisor-webinterface.compatible.js",
-    "LibraryMinifiedFileName": "ultravisor-webinterface.compatible.min.js"
+    "LibraryMinifiedFileName": "ultravisor-webinterface.compatible.min.js",
+    "BrowserifyIgnore": []
 }

@@ -18,6 +18,16 @@ class UltravisorAPIServer extends libPictService
 		this.fable.addServiceTypeIfNotExists('Orator', libOrator);
 	}
 
+	/**
+	 * Get a service instance from the fable services map.
+	 */
+	_getService(pTypeName)
+	{
+		return this.fable.servicesMap[pTypeName]
+			? Object.values(this.fable.servicesMap[pTypeName])[0]
+			: null;
+	}
+
 	wireEndpoints(fCallback)
 	{
 		if (!this._Orator)
@@ -41,11 +51,11 @@ class UltravisorAPIServer extends libPictService
 				'/status',
 				function (pRequest, pResponse, fNext)
 				{
-					let tmpHypervisor = this.fable['Ultravisor-Hypervisor'];
+					let tmpHypervisor = this._getService('UltravisorHypervisor');
 					pResponse.send({
 						Status: 'Running',
-						ScheduleEntries: tmpHypervisor.getSchedule().length,
-						ScheduleRunning: tmpHypervisor._Running
+						ScheduleEntries: tmpHypervisor ? tmpHypervisor.getSchedule().length : 0,
+						ScheduleRunning: tmpHypervisor ? tmpHypervisor._Running : false
 					});
 					return fNext();
 				}.bind(this)
@@ -57,29 +67,33 @@ class UltravisorAPIServer extends libPictService
 				function (pRequest, pResponse, fNext)
 				{
 					this.log.info(`Ultravisor API Server: Received stop request via API; stopping server.`);
-					let tmpHypervisor = this.fable['Ultravisor-Hypervisor'];
-					tmpHypervisor.stopSchedule();
+					let tmpHypervisor = this._getService('UltravisorHypervisor');
+					if (tmpHypervisor)
+					{
+						tmpHypervisor.stopSchedule();
+					}
 					pResponse.send({ "Status": "STOPPING" });
 					pResponse.end();
 					return this._Orator.stopService(fNext);
 				}.bind(this)
 			);
 
-		// --- Task CRUD ---
+		// --- Node Template CRUD ---
 		this._OratorServer.get
 			(
-				'/Task',
+				'/NodeTemplate',
 				function (pRequest, pResponse, fNext)
 				{
-					this.fable['Ultravisor-Hypervisor-State'].getTaskList({},
-						function (pError, pTasks)
+					let tmpState = this._getService('UltravisorHypervisorState');
+					tmpState.getNodeTemplateList(
+						function (pError, pTemplates)
 						{
 							if (pError)
 							{
 								pResponse.send(500, { Error: pError.message });
 								return fNext();
 							}
-							pResponse.send(pTasks);
+							pResponse.send(pTemplates);
 							return fNext();
 						});
 				}.bind(this)
@@ -87,18 +101,19 @@ class UltravisorAPIServer extends libPictService
 
 		this._OratorServer.get
 			(
-				'/Task/:GUIDTask',
+				'/NodeTemplate/:Hash',
 				function (pRequest, pResponse, fNext)
 				{
-					this.fable['Ultravisor-Hypervisor-State'].getTask(pRequest.params.GUIDTask,
-						function (pError, pTask)
+					let tmpState = this._getService('UltravisorHypervisorState');
+					tmpState.getNodeTemplate(pRequest.params.Hash,
+						function (pError, pTemplate)
 						{
 							if (pError)
 							{
 								pResponse.send(404, { Error: pError.message });
 								return fNext();
 							}
-							pResponse.send(pTask);
+							pResponse.send(pTemplate);
 							return fNext();
 						});
 				}.bind(this)
@@ -106,18 +121,19 @@ class UltravisorAPIServer extends libPictService
 
 		this._OratorServer.post
 			(
-				'/Task',
+				'/NodeTemplate',
 				function (pRequest, pResponse, fNext)
 				{
-					this.fable['Ultravisor-Hypervisor-State'].updateTask(pRequest.body,
-						function (pError, pTask)
+					let tmpState = this._getService('UltravisorHypervisorState');
+					tmpState.updateNodeTemplate(pRequest.body,
+						function (pError, pTemplate)
 						{
 							if (pError)
 							{
 								pResponse.send(400, { Error: pError.message });
 								return fNext();
 							}
-							pResponse.send(pTask);
+							pResponse.send(pTemplate);
 							return fNext();
 						});
 				}.bind(this)
@@ -125,20 +141,21 @@ class UltravisorAPIServer extends libPictService
 
 		this._OratorServer.put
 			(
-				'/Task/:GUIDTask',
+				'/NodeTemplate/:Hash',
 				function (pRequest, pResponse, fNext)
 				{
-					let tmpTaskData = pRequest.body || {};
-					tmpTaskData.GUIDTask = pRequest.params.GUIDTask;
-					this.fable['Ultravisor-Hypervisor-State'].updateTask(tmpTaskData,
-						function (pError, pTask)
+					let tmpTemplateData = pRequest.body || {};
+					tmpTemplateData.Hash = pRequest.params.Hash;
+					let tmpState = this._getService('UltravisorHypervisorState');
+					tmpState.updateNodeTemplate(tmpTemplateData,
+						function (pError, pTemplate)
 						{
 							if (pError)
 							{
 								pResponse.send(400, { Error: pError.message });
 								return fNext();
 							}
-							pResponse.send(pTask);
+							pResponse.send(pTemplate);
 							return fNext();
 						});
 				}.bind(this)
@@ -146,21 +163,21 @@ class UltravisorAPIServer extends libPictService
 
 		this._OratorServer.del
 			(
-				'/Task/:GUIDTask',
+				'/NodeTemplate/:Hash',
 				function (pRequest, pResponse, fNext)
 				{
-					let tmpState = this.fable['Ultravisor-Hypervisor-State'];
-					if (tmpState._Tasks.hasOwnProperty(pRequest.params.GUIDTask))
-					{
-						delete tmpState._Tasks[pRequest.params.GUIDTask];
-						tmpState.persistState();
-						pResponse.send({ Status: 'Deleted', GUIDTask: pRequest.params.GUIDTask });
-					}
-					else
-					{
-						pResponse.send(404, { Error: `Task ${pRequest.params.GUIDTask} not found.` });
-					}
-					return fNext();
+					let tmpState = this._getService('UltravisorHypervisorState');
+					tmpState.deleteNodeTemplate(pRequest.params.Hash,
+						function (pError)
+						{
+							if (pError)
+							{
+								pResponse.send(404, { Error: pError.message });
+								return fNext();
+							}
+							pResponse.send({ Status: 'Deleted', Hash: pRequest.params.Hash });
+							return fNext();
+						});
 				}.bind(this)
 			);
 
@@ -170,7 +187,8 @@ class UltravisorAPIServer extends libPictService
 				'/Operation',
 				function (pRequest, pResponse, fNext)
 				{
-					this.fable['Ultravisor-Hypervisor-State'].getOperationList({},
+					let tmpState = this._getService('UltravisorHypervisorState');
+					tmpState.getOperationList(
 						function (pError, pOperations)
 						{
 							if (pError)
@@ -186,10 +204,11 @@ class UltravisorAPIServer extends libPictService
 
 		this._OratorServer.get
 			(
-				'/Operation/:GUIDOperation',
+				'/Operation/:Hash',
 				function (pRequest, pResponse, fNext)
 				{
-					this.fable['Ultravisor-Hypervisor-State'].getOperation(pRequest.params.GUIDOperation,
+					let tmpState = this._getService('UltravisorHypervisorState');
+					tmpState.getOperation(pRequest.params.Hash,
 						function (pError, pOperation)
 						{
 							if (pError)
@@ -208,7 +227,8 @@ class UltravisorAPIServer extends libPictService
 				'/Operation',
 				function (pRequest, pResponse, fNext)
 				{
-					this.fable['Ultravisor-Hypervisor-State'].updateOperation(pRequest.body,
+					let tmpState = this._getService('UltravisorHypervisorState');
+					tmpState.updateOperation(pRequest.body,
 						function (pError, pOperation)
 						{
 							if (pError)
@@ -224,12 +244,13 @@ class UltravisorAPIServer extends libPictService
 
 		this._OratorServer.put
 			(
-				'/Operation/:GUIDOperation',
+				'/Operation/:Hash',
 				function (pRequest, pResponse, fNext)
 				{
 					let tmpOperationData = pRequest.body || {};
-					tmpOperationData.GUIDOperation = pRequest.params.GUIDOperation;
-					this.fable['Ultravisor-Hypervisor-State'].updateOperation(tmpOperationData,
+					tmpOperationData.Hash = pRequest.params.Hash;
+					let tmpState = this._getService('UltravisorHypervisorState');
+					tmpState.updateOperation(tmpOperationData,
 						function (pError, pOperation)
 						{
 							if (pError)
@@ -245,69 +266,34 @@ class UltravisorAPIServer extends libPictService
 
 		this._OratorServer.del
 			(
-				'/Operation/:GUIDOperation',
+				'/Operation/:Hash',
 				function (pRequest, pResponse, fNext)
 				{
-					let tmpState = this.fable['Ultravisor-Hypervisor-State'];
-					if (tmpState._Operations.hasOwnProperty(pRequest.params.GUIDOperation))
-					{
-						delete tmpState._Operations[pRequest.params.GUIDOperation];
-						tmpState.persistState();
-						pResponse.send({ Status: 'Deleted', GUIDOperation: pRequest.params.GUIDOperation });
-					}
-					else
-					{
-						pResponse.send(404, { Error: `Operation ${pRequest.params.GUIDOperation} not found.` });
-					}
-					return fNext();
-				}.bind(this)
-			);
-
-		// --- Task Execution ---
-		this._OratorServer.get
-			(
-				'/Task/:GUIDTask/Execute',
-				function (pRequest, pResponse, fNext)
-				{
-					let tmpState = this.fable['Ultravisor-Hypervisor-State'];
-					let tmpTaskService = this.fable['Ultravisor-Task'];
-
-					tmpState.getTask(pRequest.params.GUIDTask,
-						function (pError, pTask)
+					let tmpState = this._getService('UltravisorHypervisorState');
+					tmpState.deleteOperation(pRequest.params.Hash,
+						function (pError)
 						{
 							if (pError)
 							{
 								pResponse.send(404, { Error: pError.message });
 								return fNext();
 							}
-							tmpTaskService.executeTask(pTask, {},
-								function (pExecError, pManifestEntry)
-								{
-									if (pExecError)
-									{
-										pResponse.send(500, { Error: pExecError.message });
-										return fNext();
-									}
-									// Store the task result as a manifest so it appears in /Manifest
-									let tmpManifestService = this.fable['Ultravisor-Operation-Manifest'];
-									tmpManifestService.createTaskManifest(pManifestEntry);
-									pResponse.send(pManifestEntry);
-									return fNext();
-								}.bind(this));
-						}.bind(this));
+							pResponse.send({ Status: 'Deleted', Hash: pRequest.params.Hash });
+							return fNext();
+						});
 				}.bind(this)
 			);
 
 		// --- Operation Execution ---
 		this._OratorServer.get
 			(
-				'/Operation/:GUIDOperation/Execute',
+				'/Operation/:Hash/Execute',
 				function (pRequest, pResponse, fNext)
 				{
-					let tmpState = this.fable['Ultravisor-Hypervisor-State'];
-					let tmpOperationService = this.fable['Ultravisor-Operation'];
+					let tmpState = this._getService('UltravisorHypervisorState');
+					let tmpEngine = this._getService('UltravisorExecutionEngine');
 
-					tmpState.getOperation(pRequest.params.GUIDOperation,
+					tmpState.getOperation(pRequest.params.Hash,
 						function (pError, pOperation)
 						{
 							if (pError)
@@ -315,18 +301,49 @@ class UltravisorAPIServer extends libPictService
 								pResponse.send(404, { Error: pError.message });
 								return fNext();
 							}
-							tmpOperationService.executeOperation(pOperation,
-								function (pExecError, pManifest)
+
+							tmpEngine.executeOperation(pOperation,
+								function (pExecError, pContext)
 								{
 									if (pExecError)
 									{
 										pResponse.send(500, { Error: pExecError.message });
 										return fNext();
 									}
-									pResponse.send(pManifest);
+									pResponse.send({
+										Status: pContext.Status,
+										Hash: pContext.Hash,
+										OperationHash: pContext.OperationHash,
+										TaskOutputs: pContext.TaskOutputs,
+										Log: pContext.Log,
+										Errors: pContext.Errors,
+										StartTime: pContext.StartTime,
+										StopTime: pContext.StopTime,
+										ElapsedMs: pContext.ElapsedMs,
+										TaskManifests: pContext.TaskManifests
+									});
 									return fNext();
 								});
 						});
+				}.bind(this)
+			);
+
+		// --- Task Types ---
+		this._OratorServer.get
+			(
+				'/TaskType',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpRegistry = this._getService('UltravisorTaskTypeRegistry');
+					if (tmpRegistry)
+					{
+						pResponse.send(tmpRegistry.listDefinitions());
+					}
+					else
+					{
+						pResponse.send([]);
+					}
+					return fNext();
 				}.bind(this)
 			);
 
@@ -336,30 +353,9 @@ class UltravisorAPIServer extends libPictService
 				'/Schedule',
 				function (pRequest, pResponse, fNext)
 				{
-					pResponse.send(this.fable['Ultravisor-Hypervisor'].getSchedule());
+					let tmpHypervisor = this._getService('UltravisorHypervisor');
+					pResponse.send(tmpHypervisor ? tmpHypervisor.getSchedule() : []);
 					return fNext();
-				}.bind(this)
-			);
-
-		this._OratorServer.post
-			(
-				'/Schedule/Task',
-				function (pRequest, pResponse, fNext)
-				{
-					let tmpBody = pRequest.body || {};
-					let tmpHypervisor = this.fable['Ultravisor-Hypervisor'];
-
-					tmpHypervisor.scheduleTask(tmpBody.GUIDTask, tmpBody.ScheduleType, tmpBody.Parameters,
-						function (pError, pEntry)
-						{
-							if (pError)
-							{
-								pResponse.send(400, { Error: pError.message });
-								return fNext();
-							}
-							pResponse.send(pEntry);
-							return fNext();
-						});
 				}.bind(this)
 			);
 
@@ -369,9 +365,9 @@ class UltravisorAPIServer extends libPictService
 				function (pRequest, pResponse, fNext)
 				{
 					let tmpBody = pRequest.body || {};
-					let tmpHypervisor = this.fable['Ultravisor-Hypervisor'];
+					let tmpHypervisor = this._getService('UltravisorHypervisor');
 
-					tmpHypervisor.scheduleOperation(tmpBody.GUIDOperation, tmpBody.ScheduleType, tmpBody.Parameters,
+					tmpHypervisor.scheduleOperation(tmpBody.Hash, tmpBody.ScheduleType, tmpBody.Parameters,
 						function (pError, pEntry)
 						{
 							if (pError)
@@ -390,7 +386,8 @@ class UltravisorAPIServer extends libPictService
 				'/Schedule/:GUID',
 				function (pRequest, pResponse, fNext)
 				{
-					this.fable['Ultravisor-Hypervisor'].removeScheduleEntry(pRequest.params.GUID,
+					let tmpHypervisor = this._getService('UltravisorHypervisor');
+					tmpHypervisor.removeScheduleEntry(pRequest.params.GUID,
 						function (pError, pResult)
 						{
 							if (pError)
@@ -409,7 +406,8 @@ class UltravisorAPIServer extends libPictService
 				'/Schedule/Start',
 				function (pRequest, pResponse, fNext)
 				{
-					this.fable['Ultravisor-Hypervisor'].startSchedule(
+					let tmpHypervisor = this._getService('UltravisorHypervisor');
+					tmpHypervisor.startSchedule(
 						function ()
 						{
 							pResponse.send({ Status: 'Schedule Started' });
@@ -423,7 +421,8 @@ class UltravisorAPIServer extends libPictService
 				'/Schedule/Stop',
 				function (pRequest, pResponse, fNext)
 				{
-					this.fable['Ultravisor-Hypervisor'].stopSchedule(
+					let tmpHypervisor = this._getService('UltravisorHypervisor');
+					tmpHypervisor.stopSchedule(
 						function ()
 						{
 							pResponse.send({ Status: 'Schedule Stopped' });
@@ -438,26 +437,64 @@ class UltravisorAPIServer extends libPictService
 				'/Manifest',
 				function (pRequest, pResponse, fNext)
 				{
-					pResponse.send(this.fable['Ultravisor-Operation-Manifest'].getManifestList());
+					let tmpManifest = this._getService('UltravisorExecutionManifest');
+					pResponse.send(tmpManifest ? tmpManifest.listRuns() : []);
 					return fNext();
 				}.bind(this)
 			);
 
 		this._OratorServer.get
 			(
-				'/Manifest/:GUIDRun',
+				'/Manifest/:RunHash',
 				function (pRequest, pResponse, fNext)
 				{
-					let tmpManifest = this.fable['Ultravisor-Operation-Manifest'].getManifest(pRequest.params.GUIDRun);
-					if (tmpManifest)
+					let tmpManifest = this._getService('UltravisorExecutionManifest');
+					let tmpRun = tmpManifest ? tmpManifest.getRun(pRequest.params.RunHash) : null;
+					if (tmpRun)
 					{
-						pResponse.send(tmpManifest);
+						pResponse.send(tmpRun);
 					}
 					else
 					{
-						pResponse.send(404, { Error: `Manifest ${pRequest.params.GUIDRun} not found.` });
+						pResponse.send(404, { Error: `Manifest ${pRequest.params.RunHash} not found.` });
 					}
 					return fNext();
+				}.bind(this)
+			);
+
+		// --- Operation Resume (for value-input tasks) ---
+		this._OratorServer.post
+			(
+				'/Operation/Resume',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpBody = pRequest.body || {};
+					let tmpEngine = this._getService('UltravisorExecutionEngine');
+
+					if (!tmpBody.RunHash || !tmpBody.NodeHash)
+					{
+						pResponse.send(400, { Error: 'RunHash and NodeHash are required.' });
+						return fNext();
+					}
+
+					tmpEngine.resumeOperation(tmpBody.RunHash, tmpBody.NodeHash, tmpBody.Value,
+						function (pError, pContext)
+						{
+							if (pError)
+							{
+								pResponse.send(400, { Error: pError.message });
+								return fNext();
+							}
+							pResponse.send({
+								Status: pContext.Status,
+								Hash: pContext.Hash,
+								TaskOutputs: pContext.TaskOutputs,
+								Log: pContext.Log,
+								Errors: pContext.Errors,
+								WaitingTasks: pContext.WaitingTasks
+							});
+							return fNext();
+						});
 				}.bind(this)
 			);
 

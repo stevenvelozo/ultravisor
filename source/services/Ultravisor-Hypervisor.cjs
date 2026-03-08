@@ -14,6 +14,16 @@ class UltravisorHypervisor extends libPictService
 		this._Running = false;
 	}
 
+	/**
+	 * Get a service instance from the fable services map.
+	 */
+	_getService(pTypeName)
+	{
+		return this.fable.servicesMap[pTypeName]
+			? Object.values(this.fable.servicesMap[pTypeName])[0]
+			: null;
+	}
+
 	get schedule()
 	{
 		return this.getSchedule();
@@ -25,46 +35,19 @@ class UltravisorHypervisor extends libPictService
 	}
 
 	/**
-	 * Add a task to the schedule.
-	 *
-	 * @param {string} pTaskGUID - The task GUID to schedule.
-	 * @param {string} pType - Schedule type (cron, daily, hourly).
-	 * @param {string} pParameters - Schedule parameters (e.g. cron expression).
-	 * @param {function} fCallback - Callback.
-	 */
-	scheduleTask(pTaskGUID, pType, pParameters, fCallback)
-	{
-		let tmpScheduleEntry = {
-			GUID: `sched-task-${pTaskGUID}-${Date.now()}`,
-			TargetType: 'Task',
-			TargetGUID: pTaskGUID,
-			ScheduleType: pType || 'cron',
-			Parameters: pParameters || '0 * * * *',
-			CronExpression: this._resolveScheduleExpression(pType, pParameters),
-			Active: false,
-			CreatedAt: new Date().toISOString()
-		};
-
-		this._Schedule.push(tmpScheduleEntry);
-		this.log.info(`Ultravisor Hypervisor: scheduled task ${pTaskGUID} as ${tmpScheduleEntry.ScheduleType} (${tmpScheduleEntry.CronExpression})`);
-
-		return fCallback(null, tmpScheduleEntry);
-	}
-
-	/**
 	 * Add an operation to the schedule.
 	 *
-	 * @param {string} pOperationGUID - The operation GUID to schedule.
+	 * @param {string} pOperationHash - The operation hash to schedule.
 	 * @param {string} pType - Schedule type (cron, daily, hourly).
 	 * @param {string} pParameters - Schedule parameters.
 	 * @param {function} fCallback - Callback.
 	 */
-	scheduleOperation(pOperationGUID, pType, pParameters, fCallback)
+	scheduleOperation(pOperationHash, pType, pParameters, fCallback)
 	{
 		let tmpScheduleEntry = {
-			GUID: `sched-op-${pOperationGUID}-${Date.now()}`,
+			GUID: `sched-op-${pOperationHash}-${Date.now()}`,
 			TargetType: 'Operation',
-			TargetGUID: pOperationGUID,
+			TargetHash: pOperationHash,
 			ScheduleType: pType || 'cron',
 			Parameters: pParameters || '0 * * * *',
 			CronExpression: this._resolveScheduleExpression(pType, pParameters),
@@ -73,7 +56,7 @@ class UltravisorHypervisor extends libPictService
 		};
 
 		this._Schedule.push(tmpScheduleEntry);
-		this.log.info(`Ultravisor Hypervisor: scheduled operation ${pOperationGUID} as ${tmpScheduleEntry.ScheduleType} (${tmpScheduleEntry.CronExpression})`);
+		this.log.info(`Ultravisor Hypervisor: scheduled operation ${pOperationHash} as ${tmpScheduleEntry.ScheduleType} (${tmpScheduleEntry.CronExpression})`);
 
 		return fCallback(null, tmpScheduleEntry);
 	}
@@ -103,10 +86,9 @@ class UltravisorHypervisor extends libPictService
 	 */
 	startSchedule(fCallback)
 	{
-		let tmpCronService = this.fable['Ultravisor-Hypervisor-Event-Cron'];
-		let tmpTaskService = this.fable['Ultravisor-Task'];
-		let tmpOperationService = this.fable['Ultravisor-Operation'];
-		let tmpStateService = this.fable['Ultravisor-Hypervisor-State'];
+		let tmpCronService = this._getService('UltravisorHypervisorEventCron');
+		let tmpStateService = this._getService('UltravisorHypervisorState');
+		let tmpEngine = this._getService('UltravisorExecutionEngine');
 
 		this._Running = true;
 
@@ -124,55 +106,28 @@ class UltravisorHypervisor extends libPictService
 			tmpCronService.start(tmpEntry,
 				(pScheduleEntry) =>
 				{
-					// On tick, execute the target
-					if (pScheduleEntry.TargetType === 'Task')
-					{
-						tmpStateService.getTask(pScheduleEntry.TargetGUID,
-							(pError, pTask) =>
+					// On tick, execute the target operation
+					tmpStateService.getOperation(pScheduleEntry.TargetHash,
+						(pError, pOperation) =>
+						{
+							if (pError)
 							{
-								if (pError)
+								this.log.error(`Ultravisor Hypervisor: scheduled operation ${pScheduleEntry.TargetHash} not found: ${pError.message}`);
+								return;
+							}
+							tmpEngine.executeOperation(pOperation,
+								(pExecError, pContext) =>
 								{
-									this.log.error(`Ultravisor Hypervisor: scheduled task ${pScheduleEntry.TargetGUID} not found: ${pError.message}`);
-									return;
-								}
-								tmpTaskService.executeTask(pTask, {},
-									(pTaskError, pResult) =>
+									if (pExecError)
 									{
-										if (pTaskError)
-										{
-											this.log.error(`Ultravisor Hypervisor: scheduled task execution error: ${pTaskError.message}`);
-										}
-										else
-										{
-											this.log.info(`Ultravisor Hypervisor: scheduled task ${pScheduleEntry.TargetGUID} completed: ${pResult.Status}`);
-										}
-									});
-							});
-					}
-					else if (pScheduleEntry.TargetType === 'Operation')
-					{
-						tmpStateService.getOperation(pScheduleEntry.TargetGUID,
-							(pError, pOperation) =>
-							{
-								if (pError)
-								{
-									this.log.error(`Ultravisor Hypervisor: scheduled operation ${pScheduleEntry.TargetGUID} not found: ${pError.message}`);
-									return;
-								}
-								tmpOperationService.executeOperation(pOperation,
-									(pOpError, pManifest) =>
+										this.log.error(`Ultravisor Hypervisor: scheduled operation execution error: ${pExecError.message}`);
+									}
+									else
 									{
-										if (pOpError)
-										{
-											this.log.error(`Ultravisor Hypervisor: scheduled operation execution error: ${pOpError.message}`);
-										}
-										else
-										{
-											this.log.info(`Ultravisor Hypervisor: scheduled operation ${pScheduleEntry.TargetGUID} completed: ${pManifest.Status}`);
-										}
-									});
-							});
-					}
+										this.log.info(`Ultravisor Hypervisor: scheduled operation ${pScheduleEntry.TargetHash} completed: ${pContext.Status}`);
+									}
+								});
+						});
 				});
 		}
 
@@ -189,7 +144,7 @@ class UltravisorHypervisor extends libPictService
 	 */
 	stopSchedule(fCallback)
 	{
-		let tmpCronService = this.fable['Ultravisor-Hypervisor-Event-Cron'];
+		let tmpCronService = this._getService('UltravisorHypervisorEventCron');
 
 		tmpCronService.stop();
 		this._Running = false;
@@ -212,7 +167,7 @@ class UltravisorHypervisor extends libPictService
 	 */
 	removeScheduleEntry(pGUID, fCallback)
 	{
-		let tmpCronService = this.fable['Ultravisor-Hypervisor-Event-Cron'];
+		let tmpCronService = this._getService('UltravisorHypervisorEventCron');
 
 		for (let i = 0; i < this._Schedule.length; i++)
 		{

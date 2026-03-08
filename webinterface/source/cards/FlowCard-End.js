@@ -17,7 +17,7 @@ class FlowCardEnd extends libPictFlowCard
 				Height: 80,
 				Inputs:
 				[
-					{ Name: 'In', Side: 'left', MinimumInputCount: 1, MaximumInputCount: 5 }
+					{ Name: 'In', Side: 'left', PortType: 'event-in', MinimumInputCount: 1, MaximumInputCount: 5 }
 				],
 				Outputs: []
 			},

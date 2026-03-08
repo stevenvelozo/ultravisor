@@ -8,26 +8,32 @@ class FlowCardLaunchOperation extends libPictFlowCard
 			{},
 			{
 				Title: 'Launch Operation',
-				Code: 'LAUNCHOP',
-				Description: 'Asynchronously launch another operation.',
-				Category: 'Core',
+				Code: 'launch-operation',
+				Description: 'Executes a child operation by hash, with isolated operation state.',
+				Category: 'Control',
 				TitleBarColor: '#7b1fa2',
 				BodyStyle: { fill: '#f3e5f5', stroke: '#7b1fa2' },
 				Width: 200,
-				Height: 80,
+				Height: 100,
 				Inputs:
 				[
-					{ Name: 'Trigger', Side: 'left', MinimumInputCount: 0, MaximumInputCount: 1 }
+					{ Name: 'Launch', Side: 'left', PortType: 'event-in' },
+					{ Name: 'OperationHash', Side: 'top', PortType: 'setting' },
+					{ Name: 'InputData', Side: 'top', PortType: 'setting' }
 				],
 				Outputs:
 				[
-					{ Name: 'Launched', Side: 'right' }
+					{ Name: 'Completed', Side: 'right', PortType: 'event-out' },
+					{ Name: 'Result', Side: 'right', PortType: 'value' },
+					{ Name: 'Status', Side: 'right', PortType: 'value' },
+					{ Name: 'ElapsedMs', Side: 'right', PortType: 'value' },
+					{ Name: 'Error', Side: 'bottom', PortType: 'error' }
 				],
 				PropertiesPanel:
 				{
 					PanelType: 'Form',
 					DefaultWidth: 350,
-					DefaultHeight: 200,
+					DefaultHeight: 220,
 					Title: 'Launch Operation Settings',
 					Configuration:
 					{
@@ -47,21 +53,21 @@ class FlowCardLaunchOperation extends libPictFlowCard
 							],
 							Descriptors:
 							{
-								'Record.Data.TargetOperation':
+								'Record.Data.OperationHash':
 								{
-									Name: 'Target Operation GUID',
-									Hash: 'TargetOperation',
+									Name: 'Operation Hash',
+									Hash: 'OperationHash',
 									DataType: 'String',
 									Default: '',
 									PictForm: { Section: 'LaunchSection', Group: 'LaunchGroup', Row: 1, Width: 12 }
 								},
-								'Record.Data.MergeParentState':
+								'Record.Data.InputData':
 								{
-									Name: 'Merge Parent State',
-									Hash: 'MergeParentState',
-									DataType: 'Boolean',
-									Default: false,
-									PictForm: { Section: 'LaunchSection', Group: 'LaunchGroup', Row: 2, Width: 6 }
+									Name: 'Input Data (JSON)',
+									Hash: 'InputData',
+									DataType: 'String',
+									Default: '',
+									PictForm: { Section: 'LaunchSection', Group: 'LaunchGroup', Row: 2, Width: 12 }
 								}
 							}
 						}

@@ -17,12 +17,13 @@ class FlowCardReadText extends libPictFlowCard
 				Height: 80,
 				Inputs:
 				[
-					{ Name: 'Trigger', Side: 'left', MinimumInputCount: 0, MaximumInputCount: 1 }
+					{ Name: 'Trigger', Side: 'left', PortType: 'event-in', MinimumInputCount: 0, MaximumInputCount: 1 },
+					{ Name: 'File', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
 				],
 				Outputs:
 				[
-					{ Name: 'Data', Side: 'right' },
-					{ Name: 'Error', Side: 'bottom' }
+					{ Name: 'Data', Side: 'right', PortType: 'value' },
+					{ Name: 'Error', Side: 'bottom', PortType: 'error' }
 				],
 				PropertiesPanel:
 				{

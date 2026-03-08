@@ -156,7 +156,7 @@ class UltravisorScheduleView extends libPictView
 		}
 
 		let tmpHTML = '<table class="ultravisor-schedule-table">';
-		tmpHTML += '<thead><tr><th>GUID</th><th>Type</th><th>Target</th><th>Cron</th><th>Active</th><th>Actions</th></tr></thead>';
+		tmpHTML += '<thead><tr><th>GUID</th><th>Type</th><th>Target Hash</th><th>Cron</th><th>Active</th><th>Actions</th></tr></thead>';
 		tmpHTML += '<tbody>';
 
 		for (let i = 0; i < tmpSchedule.length; i++)
@@ -167,10 +167,10 @@ class UltravisorScheduleView extends libPictView
 			let tmpActive = tmpEntry.Active ? 'yes' : 'no';
 
 			tmpHTML += '<tr>';
-			tmpHTML += '<td><code style="font-size:0.8em;">' + tmpGUID + '</code></td>';
-			tmpHTML += '<td>' + (tmpEntry.TargetType || '') + '</td>';
-			tmpHTML += '<td><code>' + (tmpEntry.TargetGUID || '') + '</code></td>';
-			tmpHTML += '<td><code>' + (tmpEntry.CronExpression || tmpEntry.Parameters || '') + '</code></td>';
+			tmpHTML += '<td><code style="font-size:0.8em;">' + this.escapeHTML(tmpGUID) + '</code></td>';
+			tmpHTML += '<td>' + this.escapeHTML(tmpEntry.TargetType || '') + '</td>';
+			tmpHTML += '<td><code>' + this.escapeHTML(tmpEntry.TargetHash || '') + '</code></td>';
+			tmpHTML += '<td><code>' + this.escapeHTML(tmpEntry.CronExpression || tmpEntry.Parameters || '') + '</code></td>';
 			tmpHTML += '<td><span class="ultravisor-schedule-active ' + tmpActive + '">' + (tmpEntry.Active ? 'Active' : 'Inactive') + '</span></td>';
 			tmpHTML += '<td>';
 			tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-delete" onclick="if(confirm(\'Remove schedule entry?\')){ ' + tmpGlobalRef + '.PictApplication.removeScheduleEntry(\'' + tmpEscGUID + '\', function(){ ' + tmpGlobalRef + '.PictApplication.showView(\'Ultravisor-Schedule\'); }); }">Remove</button>';
@@ -189,29 +189,12 @@ class UltravisorScheduleView extends libPictView
 
 		let tmpHTML = '';
 
-		// Schedule a task
-		tmpHTML += '<div class="ultravisor-schedule-add-section">';
-		tmpHTML += '<h3>Schedule a Task</h3>';
-		tmpHTML += '<div class="ultravisor-schedule-add-form">';
-		tmpHTML += '<div class="ultravisor-form-group"><label>Task GUID</label>';
-		tmpHTML += '<input type="text" id="Ultravisor-Schedule-TaskGUID" placeholder="e.g. MY-TASK-001"></div>';
-		tmpHTML += '<div class="ultravisor-form-group"><label>Schedule Type</label>';
-		tmpHTML += '<select id="Ultravisor-Schedule-TaskScheduleType">';
-		tmpHTML += '<option value="cron">Cron</option>';
-		tmpHTML += '<option value="daily">Daily</option>';
-		tmpHTML += '<option value="hourly">Hourly</option>';
-		tmpHTML += '</select></div>';
-		tmpHTML += '<div class="ultravisor-form-group"><label>Parameters (cron expression)</label>';
-		tmpHTML += '<input type="text" id="Ultravisor-Schedule-TaskParameters" placeholder="e.g. 0 * * * *"></div>';
-		tmpHTML += '<button class="ultravisor-btn ultravisor-btn-primary" onclick="' + tmpViewRef + '.addTaskSchedule()">Add</button>';
-		tmpHTML += '</div></div>';
-
 		// Schedule an operation
-		tmpHTML += '<div class="ultravisor-schedule-add-section" style="margin-top:1em;">';
+		tmpHTML += '<div class="ultravisor-schedule-add-section">';
 		tmpHTML += '<h3>Schedule an Operation</h3>';
 		tmpHTML += '<div class="ultravisor-schedule-add-form">';
-		tmpHTML += '<div class="ultravisor-form-group"><label>Operation GUID</label>';
-		tmpHTML += '<input type="text" id="Ultravisor-Schedule-OperationGUID" placeholder="e.g. MY-OP-001"></div>';
+		tmpHTML += '<div class="ultravisor-form-group"><label>Operation Hash</label>';
+		tmpHTML += '<input type="text" id="Ultravisor-Schedule-OperationHash" placeholder="e.g. OPR-0001"></div>';
 		tmpHTML += '<div class="ultravisor-form-group"><label>Schedule Type</label>';
 		tmpHTML += '<select id="Ultravisor-Schedule-OperationScheduleType">';
 		tmpHTML += '<option value="cron">Cron</option>';
@@ -226,43 +209,19 @@ class UltravisorScheduleView extends libPictView
 		this.pict.ContentAssignment.assignContent('#Ultravisor-Schedule-AddForms', tmpHTML);
 	}
 
-	addTaskSchedule()
-	{
-		let tmpGUID = document.getElementById('Ultravisor-Schedule-TaskGUID').value.trim();
-		let tmpType = document.getElementById('Ultravisor-Schedule-TaskScheduleType').value;
-		let tmpParams = document.getElementById('Ultravisor-Schedule-TaskParameters').value.trim();
-
-		if (!tmpGUID)
-		{
-			alert('Task GUID is required.');
-			return;
-		}
-
-		this.pict.PictApplication.scheduleTask(tmpGUID, tmpType, tmpParams,
-			function (pError)
-			{
-				if (pError)
-				{
-					alert('Error scheduling task: ' + pError.message);
-					return;
-				}
-				this.pict.PictApplication.showView('Ultravisor-Schedule');
-			}.bind(this));
-	}
-
 	addOperationSchedule()
 	{
-		let tmpGUID = document.getElementById('Ultravisor-Schedule-OperationGUID').value.trim();
+		let tmpHash = document.getElementById('Ultravisor-Schedule-OperationHash').value.trim();
 		let tmpType = document.getElementById('Ultravisor-Schedule-OperationScheduleType').value;
 		let tmpParams = document.getElementById('Ultravisor-Schedule-OperationParameters').value.trim();
 
-		if (!tmpGUID)
+		if (!tmpHash)
 		{
-			alert('Operation GUID is required.');
+			alert('Operation Hash is required.');
 			return;
 		}
 
-		this.pict.PictApplication.scheduleOperation(tmpGUID, tmpType, tmpParams,
+		this.pict.PictApplication.scheduleOperation(tmpHash, tmpType, tmpParams,
 			function (pError)
 			{
 				if (pError)
@@ -272,6 +231,12 @@ class UltravisorScheduleView extends libPictView
 				}
 				this.pict.PictApplication.showView('Ultravisor-Schedule');
 			}.bind(this));
+	}
+
+	escapeHTML(pValue)
+	{
+		if (!pValue) return '';
+		return String(pValue).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 	}
 }
 

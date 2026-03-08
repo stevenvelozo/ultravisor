@@ -13,16 +13,18 @@ class FlowCardCopyFile extends libPictFlowCard
 				Category: 'File I/O',
 				TitleBarColor: '#2980b9',
 				BodyStyle: { fill: '#eaf2f8', stroke: '#2980b9' },
-				Width: 180,
+				Width: 200,
 				Height: 80,
 				Inputs:
 				[
-					{ Name: 'Trigger', Side: 'left', MinimumInputCount: 0, MaximumInputCount: 1 }
+					{ Name: 'Trigger', Side: 'left', PortType: 'event-in', MinimumInputCount: 0, MaximumInputCount: 1 },
+					{ Name: 'Source', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 },
+					{ Name: 'Target', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
 				],
 				Outputs:
 				[
-					{ Name: 'Done', Side: 'right' },
-					{ Name: 'Error', Side: 'bottom' }
+					{ Name: 'Done', Side: 'right', PortType: 'event-out' },
+					{ Name: 'Error', Side: 'bottom', PortType: 'error' }
 				],
 				PropertiesPanel:
 				{

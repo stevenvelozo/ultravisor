@@ -15,8 +15,16 @@ class FlowCardMeadowCount extends libPictFlowCard
 				BodyStyle: { fill: '#e8f5e9', stroke: '#2e7d32' },
 				Width: 200,
 				Height: 80,
-				Inputs: [{ Name: 'Trigger', Side: 'left', MinimumInputCount: 0, MaximumInputCount: 1 }],
-				Outputs: [{ Name: 'Count', Side: 'right' }, { Name: 'Error', Side: 'bottom' }],
+				Inputs:
+				[
+					{ Name: 'Trigger', Side: 'left', PortType: 'event-in', MinimumInputCount: 0, MaximumInputCount: 1 },
+					{ Name: 'Entity', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
+				],
+				Outputs:
+				[
+					{ Name: 'Count', Side: 'right', PortType: 'value' },
+					{ Name: 'Error', Side: 'bottom', PortType: 'error' }
+				],
 				PropertiesPanel:
 				{
 					PanelType: 'Form', DefaultWidth: 360, DefaultHeight: 260, Title: 'Meadow Count Settings',

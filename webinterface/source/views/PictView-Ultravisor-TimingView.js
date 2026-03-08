@@ -235,26 +235,26 @@ class UltravisorTimingView extends libPictView
 		for (let i = tmpManifests.length - 1; i >= 0; i--)
 		{
 			let tmpManifest = tmpManifests[i];
-			let tmpGUIDRun = tmpManifest.GUIDRun || '';
-			let tmpLabel = (tmpManifest.Name || tmpManifest.GUIDOperation || tmpGUIDRun);
+			let tmpRunHash = tmpManifest.Hash || '';
+			let tmpLabel = (tmpManifest.OperationHash || tmpRunHash);
 			let tmpStatus = tmpManifest.Status || 'Unknown';
 			let tmpTime = tmpManifest.StartTime ? tmpManifest.StartTime.replace('T', ' ').replace(/\.\d+Z$/, '') : '';
-			tmpHTML += '<option value="' + this.escapeHTML(tmpGUIDRun) + '">' + this.escapeHTML(tmpLabel) + ' [' + tmpStatus + '] ' + tmpTime + '</option>';
+			tmpHTML += '<option value="' + this.escapeHTML(tmpRunHash) + '">' + this.escapeHTML(tmpLabel) + ' [' + tmpStatus + '] ' + tmpTime + '</option>';
 		}
 
 		tmpHTML += '</select>';
 		this.pict.ContentAssignment.assignContent('#Ultravisor-Timing-Selector', tmpHTML);
 	}
 
-	onSelectManifest(pGUIDRun)
+	onSelectManifest(pRunHash)
 	{
-		if (!pGUIDRun)
+		if (!pRunHash)
 		{
 			this.pict.ContentAssignment.assignContent('#Ultravisor-Timing-Detail', '');
 			return;
 		}
 
-		this.pict.PictApplication.loadManifest(pGUIDRun,
+		this.pict.PictApplication.loadManifest(pRunHash,
 			function (pError, pManifest)
 			{
 				if (pError || !pManifest)
@@ -270,10 +270,22 @@ class UltravisorTimingView extends libPictView
 
 	renderTimingVisualization(pManifest)
 	{
-		let tmpTaskResults = pManifest.TaskResults || [];
+		// Convert TaskManifests object to an array for visualization
+		let tmpTaskResults = [];
+		if (pManifest.TaskManifests && typeof pManifest.TaskManifests === 'object')
+		{
+			let tmpKeys = Object.keys(pManifest.TaskManifests);
+			for (let k = 0; k < tmpKeys.length; k++)
+			{
+				let tmpEntry = pManifest.TaskManifests[tmpKeys[k]];
+				tmpEntry._NodeHash = tmpKeys[k];
+				tmpTaskResults.push(tmpEntry);
+			}
+		}
+
 		let tmpOperationElapsedMs = pManifest.ElapsedMs || 0;
-		let tmpOperationElapsedFormatted = pManifest.ElapsedFormatted || this.formatMs(tmpOperationElapsedMs);
-		let tmpAverageTaskMs = pManifest.AverageTaskMs || 0;
+		let tmpOperationElapsedFormatted = this.formatMs(tmpOperationElapsedMs);
+		let tmpAverageTaskMs = 0;
 		let tmpStatus = (pManifest.Status || 'Unknown').toLowerCase();
 		let tmpStatusClass = (tmpStatus === 'complete' || tmpStatus === 'error' || tmpStatus === 'running') ? tmpStatus : '';
 
@@ -287,8 +299,8 @@ class UltravisorTimingView extends libPictView
 			tmpOperationElapsedFormatted = this.formatMs(tmpOperationElapsedMs);
 		}
 
-		// Compute average if not provided
-		if (tmpAverageTaskMs <= 0 && tmpTaskResults.length > 0 && tmpOperationElapsedMs > 0)
+		// Compute average
+		if (tmpTaskResults.length > 0 && tmpOperationElapsedMs > 0)
 		{
 			tmpAverageTaskMs = tmpOperationElapsedMs / tmpTaskResults.length;
 		}
@@ -312,7 +324,7 @@ class UltravisorTimingView extends libPictView
 
 		// Summary header
 		tmpHTML += '<div class="ultravisor-timing-summary">';
-		tmpHTML += '<div class="ultravisor-timing-stat"><span class="ultravisor-timing-stat-label">Operation</span><span class="ultravisor-timing-stat-value">' + this.escapeHTML(pManifest.Name || pManifest.GUIDOperation || '') + '</span></div>';
+		tmpHTML += '<div class="ultravisor-timing-stat"><span class="ultravisor-timing-stat-label">Operation</span><span class="ultravisor-timing-stat-value">' + this.escapeHTML(pManifest.OperationHash || '') + '</span></div>';
 		tmpHTML += '<div class="ultravisor-timing-stat"><span class="ultravisor-timing-stat-label">Status</span><span class="ultravisor-timing-stat-value ' + tmpStatusClass + '">' + this.escapeHTML(pManifest.Status || 'Unknown') + '</span></div>';
 		tmpHTML += '<div class="ultravisor-timing-stat"><span class="ultravisor-timing-stat-label">Total Time</span><span class="ultravisor-timing-stat-value">' + this.escapeHTML(tmpOperationElapsedFormatted) + '</span></div>';
 		tmpHTML += '<div class="ultravisor-timing-stat"><span class="ultravisor-timing-stat-label">Tasks</span><span class="ultravisor-timing-stat-value">' + tmpTaskResults.length + '</span></div>';
@@ -350,10 +362,11 @@ class UltravisorTimingView extends libPictView
 				}
 
 				let tmpWidthPercent = (tmpMaxTaskMs > 0) ? Math.max((tmpTaskMs / tmpMaxTaskMs) * 100, 1) : 1;
-				let tmpBarLabel = this.escapeHTML(tmpResult.Name || tmpResult.GUIDTask || '');
+				let tmpNodeHash = tmpResult._NodeHash || '';
+				let tmpBarLabel = this.escapeHTML(tmpResult.Name || tmpNodeHash || '');
 
 				tmpHTML += '<div class="ultravisor-timing-row">';
-				tmpHTML += '<div class="ultravisor-timing-row-label" title="' + this.escapeHTML(tmpResult.GUIDTask || '') + '">' + this.escapeHTML(tmpResult.Name || tmpResult.GUIDTask || 'Task ' + (i + 1)) + '</div>';
+				tmpHTML += '<div class="ultravisor-timing-row-label" title="' + this.escapeHTML(tmpNodeHash) + '">' + this.escapeHTML(tmpResult.Name || tmpNodeHash || 'Task ' + (i + 1)) + '</div>';
 				tmpHTML += '<div class="ultravisor-timing-row-bar-container">';
 				tmpHTML += '<div class="ultravisor-timing-row-bar ' + tmpBarClass + '" style="width: ' + tmpWidthPercent.toFixed(1) + '%;">';
 				if (tmpWidthPercent > 20)

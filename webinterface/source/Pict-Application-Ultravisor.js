@@ -8,8 +8,6 @@ const libViewLayout = require('./views/PictView-Ultravisor-Layout.js');
 const libViewTopBar = require('./views/PictView-Ultravisor-TopBar.js');
 const libViewBottomBar = require('./views/PictView-Ultravisor-BottomBar.js');
 const libViewDashboard = require('./views/PictView-Ultravisor-Dashboard.js');
-const libViewTaskList = require('./views/PictView-Ultravisor-TaskList.js');
-const libViewTaskEdit = require('./views/PictView-Ultravisor-TaskEdit.js');
 const libViewOperationList = require('./views/PictView-Ultravisor-OperationList.js');
 const libViewOperationEdit = require('./views/PictView-Ultravisor-OperationEdit.js');
 const libViewSchedule = require('./views/PictView-Ultravisor-Schedule.js');
@@ -35,8 +33,6 @@ class UltravisorApplication extends libPictApplication
 
 		// Add content views
 		this.pict.addView('Ultravisor-Dashboard', libViewDashboard.default_configuration, libViewDashboard);
-		this.pict.addView('Ultravisor-TaskList', libViewTaskList.default_configuration, libViewTaskList);
-		this.pict.addView('Ultravisor-TaskEdit', libViewTaskEdit.default_configuration, libViewTaskEdit);
 		this.pict.addView('Ultravisor-OperationList', libViewOperationList.default_configuration, libViewOperationList);
 		this.pict.addView('Ultravisor-OperationEdit', libViewOperationEdit.default_configuration, libViewOperationEdit);
 		this.pict.addView('Ultravisor-Schedule', libViewSchedule.default_configuration, libViewSchedule);
@@ -58,13 +54,13 @@ class UltravisorApplication extends libPictApplication
 		{
 			APIBaseURL: '',
 			ServerStatus: { Status: 'Unknown', ScheduleEntries: 0, ScheduleRunning: false },
-			Tasks: {},
-			TaskList: [],
+			NodeTemplates: {},
+			NodeTemplateList: [],
+			TaskTypes: [],
 			Operations: {},
 			OperationList: [],
 			Schedule: [],
 			Manifests: [],
-			CurrentEditTask: null,
 			CurrentEditOperation: null,
 			Flows: {}
 		};
@@ -146,23 +142,22 @@ class UltravisorApplication extends libPictApplication
 			}.bind(this));
 	}
 
-	// --- Tasks ---
-	loadTasks(fCallback)
+	// --- Node Templates ---
+	loadNodeTemplates(fCallback)
 	{
-		this.apiCall('GET', '/Task', null,
+		this.apiCall('GET', '/NodeTemplate', null,
 			function (pError, pData)
 			{
 				if (!pError && pData)
 				{
-					this.pict.AppData.Ultravisor.TaskList = Array.isArray(pData) ? pData : [];
-					// Also index by GUIDTask
-					let tmpTasks = {};
-					for (let i = 0; i < this.pict.AppData.Ultravisor.TaskList.length; i++)
+					this.pict.AppData.Ultravisor.NodeTemplateList = Array.isArray(pData) ? pData : [];
+					let tmpTemplates = {};
+					for (let i = 0; i < this.pict.AppData.Ultravisor.NodeTemplateList.length; i++)
 					{
-						let tmpTask = this.pict.AppData.Ultravisor.TaskList[i];
-						tmpTasks[tmpTask.GUIDTask] = tmpTask;
+						let tmpTemplate = this.pict.AppData.Ultravisor.NodeTemplateList[i];
+						tmpTemplates[tmpTemplate.Hash] = tmpTemplate;
 					}
-					this.pict.AppData.Ultravisor.Tasks = tmpTasks;
+					this.pict.AppData.Ultravisor.NodeTemplates = tmpTemplates;
 				}
 				if (typeof fCallback === 'function')
 				{
@@ -171,9 +166,9 @@ class UltravisorApplication extends libPictApplication
 			}.bind(this));
 	}
 
-	saveTask(pTaskData, fCallback)
+	saveNodeTemplate(pTemplateData, fCallback)
 	{
-		this.apiCall('POST', '/Task', pTaskData,
+		this.apiCall('POST', '/NodeTemplate', pTemplateData,
 			function (pError, pData)
 			{
 				if (typeof fCallback === 'function')
@@ -183,9 +178,9 @@ class UltravisorApplication extends libPictApplication
 			}.bind(this));
 	}
 
-	deleteTask(pGUIDTask, fCallback)
+	deleteNodeTemplate(pHash, fCallback)
 	{
-		this.apiCall('DELETE', `/Task/${encodeURIComponent(pGUIDTask)}`, null,
+		this.apiCall('DELETE', `/NodeTemplate/${encodeURIComponent(pHash)}`, null,
 			function (pError, pData)
 			{
 				if (typeof fCallback === 'function')
@@ -195,11 +190,16 @@ class UltravisorApplication extends libPictApplication
 			}.bind(this));
 	}
 
-	executeTask(pGUIDTask, fCallback)
+	// --- Task Types ---
+	loadTaskTypes(fCallback)
 	{
-		this.apiCall('GET', `/Task/${encodeURIComponent(pGUIDTask)}/Execute`, null,
+		this.apiCall('GET', '/TaskType', null,
 			function (pError, pData)
 			{
+				if (!pError && pData)
+				{
+					this.pict.AppData.Ultravisor.TaskTypes = Array.isArray(pData) ? pData : [];
+				}
 				if (typeof fCallback === 'function')
 				{
 					fCallback(pError, pData);
@@ -220,7 +220,7 @@ class UltravisorApplication extends libPictApplication
 					for (let i = 0; i < this.pict.AppData.Ultravisor.OperationList.length; i++)
 					{
 						let tmpOp = this.pict.AppData.Ultravisor.OperationList[i];
-						tmpOperations[tmpOp.GUIDOperation] = tmpOp;
+						tmpOperations[tmpOp.Hash] = tmpOp;
 					}
 					this.pict.AppData.Ultravisor.Operations = tmpOperations;
 				}
@@ -243,9 +243,9 @@ class UltravisorApplication extends libPictApplication
 			}.bind(this));
 	}
 
-	deleteOperation(pGUIDOperation, fCallback)
+	deleteOperation(pHash, fCallback)
 	{
-		this.apiCall('DELETE', `/Operation/${encodeURIComponent(pGUIDOperation)}`, null,
+		this.apiCall('DELETE', `/Operation/${encodeURIComponent(pHash)}`, null,
 			function (pError, pData)
 			{
 				if (typeof fCallback === 'function')
@@ -255,9 +255,9 @@ class UltravisorApplication extends libPictApplication
 			}.bind(this));
 	}
 
-	executeOperation(pGUIDOperation, fCallback)
+	executeOperation(pHash, fCallback)
 	{
-		this.apiCall('GET', `/Operation/${encodeURIComponent(pGUIDOperation)}/Execute`, null,
+		this.apiCall('GET', `/Operation/${encodeURIComponent(pHash)}/Execute`, null,
 			function (pError, pData)
 			{
 				if (typeof fCallback === 'function')
@@ -284,23 +284,10 @@ class UltravisorApplication extends libPictApplication
 			}.bind(this));
 	}
 
-	scheduleTask(pGUIDTask, pScheduleType, pParameters, fCallback)
-	{
-		this.apiCall('POST', '/Schedule/Task',
-			{ GUIDTask: pGUIDTask, ScheduleType: pScheduleType, Parameters: pParameters },
-			function (pError, pData)
-			{
-				if (typeof fCallback === 'function')
-				{
-					fCallback(pError, pData);
-				}
-			}.bind(this));
-	}
-
-	scheduleOperation(pGUIDOperation, pScheduleType, pParameters, fCallback)
+	scheduleOperation(pHash, pScheduleType, pParameters, fCallback)
 	{
 		this.apiCall('POST', '/Schedule/Operation',
-			{ GUIDOperation: pGUIDOperation, ScheduleType: pScheduleType, Parameters: pParameters },
+			{ Hash: pHash, ScheduleType: pScheduleType, Parameters: pParameters },
 			function (pError, pData)
 			{
 				if (typeof fCallback === 'function')
@@ -363,9 +350,9 @@ class UltravisorApplication extends libPictApplication
 			}.bind(this));
 	}
 
-	loadManifest(pGUIDRun, fCallback)
+	loadManifest(pRunHash, fCallback)
 	{
-		this.apiCall('GET', `/Manifest/${encodeURIComponent(pGUIDRun)}`, null,
+		this.apiCall('GET', `/Manifest/${encodeURIComponent(pRunHash)}`, null,
 			function (pError, pData)
 			{
 				if (typeof fCallback === 'function')
@@ -376,47 +363,36 @@ class UltravisorApplication extends libPictApplication
 	}
 
 	// --- Edit helpers ---
-	editTask(pGUIDTask)
+	editOperation(pHash)
 	{
-		if (pGUIDTask && this.pict.AppData.Ultravisor.Tasks[pGUIDTask])
+		if (pHash && this.pict.AppData.Ultravisor.Operations[pHash])
 		{
-			this.pict.AppData.Ultravisor.CurrentEditTask = JSON.parse(JSON.stringify(this.pict.AppData.Ultravisor.Tasks[pGUIDTask]));
-		}
-		else
-		{
-			this.pict.AppData.Ultravisor.CurrentEditTask =
-			{
-				GUIDTask: '',
-				Code: '',
-				Name: '',
-				Type: 'Command',
-				Command: '',
-				URL: '',
-				Method: 'GET',
-				Parameters: '',
-				Description: ''
-			};
-		}
-		this.navigateTo('/TaskEdit');
-	}
+			let tmpOp = JSON.parse(JSON.stringify(this.pict.AppData.Ultravisor.Operations[pHash]));
+			this.pict.AppData.Ultravisor.CurrentEditOperation = tmpOp;
 
-	editOperation(pGUIDOperation)
-	{
-		if (pGUIDOperation && this.pict.AppData.Ultravisor.Operations[pGUIDOperation])
-		{
-			this.pict.AppData.Ultravisor.CurrentEditOperation = JSON.parse(JSON.stringify(this.pict.AppData.Ultravisor.Operations[pGUIDOperation]));
+			// Load the operation's graph into the FlowEditor data
+			if (tmpOp.Graph)
+			{
+				this.pict.AppData.Ultravisor.Flows.Current = JSON.parse(JSON.stringify(tmpOp.Graph));
+			}
 		}
 		else
 		{
 			this.pict.AppData.Ultravisor.CurrentEditOperation =
 			{
-				GUIDOperation: '',
+				Hash: '',
 				Name: '',
 				Description: '',
-				Tasks: []
+				Graph: { Nodes: [], Connections: [], ViewState: {} }
+			};
+			this.pict.AppData.Ultravisor.Flows.Current =
+			{
+				Nodes: [],
+				Connections: [],
+				ViewState: { PanX: 0, PanY: 0, Zoom: 1, SelectedNodeHash: null, SelectedConnectionHash: null }
 			};
 		}
-		this.navigateTo('/OperationEdit');
+		this.navigateTo('/FlowEditor');
 	}
 }
 

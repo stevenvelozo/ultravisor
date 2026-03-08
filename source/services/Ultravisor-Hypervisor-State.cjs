@@ -1,45 +1,137 @@
-const libPictService = require(`pict-serviceproviderbase`);
+const libPictService = require('pict-serviceproviderbase');
 
 const libFS = require('fs');
 const libPath = require('path');
 
+/**
+ * Persistent state store for Ultravisor.
+ *
+ * Stores Node Templates (reusable pre-configured task type instances)
+ * and Operation Definitions (graphs) in memory and persists to
+ * `.ultravisor.json` via fable's gatherProgramConfiguration system.
+ *
+ * Also manages GlobalState that persists across operation runs.
+ *
+ * Auto-generates meaningful hashes for new entities:
+ *   Templates:  TMPL-{TYPE}-{NNN}  (e.g. TMPL-READFILE-001)
+ *   Operations: OPR-{NNNN}        (e.g. OPR-0001)
+ */
 class UltravisorHypervisorState extends libPictService
 {
 	constructor(pPict, pOptions, pServiceHash)
 	{
 		super(pPict, pOptions, pServiceHash);
 
-		this._Tasks = {};
+		this.serviceType = 'UltravisorHypervisorState';
+
+		// Node Templates (reusable pre-configured task type instances) keyed by Hash
+		this._NodeTemplates = {};
+
+		// Operation Definitions (with Graph) keyed by Hash
 		this._Operations = {};
 
+		// Global state (persists across runs)
+		this._GlobalState = {};
+
+		// Auto-hash counters
+		this._TemplateCounters = {};
+		this._OperationCounter = 0;
+
+		// Gather configuration
 		this._ConfigurationOutcome = this.fable.gatherProgramConfiguration(false);
 
-		// Load tasks and operations from the gathered configuration
+		// Load from configuration
 		let tmpConfig = this.fable.ProgramConfiguration || {};
 
-		if (tmpConfig.Tasks && typeof(tmpConfig.Tasks) === 'object')
+		// Load Node Templates (with backward compat from old TaskDefinitions key)
+		let tmpTemplateSource = tmpConfig.NodeTemplates || tmpConfig.TaskDefinitions;
+		if (tmpTemplateSource && typeof(tmpTemplateSource) === 'object')
 		{
-			let tmpTaskKeys = Object.keys(tmpConfig.Tasks);
-			for (let i = 0; i < tmpTaskKeys.length; i++)
+			let tmpKeys = Object.keys(tmpTemplateSource);
+			for (let i = 0; i < tmpKeys.length; i++)
 			{
-				this._Tasks[tmpTaskKeys[i]] = tmpConfig.Tasks[tmpTaskKeys[i]];
+				this._NodeTemplates[tmpKeys[i]] = tmpTemplateSource[tmpKeys[i]];
 			}
 		}
 
 		if (tmpConfig.Operations && typeof(tmpConfig.Operations) === 'object')
 		{
-			let tmpOperationKeys = Object.keys(tmpConfig.Operations);
-			for (let i = 0; i < tmpOperationKeys.length; i++)
+			let tmpKeys = Object.keys(tmpConfig.Operations);
+			for (let i = 0; i < tmpKeys.length; i++)
 			{
-				this._Operations[tmpOperationKeys[i]] = tmpConfig.Operations[tmpOperationKeys[i]];
+				this._Operations[tmpKeys[i]] = tmpConfig.Operations[tmpKeys[i]];
 			}
+		}
+
+		if (tmpConfig.GlobalState && typeof(tmpConfig.GlobalState) === 'object')
+		{
+			this._GlobalState = tmpConfig.GlobalState;
+		}
+
+		if (typeof(tmpConfig.OperationCounter) === 'number')
+		{
+			this._OperationCounter = tmpConfig.OperationCounter;
+		}
+
+		// Load template counters (with backward compat from old TaskCounters key)
+		let tmpCounterSource = tmpConfig.TemplateCounters || tmpConfig.TaskCounters;
+		if (tmpCounterSource && typeof(tmpCounterSource) === 'object')
+		{
+			this._TemplateCounters = tmpCounterSource;
 		}
 	}
 
+	// ====================================================================
+	// Auto-Hash Generation
+	// ====================================================================
+
+	/**
+	 * Generate a meaningful hash for a new node template.
+	 *
+	 * @param {string} pType - The task type (e.g. 'read-file').
+	 * @returns {string} e.g. 'TMPL-READFILE-001'
+	 */
+	generateTemplateHash(pType)
+	{
+		let tmpTypeKey = (pType || 'TEMPLATE').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+		if (!this._TemplateCounters[tmpTypeKey])
+		{
+			this._TemplateCounters[tmpTypeKey] = 0;
+		}
+
+		this._TemplateCounters[tmpTypeKey]++;
+
+		let tmpCounter = String(this._TemplateCounters[tmpTypeKey]).padStart(3, '0');
+
+		return `TMPL-${tmpTypeKey}-${tmpCounter}`;
+	}
+
+	/**
+	 * Generate a meaningful hash for a new operation.
+	 *
+	 * @returns {string} e.g. 'OPR-0001'
+	 */
+	generateOperationHash()
+	{
+		this._OperationCounter++;
+
+		return `OPR-${String(this._OperationCounter).padStart(4, '0')}`;
+	}
+
+	// ====================================================================
+	// Persistence
+	// ====================================================================
+
+	/**
+	 * Persist current state to disk via gatherProgramConfiguration path.
+	 *
+	 * @returns {boolean} True if state was persisted successfully.
+	 */
 	persistState()
 	{
-		// Check the _ConfigurationOutcome to see where we should be persisting state
 		let tmpFinalGatherPhasePath = false;
+
 		for (let i = 0; i < this._ConfigurationOutcome.GatherPhases.length; i++)
 		{
 			let tmpGatherPhase = this._ConfigurationOutcome.GatherPhases[i];
@@ -52,161 +144,242 @@ class UltravisorHypervisorState extends libPictService
 		if (!tmpFinalGatherPhasePath && this.fable.settings.ProgramConfigurationFileName)
 		{
 			tmpFinalGatherPhasePath = libPath.resolve(process.cwd(), this.fable.settings.ProgramConfigurationFileName);
-			this.pict.log.warn(`Ultravisor Hypervisor State: persistState could not determine a valid configuration path to persist state to;.`);
+			this.log.warn('UltravisorHypervisorState: could not determine config path; using ProgramConfigurationFileName.');
 		}
 		else if (!tmpFinalGatherPhasePath)
 		{
-			this.pict.log.error(`Ultravisor Hypervisor State: persistState could not determine a valid configuration path to persist state to; state will not be saved.`);
-			return;
-		}
-
-		// Now merge all the data
-		const tmpStateToPersist = this._ConfigurationOutcome.ConfigurationOutcome;
-
-		// Merge in Tasks
-		if (!tmpStateToPersist.hasOwnProperty('Tasks'))
-		{
-			tmpStateToPersist.Tasks = {};
-		}
-		const tmpTaskKeys = Object.keys(this._Tasks);
-		for (let i=0; i<tmpTaskKeys.length; i++)
-		{
-			if (tmpStateToPersist.Tasks.hasOwnProperty(tmpTaskKeys[i]))
-			{
-				tmpStateToPersist.Tasks[tmpTaskKeys[i]] = Object.assign({}, tmpStateToPersist.Tasks[tmpTaskKeys[i]], this._Tasks[tmpTaskKeys[i]]);
-			}
-			else
-			{
-				tmpStateToPersist.Tasks[tmpTaskKeys[i]] = this._Tasks[tmpTaskKeys[i]];
-			}
-		}
-
-		if (!tmpStateToPersist.hasOwnProperty('Operations'))
-		{
-			tmpStateToPersist.Operations = {};
-		}
-		const tmpOperationKeys = Object.keys(this._Operations);
-		for (let i=0; i<tmpOperationKeys.length; i++)
-		{
-			if (tmpStateToPersist.Operations.hasOwnProperty(tmpOperationKeys[i]))
-			{
-				tmpStateToPersist.Operations[tmpOperationKeys[i]] = Object.assign({}, tmpStateToPersist.Operations[tmpOperationKeys[i]], this._Operations[tmpOperationKeys[i]]);
-			}
-			else
-			{
-				tmpStateToPersist.Operations[tmpOperationKeys[i]] = this._Operations[tmpOperationKeys[i]];
-			}
-		}
-
-		this.fable.log.info(`Ultravisor Hypervisor State: persisting hypervisor state to ${tmpFinalGatherPhasePath}.`);
-
-		try
-		{
-			libFS.writeFileSync(tmpFinalGatherPhasePath, JSON.stringify(tmpStateToPersist, null, 4), 'utf8');
-		}
-		catch(pError)
-		{
-			this.fable.log.error(`Ultravisor Hypervisor State: an error occurred while attempting to persist hypervisor state to ${tmpFinalGatherPhasePath}: ${pError.message}`);
+			this.log.error('UltravisorHypervisorState: no config path available; state will not be saved.');
 			return false;
 		}
 
-		return true
+		let tmpStateToPersist = this._ConfigurationOutcome.ConfigurationOutcome || {};
+
+		tmpStateToPersist.NodeTemplates = this._NodeTemplates;
+		tmpStateToPersist.Operations = this._Operations;
+		tmpStateToPersist.GlobalState = this._GlobalState;
+		tmpStateToPersist.OperationCounter = this._OperationCounter;
+		tmpStateToPersist.TemplateCounters = this._TemplateCounters;
+
+		// Remove old keys if present (migration)
+		delete tmpStateToPersist.TaskDefinitions;
+		delete tmpStateToPersist.TaskCounters;
+
+		this.log.info(`UltravisorHypervisorState: persisting state to ${tmpFinalGatherPhasePath}`);
+
+		try
+		{
+			libFS.writeFileSync(tmpFinalGatherPhasePath, JSON.stringify(tmpStateToPersist, null, '\t'), 'utf8');
+		}
+		catch (pError)
+		{
+			this.log.error(`UltravisorHypervisorState: persist error: ${pError.message}`);
+			return false;
+		}
+
+		return true;
 	}
 
+	// ====================================================================
+	// Node Template CRUD
+	// ====================================================================
 
+	/**
+	 * Create or update a node template.
+	 *
+	 * @param {object} pTemplate - The node template object.
+	 *   Must have a Hash (or one will be auto-generated from Type).
+	 * @param {function} fCallback - function(pError, pTemplate)
+	 */
+	updateNodeTemplate(pTemplate, fCallback)
+	{
+		if (typeof(pTemplate) !== 'object' || pTemplate === null)
+		{
+			return fCallback(new Error('updateNodeTemplate requires a valid object.'));
+		}
+
+		// Auto-generate hash if not provided
+		if (!pTemplate.Hash || typeof(pTemplate.Hash) !== 'string' || pTemplate.Hash.length === 0)
+		{
+			pTemplate.Hash = this.generateTemplateHash(pTemplate.Type || 'TEMPLATE');
+		}
+
+		if (this._NodeTemplates.hasOwnProperty(pTemplate.Hash))
+		{
+			this._NodeTemplates[pTemplate.Hash] = Object.assign(
+				this._NodeTemplates[pTemplate.Hash], pTemplate);
+		}
+		else
+		{
+			this._NodeTemplates[pTemplate.Hash] = pTemplate;
+		}
+
+		this.persistState();
+
+		return fCallback(null, this._NodeTemplates[pTemplate.Hash]);
+	}
+
+	/**
+	 * Get a node template by hash.
+	 */
+	getNodeTemplate(pHash, fCallback)
+	{
+		if (!this._NodeTemplates.hasOwnProperty(pHash))
+		{
+			return fCallback(new Error(`Node template [${pHash}] not found.`));
+		}
+		return fCallback(null, this._NodeTemplates[pHash]);
+	}
+
+	/**
+	 * List all node templates.
+	 */
+	getNodeTemplateList(fCallback)
+	{
+		let tmpList = [];
+		let tmpKeys = Object.keys(this._NodeTemplates);
+
+		for (let i = 0; i < tmpKeys.length; i++)
+		{
+			tmpList.push(this._NodeTemplates[tmpKeys[i]]);
+		}
+
+		return fCallback(null, tmpList);
+	}
+
+	/**
+	 * Delete a node template by hash.
+	 */
+	deleteNodeTemplate(pHash, fCallback)
+	{
+		if (!this._NodeTemplates.hasOwnProperty(pHash))
+		{
+			return fCallback(new Error(`Node template [${pHash}] not found.`));
+		}
+
+		delete this._NodeTemplates[pHash];
+		this.persistState();
+
+		return fCallback(null, true);
+	}
+
+	// ====================================================================
+	// Operation CRUD
+	// ====================================================================
+
+	/**
+	 * Create or update an operation.
+	 *
+	 * @param {object} pOperation - The operation definition.
+	 *   Must have a Hash (or one will be auto-generated).
+	 * @param {function} fCallback - function(pError, pOperation)
+	 */
 	updateOperation(pOperation, fCallback)
 	{
 		if (typeof(pOperation) !== 'object' || pOperation === null)
 		{
-			return fCallback(new Error(`Ultravisor Hypervisor State: updateOperation requires a valid operation object.`));
-		}
-		if (!pOperation.hasOwnProperty('GUIDOperation') || typeof(pOperation.GUIDOperation) !== 'string' || pOperation.GUIDOperation.length === 0)
-		{
-			return fCallback(new Error(`Ultravisor Hypervisor State: updateOperation requires the operation object to have a GUIDOperation property.`));
+			return fCallback(new Error('updateOperation requires a valid object.'));
 		}
 
-		if (this._Operations.hasOwnProperty(pOperation.GUIDOperation))
+		// Auto-generate hash if not provided
+		if (!pOperation.Hash || typeof(pOperation.Hash) !== 'string' || pOperation.Hash.length === 0)
 		{
-			// Update the existing operation
-			this._Operations[pOperation.GUIDOperation] = Object.assign(this._Operations[pOperation.GUIDOperation], pOperation);
+			pOperation.Hash = this.generateOperationHash();
+		}
+
+		// Ensure Graph structure exists
+		if (!pOperation.Graph)
+		{
+			pOperation.Graph = { Nodes: [], Connections: [], ViewState: {} };
+		}
+
+		if (this._Operations.hasOwnProperty(pOperation.Hash))
+		{
+			this._Operations[pOperation.Hash] = Object.assign(
+				this._Operations[pOperation.Hash], pOperation);
 		}
 		else
 		{
-			// Add a new operation
-			this._Operations[pOperation.GUIDOperation] = pOperation;
+			pOperation.CreatedAt = pOperation.CreatedAt || new Date().toISOString();
+			this._Operations[pOperation.Hash] = pOperation;
 		}
+
+		pOperation.UpdatedAt = new Date().toISOString();
 
 		this.persistState();
 
-		return fCallback(null, this._Operations[pOperation.GUIDOperation]);
+		return fCallback(null, this._Operations[pOperation.Hash]);
 	}
 
-	getOperationList(pFilters, fCallback)
+	/**
+	 * Get an operation by hash.
+	 */
+	getOperation(pHash, fCallback)
 	{
-		const tmpOperationKeys = Object.keys(this._Operations);
-		const tmpOperations = [];
-		for (let i=0; i<tmpOperationKeys.length; i++)
+		if (!this._Operations.hasOwnProperty(pHash))
 		{
-			tmpOperations.push(this._Operations[tmpOperationKeys[i]]);
+			return fCallback(new Error(`Operation [${pHash}] not found.`));
 		}
-		return fCallback(null, tmpOperations);
+		return fCallback(null, this._Operations[pHash]);
 	}
 
-	getOperation(pGUIDOperation, fCallback)
+	/**
+	 * List all operations.
+	 */
+	getOperationList(fCallback)
 	{
-		if (!this._Operations.hasOwnProperty(pGUIDOperation))
+		let tmpList = [];
+		let tmpKeys = Object.keys(this._Operations);
+
+		for (let i = 0; i < tmpKeys.length; i++)
 		{
-			return fCallback(new Error(`Ultravisor Hypervisor State: getOperation could not find operation with GUID ${pGUIDOperation}.`));
+			tmpList.push(this._Operations[tmpKeys[i]]);
 		}
-		return fCallback(null, this._Operations[pGUIDOperation]);
+
+		return fCallback(null, tmpList);
 	}
 
-
-	updateTask(pTask, fCallback)
+	/**
+	 * Delete an operation by hash.
+	 */
+	deleteOperation(pHash, fCallback)
 	{
-		if (typeof(pTask) !== 'object' || pTask === null)
+		if (!this._Operations.hasOwnProperty(pHash))
 		{
-			return fCallback(new Error(`Ultravisor Hypervisor State: updateTask requires a valid task object.`));
-		}
-		if (!pTask.hasOwnProperty('GUIDTask') || typeof(pTask.GUIDTask) !== 'string' || pTask.GUIDTask.length === 0)
-		{
-			return fCallback(new Error(`Ultravisor Hypervisor State: updateTask requires the task object to have a GUIDTask property.`));
+			return fCallback(new Error(`Operation [${pHash}] not found.`));
 		}
 
-		if (this._Tasks.hasOwnProperty(pTask.GUIDTask))
-		{
-			// Update the existing task
-			this._Tasks[pTask.GUIDTask] = Object.assign(this._Tasks[pTask.GUIDTask], pTask);
-		}
-		else
-		{
-			// Add a new task
-			this._Tasks[pTask.GUIDTask] = pTask;
-		}
-
+		delete this._Operations[pHash];
 		this.persistState();
 
-		return fCallback(null, this._Tasks[pTask.GUIDTask]);
+		return fCallback(null, true);
 	}
 
-	getTaskList(pFilters, fCallback)
+	// ====================================================================
+	// Global State
+	// ====================================================================
+
+	/**
+	 * Get the persisted global state.
+	 *
+	 * @returns {object} A copy of the global state.
+	 */
+	getGlobalState()
 	{
-		const tmpTaskKeys = Object.keys(this._Tasks);
-		const tmpTasks = [];
-		for (let i=0; i<tmpTaskKeys.length; i++)
-		{
-			tmpTasks.push(this._Tasks[tmpTaskKeys[i]]);
-		}
-		return fCallback(null, tmpTasks);
+		return JSON.parse(JSON.stringify(this._GlobalState));
 	}
 
-	getTask(pGUIDTask, fCallback)
+	/**
+	 * Update and persist global state.
+	 *
+	 * @param {object} pState - State to merge into global state.
+	 */
+	updateGlobalState(pState)
 	{
-		if (!this._Tasks.hasOwnProperty(pGUIDTask))
+		if (typeof(pState) === 'object' && pState !== null)
 		{
-			return fCallback(new Error(`Ultravisor Hypervisor State: getTask could not find task with GUID ${pGUIDTask}.`));
+			Object.assign(this._GlobalState, pState);
+			this.persistState();
 		}
-		return fCallback(null, this._Tasks[pGUIDTask]);
 	}
 }
 

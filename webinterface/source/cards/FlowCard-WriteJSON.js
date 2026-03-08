@@ -17,12 +17,13 @@ class FlowCardWriteJSON extends libPictFlowCard
 				Height: 80,
 				Inputs:
 				[
-					{ Name: 'Data', Side: 'left', MinimumInputCount: 1, MaximumInputCount: 1 }
+					{ Name: 'Data', Side: 'left', PortType: 'value', MinimumInputCount: 1, MaximumInputCount: 1 },
+					{ Name: 'File', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
 				],
 				Outputs:
 				[
-					{ Name: 'Done', Side: 'right' },
-					{ Name: 'Error', Side: 'bottom' }
+					{ Name: 'Done', Side: 'right', PortType: 'event-out' },
+					{ Name: 'Error', Side: 'bottom', PortType: 'error' }
 				],
 				PropertiesPanel:
 				{

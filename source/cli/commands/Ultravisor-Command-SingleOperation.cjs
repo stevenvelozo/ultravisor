@@ -9,19 +9,26 @@ class UltravisorCommandSingleOperationRun extends libCommandLineCommand
 		this.options.CommandKeyword = 'singleoperation';
 		this.options.Description = 'Execute a single ultravisor operation immediately, no matter what.';
 
-		this.options.CommandArguments.push({ Name: '<operation>', Description: 'The operation(s) to run.' });
-		this.options.CommandOptions.push({ Name: '-d, --dry_run', Description: 'Dry run the task.', Default: false });
+		this.options.CommandArguments.push({ Name: '<operation>', Description: 'The operation hash to run.' });
+		this.options.CommandOptions.push({ Name: '-d, --dry_run', Description: 'Dry run the operation.', Default: false });
 
 		this.options.Aliases.push('operation');
 
 		this.addCommand();
 	}
 
+	_getService(pTypeName)
+	{
+		return this.fable.servicesMap[pTypeName]
+			? Object.values(this.fable.servicesMap[pTypeName])[0]
+			: null;
+	}
+
 	onRunAsync(fCallback)
 	{
-		let tmpOperationGUID = this.ArgumentString;
+		let tmpOperationHash = this.ArgumentString;
 
-		if (!tmpOperationGUID)
+		if (!tmpOperationHash)
 		{
 			console.log(`Error: operation argument is required.`);
 			return fCallback();
@@ -31,16 +38,16 @@ class UltravisorCommandSingleOperationRun extends libCommandLineCommand
 
 		if (tmpDryRun)
 		{
-			console.log(`[DRY RUN] Would execute operation: ${tmpOperationGUID}`);
+			console.log(`[DRY RUN] Would execute operation: ${tmpOperationHash}`);
 			return fCallback();
 		}
 
-		console.log(`Executing operation: ${tmpOperationGUID}`);
+		console.log(`Executing operation: ${tmpOperationHash}`);
 
-		let tmpStateService = this.fable['Ultravisor-Hypervisor-State'];
-		let tmpOperationService = this.fable['Ultravisor-Operation'];
+		let tmpStateService = this._getService('UltravisorHypervisorState');
+		let tmpEngine = this._getService('UltravisorExecutionEngine');
 
-		tmpStateService.getOperation(tmpOperationGUID,
+		tmpStateService.getOperation(tmpOperationHash,
 			function (pError, pOperation)
 			{
 				if (pError)
@@ -49,8 +56,8 @@ class UltravisorCommandSingleOperationRun extends libCommandLineCommand
 					return fCallback();
 				}
 
-				tmpOperationService.executeOperation(pOperation,
-					function (pExecError, pManifest)
+				tmpEngine.executeOperation(pOperation,
+					function (pExecError, pContext)
 					{
 						if (pExecError)
 						{
@@ -59,12 +66,16 @@ class UltravisorCommandSingleOperationRun extends libCommandLineCommand
 						}
 
 						console.log(`\nOperation Result:`);
-						console.log(`  Status: ${pManifest.Status}`);
-						console.log(`  Success: ${pManifest.Success}`);
-						console.log(`  Start: ${pManifest.StartTime}`);
-						console.log(`  Stop: ${pManifest.StopTime}`);
-						console.log(`  Tasks Executed: ${pManifest.TaskResults.length}`);
-						console.log(`  Summary: ${pManifest.Summary}`);
+						console.log(`  Status: ${pContext.Status}`);
+						console.log(`  Start: ${pContext.StartTime}`);
+						console.log(`  Stop: ${pContext.StopTime}`);
+						console.log(`  Elapsed: ${pContext.ElapsedMs}ms`);
+						let tmpTaskCount = pContext.TaskManifests ? Object.keys(pContext.TaskManifests).length : 0;
+						console.log(`  Tasks Executed: ${tmpTaskCount}`);
+						if (pContext.Errors && pContext.Errors.length > 0)
+						{
+							console.log(`  Errors: ${pContext.Errors.length}`);
+						}
 						return fCallback();
 					});
 			});

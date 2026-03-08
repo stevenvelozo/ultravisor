@@ -15,8 +15,17 @@ class FlowCardMeadowDelete extends libPictFlowCard
 				BodyStyle: { fill: '#e8f5e9', stroke: '#2e7d32' },
 				Width: 200,
 				Height: 80,
-				Inputs: [{ Name: 'Trigger', Side: 'left', MinimumInputCount: 1, MaximumInputCount: 1 }],
-				Outputs: [{ Name: 'Done', Side: 'right' }, { Name: 'Error', Side: 'bottom' }],
+				Inputs:
+				[
+					{ Name: 'Trigger', Side: 'left', PortType: 'event-in', MinimumInputCount: 1, MaximumInputCount: 1 },
+					{ Name: 'Entity', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 },
+					{ Name: 'IDRecord', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
+				],
+				Outputs:
+				[
+					{ Name: 'Done', Side: 'right', PortType: 'event-out' },
+					{ Name: 'Error', Side: 'bottom', PortType: 'error' }
+				],
 				PropertiesPanel:
 				{
 					PanelType: 'Form', DefaultWidth: 360, DefaultHeight: 240, Title: 'Meadow Delete Settings',

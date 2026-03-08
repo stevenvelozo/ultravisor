@@ -145,6 +145,9 @@ dist
 # Test Environment
 debug/testenv
 
+# Debug artifacts (screenshots, test output)
+debug/
+
 # Quackage takes care of these for me!
 .babelrc
 .browserslistrc

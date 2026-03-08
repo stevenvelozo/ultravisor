@@ -17,10 +17,10 @@ class FlowCardComprehensionIntersect extends libPictFlowCard
 				Height: 100,
 				Inputs:
 				[
-					{ Name: 'Set A', Side: 'left', MinimumInputCount: 1, MaximumInputCount: 1 },
-					{ Name: 'Set B', Side: 'left', MinimumInputCount: 1, MaximumInputCount: 1 }
+					{ Name: 'Set A', Side: 'left', PortType: 'value', MinimumInputCount: 1, MaximumInputCount: 1 },
+					{ Name: 'Set B', Side: 'left', PortType: 'value', MinimumInputCount: 1, MaximumInputCount: 1 }
 				],
-				Outputs: [{ Name: 'Result', Side: 'right' }],
+				Outputs: [{ Name: 'Result', Side: 'right', PortType: 'value' }],
 				PropertiesPanel:
 				{
 					PanelType: 'Form', DefaultWidth: 360, DefaultHeight: 260, Title: 'Comprehension Intersect Settings',
