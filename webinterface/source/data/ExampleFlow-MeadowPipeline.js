@@ -87,7 +87,7 @@ module.exports =
 				{ Hash: 'tpl-rn-done', Direction: 'output', Side: 'right', Label: 'ReplaceComplete' },
 				{ Hash: 'tpl-rn-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
 			],
-			Data: { InputString: '{~D:TaskOutput.tpl-read.FileContent~}', SearchString: '${PROJECT_NAME}', ReplaceString: '{~D:Operation.ProjectName~}' }
+			Data: { InputString: '{~D:Record.TaskOutput.tpl-read.FileContent~}', SearchString: '${PROJECT_NAME}', ReplaceString: '{~D:Record.Operation.ProjectName~}' }
 		},
 		// ── Replace version placeholder ─────────────────────────
 		{
@@ -104,7 +104,7 @@ module.exports =
 				{ Hash: 'tpl-rv-done', Direction: 'output', Side: 'right', Label: 'ReplaceComplete' },
 				{ Hash: 'tpl-rv-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
 			],
-			Data: { InputString: '{~D:TaskOutput.tpl-replace-name.ReplacedString~}', SearchString: '${VERSION}', ReplaceString: '{~D:Operation.Version~}' }
+			Data: { InputString: '{~D:Record.TaskOutput.tpl-replace-name.ReplacedString~}', SearchString: '${VERSION}', ReplaceString: '{~D:Record.Operation.Version~}' }
 		},
 		// ── Check for remaining unresolved placeholders ─────────
 		{
@@ -153,7 +153,7 @@ module.exports =
 				{ Hash: 'tpl-hdr-in', Direction: 'input', Side: 'left', Label: 'Append' },
 				{ Hash: 'tpl-hdr-done', Direction: 'output', Side: 'right', Label: 'Completed' }
 			],
-			Data: { InputString: '{~D:TaskOutput.tpl-replace-ver.ReplacedString~}', OutputAddress: 'Operation.FinalContent' }
+			Data: { InputString: '{~D:Record.TaskOutput.tpl-replace-ver.ReplacedString~}', OutputAddress: 'Operation.FinalContent' }
 		},
 		// ── Write the processed output ──────────────────────────
 		{
@@ -170,7 +170,7 @@ module.exports =
 				{ Hash: 'tpl-write-done', Direction: 'output', Side: 'right', Label: 'WriteComplete' },
 				{ Hash: 'tpl-write-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
 			],
-			Data: { FilePath: 'README.md', Content: '{~D:Operation.FinalContent~}', Encoding: 'utf8' }
+			Data: { FilePath: 'README.md', Content: '{~D:Record.Operation.FinalContent~}', Encoding: 'utf8' }
 		},
 		// ── Exit ─────────────────────────────────────────────────
 		{

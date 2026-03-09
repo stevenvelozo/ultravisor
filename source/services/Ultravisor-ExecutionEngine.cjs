@@ -17,6 +17,20 @@ class UltravisorExecutionEngine extends libPictService
 	}
 
 	/**
+	 * Append a timestamped entry to the execution context log and the fable logger.
+	 *
+	 * @param {object} pContext - The execution context.
+	 * @param {string} pMessage - The log message.
+	 * @param {string} [pLevel] - Log level: 'info' (default), 'warn', 'error', 'trace'.
+	 */
+	_log(pContext, pMessage, pLevel)
+	{
+		let tmpLevel = pLevel || 'info';
+		pContext.Log.push(`[${new Date().toISOString()}] ${pMessage}`);
+		this.log[tmpLevel](`ExecutionEngine [${pContext.OperationHash || '?'}]: ${pMessage}`);
+	}
+
+	/**
 	 * Execute an operation by its definition.
 	 *
 	 * @param {object} pOperationDefinition - The operation definition with Graph.
@@ -91,12 +105,14 @@ class UltravisorExecutionEngine extends libPictService
 		// Store the graph for lookup
 		tmpContext._Graph = pOperationDefinition.Graph;
 		tmpContext._NodeMap = this._buildNodeMap(pOperationDefinition.Graph);
-		tmpContext._ConnectionMap = this._buildConnectionMap(pOperationDefinition.Graph);
+		tmpContext._PortLabelMap = this._buildPortLabelMap(pOperationDefinition.Graph);
+		tmpContext._ConnectionMap = this._buildConnectionMap(
+			pOperationDefinition.Graph, tmpContext._NodeMap, tmpContext._PortLabelMap);
 
 		// Mark as running
 		tmpContext.Status = 'Running';
 		tmpContext.StartTime = new Date().toISOString();
-		tmpContext.Log.push(`Operation [${pOperationDefinition.Hash}] started at ${tmpContext.StartTime}`);
+		this._log(tmpContext, `Operation [${pOperationDefinition.Hash}] started.`);
 
 		// Find Start node and enqueue its output events
 		let tmpStartNode = this._findStartNode(tmpContext);
@@ -104,13 +120,15 @@ class UltravisorExecutionEngine extends libPictService
 		if (!tmpStartNode)
 		{
 			tmpContext.Status = 'Error';
-			tmpContext.Log.push('No Start node found in the graph.');
+			this._log(tmpContext, 'No Start node found in the graph.');
 			tmpManifestService.finalizeExecution(tmpContext);
 			return fCallback(new Error('No Start node found in the graph.'), tmpContext);
 		}
 
-		// Fire the Start event from the Start node
-		this._enqueueDownstreamEvents(tmpStartNode.Hash, 'Start', tmpContext);
+		// Fire all outgoing event connections from the Start node.
+		// Start nodes have a single output, so we enqueue all downstream targets
+		// without filtering on port name (avoids label vs hash naming mismatches).
+		this._enqueueAllDownstreamEvents(tmpStartNode.Hash, tmpContext);
 
 		// Process the event queue
 		this._processEventQueue(tmpContext,
@@ -118,7 +136,7 @@ class UltravisorExecutionEngine extends libPictService
 			{
 				if (pError)
 				{
-					tmpContext.Log.push(`Execution error: ${pError.message}`);
+					this._log(tmpContext, `Execution error: ${pError.message}`, 'error');
 					tmpContext.Errors.push({
 						NodeHash: null,
 						Message: pError.message,
@@ -190,7 +208,7 @@ class UltravisorExecutionEngine extends libPictService
 
 		// Fire the completion event
 		tmpContext.Status = 'Running';
-		tmpContext.Log.push(`Value input received for node [${pNodeHash}], resuming execution.`);
+		this._log(tmpContext, `Value input received for node [${pNodeHash}], resuming execution.`);
 
 		this._enqueueDownstreamEvents(pNodeHash, 'ValueInputComplete', tmpContext);
 
@@ -200,7 +218,7 @@ class UltravisorExecutionEngine extends libPictService
 			{
 				if (pError)
 				{
-					tmpContext.Log.push(`Execution error after resume: ${pError.message}`);
+					this._log(tmpContext, `Execution error after resume: ${pError.message}`, 'error');
 				}
 				tmpManifestService.finalizeExecution(tmpContext);
 				return fCallback(null, tmpContext);
@@ -225,7 +243,7 @@ class UltravisorExecutionEngine extends libPictService
 			if (Object.keys(pContext.WaitingTasks).length > 0)
 			{
 				pContext.Status = 'WaitingForInput';
-				pContext.Log.push('Operation paused: waiting for user input.');
+				this._log(pContext, 'Operation paused: waiting for user input.');
 			}
 			return fCallback(null);
 		}
@@ -238,7 +256,7 @@ class UltravisorExecutionEngine extends libPictService
 			{
 				if (pError)
 				{
-					pContext.Log.push(`Error processing event [${tmpEvent.EventName}] on node [${tmpEvent.TargetNodeHash}]: ${pError.message}`);
+					this._log(pContext, `Error processing event [${tmpEvent.EventName}] on node [${tmpEvent.TargetNodeHash}]: ${pError.message}`, 'error');
 					// Continue processing other events despite errors
 				}
 
@@ -261,14 +279,14 @@ class UltravisorExecutionEngine extends libPictService
 
 		if (!tmpNode)
 		{
-			pContext.Log.push(`Node [${pNodeHash}] not found in graph.`);
+			this._log(pContext, `Node [${pNodeHash}] not found in graph.`, 'error');
 			return fCallback(null);
 		}
 
 		// Handle built-in End node
 		if (tmpNode.Type === 'end')
 		{
-			pContext.Log.push(`Reached End node [${pNodeHash}].`);
+			this._log(pContext, `Reached End node [${pNodeHash}].`);
 			return fCallback(null);
 		}
 
@@ -291,7 +309,7 @@ class UltravisorExecutionEngine extends libPictService
 
 		if (!tmpDefinition)
 		{
-			pContext.Log.push(`Unknown task type [${tmpDefinitionHash}] for node [${pNodeHash}].`);
+			this._log(pContext, `Unknown task type [${tmpDefinitionHash}] for node [${pNodeHash}].`, 'error');
 			return fCallback(null);
 		}
 
@@ -305,14 +323,14 @@ class UltravisorExecutionEngine extends libPictService
 			tmpManifestService.recordTaskStart(pContext, pNodeHash, pEventName);
 		}
 
-		pContext.Log.push(`Executing node [${pNodeHash}] (${tmpDefinition.Name}) triggered by [${pEventName}]`);
+		this._log(pContext, `Executing node [${pNodeHash}] (${tmpDefinition.Name}) triggered by [${pEventName}]`);
 
 		// Create task instance and execute
 		let tmpTaskInstance = tmpRegistry.instantiateTaskType(tmpDefinitionHash);
 
 		if (!tmpTaskInstance)
 		{
-			pContext.Log.push(`Failed to instantiate task type [${tmpDefinitionHash}].`);
+			this._log(pContext, `Failed to instantiate task type [${tmpDefinitionHash}].`, 'error');
 			return fCallback(null);
 		}
 
@@ -326,7 +344,8 @@ class UltravisorExecutionEngine extends libPictService
 			NodeHash: pNodeHash,
 			RunHash: pContext.Hash,
 			RunMode: pContext.RunMode,
-			StateManager: this._getStateManager()
+			StateManager: this._getStateManager(),
+			TriggeringEventName: pEventName
 		};
 
 		// Build the fFireIntermediateEvent function for re-entrant tasks
@@ -366,7 +385,7 @@ class UltravisorExecutionEngine extends libPictService
 					{
 						if (pError)
 						{
-							pContext.Log.push(`Error in sub-graph: ${pError.message}`);
+							this._log(pContext, `Error in sub-graph: ${pError.message}`, 'error');
 						}
 
 						// Also process any events that were enqueued during sub-graph execution
@@ -385,7 +404,7 @@ class UltravisorExecutionEngine extends libPictService
 		{
 			if (pError)
 			{
-				pContext.Log.push(`Task [${pNodeHash}] error: ${pError.message}`);
+				this._log(pContext, `Task [${pNodeHash}] error: ${pError.message}`, 'error');
 				if (tmpManifestService)
 				{
 					tmpManifestService.recordTaskError(pContext, pNodeHash, pError);
@@ -398,7 +417,7 @@ class UltravisorExecutionEngine extends libPictService
 
 			if (!pResult)
 			{
-				pContext.Log.push(`Task [${pNodeHash}] returned no result.`);
+				this._log(pContext, `Task [${pNodeHash}] returned no result.`, 'warn');
 				return fCallback(null);
 			}
 
@@ -410,7 +429,7 @@ class UltravisorExecutionEngine extends libPictService
 					OutputAddress: pResult.OutputAddress || '',
 					Timestamp: new Date().toISOString()
 				};
-				pContext.Log.push(`Task [${pNodeHash}] is waiting for user input.`);
+				this._log(pContext, `Task [${pNodeHash}] is waiting for user input.`);
 				if (tmpManifestService)
 				{
 					tmpManifestService.recordTaskComplete(pContext, pNodeHash, pResult);
@@ -440,12 +459,28 @@ class UltravisorExecutionEngine extends libPictService
 				}
 			}
 
+			// Determine if this result is an error event
+			let tmpIsErrorResult = false;
+			if (pResult.EventToFire && tmpDefinition && Array.isArray(tmpDefinition.EventOutputs))
+			{
+				for (let e = 0; e < tmpDefinition.EventOutputs.length; e++)
+				{
+					if (tmpDefinition.EventOutputs[e].Name === pResult.EventToFire
+						&& tmpDefinition.EventOutputs[e].IsError)
+					{
+						tmpIsErrorResult = true;
+						break;
+					}
+				}
+			}
+
 			// Log task messages
 			if (Array.isArray(pResult.Log))
 			{
+				let tmpLogLevel = tmpIsErrorResult ? 'error' : 'trace';
 				for (let i = 0; i < pResult.Log.length; i++)
 				{
-					pContext.Log.push(`  [${pNodeHash}] ${pResult.Log[i]}`);
+					this._log(pContext, `  [${pNodeHash}] ${pResult.Log[i]}`, tmpLogLevel);
 				}
 			}
 
@@ -458,7 +493,35 @@ class UltravisorExecutionEngine extends libPictService
 			// Fire the output event (enqueue downstream tasks)
 			if (pResult.EventToFire)
 			{
+				let tmpQueueLenBefore = pContext.PendingEvents.length;
 				this._enqueueDownstreamEvents(pNodeHash, pResult.EventToFire, pContext);
+				let tmpHandled = pContext.PendingEvents.length > tmpQueueLenBefore;
+
+				// Record an unhandled error on the context when no downstream
+				// error handler is connected.
+				if (tmpIsErrorResult && !tmpHandled)
+				{
+					let tmpErrorMessage = (Array.isArray(pResult.Log) && pResult.Log.length > 0)
+						? pResult.Log.join('; ')
+						: `Task [${pNodeHash}] fired error event.`;
+					pContext.Errors.push({
+						NodeHash: pNodeHash,
+						Message: tmpErrorMessage,
+						Timestamp: new Date().toISOString()
+					});
+				}
+			}
+			else if (tmpIsErrorResult)
+			{
+				// Error result with no EventToFire — still record the error
+				let tmpErrorMessage = (Array.isArray(pResult.Log) && pResult.Log.length > 0)
+					? pResult.Log.join('; ')
+					: `Task [${pNodeHash}] fired error event.`;
+				pContext.Errors.push({
+					NodeHash: pNodeHash,
+					Message: tmpErrorMessage,
+					Timestamp: new Date().toISOString()
+				});
 			}
 
 			return fCallback(null);
@@ -491,14 +554,15 @@ class UltravisorExecutionEngine extends libPictService
 		// Find all incoming State connections targeting this node
 		let tmpStateConnections = pContext._ConnectionMap.stateTargets[pNodeHash] || [];
 		let tmpStateManager = this._getStateManager();
+		let tmpPortLabelMap = pContext._PortLabelMap;
 
 		for (let i = 0; i < tmpStateConnections.length; i++)
 		{
 			let tmpConn = tmpStateConnections[i];
 
 			// Get the source port name
-			let tmpSourcePortName = this._extractPortName(tmpConn.SourcePortHash);
-			let tmpTargetPortName = this._extractPortName(tmpConn.TargetPortHash);
+			let tmpSourcePortName = this._extractPortName(tmpConn.SourcePortHash, tmpPortLabelMap);
+			let tmpTargetPortName = this._extractPortName(tmpConn.TargetPortHash, tmpPortLabelMap);
 
 			// Read the source value from the source node's outputs
 			let tmpSourceNodeOutputs = pContext.TaskOutputs[tmpConn.SourceNodeHash] || {};
@@ -515,6 +579,22 @@ class UltravisorExecutionEngine extends libPictService
 			if (tmpTargetPortName && tmpSourceValue !== undefined)
 			{
 				tmpSettings[tmpTargetPortName] = tmpSourceValue;
+			}
+		}
+
+		// Resolve any template expressions in settings values
+		// (e.g. "{~D:Record.Operation.InputFilePath~}" -> actual value from state)
+		let tmpTemplateContext = tmpStateManager.buildTemplateContext(pContext);
+
+		let tmpSettingsKeys = Object.keys(tmpSettings);
+		for (let i = 0; i < tmpSettingsKeys.length; i++)
+		{
+			let tmpKey = tmpSettingsKeys[i];
+			let tmpVal = tmpSettings[tmpKey];
+
+			if (typeof(tmpVal) === 'string' && tmpVal.indexOf('{~') >= 0)
+			{
+				tmpSettings[tmpKey] = this._resolveTemplate(tmpVal, tmpTemplateContext);
 			}
 		}
 
@@ -535,7 +615,15 @@ class UltravisorExecutionEngine extends libPictService
 
 		for (let i = 0; i < tmpNodes.length; i++)
 		{
-			tmpMap[tmpNodes[i].Hash] = tmpNodes[i];
+			let tmpNode = tmpNodes[i];
+
+			// Normalize flow editor format: "Data" -> "Settings"
+			if (!tmpNode.Settings && tmpNode.Data && typeof(tmpNode.Data) === 'object')
+			{
+				tmpNode.Settings = tmpNode.Data;
+			}
+
+			tmpMap[tmpNode.Hash] = tmpNode;
 		}
 
 		return tmpMap;
@@ -546,8 +634,12 @@ class UltravisorExecutionEngine extends libPictService
 	 * Creates two indices:
 	 *   eventSources[sourceNodeHash] -> array of connections with ConnectionType='Event'
 	 *   stateTargets[targetNodeHash] -> array of connections with ConnectionType='State'
+	 *
+	 * When ConnectionType is not explicitly set (flow editor format), the type is
+	 * inferred from port hash convention (-eo-/-ei- vs -so-/-si-), node types
+	 * (start/end are always event), or task type definitions.
 	 */
-	_buildConnectionMap(pGraph)
+	_buildConnectionMap(pGraph, pNodeMap, pPortLabelMap)
 	{
 		let tmpMap = {
 			eventSources: {},
@@ -560,7 +652,11 @@ class UltravisorExecutionEngine extends libPictService
 		{
 			let tmpConn = tmpConnections[i];
 
-			if (tmpConn.ConnectionType === 'Event')
+			// Determine connection type (explicit or inferred)
+			let tmpType = tmpConn.ConnectionType
+				|| this._inferConnectionType(tmpConn, pNodeMap, pPortLabelMap);
+
+			if (tmpType === 'Event')
 			{
 				if (!tmpMap.eventSources[tmpConn.SourceNodeHash])
 				{
@@ -568,7 +664,7 @@ class UltravisorExecutionEngine extends libPictService
 				}
 				tmpMap.eventSources[tmpConn.SourceNodeHash].push(tmpConn);
 			}
-			else if (tmpConn.ConnectionType === 'State')
+			else if (tmpType === 'State')
 			{
 				if (!tmpMap.stateTargets[tmpConn.TargetNodeHash])
 				{
@@ -606,18 +702,39 @@ class UltravisorExecutionEngine extends libPictService
 	 * @param {string} pEventName - The event name (matches the source port name).
 	 * @param {object} pContext - The execution context.
 	 */
-	_enqueueDownstreamEvents(pSourceNodeHash, pEventName, pContext)
+	/**
+	 * Enqueue ALL downstream event connections from a source node, ignoring port name.
+	 * Used for Start nodes which have a single output port.
+	 */
+	_enqueueAllDownstreamEvents(pSourceNodeHash, pContext)
 	{
 		let tmpConnections = pContext._ConnectionMap.eventSources[pSourceNodeHash] || [];
+		let tmpPortLabelMap = pContext._PortLabelMap;
 
 		for (let i = 0; i < tmpConnections.length; i++)
 		{
 			let tmpConn = tmpConnections[i];
-			let tmpSourcePortName = this._extractPortName(tmpConn.SourcePortHash);
+			let tmpTargetPortName = this._extractPortName(tmpConn.TargetPortHash, tmpPortLabelMap);
+			pContext.PendingEvents.push({
+				TargetNodeHash: tmpConn.TargetNodeHash,
+				EventName: tmpTargetPortName
+			});
+		}
+	}
+
+	_enqueueDownstreamEvents(pSourceNodeHash, pEventName, pContext)
+	{
+		let tmpConnections = pContext._ConnectionMap.eventSources[pSourceNodeHash] || [];
+		let tmpPortLabelMap = pContext._PortLabelMap;
+
+		for (let i = 0; i < tmpConnections.length; i++)
+		{
+			let tmpConn = tmpConnections[i];
+			let tmpSourcePortName = this._extractPortName(tmpConn.SourcePortHash, tmpPortLabelMap);
 
 			if (tmpSourcePortName === pEventName)
 			{
-				let tmpTargetPortName = this._extractPortName(tmpConn.TargetPortHash);
+				let tmpTargetPortName = this._extractPortName(tmpConn.TargetPortHash, tmpPortLabelMap);
 				pContext.PendingEvents.push({
 					TargetNodeHash: tmpConn.TargetNodeHash,
 					EventName: tmpTargetPortName
@@ -634,15 +751,16 @@ class UltravisorExecutionEngine extends libPictService
 	{
 		let tmpTargets = [];
 		let tmpConnections = pContext._ConnectionMap.eventSources[pSourceNodeHash] || [];
+		let tmpPortLabelMap = pContext._PortLabelMap;
 
 		for (let i = 0; i < tmpConnections.length; i++)
 		{
 			let tmpConn = tmpConnections[i];
-			let tmpSourcePortName = this._extractPortName(tmpConn.SourcePortHash);
+			let tmpSourcePortName = this._extractPortName(tmpConn.SourcePortHash, tmpPortLabelMap);
 
 			if (tmpSourcePortName === pEventName)
 			{
-				let tmpTargetPortName = this._extractPortName(tmpConn.TargetPortHash);
+				let tmpTargetPortName = this._extractPortName(tmpConn.TargetPortHash, tmpPortLabelMap);
 				tmpTargets.push({
 					TargetNodeHash: tmpConn.TargetNodeHash,
 					EventName: tmpTargetPortName
@@ -672,7 +790,7 @@ class UltravisorExecutionEngine extends libPictService
 			{
 				if (pError)
 				{
-					pContext.Log.push(`Error in sub-graph drain: ${pError.message}`);
+					this._log(pContext, `Error in sub-graph drain: ${pError.message}`, 'error');
 				}
 
 				this._drainEventsForSubgraph(pContext, fCallback);
@@ -681,17 +799,24 @@ class UltravisorExecutionEngine extends libPictService
 
 	/**
 	 * Extract the port name from a port hash.
-	 * Port hashes follow the pattern: {NodeHash}-{portTypePrefix}-{Name}
-	 * e.g. 'TSK-READFILE-001-eo-ReadComplete' -> 'ReadComplete'
+	 *
+	 * Supports two formats:
+	 *   1. Programmatic: {NodeHash}-{portTypePrefix}-{Name}
+	 *      e.g. 'TSK-READFILE-001-eo-ReadComplete' -> 'ReadComplete'
+	 *   2. Flow editor: arbitrary hashes with port Labels stored in the graph
+	 *      e.g. 'fp-read-done' -> looks up Label 'ReadComplete' from PortLabelMap
+	 *
+	 * @param {string} pPortHash - The port hash string.
+	 * @param {object} [pPortLabelMap] - Optional mapping of port hash -> label.
 	 */
-	_extractPortName(pPortHash)
+	_extractPortName(pPortHash, pPortLabelMap)
 	{
 		if (!pPortHash || typeof(pPortHash) !== 'string')
 		{
 			return '';
 		}
 
-		// Find the port type prefix (ei-, eo-, si-, so-)
+		// First try the standard -eo-/-ei-/-so-/-si- convention
 		let tmpPrefixes = ['-ei-', '-eo-', '-si-', '-so-'];
 
 		for (let i = 0; i < tmpPrefixes.length; i++)
@@ -703,7 +828,13 @@ class UltravisorExecutionEngine extends libPictService
 			}
 		}
 
-		// Fallback: return the hash as-is (e.g. for simple port hashes)
+		// Then try the port label map (flow editor format)
+		if (pPortLabelMap && pPortLabelMap[pPortHash])
+		{
+			return pPortLabelMap[pPortHash];
+		}
+
+		// Fallback: return the hash as-is
 		return pPortHash;
 	}
 
@@ -714,16 +845,16 @@ class UltravisorExecutionEngine extends libPictService
 	/**
 	 * Resolve a template string against a template context object.
 	 *
-	 * Replaces {~D:Address~} patterns using Manyfest address resolution.
-	 * Address examples:
-	 *   {~D:Value~}                   -> the source value from the state connection
-	 *   {~D:Global.X~}               -> GlobalState.X
-	 *   {~D:Operation.X~}            -> OperationState.X
-	 *   {~D:TaskOutput.NodeHash.X~}  -> TaskOutputs[NodeHash].X
-	 *   {~D:Staging.Path~}           -> StagingPath
+	 * Uses Pict's parseTemplate for full template support. The template context
+	 * from StateManager.buildTemplateContext() is passed as the record parameter,
+	 * which Pict places at `Record` on the root data object.
 	 *
-	 * If Pict's parseTemplate is available, delegates to it for full template support.
-	 * Otherwise falls back to simple {~D:...~} pattern resolution via Manyfest.
+	 * Template addresses use the `Record.` prefix to reach the context:
+	 *   {~D:Record.Value~}                   -> the source value from the state connection
+	 *   {~D:Record.Global.X~}               -> GlobalState.X
+	 *   {~D:Record.Operation.X~}            -> OperationState.X
+	 *   {~D:Record.TaskOutput.NodeHash.X~}  -> TaskOutputs[NodeHash].X
+	 *   {~D:Record.Staging.Path~}           -> StagingPath
 	 *
 	 * @param {string} pTemplate - The template string.
 	 * @param {object} pContext - The template context (from StateManager.buildTemplateContext).
@@ -731,26 +862,146 @@ class UltravisorExecutionEngine extends libPictService
 	 */
 	_resolveTemplate(pTemplate, pContext)
 	{
-		// If Pict's parseTemplate is available, use it (provides full template support)
 		if (typeof(this.fable.parseTemplate) === 'function')
 		{
 			return this.fable.parseTemplate(pTemplate, pContext);
 		}
 
-		// Fallback: simple {~D:Address~} pattern resolution
-		let tmpStateManager = this._getStateManager();
+		this.log.warn('ExecutionEngine._resolveTemplate: parseTemplate not available on fable instance. Template expressions will not be resolved.');
+		return pTemplate;
+	}
 
-		if (!tmpStateManager)
+	// ====================================================================
+	// Internal: Port and Connection Helpers
+	// ====================================================================
+
+	/**
+	 * Build a lookup map from port hash -> port Label for all nodes in the graph.
+	 * Used to resolve port names when hashes don't follow the -eo-/-ei- convention.
+	 */
+	_buildPortLabelMap(pGraph)
+	{
+		let tmpMap = {};
+		let tmpNodes = pGraph.Nodes || [];
+
+		for (let i = 0; i < tmpNodes.length; i++)
 		{
-			return pTemplate;
+			let tmpPorts = tmpNodes[i].Ports || [];
+
+			for (let j = 0; j < tmpPorts.length; j++)
+			{
+				tmpMap[tmpPorts[j].Hash] = tmpPorts[j].Label || tmpPorts[j].Hash;
+			}
 		}
 
-		return pTemplate.replace(/\{~D:([^~]+)~\}/g,
-			(pMatch, pAddress) =>
+		return tmpMap;
+	}
+
+	/**
+	 * Infer the ConnectionType when not explicitly set on a connection.
+	 *
+	 * Uses these heuristics in order:
+	 *   1. Port hash convention: -eo-/-ei- -> Event, -so-/-si- -> State
+	 *   2. Start/End node connections are always Event
+	 *   3. Task type definitions: check if port labels match EventOutputs or StateOutputs
+	 *   4. Default: Event
+	 */
+	_inferConnectionType(pConn, pNodeMap, pPortLabelMap)
+	{
+		let tmpSourcePortHash = pConn.SourcePortHash || '';
+		let tmpTargetPortHash = pConn.TargetPortHash || '';
+
+		// Check port hash convention
+		if (tmpSourcePortHash.includes('-eo-') || tmpTargetPortHash.includes('-ei-'))
+		{
+			return 'Event';
+		}
+		if (tmpSourcePortHash.includes('-so-') || tmpTargetPortHash.includes('-si-'))
+		{
+			return 'State';
+		}
+
+		// Start and End nodes only have event ports
+		let tmpSourceNode = pNodeMap ? pNodeMap[pConn.SourceNodeHash] : null;
+		let tmpTargetNode = pNodeMap ? pNodeMap[pConn.TargetNodeHash] : null;
+
+		if (tmpSourceNode && (tmpSourceNode.Type === 'start' || tmpSourceNode.Type === 'end'))
+		{
+			return 'Event';
+		}
+		if (tmpTargetNode && (tmpTargetNode.Type === 'start' || tmpTargetNode.Type === 'end'))
+		{
+			return 'Event';
+		}
+
+		// Look up port labels and check against task type definitions
+		let tmpRegistry = this._getTaskTypeRegistry();
+
+		if (tmpRegistry && tmpSourceNode)
+		{
+			let tmpSourceLabel = pPortLabelMap ? (pPortLabelMap[tmpSourcePortHash] || '') : '';
+			let tmpDefHash = tmpSourceNode.DefinitionHash || tmpSourceNode.Type;
+			let tmpDef = tmpRegistry.getDefinition(tmpDefHash);
+
+			if (tmpDef)
 			{
-				let tmpValue = tmpStateManager._resolveFromObject(pContext, pAddress);
-				return tmpValue !== undefined ? String(tmpValue) : '';
-			});
+				if (tmpDef.EventOutputs)
+				{
+					for (let i = 0; i < tmpDef.EventOutputs.length; i++)
+					{
+						if (tmpDef.EventOutputs[i].Name === tmpSourceLabel)
+						{
+							return 'Event';
+						}
+					}
+				}
+				if (tmpDef.StateOutputs)
+				{
+					for (let i = 0; i < tmpDef.StateOutputs.length; i++)
+					{
+						if (tmpDef.StateOutputs[i].Name === tmpSourceLabel)
+						{
+							return 'State';
+						}
+					}
+				}
+			}
+		}
+
+		// Also check target node to classify
+		if (tmpRegistry && tmpTargetNode)
+		{
+			let tmpTargetLabel = pPortLabelMap ? (pPortLabelMap[tmpTargetPortHash] || '') : '';
+			let tmpDefHash = tmpTargetNode.DefinitionHash || tmpTargetNode.Type;
+			let tmpDef = tmpRegistry.getDefinition(tmpDefHash);
+
+			if (tmpDef)
+			{
+				if (tmpDef.EventInputs)
+				{
+					for (let i = 0; i < tmpDef.EventInputs.length; i++)
+					{
+						if (tmpDef.EventInputs[i].Name === tmpTargetLabel)
+						{
+							return 'Event';
+						}
+					}
+				}
+				if (tmpDef.SettingsInputs)
+				{
+					for (let i = 0; i < tmpDef.SettingsInputs.length; i++)
+					{
+						if (tmpDef.SettingsInputs[i].Name === tmpTargetLabel)
+						{
+							return 'State';
+						}
+					}
+				}
+			}
+		}
+
+		// Default to Event
+		return 'Event';
 	}
 
 	// ====================================================================

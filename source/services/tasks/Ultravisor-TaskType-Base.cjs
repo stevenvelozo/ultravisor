@@ -61,6 +61,9 @@ class UltravisorTaskType extends libFableServiceProviderBase
 	 *   RunHash         {string}  - the execution run hash
 	 *   RunMode         {string}  - 'production' | 'standard' | 'debug'
 	 *   StateManager    {object}  - reference to the StateManager service
+	 *   TriggeringEventName {string} - the event that triggered this execution
+	 *     (e.g. 'PerformSplit', 'StepComplete') — lets state-machine tasks
+	 *     distinguish which input event caused the current invocation.
 	 * @param {function} fCallback - function(pError, pResult) where pResult is:
 	 *   EventToFire  {string}  - which output event to fire (e.g. 'ReadComplete')
 	 *   Outputs      {object}  - key/value pairs written to TaskOutputs[NodeHash]

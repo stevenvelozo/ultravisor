@@ -29,13 +29,14 @@ class UltravisorTaskTypeStringAppender extends libTaskTypeBase
 			EventOutputs: [{ Name: 'Completed' }],
 			SettingsInputs: [
 				{ Name: 'InputString', DataType: 'String', Required: true },
-				{ Name: 'OutputAddress', DataType: 'String', Required: true }
+				{ Name: 'OutputAddress', DataType: 'String', Required: true },
+				{ Name: 'AppendNewline', DataType: 'Boolean', Required: false, Description: 'When true, append a newline after each InputString.' }
 			],
 			StateOutputs: [
 				{ Name: 'AppendedString', DataType: 'String' }
 			],
 
-			DefaultSettings: { InputString: '', OutputAddress: '' }
+			DefaultSettings: { InputString: '', OutputAddress: '', AppendNewline: false }
 		};
 	}
 
@@ -73,6 +74,12 @@ class UltravisorTaskTypeStringAppender extends libTaskTypeBase
 			{
 				tmpExistingValue = String(tmpResolved);
 			}
+		}
+
+		// Optionally add a newline after the input string
+		if (pResolvedSettings.AppendNewline)
+		{
+			tmpInputString = tmpInputString + '\n';
 		}
 
 		let tmpAppendedValue = tmpExistingValue + tmpInputString;

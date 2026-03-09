@@ -20,7 +20,7 @@ const libAssert = require('assert');
 const libPath = require('path');
 const libFs = require('fs');
 const libPuppeteer = require('puppeteer');
-const libFable = require('fable');
+const libPict = require('pict');
 
 // Services
 const libServiceHypervisor = require('../source/services/Ultravisor-Hypervisor.cjs');
@@ -207,9 +207,9 @@ suite
 					return fDone(new Error('webinterface/dist/index.html not found. Run "npx quack build" first.'));
 				}
 
-				// Create Fable instance with random port
+				// Create Pict instance with random port
 				let tmpPort = 10000 + Math.floor(Math.random() * 50000);
-				_Fable = new libFable(
+				_Fable = new libPict(
 				{
 					Product: 'Ultravisor-BrowserTest',
 					APIServerPort: tmpPort,
@@ -979,7 +979,7 @@ suite
 										Hash: 'c3', ConnectionType: 'State',
 										SourceNodeHash: 'n-read', SourcePortHash: 'n-read-so-FileContent',
 										TargetNodeHash: 'n-write', TargetPortHash: 'n-write-si-Content',
-										Data: { Template: 'HEADER: {~D:Value~}' }
+										Data: { Template: 'HEADER: {~D:Record.Value~}' }
 									},
 									{ Hash: 'c4', ConnectionType: 'Event', SourceNodeHash: 'n-write', SourcePortHash: 'n-write-eo-WriteComplete', TargetNodeHash: 'n-end', TargetPortHash: 'n-end-ei-End' }
 								],
@@ -1492,7 +1492,7 @@ suite
 											{ Hash: 'wf-append-eo-Completed', Direction: 'output', Side: 'right', Label: 'Completed' },
 											{ Hash: 'wf-append-so-AppendedString', Direction: 'output', Side: 'right', Label: 'AppendedString' }
 										],
-										Settings: { OutputAddress: 'Operation.OutputFileContents' }
+										Settings: { OutputAddress: 'Operation.OutputFileContents', AppendNewline: true }
 									},
 									{
 										Hash: 'wf-write', Type: 'write-file',
@@ -1520,6 +1520,7 @@ suite
 									{ Hash: 'wf-ev2', ConnectionType: 'Event', SourceNodeHash: 'wf-read', SourcePortHash: 'wf-read-eo-ReadComplete', TargetNodeHash: 'wf-split', TargetPortHash: 'wf-split-ei-PerformSplit', Data: {} },
 									{ Hash: 'wf-ev3', ConnectionType: 'Event', SourceNodeHash: 'wf-split', SourcePortHash: 'wf-split-eo-TokenDataSent', TargetNodeHash: 'wf-replace', TargetPortHash: 'wf-replace-ei-Replace', Data: {} },
 									{ Hash: 'wf-ev4', ConnectionType: 'Event', SourceNodeHash: 'wf-replace', SourcePortHash: 'wf-replace-eo-ReplaceComplete', TargetNodeHash: 'wf-append', TargetPortHash: 'wf-append-ei-Append', Data: {} },
+									{ Hash: 'wf-ev5', ConnectionType: 'Event', SourceNodeHash: 'wf-append', SourcePortHash: 'wf-append-eo-Completed', TargetNodeHash: 'wf-split', TargetPortHash: 'wf-split-ei-StepComplete', Data: {} },
 									{ Hash: 'wf-ev6', ConnectionType: 'Event', SourceNodeHash: 'wf-split', SourcePortHash: 'wf-split-eo-CompletedAllSubtasks', TargetNodeHash: 'wf-write', TargetPortHash: 'wf-write-ei-BeginWrite', Data: {} },
 									{ Hash: 'wf-ev7', ConnectionType: 'Event', SourceNodeHash: 'wf-write', SourcePortHash: 'wf-write-eo-WriteComplete', TargetNodeHash: 'wf-end', TargetPortHash: 'wf-end-ei-In', Data: {} },
 									{ Hash: 'wf-st1', ConnectionType: 'State', SourceNodeHash: 'wf-read', SourcePortHash: 'wf-read-so-FileContent', TargetNodeHash: 'wf-split', TargetPortHash: 'wf-split-si-InputString', Data: {} },
@@ -1543,7 +1544,7 @@ suite
 
 						libAssert.ok(tmpFlowData.success, 'Flow data should be injected: ' + JSON.stringify(tmpFlowData));
 						libAssert.strictEqual(tmpFlowData.nodeCount, 7, 'Should have 7 nodes');
-						libAssert.strictEqual(tmpFlowData.connectionCount, 10, 'Should have 10 connections');
+						libAssert.strictEqual(tmpFlowData.connectionCount, 11, 'Should have 11 connections');
 
 						await settle(500);
 						await takeScreenshot('workflow-editor-built');
@@ -2018,6 +2019,163 @@ suite
 						libAssert.ok(tmpOpCount >= 1, 'Should show at least one operation in the list');
 
 						await takeScreenshot('operations-list-populated');
+
+						_TestResults.passed++;
+					}
+				);
+			}
+		);
+
+		// ════════════════════════════════════════════════
+		// Pending Input API
+		// ════════════════════════════════════════════════
+		suite
+		(
+			'Pending Input API',
+			function ()
+			{
+				let _PendingOpHash = '';
+				let _PendingRunHash = '';
+
+				test
+				(
+					'create operation with value-input node',
+					async function ()
+					{
+						this.timeout(15000);
+
+						let tmpResponse = await apiCreateOperation({
+							Name: 'Pending Input Test',
+							Description: 'Tests value-input pause and resume via PendingInput API.',
+							Graph: {
+								Nodes: [
+									{ Hash: 'pi-start', Type: 'start', X: 0, Y: 0 },
+									{
+										Hash: 'pi-input', Type: 'value-input',
+										Settings: { PromptMessage: 'Enter test value', OutputAddress: 'Operation.TestValue' },
+										Ports: [], X: 200, Y: 0
+									},
+									{ Hash: 'pi-end', Type: 'end', X: 400, Y: 0 }
+								],
+								Connections: [
+									{ Hash: 'pi-c1', ConnectionType: 'Event', SourceNodeHash: 'pi-start', SourcePortHash: 'pi-start-eo-Start', TargetNodeHash: 'pi-input', TargetPortHash: 'pi-input-ei-RequestInput' },
+									{ Hash: 'pi-c2', ConnectionType: 'Event', SourceNodeHash: 'pi-input', SourcePortHash: 'pi-input-eo-ValueInputComplete', TargetNodeHash: 'pi-end', TargetPortHash: 'pi-end-ei-End' }
+								],
+								ViewState: {}
+							}
+						});
+
+						_PendingOpHash = tmpResponse.Hash;
+						libAssert.ok(_PendingOpHash, 'Operation should be created');
+						console.log('  Pending Input op:', _PendingOpHash);
+
+						_TestResults.passed++;
+					}
+				);
+
+				test
+				(
+					'execute operation — should pause at value-input',
+					async function ()
+					{
+						this.timeout(15000);
+
+						let tmpResult = await apiExecuteOperation(_PendingOpHash);
+						libAssert.strictEqual(tmpResult.body.Status, 'WaitingForInput', 'Should be waiting for input');
+						libAssert.ok(tmpResult.body.WaitingTasks, 'Should have WaitingTasks');
+						libAssert.ok(tmpResult.body.WaitingTasks['pi-input'], 'Should be waiting on pi-input node');
+						libAssert.strictEqual(tmpResult.body.WaitingTasks['pi-input'].PromptMessage, 'Enter test value', 'PromptMessage should match');
+
+						_PendingRunHash = tmpResult.body.Hash;
+						console.log('  Run paused:', _PendingRunHash, '| Prompt:', tmpResult.body.WaitingTasks['pi-input'].PromptMessage);
+
+						_TestResults.passed++;
+					}
+				);
+
+				test
+				(
+					'GET /PendingInput lists the paused run',
+					async function ()
+					{
+						this.timeout(10000);
+
+						let tmpResponse = await apiGet('/PendingInput');
+						libAssert.strictEqual(tmpResponse.status, 200, 'Should return 200');
+						libAssert.ok(Array.isArray(tmpResponse.body), 'Should return an array');
+						libAssert.ok(tmpResponse.body.length >= 1, 'Should have at least one pending input');
+
+						let tmpFound = tmpResponse.body.find(function (pItem) { return pItem.RunHash === _PendingRunHash; });
+						libAssert.ok(tmpFound, 'Should find our paused run');
+						libAssert.strictEqual(tmpFound.OperationHash, _PendingOpHash, 'OperationHash should match');
+						libAssert.ok(tmpFound.WaitingTasks['pi-input'], 'Should show pi-input as waiting');
+						libAssert.strictEqual(tmpFound.WaitingTasks['pi-input'].PromptMessage, 'Enter test value', 'PromptMessage should match');
+
+						console.log('  Pending inputs found:', tmpResponse.body.length);
+
+						_TestResults.passed++;
+					}
+				);
+
+				test
+				(
+					'Pending Input view shows waiting operations',
+					async function ()
+					{
+						this.timeout(15000);
+
+						await navigateToRoute('#/PendingInput');
+						await settle(2000);
+
+						let tmpCardCount = await _Page.evaluate(() =>
+						{
+							let tmpCards = document.querySelectorAll('.ultravisor-pendinginput-card');
+							return tmpCards ? tmpCards.length : 0;
+						});
+
+						libAssert.ok(tmpCardCount >= 1, 'Should show at least one pending input card');
+						console.log('  Pending input cards visible:', tmpCardCount);
+
+						await takeScreenshot('pending-input-view');
+
+						_TestResults.passed++;
+					}
+				);
+
+				test
+				(
+					'POST /PendingInput/:RunHash submits value and resumes',
+					async function ()
+					{
+						this.timeout(15000);
+
+						let tmpResponse = await apiPost('/PendingInput/' + _PendingRunHash, { NodeHash: 'pi-input', Value: 'hello-test-value' });
+
+						libAssert.strictEqual(tmpResponse.status, 200, 'Should return 200');
+						libAssert.strictEqual(tmpResponse.body.Status, 'Complete', 'Operation should complete after input');
+						libAssert.ok(tmpResponse.body.TaskOutputs['pi-input'], 'Should have pi-input outputs');
+						libAssert.strictEqual(tmpResponse.body.TaskOutputs['pi-input'].InputValue, 'hello-test-value', 'InputValue should match');
+
+						console.log('  Resumed run status:', tmpResponse.body.Status);
+
+						_TestResults.passed++;
+					}
+				);
+
+				test
+				(
+					'GET /PendingInput is now empty for that run',
+					async function ()
+					{
+						this.timeout(10000);
+
+						let tmpResponse = await apiGet('/PendingInput');
+						libAssert.strictEqual(tmpResponse.status, 200, 'Should return 200');
+
+						let tmpFound = tmpResponse.body.find(function (pItem) { return pItem.RunHash === _PendingRunHash; });
+						libAssert.ok(!tmpFound, 'Completed run should no longer appear in pending inputs');
+
+						console.log('  Remaining pending inputs:', tmpResponse.body.length);
 
 						_TestResults.passed++;
 					}

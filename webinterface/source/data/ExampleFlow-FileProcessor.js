@@ -75,7 +75,7 @@ module.exports =
 				{ Hash: 'fp-read-content', Direction: 'output', Side: 'right', Label: 'FileContent' },
 				{ Hash: 'fp-read-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
 			],
-			Data: { FilePath: '{~D:Operation.InputFilePath~}', Encoding: 'utf8' }
+			Data: { FilePath: '{~D:Record.Operation.InputFilePath~}', Encoding: 'utf8' }
 		},
 		// ── Error handler for file read ──────────────────────────
 		{
@@ -91,7 +91,7 @@ module.exports =
 				{ Hash: 'fp-error-in', Direction: 'input', Side: 'left', Label: 'Trigger' },
 				{ Hash: 'fp-error-done', Direction: 'output', Side: 'right', Label: 'Complete' }
 			],
-			Data: { MessageTemplate: 'Failed to read file: {~D:Operation.InputFilePath~}' }
+			Data: { MessageTemplate: 'Failed to read file: {~D:Record.Operation.InputFilePath~}' }
 		},
 		// ── Split file into lines ────────────────────────────────
 		{
@@ -110,7 +110,7 @@ module.exports =
 				{ Hash: 'fp-split-token', Direction: 'output', Side: 'right', Label: 'TokenDataSent' },
 				{ Hash: 'fp-split-alldone', Direction: 'output', Side: 'bottom', Label: 'CompletedAllSubtasks' }
 			],
-			Data: { InputString: '{~D:TaskOutput.fp-read.FileContent~}', SplitDelimiter: '\n' }
+			Data: { InputString: '{~D:Record.TaskOutput.fp-read.FileContent~}', SplitDelimiter: '\n' }
 		},
 		// ── Replace "John" with "Jane" in each line ──────────────
 		{
@@ -127,7 +127,7 @@ module.exports =
 				{ Hash: 'fp-replace-done', Direction: 'output', Side: 'right', Label: 'ReplaceComplete' },
 				{ Hash: 'fp-replace-result', Direction: 'output', Side: 'bottom', Label: 'ReplacedString' }
 			],
-			Data: { InputString: '{~D:TaskOutput.fp-split.CurrentToken~}', SearchString: 'John', ReplaceString: 'Jane' }
+			Data: { InputString: '{~D:Record.TaskOutput.fp-split.CurrentToken~}', SearchString: 'John', ReplaceString: 'Jane' }
 		},
 		// ── Append each processed line to output ─────────────────
 		{
@@ -144,7 +144,7 @@ module.exports =
 				{ Hash: 'fp-append-inputstr', Direction: 'input', Side: 'top', Label: 'InputString' },
 				{ Hash: 'fp-append-done', Direction: 'output', Side: 'right', Label: 'Completed' }
 			],
-			Data: { InputString: '{~D:TaskOutput.fp-replace.ReplacedString~}', OutputAddress: 'Operation.OutputFileContents' }
+			Data: { InputString: '{~D:Record.TaskOutput.fp-replace.ReplacedString~}', OutputAddress: 'Operation.OutputFileContents', AppendNewline: true }
 		},
 		// ── Write the processed file ─────────────────────────────
 		{
@@ -161,7 +161,7 @@ module.exports =
 				{ Hash: 'fp-write-done', Direction: 'output', Side: 'right', Label: 'WriteComplete' },
 				{ Hash: 'fp-write-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
 			],
-			Data: { FilePath: '{~D:Operation.InputFilePath~}.ultracopy', Content: '{~D:Operation.OutputFileContents~}', Encoding: 'utf8' }
+			Data: { FilePath: '{~D:Record.Operation.InputFilePath~}.ultracopy', Content: '{~D:Record.Operation.OutputFileContents~}', Encoding: 'utf8' }
 		},
 		// ── End ──────────────────────────────────────────────────
 		{
@@ -246,7 +246,7 @@ module.exports =
 			TargetPortHash: 'fp-append-in',
 			Data: {}
 		},
-		// Append Completed -> Split Lines StepComplete (step 17 — loop back)
+		// Append Completed -> Split StepComplete (loop back for next token)
 		{
 			Hash: 'fp-ev8',
 			SourceNodeHash: 'fp-append',
@@ -255,7 +255,7 @@ module.exports =
 			TargetPortHash: 'fp-split-step',
 			Data: {}
 		},
-		// Split Lines CompletedAllSubtasks -> Save File (step 19)
+		// Split Lines CompletedAllSubtasks -> Save File
 		{
 			Hash: 'fp-ev9',
 			SourceNodeHash: 'fp-split',

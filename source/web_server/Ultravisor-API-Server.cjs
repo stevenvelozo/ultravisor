@@ -320,7 +320,8 @@ class UltravisorAPIServer extends libPictService
 										StartTime: pContext.StartTime,
 										StopTime: pContext.StopTime,
 										ElapsedMs: pContext.ElapsedMs,
-										TaskManifests: pContext.TaskManifests
+										TaskManifests: pContext.TaskManifests,
+										WaitingTasks: pContext.WaitingTasks
 									});
 									return fNext();
 								});
@@ -459,6 +460,81 @@ class UltravisorAPIServer extends libPictService
 						pResponse.send(404, { Error: `Manifest ${pRequest.params.RunHash} not found.` });
 					}
 					return fNext();
+				}.bind(this)
+			);
+
+		// --- Pending Inputs ---
+		this._OratorServer.get
+			(
+				'/PendingInput',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpManifest = this._getService('UltravisorExecutionManifest');
+					if (!tmpManifest)
+					{
+						pResponse.send([]);
+						return fNext();
+					}
+
+					let tmpRuns = tmpManifest.listRuns();
+					let tmpPending = [];
+
+					for (let i = 0; i < tmpRuns.length; i++)
+					{
+						if (tmpRuns[i].Status === 'WaitingForInput')
+						{
+							let tmpFullRun = tmpManifest.getRun(tmpRuns[i].Hash);
+							if (tmpFullRun)
+							{
+								tmpPending.push({
+									RunHash: tmpFullRun.Hash,
+									OperationHash: tmpFullRun.OperationHash,
+									OperationName: tmpFullRun.OperationName,
+									StartTime: tmpFullRun.StartTime,
+									WaitingTasks: tmpFullRun.WaitingTasks
+								});
+							}
+						}
+					}
+
+					pResponse.send(tmpPending);
+					return fNext();
+				}.bind(this)
+			);
+
+		this._OratorServer.post
+			(
+				'/PendingInput/:RunHash',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpBody = pRequest.body || {};
+					let tmpEngine = this._getService('UltravisorExecutionEngine');
+					let tmpRunHash = pRequest.params.RunHash;
+
+					if (!tmpBody.NodeHash)
+					{
+						pResponse.send(400, { Error: 'NodeHash is required.' });
+						return fNext();
+					}
+
+					tmpEngine.resumeOperation(tmpRunHash, tmpBody.NodeHash, tmpBody.Value,
+						function (pError, pContext)
+						{
+							if (pError)
+							{
+								pResponse.send(400, { Error: pError.message });
+								return fNext();
+							}
+							pResponse.send({
+								Status: pContext.Status,
+								Hash: pContext.Hash,
+								TaskOutputs: pContext.TaskOutputs,
+								Log: pContext.Log,
+								Errors: pContext.Errors,
+								WaitingTasks: pContext.WaitingTasks
+							});
+							return fNext();
+						});
 				}.bind(this)
 			);
 

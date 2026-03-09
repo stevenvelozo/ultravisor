@@ -184,7 +184,7 @@ class UltravisorExecutionManifest extends libPictService
 		let tmpExecution = tmpTaskManifest.Executions[tmpTaskManifest.Executions.length - 1];
 		tmpExecution.StopTime = new Date().toISOString();
 		tmpExecution.Status = 'Error';
-		tmpExecution.Log.push(`Error: ${pError.message}`);
+		tmpExecution.Log.push(`[${new Date().toISOString()}] Error: ${pError.message}`);
 
 		pExecutionContext.Errors.push({
 			NodeHash: pNodeHash,
@@ -302,7 +302,7 @@ class UltravisorExecutionManifest extends libPictService
 			};
 
 			libFS.writeFileSync(tmpManifestPath, JSON.stringify(tmpManifest, null, '\t'), 'utf8');
-			pExecutionContext.Log.push(`Manifest written to ${tmpManifestPath}`);
+			pExecutionContext.Log.push(`[${new Date().toISOString()}] Manifest written to ${tmpManifestPath}`);
 		}
 		catch (pError)
 		{
@@ -348,7 +348,7 @@ class UltravisorExecutionManifest extends libPictService
 					JSON.stringify(pExecutionContext.TaskOutputs[tmpNodeHash], null, '\t'), 'utf8');
 			}
 
-			pExecutionContext.Log.push(`State snapshots written to ${tmpStatePath}`);
+			pExecutionContext.Log.push(`[${new Date().toISOString()}] State snapshots written to ${tmpStatePath}`);
 		}
 		catch (pError)
 		{
@@ -387,7 +387,7 @@ class UltravisorExecutionManifest extends libPictService
 				}
 			}
 
-			pExecutionContext.Log.push(`Working files cleaned up from ${pStagingPath}`);
+			pExecutionContext.Log.push(`[${new Date().toISOString()}] Working files cleaned up from ${pStagingPath}`);
 		}
 		catch (pError)
 		{

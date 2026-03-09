@@ -76,7 +76,7 @@ module.exports =
 				{ Hash: 'cfg-replace-done', Direction: 'output', Side: 'right', Label: 'ReplaceComplete' },
 				{ Hash: 'cfg-replace-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
 			],
-			Data: { InputString: '{~D:TaskOutput.cfg-read.FileContent~}', SearchString: '{{API_KEY}}', ReplaceString: 'sk-live-abc123def456' }
+			Data: { InputString: '{~D:Record.TaskOutput.cfg-read.FileContent~}', SearchString: '{{API_KEY}}', ReplaceString: 'sk-live-abc123def456' }
 		},
 		// ── Write the processed config ──────────────────────────
 		{
@@ -93,7 +93,7 @@ module.exports =
 				{ Hash: 'cfg-write-done', Direction: 'output', Side: 'right', Label: 'WriteComplete' },
 				{ Hash: 'cfg-write-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
 			],
-			Data: { FilePath: 'config.json', Content: '{~D:TaskOutput.cfg-replace.ReplacedString~}', Encoding: 'utf8' }
+			Data: { FilePath: 'config.json', Content: '{~D:Record.TaskOutput.cfg-replace.ReplacedString~}', Encoding: 'utf8' }
 		},
 		// ── Error: placeholder not found ─────────────────────────
 		{

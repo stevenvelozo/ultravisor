@@ -14,6 +14,7 @@ const libViewSchedule = require('./views/PictView-Ultravisor-Schedule.js');
 const libViewManifestList = require('./views/PictView-Ultravisor-ManifestList.js');
 const libViewTimingView = require('./views/PictView-Ultravisor-TimingView.js');
 const libViewFlowEditor = require('./views/PictView-Ultravisor-FlowEditor.js');
+const libViewPendingInput = require('./views/PictView-Ultravisor-PendingInput.js');
 
 class UltravisorApplication extends libPictApplication
 {
@@ -39,6 +40,7 @@ class UltravisorApplication extends libPictApplication
 		this.pict.addView('Ultravisor-ManifestList', libViewManifestList.default_configuration, libViewManifestList);
 		this.pict.addView('Ultravisor-TimingView', libViewTimingView.default_configuration, libViewTimingView);
 		this.pict.addView('Ultravisor-FlowEditor', libViewFlowEditor.default_configuration, libViewFlowEditor);
+		this.pict.addView('Ultravisor-PendingInput', libViewPendingInput.default_configuration, libViewPendingInput);
 
 		// Register pict-section-form service types so Form panels can use them
 		this.pict.addServiceType('PictFormMetacontroller', libPictSectionForm.PictFormMetacontroller);
@@ -61,6 +63,7 @@ class UltravisorApplication extends libPictApplication
 			OperationList: [],
 			Schedule: [],
 			Manifests: [],
+			PendingInputs: [],
 			CurrentEditOperation: null,
 			Flows: {}
 		};
@@ -353,6 +356,36 @@ class UltravisorApplication extends libPictApplication
 	loadManifest(pRunHash, fCallback)
 	{
 		this.apiCall('GET', `/Manifest/${encodeURIComponent(pRunHash)}`, null,
+			function (pError, pData)
+			{
+				if (typeof fCallback === 'function')
+				{
+					fCallback(pError, pData);
+				}
+			}.bind(this));
+	}
+
+	// --- Pending Inputs ---
+	loadPendingInputs(fCallback)
+	{
+		this.apiCall('GET', '/PendingInput', null,
+			function (pError, pData)
+			{
+				if (!pError && pData)
+				{
+					this.pict.AppData.Ultravisor.PendingInputs = Array.isArray(pData) ? pData : [];
+				}
+				if (typeof fCallback === 'function')
+				{
+					fCallback(pError, pData);
+				}
+			}.bind(this));
+	}
+
+	submitPendingInput(pRunHash, pNodeHash, pValue, fCallback)
+	{
+		this.apiCall('POST', `/PendingInput/${encodeURIComponent(pRunHash)}`,
+			{ NodeHash: pNodeHash, Value: pValue },
 			function (pError, pData)
 			{
 				if (typeof fCallback === 'function')

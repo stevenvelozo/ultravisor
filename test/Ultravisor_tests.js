@@ -2,7 +2,7 @@
 * Unit tests for Ultravisor
 */
 
-const libFable = require('fable');
+const libPict = require('pict');
 const libFS = require('fs');
 const libPath = require('path');
 
@@ -29,11 +29,13 @@ const TEST_STAGING_ROOT = libPath.resolve(__dirname, '..', '.test_staging');
 const TEST_INPUT_FILE = libPath.resolve(__dirname, '..', '.test_staging', 'test_input.txt');
 
 /**
- * Helper: create a Fable instance with all Ultravisor services registered.
+ * Helper: create a Pict instance with all Ultravisor services registered.
+ * Uses Pict (not bare Fable) so that parseTemplate is available for
+ * resolving {~D:Record.*~} template expressions in operation settings.
  */
 function createTestFable()
 {
-	let tmpFable = new libFable(
+	let tmpFable = new libPict(
 		{
 			Product: 'Ultravisor-Test',
 			LogLevel: 5,
@@ -553,7 +555,7 @@ suite
 										TargetPortHash: 'node-write-si-Content',
 										Data:
 										{
-											Template: 'COPY: {~D:Value~}'
+											Template: 'COPY: {~D:Record.Value~}'
 										}
 									},
 									{
@@ -851,14 +853,12 @@ suite
 			{
 				test
 				(
-					'Should split string and fire intermediate events.',
+					'Should emit first token on PerformSplit.',
 					function(fDone)
 					{
 						let tmpFable = createTestFable();
 						let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
 						let tmpInstance = tmpRegistry.instantiateTaskType('split-execute');
-
-						let tmpTokensReceived = [];
 
 						let tmpSettings = {
 							InputString: 'alpha\nbeta\ngamma',
@@ -870,27 +870,178 @@ suite
 							OperationState: {},
 							TaskOutputs: {},
 							StagingPath: '',
-							NodeHash: 'test-split'
-						};
-
-						let fFireIntermediate = (pEventName, pOutputs, fResume) =>
-						{
-							Expect(pEventName).to.equal('TokenDataSent');
-							tmpTokensReceived.push(pOutputs.CurrentToken);
-							fResume();
+							NodeHash: 'test-split',
+							TriggeringEventName: 'PerformSplit'
 						};
 
 						tmpInstance.execute(tmpSettings, tmpContext,
 							(pError, pResult) =>
 							{
 								Expect(pError).to.equal(null);
-								Expect(pResult.EventToFire).to.equal('CompletedAllSubtasks');
-								Expect(tmpTokensReceived).to.deep.equal(['alpha', 'beta', 'gamma']);
+								Expect(pResult.EventToFire).to.equal('TokenDataSent');
+								Expect(pResult.Outputs.CurrentToken).to.equal('alpha');
+								Expect(pResult.Outputs.TokenIndex).to.equal(0);
 								Expect(pResult.Outputs.TokenCount).to.equal(3);
-								Expect(pResult.Outputs.CompletedCount).to.equal(3);
+								Expect(pResult.Outputs.CompletedCount).to.equal(0);
+								Expect(pResult.Outputs._Tokens).to.deep.equal(['alpha', 'beta', 'gamma']);
 								fDone();
-							},
-							fFireIntermediate);
+							});
+					}
+				);
+
+				test
+				(
+					'Should advance tokens on StepComplete and fire CompletedAllSubtasks when done.',
+					function(fDone)
+					{
+						let tmpFable = createTestFable();
+						let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
+
+						let tmpNodeHash = 'test-split-loop';
+						let tmpTokens = ['alpha', 'beta', 'gamma'];
+
+						// Simulate stored state after PerformSplit emitted first token
+						let tmpTaskOutputs = {};
+						tmpTaskOutputs[tmpNodeHash] = {
+							_Tokens: tmpTokens,
+							CurrentToken: 'alpha',
+							TokenIndex: 0,
+							TokenCount: 3,
+							CompletedCount: 0
+						};
+
+						// First StepComplete: should advance to 'beta'
+						let tmpInstance1 = tmpRegistry.instantiateTaskType('split-execute');
+						let tmpContext1 = {
+							GlobalState: {},
+							OperationState: {},
+							TaskOutputs: tmpTaskOutputs,
+							StagingPath: '',
+							NodeHash: tmpNodeHash,
+							TriggeringEventName: 'StepComplete'
+						};
+
+						tmpInstance1.execute({}, tmpContext1,
+							(pError1, pResult1) =>
+							{
+								Expect(pError1).to.equal(null);
+								Expect(pResult1.EventToFire).to.equal('TokenDataSent');
+								Expect(pResult1.Outputs.CurrentToken).to.equal('beta');
+								Expect(pResult1.Outputs.TokenIndex).to.equal(1);
+								Expect(pResult1.Outputs.CompletedCount).to.equal(1);
+
+								// Apply outputs (simulating what the engine does)
+								Object.assign(tmpTaskOutputs[tmpNodeHash], pResult1.Outputs);
+
+								// Second StepComplete: should advance to 'gamma'
+								let tmpInstance2 = tmpRegistry.instantiateTaskType('split-execute');
+								let tmpContext2 = {
+									GlobalState: {},
+									OperationState: {},
+									TaskOutputs: tmpTaskOutputs,
+									StagingPath: '',
+									NodeHash: tmpNodeHash,
+									TriggeringEventName: 'StepComplete'
+								};
+
+								tmpInstance2.execute({}, tmpContext2,
+									(pError2, pResult2) =>
+									{
+										Expect(pError2).to.equal(null);
+										Expect(pResult2.EventToFire).to.equal('TokenDataSent');
+										Expect(pResult2.Outputs.CurrentToken).to.equal('gamma');
+										Expect(pResult2.Outputs.TokenIndex).to.equal(2);
+										Expect(pResult2.Outputs.CompletedCount).to.equal(2);
+
+										// Apply outputs
+										Object.assign(tmpTaskOutputs[tmpNodeHash], pResult2.Outputs);
+
+										// Third StepComplete: should fire CompletedAllSubtasks
+										let tmpInstance3 = tmpRegistry.instantiateTaskType('split-execute');
+										let tmpContext3 = {
+											GlobalState: {},
+											OperationState: {},
+											TaskOutputs: tmpTaskOutputs,
+											StagingPath: '',
+											NodeHash: tmpNodeHash,
+											TriggeringEventName: 'StepComplete'
+										};
+
+										tmpInstance3.execute({}, tmpContext3,
+											(pError3, pResult3) =>
+											{
+												Expect(pError3).to.equal(null);
+												Expect(pResult3.EventToFire).to.equal('CompletedAllSubtasks');
+												Expect(pResult3.Outputs.CompletedCount).to.equal(3);
+												Expect(pResult3.Outputs.TokenCount).to.equal(3);
+												fDone();
+											});
+									});
+							});
+					}
+				);
+
+				test
+				(
+					'Should fire CompletedAllSubtasks immediately for empty input.',
+					function(fDone)
+					{
+						let tmpFable = createTestFable();
+						let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
+						let tmpInstance = tmpRegistry.instantiateTaskType('split-execute');
+
+						let tmpContext = {
+							GlobalState: {},
+							OperationState: {},
+							TaskOutputs: {},
+							StagingPath: '',
+							NodeHash: 'test-split-empty',
+							TriggeringEventName: 'PerformSplit'
+						};
+
+						tmpInstance.execute(
+							{ InputString: '', SplitDelimiter: '\n' },
+							tmpContext,
+							(pError, pResult) =>
+							{
+								Expect(pError).to.equal(null);
+								// Empty string split by \n produces [''], which is 1 token
+								// So it should fire TokenDataSent for that single empty token
+								Expect(pResult.EventToFire).to.equal('TokenDataSent');
+								Expect(pResult.Outputs.TokenCount).to.equal(1);
+								Expect(pResult.Outputs.CurrentToken).to.equal('');
+								fDone();
+							});
+					}
+				);
+
+				test
+				(
+					'Should fire Error for non-string input.',
+					function(fDone)
+					{
+						let tmpFable = createTestFable();
+						let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
+						let tmpInstance = tmpRegistry.instantiateTaskType('split-execute');
+
+						let tmpContext = {
+							GlobalState: {},
+							OperationState: {},
+							TaskOutputs: {},
+							StagingPath: '',
+							NodeHash: 'test-split-err',
+							TriggeringEventName: 'PerformSplit'
+						};
+
+						tmpInstance.execute(
+							{ InputString: 42, SplitDelimiter: '\n' },
+							tmpContext,
+							(pError, pResult) =>
+							{
+								Expect(pError).to.equal(null);
+								Expect(pResult.EventToFire).to.equal('Error');
+								fDone();
+							});
 					}
 				);
 			}
@@ -1052,7 +1203,7 @@ suite
 										Type: 'string-appender',
 										DefinitionHash: 'string-appender',
 										Name: 'Accumulate Lines',
-										Settings: { OutputAddress: 'Operation.AccumulatedOutput' },
+										Settings: { OutputAddress: 'Operation.AccumulatedOutput', AppendNewline: true },
 										Ports: [],
 										X: 800, Y: 100
 									},
@@ -1106,12 +1257,16 @@ suite
 										TargetNodeHash: 'node-append', TargetPortHash: 'node-append-ei-Append'
 									},
 									// ReplaceString.ReplacedString -> StringAppender.InputString (state)
-									// Add newline back via template
 									{
 										Hash: 'c07', ConnectionType: 'State',
 										SourceNodeHash: 'node-replace', SourcePortHash: 'node-replace-so-ReplacedString',
-										TargetNodeHash: 'node-append', TargetPortHash: 'node-append-si-InputString',
-										Data: { Template: '{~D:Value~}\n' }
+										TargetNodeHash: 'node-append', TargetPortHash: 'node-append-si-InputString'
+									},
+									// StringAppender.Completed -> SplitExecute.StepComplete (loop back)
+									{
+										Hash: 'c07b', ConnectionType: 'Event',
+										SourceNodeHash: 'node-append', SourcePortHash: 'node-append-eo-Completed',
+										TargetNodeHash: 'node-split', TargetPortHash: 'node-split-ei-StepComplete'
 									},
 									// SplitExecute.CompletedAllSubtasks -> WriteFile (event)
 									{

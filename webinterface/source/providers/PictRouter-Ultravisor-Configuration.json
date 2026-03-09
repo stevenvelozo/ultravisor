@@ -27,6 +27,10 @@
 			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-ManifestList`)~}"
 		},
 		{
+			"path": "/PendingInput",
+			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-PendingInput`)~}"
+		},
+		{
 			"path": "/Timing",
 			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-TimingView`)~}"
 		},
