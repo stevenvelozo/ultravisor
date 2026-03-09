@@ -17,12 +17,12 @@ class FlowCardListFiles extends libPictFlowCard
 				Height: 80,
 				Inputs:
 				[
-					{ Name: 'Trigger', Side: 'left', PortType: 'event-in', MinimumInputCount: 0, MaximumInputCount: 1 },
-					{ Name: 'Path', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
+					{ Name: 'Trigger', Side: 'left-bottom', PortType: 'event-in', MinimumInputCount: 0, MaximumInputCount: 1 },
+					{ Name: 'Path', Side: 'left-top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
 				],
 				Outputs:
 				[
-					{ Name: 'Files', Side: 'right', PortType: 'value' },
+					{ Name: 'Files', Side: 'right-top', PortType: 'value' },
 					{ Name: 'Error', Side: 'bottom', PortType: 'error' }
 				],
 				PropertiesPanel:

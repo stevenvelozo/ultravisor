@@ -17,12 +17,12 @@ class FlowCardSendJSON extends libPictFlowCard
 				Height: 80,
 				Inputs:
 				[
-					{ Name: 'Data', Side: 'left', PortType: 'value', MinimumInputCount: 1, MaximumInputCount: 1 },
-					{ Name: 'URL', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
+					{ Name: 'Data', Side: 'left-top', PortType: 'value', MinimumInputCount: 1, MaximumInputCount: 1 },
+					{ Name: 'URL', Side: 'left-top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
 				],
 				Outputs:
 				[
-					{ Name: 'Response', Side: 'right', PortType: 'value' },
+					{ Name: 'Response', Side: 'right-top', PortType: 'value' },
 					{ Name: 'Error', Side: 'bottom', PortType: 'error' }
 				],
 				PropertiesPanel:

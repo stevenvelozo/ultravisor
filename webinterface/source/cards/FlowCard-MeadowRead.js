@@ -17,13 +17,13 @@ class FlowCardMeadowRead extends libPictFlowCard
 				Height: 80,
 				Inputs:
 				[
-					{ Name: 'Trigger', Side: 'left', PortType: 'event-in', MinimumInputCount: 0, MaximumInputCount: 1 },
-					{ Name: 'Entity', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 },
-					{ Name: 'IDRecord', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
+					{ Name: 'Trigger', Side: 'left-bottom', PortType: 'event-in', MinimumInputCount: 0, MaximumInputCount: 1 },
+					{ Name: 'Entity', Side: 'left-top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 },
+					{ Name: 'IDRecord', Side: 'left-top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
 				],
 				Outputs:
 				[
-					{ Name: 'Record', Side: 'right', PortType: 'value' },
+					{ Name: 'Record', Side: 'right-top', PortType: 'value' },
 					{ Name: 'Error', Side: 'bottom', PortType: 'error' }
 				],
 				PropertiesPanel:

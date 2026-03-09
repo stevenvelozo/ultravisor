@@ -52,9 +52,9 @@ module.exports =
 			Title: 'Enter File Path',
 			Ports:
 			[
-				{ Hash: 'fp-input-req', Direction: 'input', Side: 'left', Label: 'RequestInput' },
+				{ Hash: 'fp-input-req', Direction: 'input', Side: 'left-bottom', Label: 'RequestInput' },
 				{ Hash: 'fp-input-done', Direction: 'output', Side: 'right', Label: 'ValueInputComplete' },
-				{ Hash: 'fp-input-filepath', Direction: 'output', Side: 'bottom', Label: 'InputFilePath' }
+				{ Hash: 'fp-input-filepath', Direction: 'output', Side: 'right-top', Label: 'InputFilePath' }
 			],
 			Data: { PromptMessage: 'Enter a file path and name', OutputAddress: 'Operation.InputFilePath' }
 		},
@@ -69,10 +69,10 @@ module.exports =
 			Title: 'Load File',
 			Ports:
 			[
-				{ Hash: 'fp-read-begin', Direction: 'input', Side: 'left', Label: 'BeginRead' },
-				{ Hash: 'fp-read-filepath', Direction: 'input', Side: 'top', Label: 'FilePath' },
+				{ Hash: 'fp-read-begin', Direction: 'input', Side: 'left-bottom', Label: 'BeginRead' },
+				{ Hash: 'fp-read-filepath', Direction: 'input', Side: 'left-top', Label: 'FilePath' },
 				{ Hash: 'fp-read-done', Direction: 'output', Side: 'right', Label: 'ReadComplete' },
-				{ Hash: 'fp-read-content', Direction: 'output', Side: 'right', Label: 'FileContent' },
+				{ Hash: 'fp-read-content', Direction: 'output', Side: 'right-top', Label: 'FileContent' },
 				{ Hash: 'fp-read-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
 			],
 			Data: { FilePath: '{~D:Record.Operation.InputFilePath~}', Encoding: 'utf8' }
@@ -88,7 +88,7 @@ module.exports =
 			Title: 'Read Error',
 			Ports:
 			[
-				{ Hash: 'fp-error-in', Direction: 'input', Side: 'left', Label: 'Trigger' },
+				{ Hash: 'fp-error-in', Direction: 'input', Side: 'left-bottom', Label: 'Trigger' },
 				{ Hash: 'fp-error-done', Direction: 'output', Side: 'right', Label: 'Complete' }
 			],
 			Data: { MessageTemplate: 'Failed to read file: {~D:Record.Operation.InputFilePath~}' }
@@ -104,11 +104,11 @@ module.exports =
 			Title: 'Split Lines',
 			Ports:
 			[
-				{ Hash: 'fp-split-begin', Direction: 'input', Side: 'left', Label: 'PerformSplit' },
-				{ Hash: 'fp-split-step', Direction: 'input', Side: 'left', Label: 'StepComplete' },
-				{ Hash: 'fp-split-inputstr', Direction: 'input', Side: 'top', Label: 'InputString' },
+				{ Hash: 'fp-split-begin', Direction: 'input', Side: 'left-bottom', Label: 'PerformSplit' },
+				{ Hash: 'fp-split-step', Direction: 'input', Side: 'left-bottom', Label: 'StepComplete' },
+				{ Hash: 'fp-split-inputstr', Direction: 'input', Side: 'left-top', Label: 'InputString' },
 				{ Hash: 'fp-split-token', Direction: 'output', Side: 'right', Label: 'TokenDataSent' },
-				{ Hash: 'fp-split-alldone', Direction: 'output', Side: 'bottom', Label: 'CompletedAllSubtasks' }
+				{ Hash: 'fp-split-alldone', Direction: 'output', Side: 'right-bottom', Label: 'CompletedAllSubtasks' }
 			],
 			Data: { InputString: '{~D:Record.TaskOutput.fp-read.FileContent~}', SplitDelimiter: '\n' }
 		},
@@ -123,9 +123,9 @@ module.exports =
 			Title: 'Replace John with Jane',
 			Ports:
 			[
-				{ Hash: 'fp-replace-in', Direction: 'input', Side: 'left', Label: 'Replace' },
+				{ Hash: 'fp-replace-in', Direction: 'input', Side: 'left-bottom', Label: 'Replace' },
 				{ Hash: 'fp-replace-done', Direction: 'output', Side: 'right', Label: 'ReplaceComplete' },
-				{ Hash: 'fp-replace-result', Direction: 'output', Side: 'bottom', Label: 'ReplacedString' }
+				{ Hash: 'fp-replace-result', Direction: 'output', Side: 'right-top', Label: 'ReplacedString' }
 			],
 			Data: { InputString: '{~D:Record.TaskOutput.fp-split.CurrentToken~}', SearchString: 'John', ReplaceString: 'Jane' }
 		},
@@ -140,8 +140,8 @@ module.exports =
 			Title: 'Append Line',
 			Ports:
 			[
-				{ Hash: 'fp-append-in', Direction: 'input', Side: 'left', Label: 'Append' },
-				{ Hash: 'fp-append-inputstr', Direction: 'input', Side: 'top', Label: 'InputString' },
+				{ Hash: 'fp-append-in', Direction: 'input', Side: 'left-bottom', Label: 'Append' },
+				{ Hash: 'fp-append-inputstr', Direction: 'input', Side: 'left-top', Label: 'InputString' },
 				{ Hash: 'fp-append-done', Direction: 'output', Side: 'right', Label: 'Completed' }
 			],
 			Data: { InputString: '{~D:Record.TaskOutput.fp-replace.ReplacedString~}', OutputAddress: 'Operation.OutputFileContents', AppendNewline: true }
@@ -157,7 +157,7 @@ module.exports =
 			Title: 'Save File',
 			Ports:
 			[
-				{ Hash: 'fp-write-begin', Direction: 'input', Side: 'left', Label: 'BeginWrite' },
+				{ Hash: 'fp-write-begin', Direction: 'input', Side: 'left-bottom', Label: 'BeginWrite' },
 				{ Hash: 'fp-write-done', Direction: 'output', Side: 'right', Label: 'WriteComplete' },
 				{ Hash: 'fp-write-err', Direction: 'output', Side: 'bottom', Label: 'Error' }
 			],
@@ -174,7 +174,7 @@ module.exports =
 			Title: 'End',
 			Ports:
 			[
-				{ Hash: 'fp-end-in', Direction: 'input', Side: 'left', Label: 'In' }
+				{ Hash: 'fp-end-in', Direction: 'input', Side: 'left-bottom', Label: 'In' }
 			],
 			Data: {}
 		}

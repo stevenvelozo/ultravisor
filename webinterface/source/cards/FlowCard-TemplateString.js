@@ -17,12 +17,12 @@ class FlowCardTemplateString extends libPictFlowCard
 				Height: 80,
 				Inputs:
 				[
-					{ Name: 'In', Side: 'left', PortType: 'event-in', MinimumInputCount: 1, MaximumInputCount: 1 },
-					{ Name: 'Template', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
+					{ Name: 'In', Side: 'left-bottom', PortType: 'event-in', MinimumInputCount: 1, MaximumInputCount: 1 },
+					{ Name: 'Template', Side: 'left-top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
 				],
 				Outputs:
 				[
-					{ Name: 'Result', Side: 'right', PortType: 'value' }
+					{ Name: 'Result', Side: 'right-top', PortType: 'value' }
 				],
 				PropertiesPanel:
 				{

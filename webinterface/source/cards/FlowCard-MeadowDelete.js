@@ -17,9 +17,9 @@ class FlowCardMeadowDelete extends libPictFlowCard
 				Height: 80,
 				Inputs:
 				[
-					{ Name: 'Trigger', Side: 'left', PortType: 'event-in', MinimumInputCount: 1, MaximumInputCount: 1 },
-					{ Name: 'Entity', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 },
-					{ Name: 'IDRecord', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
+					{ Name: 'Trigger', Side: 'left-bottom', PortType: 'event-in', MinimumInputCount: 1, MaximumInputCount: 1 },
+					{ Name: 'Entity', Side: 'left-top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 },
+					{ Name: 'IDRecord', Side: 'left-top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
 				],
 				Outputs:
 				[

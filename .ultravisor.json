@@ -43,7 +43,7 @@
 							{
 								"Hash": "fp-input-req",
 								"Direction": "input",
-								"Side": "left",
+								"Side": "left-bottom",
 								"Label": "RequestInput"
 							},
 							{
@@ -55,7 +55,7 @@
 							{
 								"Hash": "fp-input-filepath",
 								"Direction": "output",
-								"Side": "bottom",
+								"Side": "right-top",
 								"Label": "InputFilePath"
 							}
 						],
@@ -76,13 +76,13 @@
 							{
 								"Hash": "fp-read-begin",
 								"Direction": "input",
-								"Side": "left",
+								"Side": "left-bottom",
 								"Label": "BeginRead"
 							},
 							{
 								"Hash": "fp-read-filepath",
 								"Direction": "input",
-								"Side": "top",
+								"Side": "left-top",
 								"Label": "FilePath"
 							},
 							{
@@ -94,7 +94,7 @@
 							{
 								"Hash": "fp-read-content",
 								"Direction": "output",
-								"Side": "right",
+								"Side": "right-top",
 								"Label": "FileContent"
 							},
 							{
@@ -121,7 +121,7 @@
 							{
 								"Hash": "fp-error-in",
 								"Direction": "input",
-								"Side": "left",
+								"Side": "left-bottom",
 								"Label": "Trigger"
 							},
 							{
@@ -147,19 +147,19 @@
 							{
 								"Hash": "fp-split-begin",
 								"Direction": "input",
-								"Side": "left",
+								"Side": "left-bottom",
 								"Label": "PerformSplit"
 							},
 							{
 								"Hash": "fp-split-step",
 								"Direction": "input",
-								"Side": "left",
+								"Side": "left-bottom",
 								"Label": "StepComplete"
 							},
 							{
 								"Hash": "fp-split-inputstr",
 								"Direction": "input",
-								"Side": "top",
+								"Side": "left-top",
 								"Label": "InputString"
 							},
 							{
@@ -171,7 +171,7 @@
 							{
 								"Hash": "fp-split-alldone",
 								"Direction": "output",
-								"Side": "bottom",
+								"Side": "right-bottom",
 								"Label": "CompletedAllSubtasks"
 							}
 						],
@@ -192,7 +192,7 @@
 							{
 								"Hash": "fp-replace-in",
 								"Direction": "input",
-								"Side": "left",
+								"Side": "left-bottom",
 								"Label": "Replace"
 							},
 							{
@@ -204,7 +204,7 @@
 							{
 								"Hash": "fp-replace-result",
 								"Direction": "output",
-								"Side": "bottom",
+								"Side": "right-top",
 								"Label": "ReplacedString"
 							}
 						],
@@ -226,13 +226,13 @@
 							{
 								"Hash": "fp-append-in",
 								"Direction": "input",
-								"Side": "left",
+								"Side": "left-bottom",
 								"Label": "Append"
 							},
 							{
 								"Hash": "fp-append-inputstr",
 								"Direction": "input",
-								"Side": "top",
+								"Side": "left-top",
 								"Label": "InputString"
 							},
 							{
@@ -260,7 +260,7 @@
 							{
 								"Hash": "fp-write-begin",
 								"Direction": "input",
-								"Side": "left",
+								"Side": "left-bottom",
 								"Label": "BeginWrite"
 							},
 							{
@@ -294,7 +294,7 @@
 							{
 								"Hash": "fp-end-in",
 								"Direction": "input",
-								"Side": "left",
+								"Side": "left-bottom",
 								"Label": "In"
 							}
 						],

@@ -18,12 +18,12 @@ class FlowCardHistogram extends libPictFlowCard
 				ShowTypeLabel: false,
 				Inputs:
 				[
-					{ Name: 'Data', Side: 'left', PortType: 'value', MinimumInputCount: 1, MaximumInputCount: 1 },
-					{ Name: 'Field', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
+					{ Name: 'Data', Side: 'left-top', PortType: 'value', MinimumInputCount: 1, MaximumInputCount: 1 },
+					{ Name: 'Field', Side: 'left-top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
 				],
 				Outputs:
 				[
-					{ Name: 'Stats', Side: 'right', PortType: 'value' }
+					{ Name: 'Stats', Side: 'right-top', PortType: 'value' }
 				],
 				PropertiesPanel:
 				{

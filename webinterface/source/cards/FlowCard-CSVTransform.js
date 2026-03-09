@@ -17,12 +17,12 @@ class FlowCardCSVTransform extends libPictFlowCard
 				Height: 80,
 				Inputs:
 				[
-					{ Name: 'CSV Data', Side: 'left', PortType: 'value', MinimumInputCount: 1, MaximumInputCount: 1 },
-					{ Name: 'Delimiter', Side: 'top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
+					{ Name: 'CSV Data', Side: 'left-top', PortType: 'value', MinimumInputCount: 1, MaximumInputCount: 1 },
+					{ Name: 'Delimiter', Side: 'left-top', PortType: 'setting', MinimumInputCount: 0, MaximumInputCount: 1 }
 				],
 				Outputs:
 				[
-					{ Name: 'Records', Side: 'right', PortType: 'value' }
+					{ Name: 'Records', Side: 'right-top', PortType: 'value' }
 				],
 				PropertiesPanel:
 				{

@@ -17,16 +17,16 @@ class FlowCardLaunchOperation extends libPictFlowCard
 				Height: 100,
 				Inputs:
 				[
-					{ Name: 'Launch', Side: 'left', PortType: 'event-in' },
-					{ Name: 'OperationHash', Side: 'top', PortType: 'setting' },
-					{ Name: 'InputData', Side: 'top', PortType: 'setting' }
+					{ Name: 'Launch', Side: 'left-bottom', PortType: 'event-in' },
+					{ Name: 'OperationHash', Side: 'left-top', PortType: 'setting' },
+					{ Name: 'InputData', Side: 'left-top', PortType: 'setting' }
 				],
 				Outputs:
 				[
 					{ Name: 'Completed', Side: 'right', PortType: 'event-out' },
-					{ Name: 'Result', Side: 'right', PortType: 'value' },
-					{ Name: 'Status', Side: 'right', PortType: 'value' },
-					{ Name: 'ElapsedMs', Side: 'right', PortType: 'value' },
+					{ Name: 'Result', Side: 'right-top', PortType: 'value' },
+					{ Name: 'Status', Side: 'right-top', PortType: 'value' },
+					{ Name: 'ElapsedMs', Side: 'right-top', PortType: 'value' },
 					{ Name: 'Error', Side: 'bottom', PortType: 'error' }
 				],
 				PropertiesPanel:

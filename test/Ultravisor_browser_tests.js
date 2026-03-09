@@ -1449,9 +1449,9 @@ suite
 										X: 260, Y: 180, Width: 200, Height: 100,
 										Title: 'Load Input File',
 										Ports: [
-											{ Hash: 'wf-read-ei-BeginRead', Direction: 'input', Side: 'left', Label: 'BeginRead' },
+											{ Hash: 'wf-read-ei-BeginRead', Direction: 'input', Side: 'left-bottom', Label: 'BeginRead' },
 											{ Hash: 'wf-read-eo-ReadComplete', Direction: 'output', Side: 'right', Label: 'ReadComplete' },
-											{ Hash: 'wf-read-so-FileContent', Direction: 'output', Side: 'right', Label: 'FileContent' },
+											{ Hash: 'wf-read-so-FileContent', Direction: 'output', Side: 'right-top', Label: 'FileContent' },
 											{ Hash: 'wf-read-eo-Error', Direction: 'output', Side: 'bottom', Label: 'Error' }
 										],
 										Settings: { FilePath: pInputPath, Encoding: 'utf8' }
@@ -1461,12 +1461,12 @@ suite
 										X: 540, Y: 160, Width: 240, Height: 120,
 										Title: 'Split Lines',
 										Ports: [
-											{ Hash: 'wf-split-ei-PerformSplit', Direction: 'input', Side: 'left', Label: 'PerformSplit' },
-											{ Hash: 'wf-split-ei-StepComplete', Direction: 'input', Side: 'left', Label: 'StepComplete' },
-											{ Hash: 'wf-split-si-InputString', Direction: 'input', Side: 'top', Label: 'InputString' },
+											{ Hash: 'wf-split-ei-PerformSplit', Direction: 'input', Side: 'left-bottom', Label: 'PerformSplit' },
+											{ Hash: 'wf-split-ei-StepComplete', Direction: 'input', Side: 'left-bottom', Label: 'StepComplete' },
+											{ Hash: 'wf-split-si-InputString', Direction: 'input', Side: 'left-top', Label: 'InputString' },
 											{ Hash: 'wf-split-eo-TokenDataSent', Direction: 'output', Side: 'right', Label: 'TokenDataSent' },
-											{ Hash: 'wf-split-so-CurrentToken', Direction: 'output', Side: 'right', Label: 'CurrentToken' },
-											{ Hash: 'wf-split-eo-CompletedAllSubtasks', Direction: 'output', Side: 'bottom', Label: 'CompletedAllSubtasks' }
+											{ Hash: 'wf-split-so-CurrentToken', Direction: 'output', Side: 'right-top', Label: 'CurrentToken' },
+											{ Hash: 'wf-split-eo-CompletedAllSubtasks', Direction: 'output', Side: 'right-bottom', Label: 'CompletedAllSubtasks' }
 										],
 										Settings: {}
 									},
@@ -1475,10 +1475,10 @@ suite
 										X: 860, Y: 160, Width: 220, Height: 100,
 										Title: 'Replace John with Jane',
 										Ports: [
-											{ Hash: 'wf-replace-si-InputString', Direction: 'input', Side: 'top', Label: 'InputString' },
-											{ Hash: 'wf-replace-ei-Replace', Direction: 'input', Side: 'left', Label: 'Replace' },
+											{ Hash: 'wf-replace-si-InputString', Direction: 'input', Side: 'left-top', Label: 'InputString' },
+											{ Hash: 'wf-replace-ei-Replace', Direction: 'input', Side: 'left-bottom', Label: 'Replace' },
 											{ Hash: 'wf-replace-eo-ReplaceComplete', Direction: 'output', Side: 'right', Label: 'ReplaceComplete' },
-											{ Hash: 'wf-replace-so-ReplacedString', Direction: 'output', Side: 'bottom', Label: 'ReplacedString' }
+											{ Hash: 'wf-replace-so-ReplacedString', Direction: 'output', Side: 'right-top', Label: 'ReplacedString' }
 										],
 										Settings: { SearchString: 'John', ReplaceString: 'Jane' }
 									},
@@ -1487,10 +1487,10 @@ suite
 										X: 1160, Y: 160, Width: 220, Height: 100,
 										Title: 'Append Line',
 										Ports: [
-											{ Hash: 'wf-append-ei-Append', Direction: 'input', Side: 'left', Label: 'Append' },
-											{ Hash: 'wf-append-si-InputString', Direction: 'input', Side: 'top', Label: 'InputString' },
+											{ Hash: 'wf-append-ei-Append', Direction: 'input', Side: 'left-bottom', Label: 'Append' },
+											{ Hash: 'wf-append-si-InputString', Direction: 'input', Side: 'left-top', Label: 'InputString' },
 											{ Hash: 'wf-append-eo-Completed', Direction: 'output', Side: 'right', Label: 'Completed' },
-											{ Hash: 'wf-append-so-AppendedString', Direction: 'output', Side: 'right', Label: 'AppendedString' }
+											{ Hash: 'wf-append-so-AppendedString', Direction: 'output', Side: 'right-top', Label: 'AppendedString' }
 										],
 										Settings: { OutputAddress: 'Operation.OutputFileContents', AppendNewline: true }
 									},
@@ -1499,8 +1499,8 @@ suite
 										X: 860, Y: 380, Width: 220, Height: 80,
 										Title: 'Save Output File',
 										Ports: [
-											{ Hash: 'wf-write-si-Content', Direction: 'input', Side: 'top', Label: 'Content' },
-											{ Hash: 'wf-write-ei-BeginWrite', Direction: 'input', Side: 'left', Label: 'BeginWrite' },
+											{ Hash: 'wf-write-si-Content', Direction: 'input', Side: 'left-top', Label: 'Content' },
+											{ Hash: 'wf-write-ei-BeginWrite', Direction: 'input', Side: 'left-bottom', Label: 'BeginWrite' },
 											{ Hash: 'wf-write-eo-WriteComplete', Direction: 'output', Side: 'right', Label: 'WriteComplete' },
 											{ Hash: 'wf-write-eo-Error', Direction: 'output', Side: 'bottom', Label: 'Error' }
 										],
@@ -1510,7 +1510,7 @@ suite
 										Hash: 'wf-end', Type: 'end',
 										X: 1160, Y: 380, Width: 140, Height: 80,
 										Title: 'End',
-										Ports: [{ Hash: 'wf-end-ei-In', Direction: 'input', Side: 'left', Label: 'In' }],
+										Ports: [{ Hash: 'wf-end-ei-In', Direction: 'input', Side: 'left-bottom', Label: 'In' }],
 										Settings: {}
 									}
 								],

@@ -207,6 +207,9 @@ class UltravisorFlowEditorView extends libPictView
 		{
 			let tmpCard = new tmpCardClasses[i](this.fable, {}, `FlowCard-${i}`);
 			let tmpConfig = tmpCard.getNodeTypeConfiguration();
+			// Ultravisor flow cards render port labels outside the node
+			// boundary to avoid overlapping body content
+			tmpConfig.PortLabelsOutside = true;
 			tmpNodeTypes[tmpConfig.Hash] = tmpConfig;
 		}
 
