@@ -2,7 +2,7 @@
     "name": "ultravisor",
     "version": "1.0.4",
     "description": "Cyclic process execution with ai integration.",
-    "main": "source/Ultravisor.js",
+    "main": "source/Ultravisor.cjs",
     "bin": {
         "ultravisor": "./source/cli/Ultravisor-Run.cjs"
     },
@@ -49,6 +49,7 @@
         "ui": "tdd",
         "watch-files": [
             "source/**/*.js",
+            "source/**/*.cjs",
             "test/**/*.js"
         ],
         "watch-ignore": [
