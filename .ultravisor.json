@@ -1,11 +1,8 @@
 {
 	"UltravisorAPIServerPort": 54321,
-	"UltravisorFileStorePath": "/Users/stevenvelozo/Code/retold/modules/apps/ultravisor/dist/ultravisor_datastore",
-	"UltravisorStagingRoot": "/Users/stevenvelozo/Code/retold/modules/apps/ultravisor/dist/ultravisor_staging",
 	"UltravisorTickIntervalMilliseconds": 60000,
 	"UltravisorCommandTimeoutMilliseconds": 300000,
 	"UltravisorCommandMaxBufferBytes": 10485760,
-	"UltravisorWebInterfacePath": "/Users/stevenvelozo/Code/retold/modules/apps/ultravisor/webinterface/dist",
 	"NodeTemplates": {},
 	"Operations": {
 		"OPR-0003": {

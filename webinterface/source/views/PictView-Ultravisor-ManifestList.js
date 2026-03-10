@@ -186,7 +186,7 @@ class UltravisorManifestListView extends libPictView
 			tmpHTML += '<td><code style="font-size:0.8em;">' + this.escapeHTML(tmpRunHash) + '</code></td>';
 			tmpHTML += '<td>' + this.escapeHTML(tmpManifest.OperationHash || '') + '</td>';
 			tmpHTML += '<td><span class="ultravisor-manifest-status ' + tmpStatusClass + '">' + this.escapeHTML(tmpStatus) + '</span></td>';
-			tmpHTML += '<td>' + (tmpManifest.ElapsedMs ? tmpManifest.ElapsedMs + 'ms' : '') + '</td>';
+			tmpHTML += '<td>' + (tmpManifest.ElapsedMs ? this.fable.DataFormat.formatTimeSpan(tmpManifest.ElapsedMs) + ' (' + tmpManifest.ElapsedMs + 'ms)' : '') + '</td>';
 			tmpHTML += '<td>' + this.escapeHTML(tmpManifest.StartTime || '') + '</td>';
 			tmpHTML += '<td><button class="ultravisor-btn-sm ultravisor-btn-edit" onclick="' + tmpViewRef + '.showManifestDetail(\'' + tmpEscHash + '\')">Details</button></td>';
 			tmpHTML += '</tr>';
@@ -213,7 +213,7 @@ class UltravisorManifestListView extends libPictView
 				tmpHTML += '<p><strong>Operation:</strong> ' + this.escapeHTML(pManifest.OperationHash || '') + '</p>';
 				tmpHTML += '<p><strong>Status:</strong> ' + this.escapeHTML(pManifest.Status || '') + '</p>';
 				tmpHTML += '<p><strong>Start:</strong> ' + this.escapeHTML(pManifest.StartTime || '') + ' &middot; <strong>Stop:</strong> ' + this.escapeHTML(pManifest.StopTime || '') + '</p>';
-				tmpHTML += '<p><strong>Elapsed:</strong> ' + (pManifest.ElapsedMs || 0) + 'ms</p>';
+				tmpHTML += '<p><strong>Elapsed:</strong> ' + this.fable.DataFormat.formatTimeSpan(pManifest.ElapsedMs || 0) + ' (' + (pManifest.ElapsedMs || 0) + 'ms)</p>';
 
 				// Task Outputs
 				if (pManifest.TaskOutputs && Object.keys(pManifest.TaskOutputs).length > 0)

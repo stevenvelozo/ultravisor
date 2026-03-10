@@ -11,7 +11,7 @@
         "test": "npx quack test",
         "tests": "npx mocha -u tdd --exit -R spec --grep",
         "coverage": "npx quack coverage",
-        "build": "npx quack build",
+        "build": "npx quack build && cd webinterface && npm install && npm run build && cd ..",
         "docs": "npx quack prepare-docs ./docs -d ./modules",
         "docs-serve": "npx quack docs-serve ./docs"
     },

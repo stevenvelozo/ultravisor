@@ -223,7 +223,7 @@ class UltravisorPendingInputView extends libPictView
 					tmpHTML += '<div class="ultravisor-pendinginput-address">Target: <code>' + this.escapeHTML(tmpTask.OutputAddress) + '</code></div>';
 				}
 				tmpHTML += '<div class="ultravisor-pendinginput-form">';
-				tmpHTML += '<input type="text" id="' + tmpInputId + '" placeholder="Enter value..." />';
+				tmpHTML += '<input type="text" id="' + tmpInputId + '" placeholder="Enter value..." onkeydown="if(event.key===\'Enter\'){' + tmpViewRef + '.submitInput(\'' + tmpEscRunHash + '\', \'' + tmpEscNodeHash + '\', \'' + tmpInputId + '\', \'' + tmpResultId + '\');}" />';
 				tmpHTML += '<button class="ultravisor-pendinginput-submit" onclick="' + tmpViewRef + '.submitInput(\'' + tmpEscRunHash + '\', \'' + tmpEscNodeHash + '\', \'' + tmpInputId + '\', \'' + tmpResultId + '\')">Submit</button>';
 				tmpHTML += '</div>';
 				tmpHTML += '<div id="' + tmpResultId + '"></div>';

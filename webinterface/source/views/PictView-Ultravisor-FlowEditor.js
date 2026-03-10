@@ -7,14 +7,24 @@ const libFlowCardEnd = require('../cards/FlowCard-End.js');
 
 // Core/Control cards
 const libFlowCardCommand = require('../cards/FlowCard-Command.js');
-const libFlowCardConditional = require('../cards/FlowCard-Conditional.js');
+const libFlowCardIfConditional = require('../cards/FlowCard-IfConditional.js');
 const libFlowCardSolver = require('../cards/FlowCard-Solver.js');
 const libFlowCardTemplateString = require('../cards/FlowCard-TemplateString.js');
 const libFlowCardLaunchOperation = require('../cards/FlowCard-LaunchOperation.js');
+const libFlowCardSplitExecute = require('../cards/FlowCard-SplitExecute.js');
+
+// Data cards
+const libFlowCardReplaceString = require('../cards/FlowCard-ReplaceString.js');
+const libFlowCardSetValues = require('../cards/FlowCard-SetValues.js');
+const libFlowCardStringAppender = require('../cards/FlowCard-StringAppender.js');
+
+// Interaction cards
+const libFlowCardValueInput = require('../cards/FlowCard-ValueInput.js');
+const libFlowCardErrorMessage = require('../cards/FlowCard-ErrorMessage.js');
 
 // File I/O cards
-const libFlowCardReadText = require('../cards/FlowCard-ReadText.js');
-const libFlowCardWriteText = require('../cards/FlowCard-WriteText.js');
+const libFlowCardReadFile = require('../cards/FlowCard-ReadFile.js');
+const libFlowCardWriteFile = require('../cards/FlowCard-WriteFile.js');
 const libFlowCardReadJSON = require('../cards/FlowCard-ReadJSON.js');
 const libFlowCardWriteJSON = require('../cards/FlowCard-WriteJSON.js');
 const libFlowCardListFiles = require('../cards/FlowCard-ListFiles.js');
@@ -171,13 +181,21 @@ class UltravisorFlowEditorView extends libPictView
 			libFlowCardEnd,
 			// Core
 			libFlowCardCommand,
-			libFlowCardConditional,
+			libFlowCardIfConditional,
 			libFlowCardSolver,
 			libFlowCardTemplateString,
 			libFlowCardLaunchOperation,
+			libFlowCardSplitExecute,
+			// Data
+			libFlowCardReplaceString,
+			libFlowCardSetValues,
+			libFlowCardStringAppender,
+			// Interaction
+			libFlowCardValueInput,
+			libFlowCardErrorMessage,
 			// File I/O
-			libFlowCardReadText,
-			libFlowCardWriteText,
+			libFlowCardReadFile,
+			libFlowCardWriteFile,
 			libFlowCardReadJSON,
 			libFlowCardWriteJSON,
 			libFlowCardListFiles,
