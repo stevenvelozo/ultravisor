@@ -1,0 +1,106 @@
+{
+	"Name": "Expression Calculator",
+	"Description": "Takes user input, evaluates a mathematical expression, and writes the result. Demonstrates value-input, expression-solver, template-string, and write-file.",
+	"Tags": ["interactive", "math", "expressions"],
+	"Author": "Ultravisor",
+	"Version": "1.0.0",
+	"Graph": {
+		"Nodes": [
+			{
+				"Hash": "ec-start",
+				"Type": "start",
+				"X": 50,
+				"Y": 200,
+				"Width": 140,
+				"Height": 80,
+				"Title": "Start",
+				"Ports": [
+					{ "Hash": "ec-start-out", "Direction": "output", "Side": "right-bottom", "Label": "Out" }
+				],
+				"Data": {}
+			},
+			{
+				"Hash": "ec-input",
+				"Type": "value-input",
+				"X": 260,
+				"Y": 180,
+				"Width": 240,
+				"Height": 100,
+				"Title": "Enter Expression",
+				"Ports": [
+					{ "Hash": "ec-inp-req", "Direction": "input", "Side": "left-bottom", "Label": "RequestInput" },
+					{ "Hash": "ec-inp-done", "Direction": "output", "Side": "right-bottom", "Label": "ValueInputComplete" }
+				],
+				"Data": { "PromptMessage": "Enter a math expression (e.g. 2+3*4)", "OutputAddress": "Operation.Expression" }
+			},
+			{
+				"Hash": "ec-solve",
+				"Type": "expression-solver",
+				"X": 580,
+				"Y": 180,
+				"Width": 220,
+				"Height": 80,
+				"Title": "Evaluate Expression",
+				"Ports": [
+					{ "Hash": "ec-slv-in", "Direction": "input", "Side": "left-bottom", "Label": "In" },
+					{ "Hash": "ec-slv-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "Expression": "{~D:Record.Operation.Expression~}", "Destination": "Operation.Result" }
+			},
+			{
+				"Hash": "ec-format",
+				"Type": "template-string",
+				"X": 870,
+				"Y": 180,
+				"Width": 220,
+				"Height": 80,
+				"Title": "Format Result",
+				"Ports": [
+					{ "Hash": "ec-fmt-in", "Direction": "input", "Side": "left-bottom", "Label": "In" },
+					{ "Hash": "ec-fmt-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "Template": "Expression: {~D:Record.Operation.Expression~}\nResult: {~D:Record.Operation.Result~}\n", "Destination": "Operation.Output" }
+			},
+			{
+				"Hash": "ec-write",
+				"Type": "write-file",
+				"X": 1160,
+				"Y": 180,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Save Result",
+				"Ports": [
+					{ "Hash": "ec-wr-in", "Direction": "input", "Side": "left-bottom", "Label": "BeginWrite" },
+					{ "Hash": "ec-wr-done", "Direction": "output", "Side": "right-bottom", "Label": "WriteComplete" },
+					{ "Hash": "ec-wr-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "FilePath": "calc-result.txt", "Content": "{~D:Record.Operation.Output~}", "Encoding": "utf8" }
+			},
+			{
+				"Hash": "ec-end",
+				"Type": "end",
+				"X": 1430,
+				"Y": 260,
+				"Width": 140,
+				"Height": 80,
+				"Title": "End",
+				"Ports": [
+					{ "Hash": "ec-end-in", "Direction": "input", "Side": "left-bottom", "Label": "In" }
+				],
+				"Data": {}
+			}
+		],
+		"Connections": [
+			{ "Hash": "ec-c1", "SourceNodeHash": "ec-start", "SourcePortHash": "ec-start-out", "TargetNodeHash": "ec-input", "TargetPortHash": "ec-inp-req", "Data": {} },
+			{ "Hash": "ec-c2", "SourceNodeHash": "ec-input", "SourcePortHash": "ec-inp-done", "TargetNodeHash": "ec-solve", "TargetPortHash": "ec-slv-in", "Data": {} },
+			{ "Hash": "ec-c3", "SourceNodeHash": "ec-solve", "SourcePortHash": "ec-slv-done", "TargetNodeHash": "ec-format", "TargetPortHash": "ec-fmt-in", "Data": {} },
+			{ "Hash": "ec-c4", "SourceNodeHash": "ec-format", "SourcePortHash": "ec-fmt-done", "TargetNodeHash": "ec-write", "TargetPortHash": "ec-wr-in", "Data": {} },
+			{ "Hash": "ec-c5", "SourceNodeHash": "ec-write", "SourcePortHash": "ec-wr-done", "TargetNodeHash": "ec-end", "TargetPortHash": "ec-end-in", "Data": {} },
+			{ "Hash": "ec-c6", "SourceNodeHash": "ec-write", "SourcePortHash": "ec-wr-err", "TargetNodeHash": "ec-end", "TargetPortHash": "ec-end-in", "Data": {} }
+		],
+		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
+	},
+	"SavedLayouts": [],
+	"InitialGlobalState": {},
+	"InitialOperationState": {}
+}

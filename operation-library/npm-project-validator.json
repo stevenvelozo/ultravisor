@@ -1,0 +1,187 @@
+{
+	"Name": "NPM Project Validator",
+	"Description": "Validates an npm project by checking for package.json, verifying it has a name and version, and running npm test. Demonstrates read-json, multiple if-conditionals, and command execution.",
+	"Tags": ["command", "validation", "npm", "branching"],
+	"Author": "Ultravisor",
+	"Version": "1.0.0",
+	"Graph": {
+		"Nodes": [
+			{
+				"Hash": "nv-start",
+				"Type": "start",
+				"X": 50,
+				"Y": 200,
+				"Width": 140,
+				"Height": 80,
+				"Title": "Start",
+				"Ports": [
+					{ "Hash": "nv-start-out", "Direction": "output", "Side": "right-bottom", "Label": "Out" }
+				],
+				"Data": {}
+			},
+			{
+				"Hash": "nv-readpkg",
+				"Type": "read-json",
+				"X": 260,
+				"Y": 180,
+				"Width": 220,
+				"Height": 80,
+				"Title": "Read package.json",
+				"Ports": [
+					{ "Hash": "nv-rp-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "nv-rp-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "nv-rp-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "File": "package.json", "Destination": "Operation.Package" }
+			},
+			{
+				"Hash": "nv-checkname",
+				"Type": "if-conditional",
+				"X": 550,
+				"Y": 160,
+				"Width": 220,
+				"Height": 100,
+				"Title": "Has Name?",
+				"Ports": [
+					{ "Hash": "nv-cn-in", "Direction": "input", "Side": "left-bottom", "Label": "Evaluate" },
+					{ "Hash": "nv-cn-true", "Direction": "output", "Side": "right-bottom", "Label": "True" },
+					{ "Hash": "nv-cn-false", "Direction": "output", "Side": "bottom", "Label": "False" }
+				],
+				"Data": { "DataAddress": "Operation.Package.name", "Operator": "truthy" }
+			},
+			{
+				"Hash": "nv-checkver",
+				"Type": "if-conditional",
+				"X": 840,
+				"Y": 160,
+				"Width": 220,
+				"Height": 100,
+				"Title": "Has Version?",
+				"Ports": [
+					{ "Hash": "nv-cv-in", "Direction": "input", "Side": "left-bottom", "Label": "Evaluate" },
+					{ "Hash": "nv-cv-true", "Direction": "output", "Side": "right-bottom", "Label": "True" },
+					{ "Hash": "nv-cv-false", "Direction": "output", "Side": "bottom", "Label": "False" }
+				],
+				"Data": { "DataAddress": "Operation.Package.version", "Operator": "truthy" }
+			},
+			{
+				"Hash": "nv-test",
+				"Type": "command",
+				"X": 1130,
+				"Y": 160,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Run npm test",
+				"Ports": [
+					{ "Hash": "nv-ts-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "nv-ts-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "nv-ts-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "Command": "npm", "Parameters": "test", "Description": "Run test suite" }
+			},
+			{
+				"Hash": "nv-result",
+				"Type": "template-string",
+				"X": 1400,
+				"Y": 160,
+				"Width": 240,
+				"Height": 80,
+				"Title": "Validation Result",
+				"Ports": [
+					{ "Hash": "nv-rs-in", "Direction": "input", "Side": "left-bottom", "Label": "In" },
+					{ "Hash": "nv-rs-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "Template": "PASS: {~D:Record.Operation.Package.name~}@{~D:Record.Operation.Package.version~} - tests passed (exit code {~D:Record.TaskOutput.nv-test.ExitCode~})", "Destination": "Operation.ValidationResult" }
+			},
+			{
+				"Hash": "nv-nopkg",
+				"Type": "error-message",
+				"X": 260,
+				"Y": 380,
+				"Width": 220,
+				"Height": 80,
+				"Title": "No package.json",
+				"Ports": [
+					{ "Hash": "nv-np-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "nv-np-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "MessageTemplate": "FAIL: package.json not found in current directory" }
+			},
+			{
+				"Hash": "nv-noname",
+				"Type": "error-message",
+				"X": 550,
+				"Y": 380,
+				"Width": 220,
+				"Height": 80,
+				"Title": "Missing Name",
+				"Ports": [
+					{ "Hash": "nv-nn-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "nv-nn-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "MessageTemplate": "FAIL: package.json is missing the 'name' field" }
+			},
+			{
+				"Hash": "nv-nover",
+				"Type": "error-message",
+				"X": 840,
+				"Y": 380,
+				"Width": 220,
+				"Height": 80,
+				"Title": "Missing Version",
+				"Ports": [
+					{ "Hash": "nv-nv-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "nv-nv-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "MessageTemplate": "FAIL: package.json is missing the 'version' field" }
+			},
+			{
+				"Hash": "nv-testfail",
+				"Type": "error-message",
+				"X": 1130,
+				"Y": 380,
+				"Width": 220,
+				"Height": 80,
+				"Title": "Tests Failed",
+				"Ports": [
+					{ "Hash": "nv-tf-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "nv-tf-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "MessageTemplate": "FAIL: npm test exited with errors" }
+			},
+			{
+				"Hash": "nv-end",
+				"Type": "end",
+				"X": 1670,
+				"Y": 300,
+				"Width": 140,
+				"Height": 80,
+				"Title": "End",
+				"Ports": [
+					{ "Hash": "nv-end-in", "Direction": "input", "Side": "left-bottom", "Label": "In" }
+				],
+				"Data": {}
+			}
+		],
+		"Connections": [
+			{ "Hash": "nv-c1", "SourceNodeHash": "nv-start", "SourcePortHash": "nv-start-out", "TargetNodeHash": "nv-readpkg", "TargetPortHash": "nv-rp-in", "Data": {} },
+			{ "Hash": "nv-c2", "SourceNodeHash": "nv-readpkg", "SourcePortHash": "nv-rp-done", "TargetNodeHash": "nv-checkname", "TargetPortHash": "nv-cn-in", "Data": {} },
+			{ "Hash": "nv-c3", "SourceNodeHash": "nv-checkname", "SourcePortHash": "nv-cn-true", "TargetNodeHash": "nv-checkver", "TargetPortHash": "nv-cv-in", "Data": {} },
+			{ "Hash": "nv-c4", "SourceNodeHash": "nv-checkver", "SourcePortHash": "nv-cv-true", "TargetNodeHash": "nv-test", "TargetPortHash": "nv-ts-in", "Data": {} },
+			{ "Hash": "nv-c5", "SourceNodeHash": "nv-test", "SourcePortHash": "nv-ts-done", "TargetNodeHash": "nv-result", "TargetPortHash": "nv-rs-in", "Data": {} },
+			{ "Hash": "nv-c6", "SourceNodeHash": "nv-result", "SourcePortHash": "nv-rs-done", "TargetNodeHash": "nv-end", "TargetPortHash": "nv-end-in", "Data": {} },
+			{ "Hash": "nv-c7", "SourceNodeHash": "nv-readpkg", "SourcePortHash": "nv-rp-err", "TargetNodeHash": "nv-nopkg", "TargetPortHash": "nv-np-in", "Data": {} },
+			{ "Hash": "nv-c8", "SourceNodeHash": "nv-nopkg", "SourcePortHash": "nv-np-done", "TargetNodeHash": "nv-end", "TargetPortHash": "nv-end-in", "Data": {} },
+			{ "Hash": "nv-c9", "SourceNodeHash": "nv-checkname", "SourcePortHash": "nv-cn-false", "TargetNodeHash": "nv-noname", "TargetPortHash": "nv-nn-in", "Data": {} },
+			{ "Hash": "nv-c10", "SourceNodeHash": "nv-noname", "SourcePortHash": "nv-nn-done", "TargetNodeHash": "nv-end", "TargetPortHash": "nv-end-in", "Data": {} },
+			{ "Hash": "nv-c11", "SourceNodeHash": "nv-checkver", "SourcePortHash": "nv-cv-false", "TargetNodeHash": "nv-nover", "TargetPortHash": "nv-nv-in", "Data": {} },
+			{ "Hash": "nv-c12", "SourceNodeHash": "nv-nover", "SourcePortHash": "nv-nv-done", "TargetNodeHash": "nv-end", "TargetPortHash": "nv-end-in", "Data": {} },
+			{ "Hash": "nv-c13", "SourceNodeHash": "nv-test", "SourcePortHash": "nv-ts-err", "TargetNodeHash": "nv-testfail", "TargetPortHash": "nv-tf-in", "Data": {} },
+			{ "Hash": "nv-c14", "SourceNodeHash": "nv-testfail", "SourcePortHash": "nv-tf-done", "TargetNodeHash": "nv-end", "TargetPortHash": "nv-end-in", "Data": {} }
+		],
+		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
+	},
+	"SavedLayouts": [],
+	"InitialGlobalState": {},
+	"InitialOperationState": {}
+}

@@ -8,5 +8,6 @@ module.exports = (
 		"UltravisorTickIntervalMilliseconds": 60000,
 		"UltravisorCommandTimeoutMilliseconds": 300000,
 		"UltravisorCommandMaxBufferBytes": 10485760,
-		"UltravisorWebInterfacePath": `${_ModuleRoot}/webinterface/dist`
+		"UltravisorWebInterfacePath": `${_ModuleRoot}/webinterface/dist`,
+		"UltravisorOperationLibraryPath": `${_ModuleRoot}/operation-library`
 	});

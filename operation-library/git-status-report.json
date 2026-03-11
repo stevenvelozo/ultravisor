@@ -1,0 +1,127 @@
+{
+	"Name": "Git Status Report",
+	"Description": "Runs git commands to gather repository status, branch info, and recent log, then assembles a report. Demonstrates chaining multiple command nodes with template assembly.",
+	"Tags": ["command", "git", "reporting"],
+	"Author": "Ultravisor",
+	"Version": "1.0.0",
+	"Graph": {
+		"Nodes": [
+			{
+				"Hash": "gs-start",
+				"Type": "start",
+				"X": 50,
+				"Y": 200,
+				"Width": 140,
+				"Height": 80,
+				"Title": "Start",
+				"Ports": [
+					{ "Hash": "gs-start-out", "Direction": "output", "Side": "right-bottom", "Label": "Out" }
+				],
+				"Data": {}
+			},
+			{
+				"Hash": "gs-branch",
+				"Type": "command",
+				"X": 260,
+				"Y": 180,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Get Branch",
+				"Ports": [
+					{ "Hash": "gs-br-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "gs-br-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "gs-br-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "Command": "git", "Parameters": "rev-parse --abbrev-ref HEAD", "Description": "Get current git branch" }
+			},
+			{
+				"Hash": "gs-status",
+				"Type": "command",
+				"X": 530,
+				"Y": 180,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Get Status",
+				"Ports": [
+					{ "Hash": "gs-st-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "gs-st-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "gs-st-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "Command": "git", "Parameters": "status --short", "Description": "Get git status summary" }
+			},
+			{
+				"Hash": "gs-log",
+				"Type": "command",
+				"X": 800,
+				"Y": 180,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Recent Commits",
+				"Ports": [
+					{ "Hash": "gs-lg-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "gs-lg-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "gs-lg-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "Command": "git", "Parameters": "log --oneline -5", "Description": "Get last 5 commits" }
+			},
+			{
+				"Hash": "gs-report",
+				"Type": "template-string",
+				"X": 1070,
+				"Y": 180,
+				"Width": 240,
+				"Height": 80,
+				"Title": "Build Report",
+				"Ports": [
+					{ "Hash": "gs-rpt-in", "Direction": "input", "Side": "left-bottom", "Label": "In" },
+					{ "Hash": "gs-rpt-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "Template": "=== Git Status Report ===\n\nBranch: {~D:Record.TaskOutput.gs-branch.StdOut~}\n\nModified Files:\n{~D:Record.TaskOutput.gs-status.StdOut~}\n\nRecent Commits:\n{~D:Record.TaskOutput.gs-log.StdOut~}\n", "Destination": "Operation.Report" }
+			},
+			{
+				"Hash": "gs-write",
+				"Type": "write-file",
+				"X": 1380,
+				"Y": 180,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Save Report",
+				"Ports": [
+					{ "Hash": "gs-wr-in", "Direction": "input", "Side": "left-bottom", "Label": "BeginWrite" },
+					{ "Hash": "gs-wr-done", "Direction": "output", "Side": "right-bottom", "Label": "WriteComplete" },
+					{ "Hash": "gs-wr-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "FilePath": "git-status-report.txt", "Content": "{~D:Record.Operation.Report~}", "Encoding": "utf8" }
+			},
+			{
+				"Hash": "gs-end",
+				"Type": "end",
+				"X": 1650,
+				"Y": 260,
+				"Width": 140,
+				"Height": 80,
+				"Title": "End",
+				"Ports": [
+					{ "Hash": "gs-end-in", "Direction": "input", "Side": "left-bottom", "Label": "In" }
+				],
+				"Data": {}
+			}
+		],
+		"Connections": [
+			{ "Hash": "gs-c1", "SourceNodeHash": "gs-start", "SourcePortHash": "gs-start-out", "TargetNodeHash": "gs-branch", "TargetPortHash": "gs-br-in", "Data": {} },
+			{ "Hash": "gs-c2", "SourceNodeHash": "gs-branch", "SourcePortHash": "gs-br-done", "TargetNodeHash": "gs-status", "TargetPortHash": "gs-st-in", "Data": {} },
+			{ "Hash": "gs-c3", "SourceNodeHash": "gs-status", "SourcePortHash": "gs-st-done", "TargetNodeHash": "gs-log", "TargetPortHash": "gs-lg-in", "Data": {} },
+			{ "Hash": "gs-c4", "SourceNodeHash": "gs-log", "SourcePortHash": "gs-lg-done", "TargetNodeHash": "gs-report", "TargetPortHash": "gs-rpt-in", "Data": {} },
+			{ "Hash": "gs-c5", "SourceNodeHash": "gs-report", "SourcePortHash": "gs-rpt-done", "TargetNodeHash": "gs-write", "TargetPortHash": "gs-wr-in", "Data": {} },
+			{ "Hash": "gs-c6", "SourceNodeHash": "gs-write", "SourcePortHash": "gs-wr-done", "TargetNodeHash": "gs-end", "TargetPortHash": "gs-end-in", "Data": {} },
+			{ "Hash": "gs-c7", "SourceNodeHash": "gs-branch", "SourcePortHash": "gs-br-err", "TargetNodeHash": "gs-end", "TargetPortHash": "gs-end-in", "Data": {} },
+			{ "Hash": "gs-c8", "SourceNodeHash": "gs-status", "SourcePortHash": "gs-st-err", "TargetNodeHash": "gs-end", "TargetPortHash": "gs-end-in", "Data": {} },
+			{ "Hash": "gs-c9", "SourceNodeHash": "gs-log", "SourcePortHash": "gs-lg-err", "TargetNodeHash": "gs-end", "TargetPortHash": "gs-end-in", "Data": {} },
+			{ "Hash": "gs-c10", "SourceNodeHash": "gs-write", "SourcePortHash": "gs-wr-err", "TargetNodeHash": "gs-end", "TargetPortHash": "gs-end-in", "Data": {} }
+		],
+		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
+	},
+	"SavedLayouts": [],
+	"InitialGlobalState": {},
+	"InitialOperationState": {}
+}

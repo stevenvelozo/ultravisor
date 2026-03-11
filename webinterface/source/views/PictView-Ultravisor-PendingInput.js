@@ -21,17 +21,17 @@ const _ViewConfiguration =
 			align-items: center;
 			margin-bottom: 1.5em;
 			padding-bottom: 1em;
-			border-bottom: 1px solid #2a2a4a;
+			border-bottom: 1px solid var(--uv-border-subtle);
 		}
 		.ultravisor-pendinginput-header h1 {
 			margin: 0;
 			font-size: 2em;
 			font-weight: 300;
-			color: #e0e0e0;
+			color: var(--uv-text);
 		}
 		.ultravisor-pendinginput-card {
-			background: #16213e;
-			border: 1px solid #f57f17;
+			background: var(--uv-bg-surface);
+			border: 1px solid var(--uv-warning);
 			border-radius: 8px;
 			padding: 1.5em;
 			margin-bottom: 1em;
@@ -44,20 +44,20 @@ const _ViewConfiguration =
 		}
 		.ultravisor-pendinginput-card-header h3 {
 			margin: 0;
-			color: #e0e0e0;
+			color: var(--uv-text);
 			font-weight: 500;
 		}
 		.ultravisor-pendinginput-meta {
-			color: #78909c;
+			color: var(--uv-text-secondary);
 			font-size: 0.85em;
 			margin-bottom: 1em;
 		}
 		.ultravisor-pendinginput-meta code {
-			color: #4fc3f7;
+			color: var(--uv-brand);
 			font-size: 0.9em;
 		}
 		.ultravisor-pendinginput-task {
-			background: #1a1a2e;
+			background: var(--uv-bg-base);
 			border-radius: 4px;
 			padding: 1em;
 			margin-bottom: 0.75em;
@@ -68,7 +68,7 @@ const _ViewConfiguration =
 			margin-bottom: 0.75em;
 		}
 		.ultravisor-pendinginput-address {
-			color: #78909c;
+			color: var(--uv-text-secondary);
 			font-size: 0.8em;
 			margin-bottom: 0.75em;
 		}
@@ -80,21 +80,21 @@ const _ViewConfiguration =
 		.ultravisor-pendinginput-form input[type="text"] {
 			flex: 1;
 			padding: 0.5em 0.75em;
-			border: 1px solid #2a2a4a;
+			border: 1px solid var(--uv-border-subtle);
 			border-radius: 4px;
 			background: #0d1117;
-			color: #e0e0e0;
+			color: var(--uv-text);
 			font-size: 1em;
 			font-family: monospace;
 		}
 		.ultravisor-pendinginput-form input[type="text"]:focus {
 			outline: none;
-			border-color: #f57f17;
+			border-color: var(--uv-warning);
 		}
 		.ultravisor-pendinginput-submit {
 			padding: 0.5em 1.25em;
-			background-color: #f57f17;
-			color: #1a1a2e;
+			background-color: var(--uv-warning);
+			color: var(--uv-bg-base);
 			border: none;
 			border-radius: 4px;
 			font-weight: 600;

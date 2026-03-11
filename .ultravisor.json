@@ -1,13 +1,17 @@
 {
 	"UltravisorAPIServerPort": 54321,
+	"UltravisorFileStorePath": "/Users/steven/Code/retold/modules/apps/ultravisor/dist/ultravisor_datastore",
+	"UltravisorStagingRoot": "/Users/steven/Code/retold/modules/apps/ultravisor/dist/ultravisor_staging",
 	"UltravisorTickIntervalMilliseconds": 60000,
 	"UltravisorCommandTimeoutMilliseconds": 300000,
 	"UltravisorCommandMaxBufferBytes": 10485760,
+	"UltravisorWebInterfacePath": "/Users/steven/Code/retold/modules/apps/ultravisor/webinterface/dist",
+	"UltravisorOperationLibraryPath": "/Users/steven/Code/retold/modules/apps/ultravisor/operation-library",
 	"NodeTemplates": {},
 	"Operations": {
-		"OPR-0003": {
-			"Name": "Example: File Processor",
-			"Description": "Search and replace pipeline with user input, looping, and file I/O.",
+		"OPR-0005": {
+			"Name": "File Search & Replace",
+			"Description": "Complete file processing pipeline with user input, looping, and error handling. Asks for a file path, reads the file, splits into lines, replaces text in each line, and writes the result.",
 			"Graph": {
 				"Nodes": [
 					{
@@ -170,6 +174,12 @@
 								"Direction": "output",
 								"Side": "right-bottom",
 								"Label": "CompletedAllSubtasks"
+							},
+							{
+								"Hash": "fp-split-currenttoken",
+								"Direction": "output",
+								"Side": "right-top",
+								"Label": "CurrentToken"
 							}
 						],
 						"Data": {
@@ -191,6 +201,12 @@
 								"Direction": "input",
 								"Side": "left-bottom",
 								"Label": "Replace"
+							},
+							{
+								"Hash": "fp-replace-inputstr",
+								"Direction": "input",
+								"Side": "left-top",
+								"Label": "InputString"
 							},
 							{
 								"Hash": "fp-replace-done",
@@ -402,6 +418,14 @@
 						"TargetNodeHash": "fp-append",
 						"TargetPortHash": "fp-append-inputstr",
 						"Data": {}
+					},
+					{
+						"Hash": "fp-st4",
+						"SourceNodeHash": "fp-split",
+						"SourcePortHash": "fp-split-currenttoken",
+						"TargetNodeHash": "fp-replace",
+						"TargetPortHash": "fp-replace-inputstr",
+						"Data": {}
 					}
 				],
 				"ViewState": {
@@ -412,12 +436,5024 @@
 					"SelectedConnectionHash": null
 				}
 			},
-			"Hash": "OPR-0003",
-			"CreatedAt": "2026-03-09T00:54:04.820Z",
-			"UpdatedAt": "2026-03-09T00:54:04.820Z"
+			"SavedLayouts": [],
+			"InitialGlobalState": {},
+			"InitialOperationState": {},
+			"Hash": "OPR-0005",
+			"CreatedAt": "2026-03-11T02:19:08.993Z",
+			"UpdatedAt": "2026-03-11T02:19:08.993Z"
+		},
+		"OPR-0006": {
+			"Name": "Simple Echo",
+			"Description": "Minimal three-node operation: sets a value, formats it with a template, and writes the output. The simplest possible end-to-end pipeline.",
+			"Tags": [
+				"minimal",
+				"hello-world"
+			],
+			"Author": "Ultravisor",
+			"Version": "1.0.0",
+			"Graph": {
+				"Nodes": [
+					{
+						"Hash": "se-start",
+						"Type": "start",
+						"X": 50,
+						"Y": 200,
+						"Width": 140,
+						"Height": 80,
+						"Title": "Start",
+						"Ports": [
+							{
+								"Hash": "se-start-out",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Out"
+							}
+						],
+						"Data": {},
+						"Settings": {}
+					},
+					{
+						"Hash": "se-set",
+						"Type": "set-values",
+						"X": 260,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Set Message",
+						"Ports": [
+							{
+								"Hash": "se-set-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Execute"
+							},
+							{
+								"Hash": "se-set-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Mappings": [
+								{
+									"Address": "Operation.Message",
+									"Value": "Hello from Ultravisor!"
+								},
+								{
+									"Address": "Operation.Timestamp",
+									"Value": "now"
+								}
+							]
+						},
+						"Settings": {
+							"Mappings": [
+								{
+									"Address": "Operation.Message",
+									"Value": "Hello from Ultravisor!"
+								},
+								{
+									"Address": "Operation.Timestamp",
+									"Value": "now"
+								}
+							]
+						}
+					},
+					{
+						"Hash": "se-template",
+						"Type": "template-string",
+						"X": 530,
+						"Y": 180,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Format Output",
+						"Ports": [
+							{
+								"Hash": "se-tpl-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							},
+							{
+								"Hash": "se-tpl-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Template": "[{~D:Record.Operation.Timestamp~}] {~D:Record.Operation.Message~}\n",
+							"Destination": "Operation.Output"
+						},
+						"Settings": {
+							"Template": "[{~D:Record.Operation.Timestamp~}] {~D:Record.Operation.Message~}\n",
+							"Destination": "Operation.Output"
+						}
+					},
+					{
+						"Hash": "se-write",
+						"Type": "write-file",
+						"X": 820,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Write Output",
+						"Ports": [
+							{
+								"Hash": "se-wr-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "BeginWrite"
+							},
+							{
+								"Hash": "se-wr-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "WriteComplete"
+							},
+							{
+								"Hash": "se-wr-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"FilePath": "echo-output.txt",
+							"Content": "{~D:Record.Operation.Output~}",
+							"Encoding": "utf8"
+						},
+						"Settings": {
+							"FilePath": "echo-output.txt",
+							"Content": "{~D:Record.Operation.Output~}",
+							"Encoding": "utf8"
+						}
+					},
+					{
+						"Hash": "se-end",
+						"Type": "end",
+						"X": 1090,
+						"Y": 260,
+						"Width": 140,
+						"Height": 80,
+						"Title": "End",
+						"Ports": [
+							{
+								"Hash": "se-end-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							}
+						],
+						"Data": {},
+						"Settings": {}
+					}
+				],
+				"Connections": [
+					{
+						"Hash": "se-c1",
+						"SourceNodeHash": "se-start",
+						"SourcePortHash": "se-start-out",
+						"TargetNodeHash": "se-set",
+						"TargetPortHash": "se-set-in",
+						"Data": {}
+					},
+					{
+						"Hash": "se-c2",
+						"SourceNodeHash": "se-set",
+						"SourcePortHash": "se-set-done",
+						"TargetNodeHash": "se-template",
+						"TargetPortHash": "se-tpl-in",
+						"Data": {}
+					},
+					{
+						"Hash": "se-c3",
+						"SourceNodeHash": "se-template",
+						"SourcePortHash": "se-tpl-done",
+						"TargetNodeHash": "se-write",
+						"TargetPortHash": "se-wr-in",
+						"Data": {}
+					},
+					{
+						"Hash": "se-c4",
+						"SourceNodeHash": "se-write",
+						"SourcePortHash": "se-wr-done",
+						"TargetNodeHash": "se-end",
+						"TargetPortHash": "se-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "se-c5",
+						"SourceNodeHash": "se-write",
+						"SourcePortHash": "se-wr-err",
+						"TargetNodeHash": "se-end",
+						"TargetPortHash": "se-end-in",
+						"Data": {}
+					}
+				],
+				"ViewState": {
+					"PanX": 0,
+					"PanY": 0,
+					"Zoom": 1,
+					"SelectedNodeHash": null,
+					"SelectedConnectionHash": null
+				}
+			},
+			"SavedLayouts": [],
+			"InitialGlobalState": {},
+			"InitialOperationState": {},
+			"Hash": "OPR-0006",
+			"CreatedAt": "2026-03-11T18:03:19.991Z",
+			"UpdatedAt": "2026-03-11T18:03:19.991Z"
+		},
+		"OPR-0007": {
+			"Name": "System Info Collector",
+			"Description": "Runs shell commands to gather system information (hostname, uptime, disk usage) and writes a report. Demonstrates command nodes with template assembly.",
+			"Tags": [
+				"command",
+				"system",
+				"reporting"
+			],
+			"Author": "Ultravisor",
+			"Version": "1.0.0",
+			"Graph": {
+				"Nodes": [
+					{
+						"Hash": "si-start",
+						"Type": "start",
+						"X": 50,
+						"Y": 200,
+						"Width": 140,
+						"Height": 80,
+						"Title": "Start",
+						"Ports": [
+							{
+								"Hash": "si-start-out",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Out"
+							}
+						],
+						"Data": {},
+						"Settings": {}
+					},
+					{
+						"Hash": "si-hostname",
+						"Type": "command",
+						"X": 260,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Get Hostname",
+						"Ports": [
+							{
+								"Hash": "si-hn-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "si-hn-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							},
+							{
+								"Hash": "si-hn-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"Command": "hostname",
+							"Description": "Get system hostname"
+						},
+						"Settings": {
+							"Command": "hostname",
+							"Description": "Get system hostname"
+						}
+					},
+					{
+						"Hash": "si-uptime",
+						"Type": "command",
+						"X": 530,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Get Uptime",
+						"Ports": [
+							{
+								"Hash": "si-up-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "si-up-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							},
+							{
+								"Hash": "si-up-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"Command": "uptime",
+							"Description": "Get system uptime"
+						},
+						"Settings": {
+							"Command": "uptime",
+							"Description": "Get system uptime"
+						}
+					},
+					{
+						"Hash": "si-date",
+						"Type": "command",
+						"X": 800,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Get Date",
+						"Ports": [
+							{
+								"Hash": "si-dt-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "si-dt-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							},
+							{
+								"Hash": "si-dt-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"Command": "date",
+							"Description": "Get current date and time"
+						},
+						"Settings": {
+							"Command": "date",
+							"Description": "Get current date and time"
+						}
+					},
+					{
+						"Hash": "si-report",
+						"Type": "template-string",
+						"X": 1070,
+						"Y": 180,
+						"Width": 240,
+						"Height": 80,
+						"Title": "Build Report",
+						"Ports": [
+							{
+								"Hash": "si-rpt-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							},
+							{
+								"Hash": "si-rpt-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Template": "=== System Info Report ===\nHostname: {~D:Record.TaskOutput.si-hostname.StdOut~}\nUptime: {~D:Record.TaskOutput.si-uptime.StdOut~}\nDate: {~D:Record.TaskOutput.si-date.StdOut~}\n",
+							"Destination": "Operation.Report"
+						},
+						"Settings": {
+							"Template": "=== System Info Report ===\nHostname: {~D:Record.TaskOutput.si-hostname.StdOut~}\nUptime: {~D:Record.TaskOutput.si-uptime.StdOut~}\nDate: {~D:Record.TaskOutput.si-date.StdOut~}\n",
+							"Destination": "Operation.Report"
+						}
+					},
+					{
+						"Hash": "si-write",
+						"Type": "write-file",
+						"X": 1380,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Save Report",
+						"Ports": [
+							{
+								"Hash": "si-wr-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "BeginWrite"
+							},
+							{
+								"Hash": "si-wr-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "WriteComplete"
+							},
+							{
+								"Hash": "si-wr-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"FilePath": "system-info-report.txt",
+							"Content": "{~D:Record.Operation.Report~}",
+							"Encoding": "utf8"
+						},
+						"Settings": {
+							"FilePath": "system-info-report.txt",
+							"Content": "{~D:Record.Operation.Report~}",
+							"Encoding": "utf8"
+						}
+					},
+					{
+						"Hash": "si-end",
+						"Type": "end",
+						"X": 1650,
+						"Y": 260,
+						"Width": 140,
+						"Height": 80,
+						"Title": "End",
+						"Ports": [
+							{
+								"Hash": "si-end-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							}
+						],
+						"Data": {},
+						"Settings": {}
+					}
+				],
+				"Connections": [
+					{
+						"Hash": "si-c1",
+						"SourceNodeHash": "si-start",
+						"SourcePortHash": "si-start-out",
+						"TargetNodeHash": "si-hostname",
+						"TargetPortHash": "si-hn-in",
+						"Data": {}
+					},
+					{
+						"Hash": "si-c2",
+						"SourceNodeHash": "si-hostname",
+						"SourcePortHash": "si-hn-done",
+						"TargetNodeHash": "si-uptime",
+						"TargetPortHash": "si-up-in",
+						"Data": {}
+					},
+					{
+						"Hash": "si-c3",
+						"SourceNodeHash": "si-uptime",
+						"SourcePortHash": "si-up-done",
+						"TargetNodeHash": "si-date",
+						"TargetPortHash": "si-dt-in",
+						"Data": {}
+					},
+					{
+						"Hash": "si-c4",
+						"SourceNodeHash": "si-date",
+						"SourcePortHash": "si-dt-done",
+						"TargetNodeHash": "si-report",
+						"TargetPortHash": "si-rpt-in",
+						"Data": {}
+					},
+					{
+						"Hash": "si-c5",
+						"SourceNodeHash": "si-report",
+						"SourcePortHash": "si-rpt-done",
+						"TargetNodeHash": "si-write",
+						"TargetPortHash": "si-wr-in",
+						"Data": {}
+					},
+					{
+						"Hash": "si-c6",
+						"SourceNodeHash": "si-write",
+						"SourcePortHash": "si-wr-done",
+						"TargetNodeHash": "si-end",
+						"TargetPortHash": "si-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "si-c7",
+						"SourceNodeHash": "si-hostname",
+						"SourcePortHash": "si-hn-err",
+						"TargetNodeHash": "si-end",
+						"TargetPortHash": "si-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "si-c8",
+						"SourceNodeHash": "si-uptime",
+						"SourcePortHash": "si-up-err",
+						"TargetNodeHash": "si-end",
+						"TargetPortHash": "si-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "si-c9",
+						"SourceNodeHash": "si-date",
+						"SourcePortHash": "si-dt-err",
+						"TargetNodeHash": "si-end",
+						"TargetPortHash": "si-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "si-c10",
+						"SourceNodeHash": "si-write",
+						"SourcePortHash": "si-wr-err",
+						"TargetNodeHash": "si-end",
+						"TargetPortHash": "si-end-in",
+						"Data": {}
+					}
+				],
+				"ViewState": {
+					"PanX": 0,
+					"PanY": 0,
+					"Zoom": 1,
+					"SelectedNodeHash": null,
+					"SelectedConnectionHash": null
+				}
+			},
+			"SavedLayouts": [],
+			"InitialGlobalState": {},
+			"InitialOperationState": {},
+			"Hash": "OPR-0007",
+			"CreatedAt": "2026-03-11T18:03:47.463Z",
+			"UpdatedAt": "2026-03-11T18:03:47.463Z"
+		},
+		"OPR-0008": {
+			"Name": "Git Status Report",
+			"Description": "Runs git commands to gather repository status, branch info, and recent log, then assembles a report. Demonstrates chaining multiple command nodes with template assembly.",
+			"Tags": [
+				"command",
+				"git",
+				"reporting"
+			],
+			"Author": "Ultravisor",
+			"Version": "1.0.0",
+			"Graph": {
+				"Nodes": [
+					{
+						"Hash": "gs-start",
+						"Type": "start",
+						"X": 50,
+						"Y": 200,
+						"Width": 140,
+						"Height": 80,
+						"Title": "Start",
+						"Ports": [
+							{
+								"Hash": "gs-start-out",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Out"
+							}
+						],
+						"Data": {},
+						"Settings": {}
+					},
+					{
+						"Hash": "gs-branch",
+						"Type": "command",
+						"X": 260,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Get Branch",
+						"Ports": [
+							{
+								"Hash": "gs-br-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "gs-br-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							},
+							{
+								"Hash": "gs-br-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"Command": "git",
+							"Parameters": "rev-parse --abbrev-ref HEAD",
+							"Description": "Get current git branch"
+						},
+						"Settings": {
+							"Command": "git",
+							"Parameters": "rev-parse --abbrev-ref HEAD",
+							"Description": "Get current git branch"
+						}
+					},
+					{
+						"Hash": "gs-status",
+						"Type": "command",
+						"X": 530,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Get Status",
+						"Ports": [
+							{
+								"Hash": "gs-st-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "gs-st-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							},
+							{
+								"Hash": "gs-st-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"Command": "git",
+							"Parameters": "status --short",
+							"Description": "Get git status summary"
+						},
+						"Settings": {
+							"Command": "git",
+							"Parameters": "status --short",
+							"Description": "Get git status summary"
+						}
+					},
+					{
+						"Hash": "gs-log",
+						"Type": "command",
+						"X": 800,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Recent Commits",
+						"Ports": [
+							{
+								"Hash": "gs-lg-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "gs-lg-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							},
+							{
+								"Hash": "gs-lg-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"Command": "git",
+							"Parameters": "log --oneline -5",
+							"Description": "Get last 5 commits"
+						},
+						"Settings": {
+							"Command": "git",
+							"Parameters": "log --oneline -5",
+							"Description": "Get last 5 commits"
+						}
+					},
+					{
+						"Hash": "gs-report",
+						"Type": "template-string",
+						"X": 1070,
+						"Y": 180,
+						"Width": 240,
+						"Height": 80,
+						"Title": "Build Report",
+						"Ports": [
+							{
+								"Hash": "gs-rpt-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							},
+							{
+								"Hash": "gs-rpt-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Template": "=== Git Status Report ===\n\nBranch: {~D:Record.TaskOutput.gs-branch.StdOut~}\n\nModified Files:\n{~D:Record.TaskOutput.gs-status.StdOut~}\n\nRecent Commits:\n{~D:Record.TaskOutput.gs-log.StdOut~}\n",
+							"Destination": "Operation.Report"
+						},
+						"Settings": {
+							"Template": "=== Git Status Report ===\n\nBranch: {~D:Record.TaskOutput.gs-branch.StdOut~}\n\nModified Files:\n{~D:Record.TaskOutput.gs-status.StdOut~}\n\nRecent Commits:\n{~D:Record.TaskOutput.gs-log.StdOut~}\n",
+							"Destination": "Operation.Report"
+						}
+					},
+					{
+						"Hash": "gs-write",
+						"Type": "write-file",
+						"X": 1380,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Save Report",
+						"Ports": [
+							{
+								"Hash": "gs-wr-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "BeginWrite"
+							},
+							{
+								"Hash": "gs-wr-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "WriteComplete"
+							},
+							{
+								"Hash": "gs-wr-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"FilePath": "git-status-report.txt",
+							"Content": "{~D:Record.Operation.Report~}",
+							"Encoding": "utf8"
+						},
+						"Settings": {
+							"FilePath": "git-status-report.txt",
+							"Content": "{~D:Record.Operation.Report~}",
+							"Encoding": "utf8"
+						}
+					},
+					{
+						"Hash": "gs-end",
+						"Type": "end",
+						"X": 1650,
+						"Y": 260,
+						"Width": 140,
+						"Height": 80,
+						"Title": "End",
+						"Ports": [
+							{
+								"Hash": "gs-end-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							}
+						],
+						"Data": {},
+						"Settings": {}
+					}
+				],
+				"Connections": [
+					{
+						"Hash": "gs-c1",
+						"SourceNodeHash": "gs-start",
+						"SourcePortHash": "gs-start-out",
+						"TargetNodeHash": "gs-branch",
+						"TargetPortHash": "gs-br-in",
+						"Data": {}
+					},
+					{
+						"Hash": "gs-c2",
+						"SourceNodeHash": "gs-branch",
+						"SourcePortHash": "gs-br-done",
+						"TargetNodeHash": "gs-status",
+						"TargetPortHash": "gs-st-in",
+						"Data": {}
+					},
+					{
+						"Hash": "gs-c3",
+						"SourceNodeHash": "gs-status",
+						"SourcePortHash": "gs-st-done",
+						"TargetNodeHash": "gs-log",
+						"TargetPortHash": "gs-lg-in",
+						"Data": {}
+					},
+					{
+						"Hash": "gs-c4",
+						"SourceNodeHash": "gs-log",
+						"SourcePortHash": "gs-lg-done",
+						"TargetNodeHash": "gs-report",
+						"TargetPortHash": "gs-rpt-in",
+						"Data": {}
+					},
+					{
+						"Hash": "gs-c5",
+						"SourceNodeHash": "gs-report",
+						"SourcePortHash": "gs-rpt-done",
+						"TargetNodeHash": "gs-write",
+						"TargetPortHash": "gs-wr-in",
+						"Data": {}
+					},
+					{
+						"Hash": "gs-c6",
+						"SourceNodeHash": "gs-write",
+						"SourcePortHash": "gs-wr-done",
+						"TargetNodeHash": "gs-end",
+						"TargetPortHash": "gs-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "gs-c7",
+						"SourceNodeHash": "gs-branch",
+						"SourcePortHash": "gs-br-err",
+						"TargetNodeHash": "gs-end",
+						"TargetPortHash": "gs-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "gs-c8",
+						"SourceNodeHash": "gs-status",
+						"SourcePortHash": "gs-st-err",
+						"TargetNodeHash": "gs-end",
+						"TargetPortHash": "gs-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "gs-c9",
+						"SourceNodeHash": "gs-log",
+						"SourcePortHash": "gs-lg-err",
+						"TargetNodeHash": "gs-end",
+						"TargetPortHash": "gs-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "gs-c10",
+						"SourceNodeHash": "gs-write",
+						"SourcePortHash": "gs-wr-err",
+						"TargetNodeHash": "gs-end",
+						"TargetPortHash": "gs-end-in",
+						"Data": {}
+					}
+				],
+				"ViewState": {
+					"PanX": 0,
+					"PanY": 0,
+					"Zoom": 1,
+					"SelectedNodeHash": null,
+					"SelectedConnectionHash": null
+				}
+			},
+			"SavedLayouts": [],
+			"InitialGlobalState": {},
+			"InitialOperationState": {},
+			"Hash": "OPR-0008",
+			"CreatedAt": "2026-03-11T18:03:48.828Z",
+			"UpdatedAt": "2026-03-11T18:03:48.828Z"
+		},
+		"OPR-0009": {
+			"Name": "HTTP Health Check",
+			"Description": "Fetches a health endpoint via HTTP GET, checks the response for a success indicator, and logs the result. Demonstrates get-text, if-conditional, and template-string for monitoring.",
+			"Tags": [
+				"http",
+				"monitoring",
+				"health-check"
+			],
+			"Author": "Ultravisor",
+			"Version": "1.0.0",
+			"Graph": {
+				"Nodes": [
+					{
+						"Hash": "hc-start",
+						"Type": "start",
+						"X": 50,
+						"Y": 200,
+						"Width": 140,
+						"Height": 80,
+						"Title": "Start",
+						"Ports": [
+							{
+								"Hash": "hc-start-out",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Out"
+							}
+						],
+						"Data": {},
+						"Settings": {}
+					},
+					{
+						"Hash": "hc-seturl",
+						"Type": "set-values",
+						"X": 260,
+						"Y": 180,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Set Target URL",
+						"Ports": [
+							{
+								"Hash": "hc-su-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Execute"
+							},
+							{
+								"Hash": "hc-su-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Mappings": [
+								{
+									"Address": "Operation.TargetURL",
+									"Value": "http://localhost:54321/Status"
+								}
+							]
+						},
+						"Settings": {
+							"Mappings": [
+								{
+									"Address": "Operation.TargetURL",
+									"Value": "http://localhost:54321/Status"
+								}
+							]
+						}
+					},
+					{
+						"Hash": "hc-fetch",
+						"Type": "get-text",
+						"X": 550,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Fetch Health",
+						"Ports": [
+							{
+								"Hash": "hc-ft-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "hc-ft-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							},
+							{
+								"Hash": "hc-ft-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"URL": "{~D:Record.Operation.TargetURL~}",
+							"Destination": "Operation.ResponseBody"
+						},
+						"Settings": {
+							"URL": "{~D:Record.Operation.TargetURL~}",
+							"Destination": "Operation.ResponseBody"
+						}
+					},
+					{
+						"Hash": "hc-check",
+						"Type": "if-conditional",
+						"X": 820,
+						"Y": 160,
+						"Width": 220,
+						"Height": 100,
+						"Title": "Is Healthy?",
+						"Ports": [
+							{
+								"Hash": "hc-chk-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Evaluate"
+							},
+							{
+								"Hash": "hc-chk-true",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "True"
+							},
+							{
+								"Hash": "hc-chk-false",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "False"
+							}
+						],
+						"Data": {
+							"DataAddress": "Operation.ResponseBody",
+							"Operator": "truthy"
+						},
+						"Settings": {
+							"DataAddress": "Operation.ResponseBody",
+							"Operator": "truthy"
+						}
+					},
+					{
+						"Hash": "hc-ok",
+						"Type": "template-string",
+						"X": 1110,
+						"Y": 140,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Log Healthy",
+						"Ports": [
+							{
+								"Hash": "hc-ok-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							},
+							{
+								"Hash": "hc-ok-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Template": "HEALTHY: {~D:Record.Operation.TargetURL~} responded successfully",
+							"Destination": "Operation.StatusMessage"
+						},
+						"Settings": {
+							"Template": "HEALTHY: {~D:Record.Operation.TargetURL~} responded successfully",
+							"Destination": "Operation.StatusMessage"
+						}
+					},
+					{
+						"Hash": "hc-fail",
+						"Type": "error-message",
+						"X": 820,
+						"Y": 360,
+						"Width": 240,
+						"Height": 80,
+						"Title": "Log Unhealthy",
+						"Ports": [
+							{
+								"Hash": "hc-fl-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "hc-fl-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"MessageTemplate": "UNHEALTHY: {~D:Record.Operation.TargetURL~} returned empty response"
+						},
+						"Settings": {
+							"MessageTemplate": "UNHEALTHY: {~D:Record.Operation.TargetURL~} returned empty response"
+						}
+					},
+					{
+						"Hash": "hc-neterr",
+						"Type": "error-message",
+						"X": 550,
+						"Y": 360,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Network Error",
+						"Ports": [
+							{
+								"Hash": "hc-ne-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "hc-ne-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"MessageTemplate": "DOWN: Could not reach {~D:Record.Operation.TargetURL~}"
+						},
+						"Settings": {
+							"MessageTemplate": "DOWN: Could not reach {~D:Record.Operation.TargetURL~}"
+						}
+					},
+					{
+						"Hash": "hc-end",
+						"Type": "end",
+						"X": 1380,
+						"Y": 260,
+						"Width": 140,
+						"Height": 80,
+						"Title": "End",
+						"Ports": [
+							{
+								"Hash": "hc-end-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							}
+						],
+						"Data": {},
+						"Settings": {}
+					}
+				],
+				"Connections": [
+					{
+						"Hash": "hc-c1",
+						"SourceNodeHash": "hc-start",
+						"SourcePortHash": "hc-start-out",
+						"TargetNodeHash": "hc-seturl",
+						"TargetPortHash": "hc-su-in",
+						"Data": {}
+					},
+					{
+						"Hash": "hc-c2",
+						"SourceNodeHash": "hc-seturl",
+						"SourcePortHash": "hc-su-done",
+						"TargetNodeHash": "hc-fetch",
+						"TargetPortHash": "hc-ft-in",
+						"Data": {}
+					},
+					{
+						"Hash": "hc-c3",
+						"SourceNodeHash": "hc-fetch",
+						"SourcePortHash": "hc-ft-done",
+						"TargetNodeHash": "hc-check",
+						"TargetPortHash": "hc-chk-in",
+						"Data": {}
+					},
+					{
+						"Hash": "hc-c4",
+						"SourceNodeHash": "hc-check",
+						"SourcePortHash": "hc-chk-true",
+						"TargetNodeHash": "hc-ok",
+						"TargetPortHash": "hc-ok-in",
+						"Data": {}
+					},
+					{
+						"Hash": "hc-c5",
+						"SourceNodeHash": "hc-ok",
+						"SourcePortHash": "hc-ok-done",
+						"TargetNodeHash": "hc-end",
+						"TargetPortHash": "hc-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "hc-c6",
+						"SourceNodeHash": "hc-check",
+						"SourcePortHash": "hc-chk-false",
+						"TargetNodeHash": "hc-fail",
+						"TargetPortHash": "hc-fl-in",
+						"Data": {}
+					},
+					{
+						"Hash": "hc-c7",
+						"SourceNodeHash": "hc-fail",
+						"SourcePortHash": "hc-fl-done",
+						"TargetNodeHash": "hc-end",
+						"TargetPortHash": "hc-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "hc-c8",
+						"SourceNodeHash": "hc-fetch",
+						"SourcePortHash": "hc-ft-err",
+						"TargetNodeHash": "hc-neterr",
+						"TargetPortHash": "hc-ne-in",
+						"Data": {}
+					},
+					{
+						"Hash": "hc-c9",
+						"SourceNodeHash": "hc-neterr",
+						"SourcePortHash": "hc-ne-done",
+						"TargetNodeHash": "hc-end",
+						"TargetPortHash": "hc-end-in",
+						"Data": {}
+					}
+				],
+				"ViewState": {
+					"PanX": 0,
+					"PanY": 0,
+					"Zoom": 1,
+					"SelectedNodeHash": null,
+					"SelectedConnectionHash": null
+				}
+			},
+			"SavedLayouts": [],
+			"InitialGlobalState": {},
+			"InitialOperationState": {},
+			"Hash": "OPR-0009",
+			"CreatedAt": "2026-03-11T18:03:50.012Z",
+			"UpdatedAt": "2026-03-11T18:03:50.012Z"
+		},
+		"OPR-0010": {
+			"Name": "API Data Pipeline",
+			"Description": "Fetches JSON from an API endpoint, extracts a field with template-string, conditionally saves the result. Demonstrates get-json, template-string, if-conditional, and write-json together.",
+			"Graph": {
+				"Nodes": [
+					{
+						"Hash": "ap-start",
+						"Type": "start",
+						"X": 50,
+						"Y": 200,
+						"Width": 140,
+						"Height": 80,
+						"Title": "Start",
+						"Ports": [
+							{
+								"Hash": "ap-start-out",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Out"
+							}
+						],
+						"Data": {}
+					},
+					{
+						"Hash": "ap-seturl",
+						"Type": "set-values",
+						"X": 260,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Configure Endpoint",
+						"Ports": [
+							{
+								"Hash": "ap-su-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Execute"
+							},
+							{
+								"Hash": "ap-su-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Mappings": [
+								{
+									"Address": "Operation.APIEndpoint",
+									"Value": "http://localhost:54321/Operation"
+								}
+							]
+						}
+					},
+					{
+						"Hash": "ap-fetch",
+						"Type": "get-json",
+						"X": 530,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Fetch API Data",
+						"Ports": [
+							{
+								"Hash": "ap-ft-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "ap-ft-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							},
+							{
+								"Hash": "ap-ft-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"URL": "{~D:Record.Operation.APIEndpoint~}",
+							"Destination": "Operation.APIResponse"
+						}
+					},
+					{
+						"Hash": "ap-check",
+						"Type": "if-conditional",
+						"X": 800,
+						"Y": 160,
+						"Width": 220,
+						"Height": 100,
+						"Title": "Has Data?",
+						"Ports": [
+							{
+								"Hash": "ap-chk-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Evaluate"
+							},
+							{
+								"Hash": "ap-chk-true",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "True"
+							},
+							{
+								"Hash": "ap-chk-false",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "False"
+							}
+						],
+						"Data": {
+							"DataAddress": "Operation.APIResponse",
+							"Operator": "truthy"
+						}
+					},
+					{
+						"Hash": "ap-save",
+						"Type": "write-json",
+						"X": 1090,
+						"Y": 140,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Save Snapshot",
+						"Ports": [
+							{
+								"Hash": "ap-sv-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "ap-sv-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Done"
+							},
+							{
+								"Hash": "ap-sv-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"File": "api-snapshot.json",
+							"Address": "Operation.APIResponse"
+						}
+					},
+					{
+						"Hash": "ap-nodata",
+						"Type": "error-message",
+						"X": 800,
+						"Y": 370,
+						"Width": 240,
+						"Height": 80,
+						"Title": "No Data",
+						"Ports": [
+							{
+								"Hash": "ap-nd-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "ap-nd-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"MessageTemplate": "API returned empty response from {~D:Record.Operation.APIEndpoint~}"
+						}
+					},
+					{
+						"Hash": "ap-neterr",
+						"Type": "error-message",
+						"X": 530,
+						"Y": 370,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Fetch Error",
+						"Ports": [
+							{
+								"Hash": "ap-ne-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "ap-ne-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"MessageTemplate": "Failed to fetch from API: {~D:Record.Operation.APIEndpoint~}"
+						}
+					},
+					{
+						"Hash": "ap-end",
+						"Type": "end",
+						"X": 1360,
+						"Y": 260,
+						"Width": 140,
+						"Height": 80,
+						"Title": "End",
+						"Ports": [
+							{
+								"Hash": "ap-end-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							}
+						],
+						"Data": {}
+					}
+				],
+				"Connections": [
+					{
+						"Hash": "ap-c1",
+						"SourceNodeHash": "ap-start",
+						"SourcePortHash": "ap-start-out",
+						"TargetNodeHash": "ap-seturl",
+						"TargetPortHash": "ap-su-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ap-c2",
+						"SourceNodeHash": "ap-seturl",
+						"SourcePortHash": "ap-su-done",
+						"TargetNodeHash": "ap-fetch",
+						"TargetPortHash": "ap-ft-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ap-c3",
+						"SourceNodeHash": "ap-fetch",
+						"SourcePortHash": "ap-ft-done",
+						"TargetNodeHash": "ap-check",
+						"TargetPortHash": "ap-chk-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ap-c4",
+						"SourceNodeHash": "ap-check",
+						"SourcePortHash": "ap-chk-true",
+						"TargetNodeHash": "ap-save",
+						"TargetPortHash": "ap-sv-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ap-c5",
+						"SourceNodeHash": "ap-save",
+						"SourcePortHash": "ap-sv-done",
+						"TargetNodeHash": "ap-end",
+						"TargetPortHash": "ap-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ap-c6",
+						"SourceNodeHash": "ap-check",
+						"SourcePortHash": "ap-chk-false",
+						"TargetNodeHash": "ap-nodata",
+						"TargetPortHash": "ap-nd-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ap-c7",
+						"SourceNodeHash": "ap-nodata",
+						"SourcePortHash": "ap-nd-done",
+						"TargetNodeHash": "ap-end",
+						"TargetPortHash": "ap-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ap-c8",
+						"SourceNodeHash": "ap-fetch",
+						"SourcePortHash": "ap-ft-err",
+						"TargetNodeHash": "ap-neterr",
+						"TargetPortHash": "ap-ne-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ap-c9",
+						"SourceNodeHash": "ap-neterr",
+						"SourcePortHash": "ap-ne-done",
+						"TargetNodeHash": "ap-end",
+						"TargetPortHash": "ap-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ap-c10",
+						"SourceNodeHash": "ap-save",
+						"SourcePortHash": "ap-sv-err",
+						"TargetNodeHash": "ap-end",
+						"TargetPortHash": "ap-end-in",
+						"Data": {}
+					}
+				],
+				"ViewState": {
+					"PanX": 0,
+					"PanY": 0,
+					"Zoom": 1,
+					"SelectedNodeHash": null,
+					"SelectedConnectionHash": null
+				}
+			},
+			"SavedLayouts": [],
+			"InitialGlobalState": {},
+			"InitialOperationState": {},
+			"Hash": "OPR-0010",
+			"CreatedAt": "2026-03-11T18:11:37.148Z",
+			"UpdatedAt": "2026-03-11T18:11:37.148Z"
+		},
+		"OPR-0011": {
+			"Name": "Conditional File Backup",
+			"Description": "Reads a file, checks if it contains important markers, and conditionally backs it up. Demonstrates if-conditional branching with copy-file and error paths.",
+			"Graph": {
+				"Nodes": [
+					{
+						"Hash": "bk-start",
+						"Type": "start",
+						"X": 50,
+						"Y": 200,
+						"Width": 140,
+						"Height": 80,
+						"Title": "Start",
+						"Ports": [
+							{
+								"Hash": "bk-start-out",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Out"
+							}
+						],
+						"Data": {}
+					},
+					{
+						"Hash": "bk-setpath",
+						"Type": "set-values",
+						"X": 260,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Set File Path",
+						"Ports": [
+							{
+								"Hash": "bk-sp-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Execute"
+							},
+							{
+								"Hash": "bk-sp-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Mappings": [
+								{
+									"Address": "Operation.SourceFile",
+									"Value": "package.json"
+								}
+							]
+						}
+					},
+					{
+						"Hash": "bk-read",
+						"Type": "read-file",
+						"X": 530,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Read Source",
+						"Ports": [
+							{
+								"Hash": "bk-rd-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "BeginRead"
+							},
+							{
+								"Hash": "bk-rd-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "ReadComplete"
+							},
+							{
+								"Hash": "bk-rd-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"FilePath": "{~D:Record.Operation.SourceFile~}",
+							"Encoding": "utf8"
+						}
+					},
+					{
+						"Hash": "bk-check",
+						"Type": "if-conditional",
+						"X": 800,
+						"Y": 160,
+						"Width": 220,
+						"Height": 100,
+						"Title": "Has Version Field?",
+						"Ports": [
+							{
+								"Hash": "bk-chk-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Evaluate"
+							},
+							{
+								"Hash": "bk-chk-true",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "True"
+							},
+							{
+								"Hash": "bk-chk-false",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "False"
+							}
+						],
+						"Data": {
+							"DataAddress": "TaskOutput.bk-read.FileContent",
+							"CompareValue": "version",
+							"Operator": "contains"
+						}
+					},
+					{
+						"Hash": "bk-copy",
+						"Type": "copy-file",
+						"X": 1100,
+						"Y": 140,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Create Backup",
+						"Ports": [
+							{
+								"Hash": "bk-cp-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "bk-cp-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Done"
+							},
+							{
+								"Hash": "bk-cp-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"Source": "{~D:Record.Operation.SourceFile~}",
+							"TargetFile": "{~D:Record.Operation.SourceFile~}.backup"
+						}
+					},
+					{
+						"Hash": "bk-skip",
+						"Type": "error-message",
+						"X": 800,
+						"Y": 370,
+						"Width": 240,
+						"Height": 80,
+						"Title": "Skip - No Version",
+						"Ports": [
+							{
+								"Hash": "bk-sk-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "bk-sk-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"MessageTemplate": "Skipping backup: file does not contain a version field"
+						}
+					},
+					{
+						"Hash": "bk-rderr",
+						"Type": "error-message",
+						"X": 530,
+						"Y": 370,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Read Error",
+						"Ports": [
+							{
+								"Hash": "bk-rde-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "bk-rde-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"MessageTemplate": "Could not read source file: {~D:Record.Operation.SourceFile~}"
+						}
+					},
+					{
+						"Hash": "bk-end",
+						"Type": "end",
+						"X": 1370,
+						"Y": 260,
+						"Width": 140,
+						"Height": 80,
+						"Title": "End",
+						"Ports": [
+							{
+								"Hash": "bk-end-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							}
+						],
+						"Data": {}
+					}
+				],
+				"Connections": [
+					{
+						"Hash": "bk-c1",
+						"SourceNodeHash": "bk-start",
+						"SourcePortHash": "bk-start-out",
+						"TargetNodeHash": "bk-setpath",
+						"TargetPortHash": "bk-sp-in",
+						"Data": {}
+					},
+					{
+						"Hash": "bk-c2",
+						"SourceNodeHash": "bk-setpath",
+						"SourcePortHash": "bk-sp-done",
+						"TargetNodeHash": "bk-read",
+						"TargetPortHash": "bk-rd-in",
+						"Data": {}
+					},
+					{
+						"Hash": "bk-c3",
+						"SourceNodeHash": "bk-read",
+						"SourcePortHash": "bk-rd-done",
+						"TargetNodeHash": "bk-check",
+						"TargetPortHash": "bk-chk-in",
+						"Data": {}
+					},
+					{
+						"Hash": "bk-c4",
+						"SourceNodeHash": "bk-check",
+						"SourcePortHash": "bk-chk-true",
+						"TargetNodeHash": "bk-copy",
+						"TargetPortHash": "bk-cp-in",
+						"Data": {}
+					},
+					{
+						"Hash": "bk-c5",
+						"SourceNodeHash": "bk-copy",
+						"SourcePortHash": "bk-cp-done",
+						"TargetNodeHash": "bk-end",
+						"TargetPortHash": "bk-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "bk-c6",
+						"SourceNodeHash": "bk-check",
+						"SourcePortHash": "bk-chk-false",
+						"TargetNodeHash": "bk-skip",
+						"TargetPortHash": "bk-sk-in",
+						"Data": {}
+					},
+					{
+						"Hash": "bk-c7",
+						"SourceNodeHash": "bk-skip",
+						"SourcePortHash": "bk-sk-done",
+						"TargetNodeHash": "bk-end",
+						"TargetPortHash": "bk-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "bk-c8",
+						"SourceNodeHash": "bk-read",
+						"SourcePortHash": "bk-rd-err",
+						"TargetNodeHash": "bk-rderr",
+						"TargetPortHash": "bk-rde-in",
+						"Data": {}
+					},
+					{
+						"Hash": "bk-c9",
+						"SourceNodeHash": "bk-rderr",
+						"SourcePortHash": "bk-rde-done",
+						"TargetNodeHash": "bk-end",
+						"TargetPortHash": "bk-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "bk-c10",
+						"SourceNodeHash": "bk-copy",
+						"SourcePortHash": "bk-cp-err",
+						"TargetNodeHash": "bk-end",
+						"TargetPortHash": "bk-end-in",
+						"Data": {}
+					}
+				],
+				"ViewState": {
+					"PanX": 0,
+					"PanY": 0,
+					"Zoom": 1,
+					"SelectedNodeHash": null,
+					"SelectedConnectionHash": null
+				}
+			},
+			"SavedLayouts": [],
+			"InitialGlobalState": {},
+			"InitialOperationState": {},
+			"Hash": "OPR-0011",
+			"CreatedAt": "2026-03-11T18:11:37.211Z",
+			"UpdatedAt": "2026-03-11T18:11:37.211Z"
+		},
+		"OPR-0012": {
+			"Name": "CSV to JSON Converter",
+			"Description": "Reads a CSV file, parses it into records, and writes the output as JSON. Demonstrates read-file, parse-csv, and write-json in a data pipeline.",
+			"Graph": {
+				"Nodes": [
+					{
+						"Hash": "csv-start",
+						"Type": "start",
+						"X": 50,
+						"Y": 200,
+						"Width": 140,
+						"Height": 80,
+						"Title": "Start",
+						"Ports": [
+							{
+								"Hash": "csv-start-out",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Out"
+							}
+						],
+						"Data": {}
+					},
+					{
+						"Hash": "csv-setpaths",
+						"Type": "set-values",
+						"X": 260,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Set File Paths",
+						"Ports": [
+							{
+								"Hash": "csv-sp-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Execute"
+							},
+							{
+								"Hash": "csv-sp-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Mappings": [
+								{
+									"Address": "Operation.InputCSV",
+									"Value": "data.csv"
+								},
+								{
+									"Address": "Operation.OutputJSON",
+									"Value": "data.json"
+								}
+							]
+						}
+					},
+					{
+						"Hash": "csv-read",
+						"Type": "read-file",
+						"X": 530,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Read CSV File",
+						"Ports": [
+							{
+								"Hash": "csv-rd-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "BeginRead"
+							},
+							{
+								"Hash": "csv-rd-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "ReadComplete"
+							},
+							{
+								"Hash": "csv-rd-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"FilePath": "{~D:Record.Operation.InputCSV~}",
+							"Encoding": "utf8"
+						}
+					},
+					{
+						"Hash": "csv-parse",
+						"Type": "parse-csv",
+						"X": 800,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Parse CSV",
+						"Ports": [
+							{
+								"Hash": "csv-ps-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Execute"
+							},
+							{
+								"Hash": "csv-ps-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"SourceAddress": "TaskOutput.csv-read.FileContent",
+							"Delimiter": ",",
+							"HasHeaders": true,
+							"Destination": "Operation.ParsedRecords"
+						}
+					},
+					{
+						"Hash": "csv-check",
+						"Type": "if-conditional",
+						"X": 1070,
+						"Y": 160,
+						"Width": 220,
+						"Height": 100,
+						"Title": "Has Records?",
+						"Ports": [
+							{
+								"Hash": "csv-chk-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Evaluate"
+							},
+							{
+								"Hash": "csv-chk-true",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "True"
+							},
+							{
+								"Hash": "csv-chk-false",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "False"
+							}
+						],
+						"Data": {
+							"DataAddress": "Operation.ParsedRecords",
+							"Operator": "truthy"
+						}
+					},
+					{
+						"Hash": "csv-write",
+						"Type": "write-json",
+						"X": 1360,
+						"Y": 140,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Write JSON",
+						"Ports": [
+							{
+								"Hash": "csv-wj-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "csv-wj-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Done"
+							},
+							{
+								"Hash": "csv-wj-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"File": "{~D:Record.Operation.OutputJSON~}",
+							"Address": "Operation.ParsedRecords"
+						}
+					},
+					{
+						"Hash": "csv-empty",
+						"Type": "error-message",
+						"X": 1070,
+						"Y": 370,
+						"Width": 220,
+						"Height": 80,
+						"Title": "No Records",
+						"Ports": [
+							{
+								"Hash": "csv-em-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "csv-em-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"MessageTemplate": "CSV file contained no parseable records"
+						}
+					},
+					{
+						"Hash": "csv-rderr",
+						"Type": "error-message",
+						"X": 530,
+						"Y": 370,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Read Error",
+						"Ports": [
+							{
+								"Hash": "csv-rde-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "csv-rde-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"MessageTemplate": "Could not read CSV file: {~D:Record.Operation.InputCSV~}"
+						}
+					},
+					{
+						"Hash": "csv-end",
+						"Type": "end",
+						"X": 1630,
+						"Y": 260,
+						"Width": 140,
+						"Height": 80,
+						"Title": "End",
+						"Ports": [
+							{
+								"Hash": "csv-end-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							}
+						],
+						"Data": {}
+					}
+				],
+				"Connections": [
+					{
+						"Hash": "csv-c1",
+						"SourceNodeHash": "csv-start",
+						"SourcePortHash": "csv-start-out",
+						"TargetNodeHash": "csv-setpaths",
+						"TargetPortHash": "csv-sp-in",
+						"Data": {}
+					},
+					{
+						"Hash": "csv-c2",
+						"SourceNodeHash": "csv-setpaths",
+						"SourcePortHash": "csv-sp-done",
+						"TargetNodeHash": "csv-read",
+						"TargetPortHash": "csv-rd-in",
+						"Data": {}
+					},
+					{
+						"Hash": "csv-c3",
+						"SourceNodeHash": "csv-read",
+						"SourcePortHash": "csv-rd-done",
+						"TargetNodeHash": "csv-parse",
+						"TargetPortHash": "csv-ps-in",
+						"Data": {}
+					},
+					{
+						"Hash": "csv-c4",
+						"SourceNodeHash": "csv-parse",
+						"SourcePortHash": "csv-ps-done",
+						"TargetNodeHash": "csv-check",
+						"TargetPortHash": "csv-chk-in",
+						"Data": {}
+					},
+					{
+						"Hash": "csv-c5",
+						"SourceNodeHash": "csv-check",
+						"SourcePortHash": "csv-chk-true",
+						"TargetNodeHash": "csv-write",
+						"TargetPortHash": "csv-wj-in",
+						"Data": {}
+					},
+					{
+						"Hash": "csv-c6",
+						"SourceNodeHash": "csv-write",
+						"SourcePortHash": "csv-wj-done",
+						"TargetNodeHash": "csv-end",
+						"TargetPortHash": "csv-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "csv-c7",
+						"SourceNodeHash": "csv-check",
+						"SourcePortHash": "csv-chk-false",
+						"TargetNodeHash": "csv-empty",
+						"TargetPortHash": "csv-em-in",
+						"Data": {}
+					},
+					{
+						"Hash": "csv-c8",
+						"SourceNodeHash": "csv-empty",
+						"SourcePortHash": "csv-em-done",
+						"TargetNodeHash": "csv-end",
+						"TargetPortHash": "csv-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "csv-c9",
+						"SourceNodeHash": "csv-read",
+						"SourcePortHash": "csv-rd-err",
+						"TargetNodeHash": "csv-rderr",
+						"TargetPortHash": "csv-rde-in",
+						"Data": {}
+					},
+					{
+						"Hash": "csv-c10",
+						"SourceNodeHash": "csv-rderr",
+						"SourcePortHash": "csv-rde-done",
+						"TargetNodeHash": "csv-end",
+						"TargetPortHash": "csv-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "csv-c11",
+						"SourceNodeHash": "csv-write",
+						"SourcePortHash": "csv-wj-err",
+						"TargetNodeHash": "csv-end",
+						"TargetPortHash": "csv-end-in",
+						"Data": {}
+					}
+				],
+				"ViewState": {
+					"PanX": 0,
+					"PanY": 0,
+					"Zoom": 1,
+					"SelectedNodeHash": null,
+					"SelectedConnectionHash": null
+				}
+			},
+			"SavedLayouts": [],
+			"InitialGlobalState": {},
+			"InitialOperationState": {},
+			"Hash": "OPR-0012",
+			"CreatedAt": "2026-03-11T18:11:37.263Z",
+			"UpdatedAt": "2026-03-11T18:11:37.263Z"
+		},
+		"OPR-0013": {
+			"Name": "JSON Config Merge",
+			"Description": "Reads two JSON config files, merges values from the override into the base, and writes the result. Demonstrates read-json, set-values, write-json.",
+			"Graph": {
+				"Nodes": [
+					{
+						"Hash": "jm-start",
+						"Type": "start",
+						"X": 50,
+						"Y": 200,
+						"Width": 140,
+						"Height": 80,
+						"Title": "Start",
+						"Ports": [
+							{
+								"Hash": "jm-start-out",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Out"
+							}
+						],
+						"Data": {}
+					},
+					{
+						"Hash": "jm-read-base",
+						"Type": "read-json",
+						"X": 260,
+						"Y": 160,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Read Base Config",
+						"Ports": [
+							{
+								"Hash": "jm-rb-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "jm-rb-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							},
+							{
+								"Hash": "jm-rb-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"File": "config.base.json",
+							"Destination": "Operation.BaseConfig"
+						}
+					},
+					{
+						"Hash": "jm-read-over",
+						"Type": "read-json",
+						"X": 530,
+						"Y": 160,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Read Override Config",
+						"Ports": [
+							{
+								"Hash": "jm-ro-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "jm-ro-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							},
+							{
+								"Hash": "jm-ro-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"File": "config.override.json",
+							"Destination": "Operation.OverrideConfig"
+						}
+					},
+					{
+						"Hash": "jm-merge",
+						"Type": "set-values",
+						"X": 820,
+						"Y": 160,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Merge Configs",
+						"Ports": [
+							{
+								"Hash": "jm-merge-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Execute"
+							},
+							{
+								"Hash": "jm-merge-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Mappings": [
+								{
+									"Address": "Operation.MergedConfig.base",
+									"Value": "{~D:Record.Operation.BaseConfig~}"
+								},
+								{
+									"Address": "Operation.MergedConfig.overrides",
+									"Value": "{~D:Record.Operation.OverrideConfig~}"
+								}
+							]
+						}
+					},
+					{
+						"Hash": "jm-write",
+						"Type": "write-json",
+						"X": 1110,
+						"Y": 160,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Write Merged",
+						"Ports": [
+							{
+								"Hash": "jm-write-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "jm-write-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Done"
+							},
+							{
+								"Hash": "jm-write-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"File": "config.merged.json",
+							"Address": "Operation.MergedConfig"
+						}
+					},
+					{
+						"Hash": "jm-error",
+						"Type": "error-message",
+						"X": 530,
+						"Y": 360,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Read Error",
+						"Ports": [
+							{
+								"Hash": "jm-error-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "jm-error-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"MessageTemplate": "Failed to read one of the config files"
+						}
+					},
+					{
+						"Hash": "jm-end",
+						"Type": "end",
+						"X": 1380,
+						"Y": 240,
+						"Width": 140,
+						"Height": 80,
+						"Title": "End",
+						"Ports": [
+							{
+								"Hash": "jm-end-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							}
+						],
+						"Data": {}
+					}
+				],
+				"Connections": [
+					{
+						"Hash": "jm-c1",
+						"SourceNodeHash": "jm-start",
+						"SourcePortHash": "jm-start-out",
+						"TargetNodeHash": "jm-read-base",
+						"TargetPortHash": "jm-rb-in",
+						"Data": {}
+					},
+					{
+						"Hash": "jm-c2",
+						"SourceNodeHash": "jm-read-base",
+						"SourcePortHash": "jm-rb-done",
+						"TargetNodeHash": "jm-read-over",
+						"TargetPortHash": "jm-ro-in",
+						"Data": {}
+					},
+					{
+						"Hash": "jm-c3",
+						"SourceNodeHash": "jm-read-over",
+						"SourcePortHash": "jm-ro-done",
+						"TargetNodeHash": "jm-merge",
+						"TargetPortHash": "jm-merge-in",
+						"Data": {}
+					},
+					{
+						"Hash": "jm-c4",
+						"SourceNodeHash": "jm-merge",
+						"SourcePortHash": "jm-merge-done",
+						"TargetNodeHash": "jm-write",
+						"TargetPortHash": "jm-write-in",
+						"Data": {}
+					},
+					{
+						"Hash": "jm-c5",
+						"SourceNodeHash": "jm-write",
+						"SourcePortHash": "jm-write-done",
+						"TargetNodeHash": "jm-end",
+						"TargetPortHash": "jm-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "jm-c6",
+						"SourceNodeHash": "jm-read-base",
+						"SourcePortHash": "jm-rb-err",
+						"TargetNodeHash": "jm-error",
+						"TargetPortHash": "jm-error-in",
+						"Data": {}
+					},
+					{
+						"Hash": "jm-c7",
+						"SourceNodeHash": "jm-read-over",
+						"SourcePortHash": "jm-ro-err",
+						"TargetNodeHash": "jm-error",
+						"TargetPortHash": "jm-error-in",
+						"Data": {}
+					},
+					{
+						"Hash": "jm-c8",
+						"SourceNodeHash": "jm-error",
+						"SourcePortHash": "jm-error-done",
+						"TargetNodeHash": "jm-end",
+						"TargetPortHash": "jm-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "jm-c9",
+						"SourceNodeHash": "jm-write",
+						"SourcePortHash": "jm-write-err",
+						"TargetNodeHash": "jm-end",
+						"TargetPortHash": "jm-end-in",
+						"Data": {}
+					}
+				],
+				"ViewState": {
+					"PanX": 0,
+					"PanY": 0,
+					"Zoom": 1,
+					"SelectedNodeHash": null,
+					"SelectedConnectionHash": null
+				}
+			},
+			"SavedLayouts": [],
+			"InitialGlobalState": {},
+			"InitialOperationState": {},
+			"Hash": "OPR-0013",
+			"CreatedAt": "2026-03-11T18:11:37.417Z",
+			"UpdatedAt": "2026-03-11T18:11:37.417Z"
+		},
+		"OPR-0014": {
+			"Name": "NPM Project Validator",
+			"Description": "Validates an npm project by checking for package.json, verifying it has a name and version, and running npm test. Demonstrates read-json, multiple if-conditionals, and command execution.",
+			"Graph": {
+				"Nodes": [
+					{
+						"Hash": "nv-start",
+						"Type": "start",
+						"X": 50,
+						"Y": 200,
+						"Width": 140,
+						"Height": 80,
+						"Title": "Start",
+						"Ports": [
+							{
+								"Hash": "nv-start-out",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Out"
+							}
+						],
+						"Data": {}
+					},
+					{
+						"Hash": "nv-readpkg",
+						"Type": "read-json",
+						"X": 260,
+						"Y": 180,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Read package.json",
+						"Ports": [
+							{
+								"Hash": "nv-rp-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "nv-rp-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							},
+							{
+								"Hash": "nv-rp-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"File": "package.json",
+							"Destination": "Operation.Package"
+						}
+					},
+					{
+						"Hash": "nv-checkname",
+						"Type": "if-conditional",
+						"X": 550,
+						"Y": 160,
+						"Width": 220,
+						"Height": 100,
+						"Title": "Has Name?",
+						"Ports": [
+							{
+								"Hash": "nv-cn-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Evaluate"
+							},
+							{
+								"Hash": "nv-cn-true",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "True"
+							},
+							{
+								"Hash": "nv-cn-false",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "False"
+							}
+						],
+						"Data": {
+							"DataAddress": "Operation.Package.name",
+							"Operator": "truthy"
+						}
+					},
+					{
+						"Hash": "nv-checkver",
+						"Type": "if-conditional",
+						"X": 840,
+						"Y": 160,
+						"Width": 220,
+						"Height": 100,
+						"Title": "Has Version?",
+						"Ports": [
+							{
+								"Hash": "nv-cv-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Evaluate"
+							},
+							{
+								"Hash": "nv-cv-true",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "True"
+							},
+							{
+								"Hash": "nv-cv-false",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "False"
+							}
+						],
+						"Data": {
+							"DataAddress": "Operation.Package.version",
+							"Operator": "truthy"
+						}
+					},
+					{
+						"Hash": "nv-test",
+						"Type": "command",
+						"X": 1130,
+						"Y": 160,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Run npm test",
+						"Ports": [
+							{
+								"Hash": "nv-ts-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "nv-ts-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							},
+							{
+								"Hash": "nv-ts-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"Command": "npm",
+							"Parameters": "test",
+							"Description": "Run test suite"
+						}
+					},
+					{
+						"Hash": "nv-result",
+						"Type": "template-string",
+						"X": 1400,
+						"Y": 160,
+						"Width": 240,
+						"Height": 80,
+						"Title": "Validation Result",
+						"Ports": [
+							{
+								"Hash": "nv-rs-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							},
+							{
+								"Hash": "nv-rs-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Template": "PASS: {~D:Record.Operation.Package.name~}@{~D:Record.Operation.Package.version~} - tests passed (exit code {~D:Record.TaskOutput.nv-test.ExitCode~})",
+							"Destination": "Operation.ValidationResult"
+						}
+					},
+					{
+						"Hash": "nv-nopkg",
+						"Type": "error-message",
+						"X": 260,
+						"Y": 380,
+						"Width": 220,
+						"Height": 80,
+						"Title": "No package.json",
+						"Ports": [
+							{
+								"Hash": "nv-np-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "nv-np-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"MessageTemplate": "FAIL: package.json not found in current directory"
+						}
+					},
+					{
+						"Hash": "nv-noname",
+						"Type": "error-message",
+						"X": 550,
+						"Y": 380,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Missing Name",
+						"Ports": [
+							{
+								"Hash": "nv-nn-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "nv-nn-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"MessageTemplate": "FAIL: package.json is missing the 'name' field"
+						}
+					},
+					{
+						"Hash": "nv-nover",
+						"Type": "error-message",
+						"X": 840,
+						"Y": 380,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Missing Version",
+						"Ports": [
+							{
+								"Hash": "nv-nv-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "nv-nv-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"MessageTemplate": "FAIL: package.json is missing the 'version' field"
+						}
+					},
+					{
+						"Hash": "nv-testfail",
+						"Type": "error-message",
+						"X": 1130,
+						"Y": 380,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Tests Failed",
+						"Ports": [
+							{
+								"Hash": "nv-tf-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "nv-tf-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"MessageTemplate": "FAIL: npm test exited with errors"
+						}
+					},
+					{
+						"Hash": "nv-end",
+						"Type": "end",
+						"X": 1670,
+						"Y": 300,
+						"Width": 140,
+						"Height": 80,
+						"Title": "End",
+						"Ports": [
+							{
+								"Hash": "nv-end-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							}
+						],
+						"Data": {}
+					}
+				],
+				"Connections": [
+					{
+						"Hash": "nv-c1",
+						"SourceNodeHash": "nv-start",
+						"SourcePortHash": "nv-start-out",
+						"TargetNodeHash": "nv-readpkg",
+						"TargetPortHash": "nv-rp-in",
+						"Data": {}
+					},
+					{
+						"Hash": "nv-c2",
+						"SourceNodeHash": "nv-readpkg",
+						"SourcePortHash": "nv-rp-done",
+						"TargetNodeHash": "nv-checkname",
+						"TargetPortHash": "nv-cn-in",
+						"Data": {}
+					},
+					{
+						"Hash": "nv-c3",
+						"SourceNodeHash": "nv-checkname",
+						"SourcePortHash": "nv-cn-true",
+						"TargetNodeHash": "nv-checkver",
+						"TargetPortHash": "nv-cv-in",
+						"Data": {}
+					},
+					{
+						"Hash": "nv-c4",
+						"SourceNodeHash": "nv-checkver",
+						"SourcePortHash": "nv-cv-true",
+						"TargetNodeHash": "nv-test",
+						"TargetPortHash": "nv-ts-in",
+						"Data": {}
+					},
+					{
+						"Hash": "nv-c5",
+						"SourceNodeHash": "nv-test",
+						"SourcePortHash": "nv-ts-done",
+						"TargetNodeHash": "nv-result",
+						"TargetPortHash": "nv-rs-in",
+						"Data": {}
+					},
+					{
+						"Hash": "nv-c6",
+						"SourceNodeHash": "nv-result",
+						"SourcePortHash": "nv-rs-done",
+						"TargetNodeHash": "nv-end",
+						"TargetPortHash": "nv-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "nv-c7",
+						"SourceNodeHash": "nv-readpkg",
+						"SourcePortHash": "nv-rp-err",
+						"TargetNodeHash": "nv-nopkg",
+						"TargetPortHash": "nv-np-in",
+						"Data": {}
+					},
+					{
+						"Hash": "nv-c8",
+						"SourceNodeHash": "nv-nopkg",
+						"SourcePortHash": "nv-np-done",
+						"TargetNodeHash": "nv-end",
+						"TargetPortHash": "nv-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "nv-c9",
+						"SourceNodeHash": "nv-checkname",
+						"SourcePortHash": "nv-cn-false",
+						"TargetNodeHash": "nv-noname",
+						"TargetPortHash": "nv-nn-in",
+						"Data": {}
+					},
+					{
+						"Hash": "nv-c10",
+						"SourceNodeHash": "nv-noname",
+						"SourcePortHash": "nv-nn-done",
+						"TargetNodeHash": "nv-end",
+						"TargetPortHash": "nv-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "nv-c11",
+						"SourceNodeHash": "nv-checkver",
+						"SourcePortHash": "nv-cv-false",
+						"TargetNodeHash": "nv-nover",
+						"TargetPortHash": "nv-nv-in",
+						"Data": {}
+					},
+					{
+						"Hash": "nv-c12",
+						"SourceNodeHash": "nv-nover",
+						"SourcePortHash": "nv-nv-done",
+						"TargetNodeHash": "nv-end",
+						"TargetPortHash": "nv-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "nv-c13",
+						"SourceNodeHash": "nv-test",
+						"SourcePortHash": "nv-ts-err",
+						"TargetNodeHash": "nv-testfail",
+						"TargetPortHash": "nv-tf-in",
+						"Data": {}
+					},
+					{
+						"Hash": "nv-c14",
+						"SourceNodeHash": "nv-testfail",
+						"SourcePortHash": "nv-tf-done",
+						"TargetNodeHash": "nv-end",
+						"TargetPortHash": "nv-end-in",
+						"Data": {}
+					}
+				],
+				"ViewState": {
+					"PanX": 0,
+					"PanY": 0,
+					"Zoom": 1,
+					"SelectedNodeHash": null,
+					"SelectedConnectionHash": null
+				}
+			},
+			"SavedLayouts": [],
+			"InitialGlobalState": {},
+			"InitialOperationState": {},
+			"Hash": "OPR-0014",
+			"CreatedAt": "2026-03-11T18:11:37.516Z",
+			"UpdatedAt": "2026-03-11T18:11:37.516Z"
+		},
+		"OPR-0015": {
+			"Name": "Template Processor",
+			"Description": "Multi-step text processing pipeline. Initializes project metadata, reads a template, performs chained string replacements, validates for unresolved placeholders, and writes the output. Demonstrates state management and conditional validation.",
+			"Graph": {
+				"Nodes": [
+					{
+						"Hash": "tpl-start",
+						"Type": "start",
+						"X": 50,
+						"Y": 220,
+						"Width": 140,
+						"Height": 80,
+						"Title": "Start",
+						"Ports": [
+							{
+								"Hash": "tpl-start-out",
+								"Direction": "output",
+								"Side": "right",
+								"Label": "Out"
+							}
+						],
+						"Data": {}
+					},
+					{
+						"Hash": "tpl-setvals",
+						"Type": "set-values",
+						"X": 270,
+						"Y": 200,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Set Project Info",
+						"Ports": [
+							{
+								"Hash": "tpl-sv-in",
+								"Direction": "input",
+								"Side": "left",
+								"Label": "Execute"
+							},
+							{
+								"Hash": "tpl-sv-out",
+								"Direction": "output",
+								"Side": "right",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Mappings": [
+								{
+									"Address": "Operation.ProjectName",
+									"Value": "Retold"
+								},
+								{
+									"Address": "Operation.Version",
+									"Value": "3.0.0"
+								},
+								{
+									"Address": "Operation.Author",
+									"Value": "Steven Velozo"
+								}
+							]
+						}
+					},
+					{
+						"Hash": "tpl-read",
+						"Type": "read-file",
+						"X": 550,
+						"Y": 200,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Read Template",
+						"Ports": [
+							{
+								"Hash": "tpl-read-in",
+								"Direction": "input",
+								"Side": "left",
+								"Label": "BeginRead"
+							},
+							{
+								"Hash": "tpl-read-done",
+								"Direction": "output",
+								"Side": "right",
+								"Label": "ReadComplete"
+							},
+							{
+								"Hash": "tpl-read-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"FilePath": "readme.template.md",
+							"Encoding": "utf8"
+						}
+					},
+					{
+						"Hash": "tpl-replace-name",
+						"Type": "replace-string",
+						"X": 830,
+						"Y": 180,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Set Project Name",
+						"Ports": [
+							{
+								"Hash": "tpl-rn-in",
+								"Direction": "input",
+								"Side": "left",
+								"Label": "Replace"
+							},
+							{
+								"Hash": "tpl-rn-done",
+								"Direction": "output",
+								"Side": "right",
+								"Label": "ReplaceComplete"
+							},
+							{
+								"Hash": "tpl-rn-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"InputString": "{~D:Record.TaskOutput.tpl-read.FileContent~}",
+							"SearchString": "${PROJECT_NAME}",
+							"ReplaceString": "{~D:Record.Operation.ProjectName~}"
+						}
+					},
+					{
+						"Hash": "tpl-replace-ver",
+						"Type": "replace-string",
+						"X": 1130,
+						"Y": 180,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Set Version",
+						"Ports": [
+							{
+								"Hash": "tpl-rv-in",
+								"Direction": "input",
+								"Side": "left",
+								"Label": "Replace"
+							},
+							{
+								"Hash": "tpl-rv-done",
+								"Direction": "output",
+								"Side": "right",
+								"Label": "ReplaceComplete"
+							},
+							{
+								"Hash": "tpl-rv-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"InputString": "{~D:Record.TaskOutput.tpl-replace-name.ReplacedString~}",
+							"SearchString": "${VERSION}",
+							"ReplaceString": "{~D:Record.Operation.Version~}"
+						}
+					},
+					{
+						"Hash": "tpl-validate",
+						"Type": "if-conditional",
+						"X": 1430,
+						"Y": 160,
+						"Width": 240,
+						"Height": 100,
+						"Title": "Unresolved Placeholders?",
+						"Ports": [
+							{
+								"Hash": "tpl-val-in",
+								"Direction": "input",
+								"Side": "left",
+								"Label": "Evaluate"
+							},
+							{
+								"Hash": "tpl-val-true",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "True"
+							},
+							{
+								"Hash": "tpl-val-false",
+								"Direction": "output",
+								"Side": "right",
+								"Label": "False"
+							}
+						],
+						"Data": {
+							"DataAddress": "TaskOutput.tpl-replace-ver.ReplacedString",
+							"CompareValue": "${",
+							"Operator": "contains"
+						}
+					},
+					{
+						"Hash": "tpl-warn",
+						"Type": "error-message",
+						"X": 1430,
+						"Y": 380,
+						"Width": 240,
+						"Height": 80,
+						"Title": "Warn: Unresolved",
+						"Ports": [
+							{
+								"Hash": "tpl-warn-in",
+								"Direction": "input",
+								"Side": "left",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "tpl-warn-done",
+								"Direction": "output",
+								"Side": "right",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"MessageTemplate": "Warning: Template still contains unresolved ${...} placeholders after processing"
+						}
+					},
+					{
+						"Hash": "tpl-header",
+						"Type": "string-appender",
+						"X": 1750,
+						"Y": 160,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Add Header",
+						"Ports": [
+							{
+								"Hash": "tpl-hdr-in",
+								"Direction": "input",
+								"Side": "left",
+								"Label": "Append"
+							},
+							{
+								"Hash": "tpl-hdr-done",
+								"Direction": "output",
+								"Side": "right",
+								"Label": "Completed"
+							}
+						],
+						"Data": {
+							"InputString": "{~D:Record.TaskOutput.tpl-replace-ver.ReplacedString~}",
+							"OutputAddress": "Operation.FinalContent"
+						}
+					},
+					{
+						"Hash": "tpl-write",
+						"Type": "write-file",
+						"X": 2050,
+						"Y": 160,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Write Output",
+						"Ports": [
+							{
+								"Hash": "tpl-write-in",
+								"Direction": "input",
+								"Side": "left",
+								"Label": "BeginWrite"
+							},
+							{
+								"Hash": "tpl-write-done",
+								"Direction": "output",
+								"Side": "right",
+								"Label": "WriteComplete"
+							},
+							{
+								"Hash": "tpl-write-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"FilePath": "README.md",
+							"Content": "{~D:Record.Operation.FinalContent~}",
+							"Encoding": "utf8"
+						}
+					},
+					{
+						"Hash": "tpl-end",
+						"Type": "end",
+						"X": 2330,
+						"Y": 260,
+						"Width": 140,
+						"Height": 80,
+						"Title": "End",
+						"Ports": [
+							{
+								"Hash": "tpl-end-in",
+								"Direction": "input",
+								"Side": "left",
+								"Label": "In"
+							}
+						],
+						"Data": {}
+					}
+				],
+				"Connections": [
+					{
+						"Hash": "tpl-c1",
+						"SourceNodeHash": "tpl-start",
+						"SourcePortHash": "tpl-start-out",
+						"TargetNodeHash": "tpl-setvals",
+						"TargetPortHash": "tpl-sv-in",
+						"Data": {}
+					},
+					{
+						"Hash": "tpl-c2",
+						"SourceNodeHash": "tpl-setvals",
+						"SourcePortHash": "tpl-sv-out",
+						"TargetNodeHash": "tpl-read",
+						"TargetPortHash": "tpl-read-in",
+						"Data": {}
+					},
+					{
+						"Hash": "tpl-c3",
+						"SourceNodeHash": "tpl-read",
+						"SourcePortHash": "tpl-read-done",
+						"TargetNodeHash": "tpl-replace-name",
+						"TargetPortHash": "tpl-rn-in",
+						"Data": {}
+					},
+					{
+						"Hash": "tpl-c4",
+						"SourceNodeHash": "tpl-replace-name",
+						"SourcePortHash": "tpl-rn-done",
+						"TargetNodeHash": "tpl-replace-ver",
+						"TargetPortHash": "tpl-rv-in",
+						"Data": {}
+					},
+					{
+						"Hash": "tpl-c5",
+						"SourceNodeHash": "tpl-replace-ver",
+						"SourcePortHash": "tpl-rv-done",
+						"TargetNodeHash": "tpl-validate",
+						"TargetPortHash": "tpl-val-in",
+						"Data": {}
+					},
+					{
+						"Hash": "tpl-c6",
+						"SourceNodeHash": "tpl-validate",
+						"SourcePortHash": "tpl-val-true",
+						"TargetNodeHash": "tpl-warn",
+						"TargetPortHash": "tpl-warn-in",
+						"Data": {}
+					},
+					{
+						"Hash": "tpl-c7",
+						"SourceNodeHash": "tpl-warn",
+						"SourcePortHash": "tpl-warn-done",
+						"TargetNodeHash": "tpl-end",
+						"TargetPortHash": "tpl-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "tpl-c8",
+						"SourceNodeHash": "tpl-validate",
+						"SourcePortHash": "tpl-val-false",
+						"TargetNodeHash": "tpl-header",
+						"TargetPortHash": "tpl-hdr-in",
+						"Data": {}
+					},
+					{
+						"Hash": "tpl-c9",
+						"SourceNodeHash": "tpl-header",
+						"SourcePortHash": "tpl-hdr-done",
+						"TargetNodeHash": "tpl-write",
+						"TargetPortHash": "tpl-write-in",
+						"Data": {}
+					},
+					{
+						"Hash": "tpl-c10",
+						"SourceNodeHash": "tpl-write",
+						"SourcePortHash": "tpl-write-done",
+						"TargetNodeHash": "tpl-end",
+						"TargetPortHash": "tpl-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "tpl-c11",
+						"SourceNodeHash": "tpl-read",
+						"SourcePortHash": "tpl-read-err",
+						"TargetNodeHash": "tpl-end",
+						"TargetPortHash": "tpl-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "tpl-c12",
+						"SourceNodeHash": "tpl-replace-name",
+						"SourcePortHash": "tpl-rn-err",
+						"TargetNodeHash": "tpl-end",
+						"TargetPortHash": "tpl-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "tpl-c13",
+						"SourceNodeHash": "tpl-replace-ver",
+						"SourcePortHash": "tpl-rv-err",
+						"TargetNodeHash": "tpl-end",
+						"TargetPortHash": "tpl-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "tpl-c14",
+						"SourceNodeHash": "tpl-write",
+						"SourcePortHash": "tpl-write-err",
+						"TargetNodeHash": "tpl-end",
+						"TargetPortHash": "tpl-end-in",
+						"Data": {}
+					}
+				],
+				"ViewState": {
+					"PanX": 0,
+					"PanY": 0,
+					"Zoom": 1,
+					"SelectedNodeHash": null,
+					"SelectedConnectionHash": null
+				}
+			},
+			"SavedLayouts": [],
+			"InitialGlobalState": {},
+			"InitialOperationState": {},
+			"Hash": "OPR-0015",
+			"CreatedAt": "2026-03-11T18:11:37.569Z",
+			"UpdatedAt": "2026-03-11T18:11:37.569Z"
+		},
+		"OPR-0016": {
+			"Name": "Config File Processor",
+			"Description": "File-based config processing pipeline. Reads a config template, checks for a placeholder, replaces it with a value, and writes the output. Demonstrates branching, error handling, and file I/O.",
+			"Graph": {
+				"Nodes": [
+					{
+						"Hash": "cfg-start",
+						"Type": "start",
+						"X": 50,
+						"Y": 200,
+						"Width": 140,
+						"Height": 80,
+						"Title": "Start",
+						"Ports": [
+							{
+								"Hash": "cfg-start-out",
+								"Direction": "output",
+								"Side": "right",
+								"Label": "Out"
+							}
+						],
+						"Data": {}
+					},
+					{
+						"Hash": "cfg-read",
+						"Type": "read-file",
+						"X": 270,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Read Config Template",
+						"Ports": [
+							{
+								"Hash": "cfg-read-in",
+								"Direction": "input",
+								"Side": "left",
+								"Label": "BeginRead"
+							},
+							{
+								"Hash": "cfg-read-done",
+								"Direction": "output",
+								"Side": "right",
+								"Label": "ReadComplete"
+							},
+							{
+								"Hash": "cfg-read-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"FilePath": "config.template.json",
+							"Encoding": "utf8"
+						}
+					},
+					{
+						"Hash": "cfg-check",
+						"Type": "if-conditional",
+						"X": 550,
+						"Y": 160,
+						"Width": 220,
+						"Height": 100,
+						"Title": "Has Placeholder?",
+						"Ports": [
+							{
+								"Hash": "cfg-check-in",
+								"Direction": "input",
+								"Side": "left",
+								"Label": "Evaluate"
+							},
+							{
+								"Hash": "cfg-check-true",
+								"Direction": "output",
+								"Side": "right",
+								"Label": "True"
+							},
+							{
+								"Hash": "cfg-check-false",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "False"
+							}
+						],
+						"Data": {
+							"DataAddress": "TaskOutput.cfg-read.FileContent",
+							"CompareValue": "{{API_KEY}}",
+							"Operator": "contains"
+						}
+					},
+					{
+						"Hash": "cfg-replace",
+						"Type": "replace-string",
+						"X": 850,
+						"Y": 140,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Fill In API Key",
+						"Ports": [
+							{
+								"Hash": "cfg-replace-in",
+								"Direction": "input",
+								"Side": "left",
+								"Label": "Replace"
+							},
+							{
+								"Hash": "cfg-replace-done",
+								"Direction": "output",
+								"Side": "right",
+								"Label": "ReplaceComplete"
+							},
+							{
+								"Hash": "cfg-replace-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"InputString": "{~D:Record.TaskOutput.cfg-read.FileContent~}",
+							"SearchString": "{{API_KEY}}",
+							"ReplaceString": "sk-live-abc123def456"
+						}
+					},
+					{
+						"Hash": "cfg-write",
+						"Type": "write-file",
+						"X": 1150,
+						"Y": 140,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Write Config",
+						"Ports": [
+							{
+								"Hash": "cfg-write-in",
+								"Direction": "input",
+								"Side": "left",
+								"Label": "BeginWrite"
+							},
+							{
+								"Hash": "cfg-write-done",
+								"Direction": "output",
+								"Side": "right",
+								"Label": "WriteComplete"
+							},
+							{
+								"Hash": "cfg-write-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"FilePath": "config.json",
+							"Content": "{~D:Record.TaskOutput.cfg-replace.ReplacedString~}",
+							"Encoding": "utf8"
+						}
+					},
+					{
+						"Hash": "cfg-error",
+						"Type": "error-message",
+						"X": 850,
+						"Y": 340,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Missing Placeholder",
+						"Ports": [
+							{
+								"Hash": "cfg-error-in",
+								"Direction": "input",
+								"Side": "left",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "cfg-error-done",
+								"Direction": "output",
+								"Side": "right",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"MessageTemplate": "Config template does not contain the {{API_KEY}} placeholder"
+						}
+					},
+					{
+						"Hash": "cfg-end",
+						"Type": "end",
+						"X": 1430,
+						"Y": 220,
+						"Width": 140,
+						"Height": 80,
+						"Title": "End",
+						"Ports": [
+							{
+								"Hash": "cfg-end-in",
+								"Direction": "input",
+								"Side": "left",
+								"Label": "In"
+							}
+						],
+						"Data": {}
+					}
+				],
+				"Connections": [
+					{
+						"Hash": "cfg-c1",
+						"SourceNodeHash": "cfg-start",
+						"SourcePortHash": "cfg-start-out",
+						"TargetNodeHash": "cfg-read",
+						"TargetPortHash": "cfg-read-in",
+						"Data": {}
+					},
+					{
+						"Hash": "cfg-c2",
+						"SourceNodeHash": "cfg-read",
+						"SourcePortHash": "cfg-read-done",
+						"TargetNodeHash": "cfg-check",
+						"TargetPortHash": "cfg-check-in",
+						"Data": {}
+					},
+					{
+						"Hash": "cfg-c3",
+						"SourceNodeHash": "cfg-check",
+						"SourcePortHash": "cfg-check-true",
+						"TargetNodeHash": "cfg-replace",
+						"TargetPortHash": "cfg-replace-in",
+						"Data": {}
+					},
+					{
+						"Hash": "cfg-c4",
+						"SourceNodeHash": "cfg-replace",
+						"SourcePortHash": "cfg-replace-done",
+						"TargetNodeHash": "cfg-write",
+						"TargetPortHash": "cfg-write-in",
+						"Data": {}
+					},
+					{
+						"Hash": "cfg-c5",
+						"SourceNodeHash": "cfg-write",
+						"SourcePortHash": "cfg-write-done",
+						"TargetNodeHash": "cfg-end",
+						"TargetPortHash": "cfg-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "cfg-c6",
+						"SourceNodeHash": "cfg-check",
+						"SourcePortHash": "cfg-check-false",
+						"TargetNodeHash": "cfg-error",
+						"TargetPortHash": "cfg-error-in",
+						"Data": {}
+					},
+					{
+						"Hash": "cfg-c7",
+						"SourceNodeHash": "cfg-error",
+						"SourcePortHash": "cfg-error-done",
+						"TargetNodeHash": "cfg-end",
+						"TargetPortHash": "cfg-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "cfg-c8",
+						"SourceNodeHash": "cfg-read",
+						"SourcePortHash": "cfg-read-err",
+						"TargetNodeHash": "cfg-end",
+						"TargetPortHash": "cfg-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "cfg-c9",
+						"SourceNodeHash": "cfg-replace",
+						"SourcePortHash": "cfg-replace-err",
+						"TargetNodeHash": "cfg-end",
+						"TargetPortHash": "cfg-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "cfg-c10",
+						"SourceNodeHash": "cfg-write",
+						"SourcePortHash": "cfg-write-err",
+						"TargetNodeHash": "cfg-end",
+						"TargetPortHash": "cfg-end-in",
+						"Data": {}
+					}
+				],
+				"ViewState": {
+					"PanX": 0,
+					"PanY": 0,
+					"Zoom": 1,
+					"SelectedNodeHash": null,
+					"SelectedConnectionHash": null
+				}
+			},
+			"SavedLayouts": [],
+			"InitialGlobalState": {},
+			"InitialOperationState": {},
+			"Hash": "OPR-0016",
+			"CreatedAt": "2026-03-11T18:11:37.680Z",
+			"UpdatedAt": "2026-03-11T18:11:37.680Z"
+		},
+		"OPR-0017": {
+			"Name": "Directory Inventory",
+			"Description": "Lists files in a directory, counts them, and writes an inventory report. Demonstrates list-files, set-values, template-string, and write-file.",
+			"Graph": {
+				"Nodes": [
+					{
+						"Hash": "inv-start",
+						"Type": "start",
+						"X": 50,
+						"Y": 200,
+						"Width": 140,
+						"Height": 80,
+						"Title": "Start",
+						"Ports": [
+							{
+								"Hash": "inv-start-out",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Out"
+							}
+						],
+						"Data": {}
+					},
+					{
+						"Hash": "inv-setdir",
+						"Type": "set-values",
+						"X": 260,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Set Target Dir",
+						"Ports": [
+							{
+								"Hash": "inv-setdir-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Execute"
+							},
+							{
+								"Hash": "inv-setdir-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Mappings": [
+								{
+									"Address": "Operation.TargetDir",
+									"Value": "."
+								},
+								{
+									"Address": "Operation.ReportName",
+									"Value": "inventory-report.txt"
+								}
+							]
+						}
+					},
+					{
+						"Hash": "inv-list",
+						"Type": "list-files",
+						"X": 530,
+						"Y": 180,
+						"Width": 200,
+						"Height": 100,
+						"Title": "List Files",
+						"Ports": [
+							{
+								"Hash": "inv-list-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "inv-list-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							},
+							{
+								"Hash": "inv-list-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"Folder": "{~D:Record.Operation.TargetDir~}",
+							"Pattern": "*",
+							"Destination": "Operation.FileList"
+						}
+					},
+					{
+						"Hash": "inv-template",
+						"Type": "template-string",
+						"X": 800,
+						"Y": 180,
+						"Width": 240,
+						"Height": 80,
+						"Title": "Build Report",
+						"Ports": [
+							{
+								"Hash": "inv-template-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							},
+							{
+								"Hash": "inv-template-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Template": "Directory Inventory Report\n========================\nDirectory: {~D:Record.Operation.TargetDir~}\nGenerated: {~D:Record.Operation.ReportName~}\n",
+							"Destination": "Operation.ReportContent"
+						}
+					},
+					{
+						"Hash": "inv-write",
+						"Type": "write-file",
+						"X": 1110,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Save Report",
+						"Ports": [
+							{
+								"Hash": "inv-write-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "BeginWrite"
+							},
+							{
+								"Hash": "inv-write-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "WriteComplete"
+							},
+							{
+								"Hash": "inv-write-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"FilePath": "{~D:Record.Operation.ReportName~}",
+							"Content": "{~D:Record.Operation.ReportContent~}",
+							"Encoding": "utf8"
+						}
+					},
+					{
+						"Hash": "inv-error",
+						"Type": "error-message",
+						"X": 530,
+						"Y": 380,
+						"Width": 220,
+						"Height": 80,
+						"Title": "List Error",
+						"Ports": [
+							{
+								"Hash": "inv-error-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "inv-error-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"MessageTemplate": "Failed to list directory: {~D:Record.Operation.TargetDir~}"
+						}
+					},
+					{
+						"Hash": "inv-end",
+						"Type": "end",
+						"X": 1380,
+						"Y": 260,
+						"Width": 140,
+						"Height": 80,
+						"Title": "End",
+						"Ports": [
+							{
+								"Hash": "inv-end-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							}
+						],
+						"Data": {}
+					}
+				],
+				"Connections": [
+					{
+						"Hash": "inv-c1",
+						"SourceNodeHash": "inv-start",
+						"SourcePortHash": "inv-start-out",
+						"TargetNodeHash": "inv-setdir",
+						"TargetPortHash": "inv-setdir-in",
+						"Data": {}
+					},
+					{
+						"Hash": "inv-c2",
+						"SourceNodeHash": "inv-setdir",
+						"SourcePortHash": "inv-setdir-done",
+						"TargetNodeHash": "inv-list",
+						"TargetPortHash": "inv-list-in",
+						"Data": {}
+					},
+					{
+						"Hash": "inv-c3",
+						"SourceNodeHash": "inv-list",
+						"SourcePortHash": "inv-list-done",
+						"TargetNodeHash": "inv-template",
+						"TargetPortHash": "inv-template-in",
+						"Data": {}
+					},
+					{
+						"Hash": "inv-c4",
+						"SourceNodeHash": "inv-template",
+						"SourcePortHash": "inv-template-done",
+						"TargetNodeHash": "inv-write",
+						"TargetPortHash": "inv-write-in",
+						"Data": {}
+					},
+					{
+						"Hash": "inv-c5",
+						"SourceNodeHash": "inv-write",
+						"SourcePortHash": "inv-write-done",
+						"TargetNodeHash": "inv-end",
+						"TargetPortHash": "inv-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "inv-c6",
+						"SourceNodeHash": "inv-list",
+						"SourcePortHash": "inv-list-err",
+						"TargetNodeHash": "inv-error",
+						"TargetPortHash": "inv-error-in",
+						"Data": {}
+					},
+					{
+						"Hash": "inv-c7",
+						"SourceNodeHash": "inv-error",
+						"SourcePortHash": "inv-error-done",
+						"TargetNodeHash": "inv-end",
+						"TargetPortHash": "inv-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "inv-c8",
+						"SourceNodeHash": "inv-write",
+						"SourcePortHash": "inv-write-err",
+						"TargetNodeHash": "inv-end",
+						"TargetPortHash": "inv-end-in",
+						"Data": {}
+					}
+				],
+				"ViewState": {
+					"PanX": 0,
+					"PanY": 0,
+					"Zoom": 1,
+					"SelectedNodeHash": null,
+					"SelectedConnectionHash": null
+				}
+			},
+			"SavedLayouts": [],
+			"InitialGlobalState": {},
+			"InitialOperationState": {},
+			"Hash": "OPR-0017",
+			"CreatedAt": "2026-03-11T18:11:58.089Z",
+			"UpdatedAt": "2026-03-11T18:11:58.089Z"
+		},
+		"OPR-0018": {
+			"Name": "Expression Calculator",
+			"Description": "Takes user input, evaluates a mathematical expression, and writes the result. Demonstrates value-input, expression-solver, template-string, and write-file.",
+			"Graph": {
+				"Nodes": [
+					{
+						"Hash": "ec-start",
+						"Type": "start",
+						"X": 50,
+						"Y": 200,
+						"Width": 140,
+						"Height": 80,
+						"Title": "Start",
+						"Ports": [
+							{
+								"Hash": "ec-start-out",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Out"
+							}
+						],
+						"Data": {}
+					},
+					{
+						"Hash": "ec-input",
+						"Type": "value-input",
+						"X": 260,
+						"Y": 180,
+						"Width": 240,
+						"Height": 100,
+						"Title": "Enter Expression",
+						"Ports": [
+							{
+								"Hash": "ec-inp-req",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "RequestInput"
+							},
+							{
+								"Hash": "ec-inp-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "ValueInputComplete"
+							}
+						],
+						"Data": {
+							"PromptMessage": "Enter a math expression (e.g. 2+3*4)",
+							"OutputAddress": "Operation.Expression"
+						}
+					},
+					{
+						"Hash": "ec-solve",
+						"Type": "expression-solver",
+						"X": 580,
+						"Y": 180,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Evaluate Expression",
+						"Ports": [
+							{
+								"Hash": "ec-slv-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							},
+							{
+								"Hash": "ec-slv-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Expression": "{~D:Record.Operation.Expression~}",
+							"Destination": "Operation.Result"
+						}
+					},
+					{
+						"Hash": "ec-format",
+						"Type": "template-string",
+						"X": 870,
+						"Y": 180,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Format Result",
+						"Ports": [
+							{
+								"Hash": "ec-fmt-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							},
+							{
+								"Hash": "ec-fmt-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Template": "Expression: {~D:Record.Operation.Expression~}\nResult: {~D:Record.Operation.Result~}\n",
+							"Destination": "Operation.Output"
+						}
+					},
+					{
+						"Hash": "ec-write",
+						"Type": "write-file",
+						"X": 1160,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Save Result",
+						"Ports": [
+							{
+								"Hash": "ec-wr-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "BeginWrite"
+							},
+							{
+								"Hash": "ec-wr-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "WriteComplete"
+							},
+							{
+								"Hash": "ec-wr-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"FilePath": "calc-result.txt",
+							"Content": "{~D:Record.Operation.Output~}",
+							"Encoding": "utf8"
+						}
+					},
+					{
+						"Hash": "ec-end",
+						"Type": "end",
+						"X": 1430,
+						"Y": 260,
+						"Width": 140,
+						"Height": 80,
+						"Title": "End",
+						"Ports": [
+							{
+								"Hash": "ec-end-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							}
+						],
+						"Data": {}
+					}
+				],
+				"Connections": [
+					{
+						"Hash": "ec-c1",
+						"SourceNodeHash": "ec-start",
+						"SourcePortHash": "ec-start-out",
+						"TargetNodeHash": "ec-input",
+						"TargetPortHash": "ec-inp-req",
+						"Data": {}
+					},
+					{
+						"Hash": "ec-c2",
+						"SourceNodeHash": "ec-input",
+						"SourcePortHash": "ec-inp-done",
+						"TargetNodeHash": "ec-solve",
+						"TargetPortHash": "ec-slv-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ec-c3",
+						"SourceNodeHash": "ec-solve",
+						"SourcePortHash": "ec-slv-done",
+						"TargetNodeHash": "ec-format",
+						"TargetPortHash": "ec-fmt-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ec-c4",
+						"SourceNodeHash": "ec-format",
+						"SourcePortHash": "ec-fmt-done",
+						"TargetNodeHash": "ec-write",
+						"TargetPortHash": "ec-wr-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ec-c5",
+						"SourceNodeHash": "ec-write",
+						"SourcePortHash": "ec-wr-done",
+						"TargetNodeHash": "ec-end",
+						"TargetPortHash": "ec-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ec-c6",
+						"SourceNodeHash": "ec-write",
+						"SourcePortHash": "ec-wr-err",
+						"TargetNodeHash": "ec-end",
+						"TargetPortHash": "ec-end-in",
+						"Data": {}
+					}
+				],
+				"ViewState": {
+					"PanX": 0,
+					"PanY": 0,
+					"Zoom": 1,
+					"SelectedNodeHash": null,
+					"SelectedConnectionHash": null
+				}
+			},
+			"SavedLayouts": [],
+			"InitialGlobalState": {},
+			"InitialOperationState": {},
+			"Hash": "OPR-0018",
+			"CreatedAt": "2026-03-11T18:11:58.092Z",
+			"UpdatedAt": "2026-03-11T18:11:58.092Z"
+		},
+		"OPR-0019": {
+			"Name": "Log Line Counter",
+			"Description": "Reads a log file, splits it into lines, loops through each to count ERROR occurrences, and writes a summary. Demonstrates split-execute looping with if-conditional counting.",
+			"Graph": {
+				"Nodes": [
+					{
+						"Hash": "lc-start",
+						"Type": "start",
+						"X": 50,
+						"Y": 200,
+						"Width": 140,
+						"Height": 80,
+						"Title": "Start",
+						"Ports": [
+							{
+								"Hash": "lc-start-out",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Out"
+							}
+						],
+						"Data": {}
+					},
+					{
+						"Hash": "lc-init",
+						"Type": "set-values",
+						"X": 260,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Initialize Counter",
+						"Ports": [
+							{
+								"Hash": "lc-init-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Execute"
+							},
+							{
+								"Hash": "lc-init-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Mappings": [
+								{
+									"Address": "Operation.ErrorCount",
+									"Value": "0"
+								},
+								{
+									"Address": "Operation.LogFile",
+									"Value": "application.log"
+								}
+							]
+						}
+					},
+					{
+						"Hash": "lc-read",
+						"Type": "read-file",
+						"X": 530,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Read Log File",
+						"Ports": [
+							{
+								"Hash": "lc-rd-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "BeginRead"
+							},
+							{
+								"Hash": "lc-rd-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "ReadComplete"
+							},
+							{
+								"Hash": "lc-rd-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"FilePath": "{~D:Record.Operation.LogFile~}",
+							"Encoding": "utf8"
+						}
+					},
+					{
+						"Hash": "lc-split",
+						"Type": "split-execute",
+						"X": 800,
+						"Y": 160,
+						"Width": 220,
+						"Height": 120,
+						"Title": "Split Into Lines",
+						"Ports": [
+							{
+								"Hash": "lc-spl-begin",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "PerformSplit"
+							},
+							{
+								"Hash": "lc-spl-step",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "StepComplete"
+							},
+							{
+								"Hash": "lc-spl-token",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "TokenDataSent"
+							},
+							{
+								"Hash": "lc-spl-alldone",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "CompletedAllSubtasks"
+							}
+						],
+						"Data": {
+							"InputString": "{~D:Record.TaskOutput.lc-read.FileContent~}",
+							"SplitDelimiter": "\n"
+						}
+					},
+					{
+						"Hash": "lc-check",
+						"Type": "if-conditional",
+						"X": 1100,
+						"Y": 140,
+						"Width": 220,
+						"Height": 100,
+						"Title": "Is Error Line?",
+						"Ports": [
+							{
+								"Hash": "lc-chk-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Evaluate"
+							},
+							{
+								"Hash": "lc-chk-true",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "True"
+							},
+							{
+								"Hash": "lc-chk-false",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "False"
+							}
+						],
+						"Data": {
+							"DataAddress": "TaskOutput.lc-split.CurrentToken",
+							"CompareValue": "ERROR",
+							"Operator": "contains"
+						}
+					},
+					{
+						"Hash": "lc-increment",
+						"Type": "expression-solver",
+						"X": 1400,
+						"Y": 120,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Increment Count",
+						"Ports": [
+							{
+								"Hash": "lc-inc-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							},
+							{
+								"Hash": "lc-inc-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Expression": "{~D:Record.Operation.ErrorCount~}+1",
+							"Destination": "Operation.ErrorCount"
+						}
+					},
+					{
+						"Hash": "lc-summary",
+						"Type": "template-string",
+						"X": 1100,
+						"Y": 380,
+						"Width": 240,
+						"Height": 80,
+						"Title": "Build Summary",
+						"Ports": [
+							{
+								"Hash": "lc-sum-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							},
+							{
+								"Hash": "lc-sum-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"Template": "Log Analysis Complete\nFile: {~D:Record.Operation.LogFile~}\nError lines found: {~D:Record.Operation.ErrorCount~}\n",
+							"Destination": "Operation.Summary"
+						}
+					},
+					{
+						"Hash": "lc-write",
+						"Type": "write-file",
+						"X": 1400,
+						"Y": 380,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Save Summary",
+						"Ports": [
+							{
+								"Hash": "lc-wr-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "BeginWrite"
+							},
+							{
+								"Hash": "lc-wr-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "WriteComplete"
+							},
+							{
+								"Hash": "lc-wr-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"FilePath": "log-analysis.txt",
+							"Content": "{~D:Record.Operation.Summary~}",
+							"Encoding": "utf8"
+						}
+					},
+					{
+						"Hash": "lc-rderr",
+						"Type": "error-message",
+						"X": 530,
+						"Y": 380,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Read Error",
+						"Ports": [
+							{
+								"Hash": "lc-rde-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "lc-rde-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"MessageTemplate": "Could not read log file: {~D:Record.Operation.LogFile~}"
+						}
+					},
+					{
+						"Hash": "lc-end",
+						"Type": "end",
+						"X": 1670,
+						"Y": 300,
+						"Width": 140,
+						"Height": 80,
+						"Title": "End",
+						"Ports": [
+							{
+								"Hash": "lc-end-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							}
+						],
+						"Data": {}
+					}
+				],
+				"Connections": [
+					{
+						"Hash": "lc-c1",
+						"SourceNodeHash": "lc-start",
+						"SourcePortHash": "lc-start-out",
+						"TargetNodeHash": "lc-init",
+						"TargetPortHash": "lc-init-in",
+						"Data": {}
+					},
+					{
+						"Hash": "lc-c2",
+						"SourceNodeHash": "lc-init",
+						"SourcePortHash": "lc-init-done",
+						"TargetNodeHash": "lc-read",
+						"TargetPortHash": "lc-rd-in",
+						"Data": {}
+					},
+					{
+						"Hash": "lc-c3",
+						"SourceNodeHash": "lc-read",
+						"SourcePortHash": "lc-rd-done",
+						"TargetNodeHash": "lc-split",
+						"TargetPortHash": "lc-spl-begin",
+						"Data": {}
+					},
+					{
+						"Hash": "lc-c4",
+						"SourceNodeHash": "lc-split",
+						"SourcePortHash": "lc-spl-token",
+						"TargetNodeHash": "lc-check",
+						"TargetPortHash": "lc-chk-in",
+						"Data": {}
+					},
+					{
+						"Hash": "lc-c5",
+						"SourceNodeHash": "lc-check",
+						"SourcePortHash": "lc-chk-true",
+						"TargetNodeHash": "lc-increment",
+						"TargetPortHash": "lc-inc-in",
+						"Data": {}
+					},
+					{
+						"Hash": "lc-c6",
+						"SourceNodeHash": "lc-increment",
+						"SourcePortHash": "lc-inc-done",
+						"TargetNodeHash": "lc-split",
+						"TargetPortHash": "lc-spl-step",
+						"Data": {}
+					},
+					{
+						"Hash": "lc-c7",
+						"SourceNodeHash": "lc-check",
+						"SourcePortHash": "lc-chk-false",
+						"TargetNodeHash": "lc-split",
+						"TargetPortHash": "lc-spl-step",
+						"Data": {}
+					},
+					{
+						"Hash": "lc-c8",
+						"SourceNodeHash": "lc-split",
+						"SourcePortHash": "lc-spl-alldone",
+						"TargetNodeHash": "lc-summary",
+						"TargetPortHash": "lc-sum-in",
+						"Data": {}
+					},
+					{
+						"Hash": "lc-c9",
+						"SourceNodeHash": "lc-summary",
+						"SourcePortHash": "lc-sum-done",
+						"TargetNodeHash": "lc-write",
+						"TargetPortHash": "lc-wr-in",
+						"Data": {}
+					},
+					{
+						"Hash": "lc-c10",
+						"SourceNodeHash": "lc-write",
+						"SourcePortHash": "lc-wr-done",
+						"TargetNodeHash": "lc-end",
+						"TargetPortHash": "lc-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "lc-c11",
+						"SourceNodeHash": "lc-read",
+						"SourcePortHash": "lc-rd-err",
+						"TargetNodeHash": "lc-rderr",
+						"TargetPortHash": "lc-rde-in",
+						"Data": {}
+					},
+					{
+						"Hash": "lc-c12",
+						"SourceNodeHash": "lc-rderr",
+						"SourcePortHash": "lc-rde-done",
+						"TargetNodeHash": "lc-end",
+						"TargetPortHash": "lc-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "lc-c13",
+						"SourceNodeHash": "lc-write",
+						"SourcePortHash": "lc-wr-err",
+						"TargetNodeHash": "lc-end",
+						"TargetPortHash": "lc-end-in",
+						"Data": {}
+					}
+				],
+				"ViewState": {
+					"PanX": 0,
+					"PanY": 0,
+					"Zoom": 1,
+					"SelectedNodeHash": null,
+					"SelectedConnectionHash": null
+				}
+			},
+			"SavedLayouts": [],
+			"InitialGlobalState": {},
+			"InitialOperationState": {},
+			"Hash": "OPR-0019",
+			"CreatedAt": "2026-03-11T18:11:58.094Z",
+			"UpdatedAt": "2026-03-11T18:11:58.094Z"
+		},
+		"OPR-0020": {
+			"Name": "Text Sanitizer",
+			"Description": "Reads a text file and applies multiple replace-string passes to strip unwanted characters. Demonstrates chaining multiple replace-string nodes in sequence.",
+			"Graph": {
+				"Nodes": [
+					{
+						"Hash": "ts-start",
+						"Type": "start",
+						"X": 50,
+						"Y": 200,
+						"Width": 140,
+						"Height": 80,
+						"Title": "Start",
+						"Ports": [
+							{
+								"Hash": "ts-start-out",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Out"
+							}
+						],
+						"Data": {}
+					},
+					{
+						"Hash": "ts-input",
+						"Type": "value-input",
+						"X": 260,
+						"Y": 180,
+						"Width": 220,
+						"Height": 100,
+						"Title": "Enter File Path",
+						"Ports": [
+							{
+								"Hash": "ts-inp-req",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "RequestInput"
+							},
+							{
+								"Hash": "ts-inp-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "ValueInputComplete"
+							}
+						],
+						"Data": {
+							"PromptMessage": "Enter the path to the text file to sanitize",
+							"OutputAddress": "Operation.FilePath"
+						}
+					},
+					{
+						"Hash": "ts-read",
+						"Type": "read-file",
+						"X": 550,
+						"Y": 180,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Read File",
+						"Ports": [
+							{
+								"Hash": "ts-rd-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "BeginRead"
+							},
+							{
+								"Hash": "ts-rd-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "ReadComplete"
+							},
+							{
+								"Hash": "ts-rd-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"FilePath": "{~D:Record.Operation.FilePath~}",
+							"Encoding": "utf8"
+						}
+					},
+					{
+						"Hash": "ts-strip-tabs",
+						"Type": "replace-string",
+						"X": 820,
+						"Y": 180,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Tabs to Spaces",
+						"Ports": [
+							{
+								"Hash": "ts-r1-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Replace"
+							},
+							{
+								"Hash": "ts-r1-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "ReplaceComplete"
+							},
+							{
+								"Hash": "ts-r1-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"InputString": "{~D:Record.TaskOutput.ts-read.FileContent~}",
+							"SearchString": "\t",
+							"ReplaceString": "  "
+						}
+					},
+					{
+						"Hash": "ts-strip-cr",
+						"Type": "replace-string",
+						"X": 1110,
+						"Y": 180,
+						"Width": 220,
+						"Height": 80,
+						"Title": "Strip Carriage Returns",
+						"Ports": [
+							{
+								"Hash": "ts-r2-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Replace"
+							},
+							{
+								"Hash": "ts-r2-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "ReplaceComplete"
+							},
+							{
+								"Hash": "ts-r2-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"InputString": "{~D:Record.TaskOutput.ts-strip-tabs.ReplacedString~}",
+							"SearchString": "\r",
+							"ReplaceString": ""
+						}
+					},
+					{
+						"Hash": "ts-strip-double",
+						"Type": "replace-string",
+						"X": 1400,
+						"Y": 180,
+						"Width": 240,
+						"Height": 80,
+						"Title": "Collapse Double Spaces",
+						"Ports": [
+							{
+								"Hash": "ts-r3-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Replace"
+							},
+							{
+								"Hash": "ts-r3-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "ReplaceComplete"
+							},
+							{
+								"Hash": "ts-r3-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"InputString": "{~D:Record.TaskOutput.ts-strip-cr.ReplacedString~}",
+							"SearchString": "  ",
+							"ReplaceString": " "
+						}
+					},
+					{
+						"Hash": "ts-write",
+						"Type": "write-file",
+						"X": 1400,
+						"Y": 360,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Write Sanitized",
+						"Ports": [
+							{
+								"Hash": "ts-wr-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "BeginWrite"
+							},
+							{
+								"Hash": "ts-wr-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "WriteComplete"
+							},
+							{
+								"Hash": "ts-wr-err",
+								"Direction": "output",
+								"Side": "bottom",
+								"Label": "Error"
+							}
+						],
+						"Data": {
+							"FilePath": "{~D:Record.Operation.FilePath~}.sanitized",
+							"Content": "{~D:Record.TaskOutput.ts-strip-double.ReplacedString~}",
+							"Encoding": "utf8"
+						}
+					},
+					{
+						"Hash": "ts-rderr",
+						"Type": "error-message",
+						"X": 550,
+						"Y": 380,
+						"Width": 200,
+						"Height": 80,
+						"Title": "Read Error",
+						"Ports": [
+							{
+								"Hash": "ts-rde-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "Trigger"
+							},
+							{
+								"Hash": "ts-rde-done",
+								"Direction": "output",
+								"Side": "right-bottom",
+								"Label": "Complete"
+							}
+						],
+						"Data": {
+							"MessageTemplate": "Could not read file: {~D:Record.Operation.FilePath~}"
+						}
+					},
+					{
+						"Hash": "ts-end",
+						"Type": "end",
+						"X": 1670,
+						"Y": 300,
+						"Width": 140,
+						"Height": 80,
+						"Title": "End",
+						"Ports": [
+							{
+								"Hash": "ts-end-in",
+								"Direction": "input",
+								"Side": "left-bottom",
+								"Label": "In"
+							}
+						],
+						"Data": {}
+					}
+				],
+				"Connections": [
+					{
+						"Hash": "ts-c1",
+						"SourceNodeHash": "ts-start",
+						"SourcePortHash": "ts-start-out",
+						"TargetNodeHash": "ts-input",
+						"TargetPortHash": "ts-inp-req",
+						"Data": {}
+					},
+					{
+						"Hash": "ts-c2",
+						"SourceNodeHash": "ts-input",
+						"SourcePortHash": "ts-inp-done",
+						"TargetNodeHash": "ts-read",
+						"TargetPortHash": "ts-rd-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ts-c3",
+						"SourceNodeHash": "ts-read",
+						"SourcePortHash": "ts-rd-done",
+						"TargetNodeHash": "ts-strip-tabs",
+						"TargetPortHash": "ts-r1-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ts-c4",
+						"SourceNodeHash": "ts-strip-tabs",
+						"SourcePortHash": "ts-r1-done",
+						"TargetNodeHash": "ts-strip-cr",
+						"TargetPortHash": "ts-r2-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ts-c5",
+						"SourceNodeHash": "ts-strip-cr",
+						"SourcePortHash": "ts-r2-done",
+						"TargetNodeHash": "ts-strip-double",
+						"TargetPortHash": "ts-r3-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ts-c6",
+						"SourceNodeHash": "ts-strip-double",
+						"SourcePortHash": "ts-r3-done",
+						"TargetNodeHash": "ts-write",
+						"TargetPortHash": "ts-wr-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ts-c7",
+						"SourceNodeHash": "ts-write",
+						"SourcePortHash": "ts-wr-done",
+						"TargetNodeHash": "ts-end",
+						"TargetPortHash": "ts-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ts-c8",
+						"SourceNodeHash": "ts-read",
+						"SourcePortHash": "ts-rd-err",
+						"TargetNodeHash": "ts-rderr",
+						"TargetPortHash": "ts-rde-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ts-c9",
+						"SourceNodeHash": "ts-rderr",
+						"SourcePortHash": "ts-rde-done",
+						"TargetNodeHash": "ts-end",
+						"TargetPortHash": "ts-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ts-c10",
+						"SourceNodeHash": "ts-write",
+						"SourcePortHash": "ts-wr-err",
+						"TargetNodeHash": "ts-end",
+						"TargetPortHash": "ts-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ts-c11",
+						"SourceNodeHash": "ts-strip-tabs",
+						"SourcePortHash": "ts-r1-err",
+						"TargetNodeHash": "ts-end",
+						"TargetPortHash": "ts-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ts-c12",
+						"SourceNodeHash": "ts-strip-cr",
+						"SourcePortHash": "ts-r2-err",
+						"TargetNodeHash": "ts-end",
+						"TargetPortHash": "ts-end-in",
+						"Data": {}
+					},
+					{
+						"Hash": "ts-c13",
+						"SourceNodeHash": "ts-strip-double",
+						"SourcePortHash": "ts-r3-err",
+						"TargetNodeHash": "ts-end",
+						"TargetPortHash": "ts-end-in",
+						"Data": {}
+					}
+				],
+				"ViewState": {
+					"PanX": 0,
+					"PanY": 0,
+					"Zoom": 1,
+					"SelectedNodeHash": null,
+					"SelectedConnectionHash": null
+				}
+			},
+			"SavedLayouts": [],
+			"InitialGlobalState": {},
+			"InitialOperationState": {},
+			"Hash": "OPR-0020",
+			"CreatedAt": "2026-03-11T18:11:58.096Z",
+			"UpdatedAt": "2026-03-11T18:11:58.096Z"
 		}
 	},
 	"GlobalState": {},
-	"OperationCounter": 3,
-	"TemplateCounters": {}
+	"OperationCounter": 20,
+	"TemplateCounters": {},
+	"Schedule": [
+		{
+			"GUID": "sched-op-OPR-0005-1773251578344",
+			"TargetType": "Operation",
+			"TargetHash": "OPR-0005",
+			"ScheduleType": "cron",
+			"Parameters": "* * * * *",
+			"CronExpression": "* * * * *",
+			"Active": false,
+			"CreatedAt": "2026-03-11T17:52:58.344Z"
+		}
+	]
 }

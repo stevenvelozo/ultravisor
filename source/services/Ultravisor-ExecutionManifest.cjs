@@ -100,12 +100,14 @@ class UltravisorExecutionManifest extends libPictService
 			WaitingTasks: {},
 
 			TaskManifests: {},
+			EventLog: [],
 			Log: [],
 			Errors: [],
 
 			StartTime: null,
 			StopTime: null,
-			ElapsedMs: null
+			ElapsedMs: null,
+			TimingSummary: null
 		};
 
 		// Store in memory
@@ -120,21 +122,61 @@ class UltravisorExecutionManifest extends libPictService
 	 * @param {object} pExecutionContext - The execution context.
 	 * @param {string} pNodeHash - The task node hash.
 	 * @param {string} pEventName - The triggering event name.
+	 * @param {object} [pTaskMeta] - Optional task type metadata (DefinitionHash, TaskTypeName, Category, Capability, Action, Tier).
 	 */
-	recordTaskStart(pExecutionContext, pNodeHash, pEventName)
+	recordTaskStart(pExecutionContext, pNodeHash, pEventName, pTaskMeta)
 	{
+		let tmpMeta = pTaskMeta || {};
+
 		if (!pExecutionContext.TaskManifests[pNodeHash])
 		{
 			pExecutionContext.TaskManifests[pNodeHash] = {
 				NodeHash: pNodeHash,
+				DefinitionHash: tmpMeta.DefinitionHash || '',
+				TaskTypeName: tmpMeta.TaskTypeName || '',
+				Category: tmpMeta.Category || '',
+				Capability: tmpMeta.Capability || '',
+				Action: tmpMeta.Action || '',
+				Tier: tmpMeta.Tier || '',
 				Executions: []
 			};
+		}
+		else if (tmpMeta.DefinitionHash)
+		{
+			// Update metadata if not already set (e.g. first execution set it)
+			if (!pExecutionContext.TaskManifests[pNodeHash].DefinitionHash)
+			{
+				pExecutionContext.TaskManifests[pNodeHash].DefinitionHash = tmpMeta.DefinitionHash;
+			}
+			if (!pExecutionContext.TaskManifests[pNodeHash].TaskTypeName)
+			{
+				pExecutionContext.TaskManifests[pNodeHash].TaskTypeName = tmpMeta.TaskTypeName || '';
+			}
+			if (!pExecutionContext.TaskManifests[pNodeHash].Category)
+			{
+				pExecutionContext.TaskManifests[pNodeHash].Category = tmpMeta.Category || '';
+			}
+			if (!pExecutionContext.TaskManifests[pNodeHash].Capability)
+			{
+				pExecutionContext.TaskManifests[pNodeHash].Capability = tmpMeta.Capability || '';
+			}
+			if (!pExecutionContext.TaskManifests[pNodeHash].Action)
+			{
+				pExecutionContext.TaskManifests[pNodeHash].Action = tmpMeta.Action || '';
+			}
+			if (!pExecutionContext.TaskManifests[pNodeHash].Tier)
+			{
+				pExecutionContext.TaskManifests[pNodeHash].Tier = tmpMeta.Tier || '';
+			}
 		}
 
 		pExecutionContext.TaskManifests[pNodeHash].Executions.push({
 			TriggerEvent: pEventName,
 			StartTime: new Date().toISOString(),
+			StartTimeMs: Date.now(),
 			StopTime: null,
+			StopTimeMs: null,
+			ElapsedMs: null,
 			Status: 'Running',
 			Log: []
 		});
@@ -157,6 +199,8 @@ class UltravisorExecutionManifest extends libPictService
 
 		let tmpExecution = tmpTaskManifest.Executions[tmpTaskManifest.Executions.length - 1];
 		tmpExecution.StopTime = new Date().toISOString();
+		tmpExecution.StopTimeMs = Date.now();
+		tmpExecution.ElapsedMs = (tmpExecution.StartTimeMs) ? (tmpExecution.StopTimeMs - tmpExecution.StartTimeMs) : 0;
 		tmpExecution.Status = 'Complete';
 		tmpExecution.EventFired = pResult.EventToFire || '';
 
@@ -183,6 +227,8 @@ class UltravisorExecutionManifest extends libPictService
 
 		let tmpExecution = tmpTaskManifest.Executions[tmpTaskManifest.Executions.length - 1];
 		tmpExecution.StopTime = new Date().toISOString();
+		tmpExecution.StopTimeMs = Date.now();
+		tmpExecution.ElapsedMs = (tmpExecution.StartTimeMs) ? (tmpExecution.StopTimeMs - tmpExecution.StartTimeMs) : 0;
 		tmpExecution.Status = 'Error';
 		tmpExecution.Log.push(`[${new Date().toISOString()}] Error: ${pError.message}`);
 
@@ -190,6 +236,29 @@ class UltravisorExecutionManifest extends libPictService
 			NodeHash: pNodeHash,
 			Message: pError.message,
 			Timestamp: tmpExecution.StopTime
+		});
+	}
+
+	/**
+	 * Record a telemetry event in the EventLog.
+	 *
+	 * @param {object} pExecutionContext - The execution context.
+	 * @param {string} pNodeHash - The task node hash (or null for operation-level events).
+	 * @param {string} pEventName - The event name.
+	 * @param {string} pMessage - Human-readable description.
+	 * @param {number} [pVerbosity] - 0 = normal (default), 1 = verbose, 2 = ultra-verbose.
+	 */
+	recordEvent(pExecutionContext, pNodeHash, pEventName, pMessage, pVerbosity)
+	{
+		let tmpVerbosity = (typeof pVerbosity === 'number') ? pVerbosity : 0;
+
+		pExecutionContext.EventLog.push({
+			Timestamp: new Date().toISOString(),
+			TimestampMs: Date.now(),
+			NodeHash: pNodeHash || null,
+			EventName: pEventName || '',
+			Message: pMessage || '',
+			Verbosity: tmpVerbosity
 		});
 	}
 
@@ -214,6 +283,9 @@ class UltravisorExecutionManifest extends libPictService
 			pExecutionContext.Status = 'Complete';
 		}
 
+		// Compute timing summary from task manifests
+		pExecutionContext.TimingSummary = this._computeTimingSummary(pExecutionContext);
+
 		let tmpStagingPath = pExecutionContext.StagingPath;
 
 		// Always write the manifest
@@ -235,6 +307,148 @@ class UltravisorExecutionManifest extends libPictService
 		}
 
 		this.log.info(`UltravisorExecutionManifest: operation [${pExecutionContext.OperationHash}] run [${pExecutionContext.Hash}] ${pExecutionContext.Status} in ${pExecutionContext.ElapsedMs}ms`);
+	}
+
+	/**
+	 * Compute a timing summary from the task manifests.
+	 *
+	 * @param {object} pExecutionContext - The execution context.
+	 * @returns {object} TimingSummary with ByCategory, ByCapability, ByTaskType, and Timeline.
+	 */
+	_computeTimingSummary(pExecutionContext)
+	{
+		let tmpByCategory = {};
+		let tmpByCapability = {};
+		let tmpByTaskType = {};
+		let tmpTimeline = [];
+
+		let tmpNodeHashes = Object.keys(pExecutionContext.TaskManifests);
+
+		for (let i = 0; i < tmpNodeHashes.length; i++)
+		{
+			let tmpNodeHash = tmpNodeHashes[i];
+			let tmpTaskManifest = pExecutionContext.TaskManifests[tmpNodeHash];
+			let tmpDefHash = tmpTaskManifest.DefinitionHash || '';
+			let tmpName = tmpTaskManifest.TaskTypeName || tmpDefHash || tmpNodeHash;
+			let tmpCategory = tmpTaskManifest.Category || 'Uncategorized';
+			let tmpCapability = tmpTaskManifest.Capability || 'Uncategorized';
+
+			for (let j = 0; j < tmpTaskManifest.Executions.length; j++)
+			{
+				let tmpExec = tmpTaskManifest.Executions[j];
+				let tmpElapsed = tmpExec.ElapsedMs || 0;
+
+				// Timeline entry
+				tmpTimeline.push({
+					NodeHash: tmpNodeHash,
+					DefinitionHash: tmpDefHash,
+					Name: tmpName,
+					Category: tmpCategory,
+					Capability: tmpCapability,
+					StartTimeMs: tmpExec.StartTimeMs || 0,
+					ElapsedMs: tmpElapsed,
+					Status: tmpExec.Status || ''
+				});
+
+				// Aggregate by category
+				if (!tmpByCategory[tmpCategory])
+				{
+					tmpByCategory[tmpCategory] = { Count: 0, TotalMs: 0, MinMs: Infinity, MaxMs: 0, AvgMs: 0 };
+				}
+				tmpByCategory[tmpCategory].Count++;
+				tmpByCategory[tmpCategory].TotalMs += tmpElapsed;
+				if (tmpElapsed < tmpByCategory[tmpCategory].MinMs)
+				{
+					tmpByCategory[tmpCategory].MinMs = tmpElapsed;
+				}
+				if (tmpElapsed > tmpByCategory[tmpCategory].MaxMs)
+				{
+					tmpByCategory[tmpCategory].MaxMs = tmpElapsed;
+				}
+
+				// Aggregate by capability
+				if (!tmpByCapability[tmpCapability])
+				{
+					tmpByCapability[tmpCapability] = { Count: 0, TotalMs: 0, MinMs: Infinity, MaxMs: 0, AvgMs: 0 };
+				}
+				tmpByCapability[tmpCapability].Count++;
+				tmpByCapability[tmpCapability].TotalMs += tmpElapsed;
+				if (tmpElapsed < tmpByCapability[tmpCapability].MinMs)
+				{
+					tmpByCapability[tmpCapability].MinMs = tmpElapsed;
+				}
+				if (tmpElapsed > tmpByCapability[tmpCapability].MaxMs)
+				{
+					tmpByCapability[tmpCapability].MaxMs = tmpElapsed;
+				}
+
+				// Aggregate by task type
+				if (tmpDefHash)
+				{
+					if (!tmpByTaskType[tmpDefHash])
+					{
+						tmpByTaskType[tmpDefHash] = { Name: tmpName, Category: tmpCategory, Capability: tmpCapability, Count: 0, TotalMs: 0, MinMs: Infinity, MaxMs: 0, AvgMs: 0 };
+					}
+					tmpByTaskType[tmpDefHash].Count++;
+					tmpByTaskType[tmpDefHash].TotalMs += tmpElapsed;
+					if (tmpElapsed < tmpByTaskType[tmpDefHash].MinMs)
+					{
+						tmpByTaskType[tmpDefHash].MinMs = tmpElapsed;
+					}
+					if (tmpElapsed > tmpByTaskType[tmpDefHash].MaxMs)
+					{
+						tmpByTaskType[tmpDefHash].MaxMs = tmpElapsed;
+					}
+				}
+			}
+		}
+
+		// Compute averages and fix Infinity mins
+		let tmpCategoryKeys = Object.keys(tmpByCategory);
+		for (let i = 0; i < tmpCategoryKeys.length; i++)
+		{
+			let tmpCat = tmpByCategory[tmpCategoryKeys[i]];
+			tmpCat.AvgMs = (tmpCat.Count > 0) ? (tmpCat.TotalMs / tmpCat.Count) : 0;
+			if (tmpCat.MinMs === Infinity)
+			{
+				tmpCat.MinMs = 0;
+			}
+		}
+
+		let tmpCapabilityKeys = Object.keys(tmpByCapability);
+		for (let i = 0; i < tmpCapabilityKeys.length; i++)
+		{
+			let tmpCap = tmpByCapability[tmpCapabilityKeys[i]];
+			tmpCap.AvgMs = (tmpCap.Count > 0) ? (tmpCap.TotalMs / tmpCap.Count) : 0;
+			if (tmpCap.MinMs === Infinity)
+			{
+				tmpCap.MinMs = 0;
+			}
+		}
+
+		let tmpTaskTypeKeys = Object.keys(tmpByTaskType);
+		for (let i = 0; i < tmpTaskTypeKeys.length; i++)
+		{
+			let tmpType = tmpByTaskType[tmpTaskTypeKeys[i]];
+			tmpType.AvgMs = (tmpType.Count > 0) ? (tmpType.TotalMs / tmpType.Count) : 0;
+			if (tmpType.MinMs === Infinity)
+			{
+				tmpType.MinMs = 0;
+			}
+		}
+
+		// Sort timeline by start time
+		tmpTimeline.sort(function (pA, pB)
+		{
+			return (pA.StartTimeMs || 0) - (pB.StartTimeMs || 0);
+		});
+
+		return {
+			ByCategory: tmpByCategory,
+			ByCapability: tmpByCapability,
+			ByTaskType: tmpByTaskType,
+			Timeline: tmpTimeline
+		};
 	}
 
 	/**
@@ -297,6 +511,8 @@ class UltravisorExecutionManifest extends libPictService
 				StopTime: pExecutionContext.StopTime,
 				ElapsedMs: pExecutionContext.ElapsedMs,
 				TaskManifests: pExecutionContext.TaskManifests,
+				TimingSummary: pExecutionContext.TimingSummary,
+				EventLog: pExecutionContext.EventLog,
 				Errors: pExecutionContext.Errors,
 				Log: pExecutionContext.Log
 			};

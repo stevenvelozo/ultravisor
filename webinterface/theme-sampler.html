@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ultravisor Theme Sampler</title>
+<style>
+	/* ── Reset & Base ─────────────────────────────────────── */
+	*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+	body {
+		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+		background: #1a1a1a;
+		color: #e0e0e0;
+		padding: 32px;
+		line-height: 1.5;
+	}
+	h1 { text-align: center; font-size: 28px; margin-bottom: 8px; color: #fff; }
+	.subtitle { text-align: center; color: #999; margin-bottom: 40px; font-size: 14px; }
+
+	/* ── Theme Card Container ────────────────────────────── */
+	.theme-grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 32px;
+		max-width: 1400px;
+		margin: 0 auto;
+	}
+	.theme-card {
+		border-radius: 12px;
+		overflow: hidden;
+		box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+	}
+	.theme-card h2 {
+		font-size: 14px;
+		letter-spacing: 1.5px;
+		text-transform: uppercase;
+		padding: 16px 20px;
+		margin: 0;
+	}
+
+	/* ── Swatch strip ────────────────────────────────────── */
+	.swatches {
+		display: flex;
+		height: 36px;
+	}
+	.swatch {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 9px;
+		font-weight: 600;
+		letter-spacing: 0.5px;
+	}
+
+	/* ── Mock UI inside each theme ───────────────────────── */
+	.mock-ui {
+		padding: 20px;
+	}
+	.mock-topbar {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		padding: 10px 16px;
+		border-radius: 8px;
+		margin-bottom: 16px;
+	}
+	.mock-topbar .brand {
+		font-weight: 700;
+		font-size: 16px;
+		margin-right: auto;
+	}
+	.mock-topbar .nav-link {
+		font-size: 12px;
+		font-weight: 500;
+		opacity: 0.7;
+	}
+	.mock-topbar .nav-link.active {
+		opacity: 1;
+		font-weight: 700;
+	}
+
+	.mock-cards {
+		display: grid;
+		grid-template-columns: 1fr 1fr 1fr;
+		gap: 12px;
+		margin-bottom: 16px;
+	}
+	.mock-stat {
+		padding: 12px 14px;
+		border-radius: 8px;
+	}
+	.mock-stat .label {
+		font-size: 9px;
+		text-transform: uppercase;
+		letter-spacing: 1px;
+		opacity: 0.7;
+		margin-bottom: 4px;
+	}
+	.mock-stat .value {
+		font-size: 22px;
+		font-weight: 700;
+	}
+
+	/* Mock timing bars */
+	.mock-timing {
+		padding: 14px;
+		border-radius: 8px;
+		margin-bottom: 12px;
+	}
+	.mock-timing h3 {
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: 1px;
+		margin-bottom: 10px;
+		opacity: 0.7;
+	}
+	.timing-row {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		margin-bottom: 6px;
+		font-size: 11px;
+	}
+	.timing-row .task-name {
+		width: 80px;
+		text-align: right;
+		font-size: 10px;
+		opacity: 0.8;
+	}
+	.timing-row .bar-track {
+		flex: 1;
+		height: 18px;
+		border-radius: 4px;
+		overflow: hidden;
+		position: relative;
+	}
+	.timing-row .bar-fill {
+		height: 100%;
+		border-radius: 4px;
+		display: flex;
+		align-items: center;
+		padding-left: 8px;
+		font-size: 9px;
+		font-weight: 600;
+	}
+	.timing-row .duration {
+		width: 40px;
+		font-size: 10px;
+		opacity: 0.6;
+		text-align: right;
+	}
+
+	/* Buttons row */
+	.mock-buttons {
+		display: flex;
+		gap: 8px;
+		margin-bottom: 12px;
+	}
+	.mock-btn {
+		padding: 6px 16px;
+		border-radius: 6px;
+		font-size: 11px;
+		font-weight: 600;
+		border: none;
+	}
+	.mock-btn-outline {
+		background: transparent;
+		border: 1.5px solid;
+	}
+
+	/* Mock table */
+	.mock-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 11px;
+		border-radius: 8px;
+		overflow: hidden;
+	}
+	.mock-table th {
+		text-align: left;
+		padding: 8px 12px;
+		font-size: 9px;
+		text-transform: uppercase;
+		letter-spacing: 1px;
+		font-weight: 600;
+	}
+	.mock-table td {
+		padding: 8px 12px;
+	}
+	.mock-table .status {
+		font-weight: 600;
+		font-size: 10px;
+	}
+</style>
+</head>
+<body>
+
+<h1>Ultravisor Theme Palettes</h1>
+<p class="subtitle">Visual comparison of candidate color schemes</p>
+
+<div class="theme-grid">
+
+<!-- ════════════════════════════════════════════════════════════
+     1. DESERT DAY (Light)
+     ════════════════════════════════════════════════════════════ -->
+<div class="theme-card" style="background: #faf6f0;">
+	<h2 style="background: #e8ddd0; color: #5c3d2e;">Desert Day</h2>
+	<div class="swatches">
+		<div class="swatch" style="background: #d4a46a; color: #fff;">Sand</div>
+		<div class="swatch" style="background: #c2703e; color: #fff;">Terracotta</div>
+		<div class="swatch" style="background: #7a2e3a; color: #fff;">Burgundy</div>
+		<div class="swatch" style="background: #3a8a8c; color: #fff;">Turquoise</div>
+		<div class="swatch" style="background: #6b8f4a; color: #fff;">Sage</div>
+		<div class="swatch" style="background: #5c3d2e; color: #fff;">Earth</div>
+	</div>
+	<div class="mock-ui" style="color: #3d2b1f;">
+		<div class="mock-topbar" style="background: #5c3d2e;">
+			<span class="brand" style="color: #d4a46a;">Ultravisor</span>
+			<span class="nav-link" style="color: #e8ddd0;">Dashboard</span>
+			<span class="nav-link active" style="color: #fff;">Operations</span>
+			<span class="nav-link" style="color: #e8ddd0;">Schedule</span>
+			<span class="nav-link" style="color: #e8ddd0;">Manifests</span>
+		</div>
+		<div class="mock-cards">
+			<div class="mock-stat" style="background: #f0e6d6; border: 1px solid #e0d0b8;">
+				<div class="label" style="color: #8a7560;">Server Status</div>
+				<div class="value" style="color: #3a8a8c;">Running</div>
+			</div>
+			<div class="mock-stat" style="background: #f0e6d6; border: 1px solid #e0d0b8;">
+				<div class="label" style="color: #8a7560;">Templates</div>
+				<div class="value" style="color: #5c3d2e;">12</div>
+			</div>
+			<div class="mock-stat" style="background: #f0e6d6; border: 1px solid #e0d0b8;">
+				<div class="label" style="color: #8a7560;">Operations</div>
+				<div class="value" style="color: #5c3d2e;">8</div>
+			</div>
+		</div>
+		<div class="mock-timing" style="background: #f0e6d6; border: 1px solid #e0d0b8;">
+			<h3 style="color: #8a7560;">Task Timeline</h3>
+			<div class="timing-row">
+				<span class="task-name" style="color: #5c3d2e;">Value Input</span>
+				<div class="bar-track" style="background: #e8ddd0;">
+					<div class="bar-fill" style="width:80%; background: linear-gradient(90deg, #d4a46a, #c2a060); color: #5c3d2e;">Value Input</div>
+				</div>
+				<span class="duration" style="color: #8a7560;">23s</span>
+			</div>
+			<div class="timing-row">
+				<span class="task-name" style="color: #5c3d2e;">Read File</span>
+				<div class="bar-track" style="background: #e8ddd0;">
+					<div class="bar-fill" style="width:35%; background: linear-gradient(90deg, #3a8a8c, #4a9a9c); color: #fff;">Read File</div>
+				</div>
+				<span class="duration" style="color: #8a7560;">1ms</span>
+			</div>
+			<div class="timing-row">
+				<span class="task-name" style="color: #5c3d2e;">Replace</span>
+				<div class="bar-track" style="background: #e8ddd0;">
+					<div class="bar-fill" style="width:25%; background: linear-gradient(90deg, #7a2e3a, #8a3e4a); color: #fff;">Replace</div>
+				</div>
+				<span class="duration" style="color: #8a7560;">1ms</span>
+			</div>
+		</div>
+		<div class="mock-buttons">
+			<div class="mock-btn" style="background: #3a8a8c; color: #fff;">Run Operation</div>
+			<div class="mock-btn" style="background: #c2703e; color: #fff;">Refresh</div>
+			<div class="mock-btn-outline mock-btn" style="border-color: #5c3d2e; color: #5c3d2e;">Export</div>
+		</div>
+	</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     2. DESERT SUNSET (Dark)
+     ════════════════════════════════════════════════════════════ -->
+<div class="theme-card" style="background: #1e1610;">
+	<h2 style="background: #2a1e15; color: #d4a46a;">Desert Sunset</h2>
+	<div class="swatches">
+		<div class="swatch" style="background: #e8943a; color: #1e1610;">Amber</div>
+		<div class="swatch" style="background: #c44e2a; color: #fff;">Burnt Orange</div>
+		<div class="swatch" style="background: #8b2442; color: #fff;">Crimson</div>
+		<div class="swatch" style="background: #2a8a8a; color: #fff;">Teal</div>
+		<div class="swatch" style="background: #d4a46a; color: #1e1610;">Sand</div>
+		<div class="swatch" style="background: #6b4f3a; color: #fff;">Dusk</div>
+	</div>
+	<div class="mock-ui" style="color: #d4c4aa;">
+		<div class="mock-topbar" style="background: #2a1e15;">
+			<span class="brand" style="color: #e8943a;">Ultravisor</span>
+			<span class="nav-link" style="color: #8a7560;">Dashboard</span>
+			<span class="nav-link active" style="color: #d4a46a;">Operations</span>
+			<span class="nav-link" style="color: #8a7560;">Schedule</span>
+			<span class="nav-link" style="color: #8a7560;">Manifests</span>
+		</div>
+		<div class="mock-cards">
+			<div class="mock-stat" style="background: #2a2018; border: 1px solid #3a2e22;">
+				<div class="label" style="color: #8a7560;">Server Status</div>
+				<div class="value" style="color: #2a8a8a;">Running</div>
+			</div>
+			<div class="mock-stat" style="background: #2a2018; border: 1px solid #3a2e22;">
+				<div class="label" style="color: #8a7560;">Templates</div>
+				<div class="value" style="color: #d4a46a;">12</div>
+			</div>
+			<div class="mock-stat" style="background: #2a2018; border: 1px solid #3a2e22;">
+				<div class="label" style="color: #8a7560;">Operations</div>
+				<div class="value" style="color: #d4a46a;">8</div>
+			</div>
+		</div>
+		<div class="mock-timing" style="background: #2a2018; border: 1px solid #3a2e22;">
+			<h3 style="color: #8a7560;">Task Timeline</h3>
+			<div class="timing-row">
+				<span class="task-name" style="color: #d4c4aa;">Value Input</span>
+				<div class="bar-track" style="background: #3a2e22;">
+					<div class="bar-fill" style="width:80%; background: linear-gradient(90deg, #e8943a, #d4a46a); color: #1e1610;">Value Input</div>
+				</div>
+				<span class="duration" style="color: #8a7560;">23s</span>
+			</div>
+			<div class="timing-row">
+				<span class="task-name" style="color: #d4c4aa;">Read File</span>
+				<div class="bar-track" style="background: #3a2e22;">
+					<div class="bar-fill" style="width:35%; background: linear-gradient(90deg, #2a8a8a, #3a9a9a); color: #fff;">Read File</div>
+				</div>
+				<span class="duration" style="color: #8a7560;">1ms</span>
+			</div>
+			<div class="timing-row">
+				<span class="task-name" style="color: #d4c4aa;">Replace</span>
+				<div class="bar-track" style="background: #3a2e22;">
+					<div class="bar-fill" style="width:25%; background: linear-gradient(90deg, #8b2442, #a03050); color: #fff;">Replace</div>
+				</div>
+				<span class="duration" style="color: #8a7560;">1ms</span>
+			</div>
+		</div>
+		<div class="mock-buttons">
+			<div class="mock-btn" style="background: #2a8a8a; color: #fff;">Run Operation</div>
+			<div class="mock-btn" style="background: #c44e2a; color: #fff;">Refresh</div>
+			<div class="mock-btn-outline mock-btn" style="border-color: #d4a46a; color: #d4a46a;">Export</div>
+		</div>
+	</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     3. PROFESSIONAL LIGHT
+     ════════════════════════════════════════════════════════════ -->
+<div class="theme-card" style="background: #f5f6f8;">
+	<h2 style="background: #e4e7ec; color: #2d3748;">Professional Light</h2>
+	<div class="swatches">
+		<div class="swatch" style="background: #3b82f6; color: #fff;">Primary</div>
+		<div class="swatch" style="background: #10b981; color: #fff;">Success</div>
+		<div class="swatch" style="background: #ef4444; color: #fff;">Error</div>
+		<div class="swatch" style="background: #f59e0b; color: #fff;">Warning</div>
+		<div class="swatch" style="background: #6366f1; color: #fff;">Accent</div>
+		<div class="swatch" style="background: #2d3748; color: #fff;">Text</div>
+	</div>
+	<div class="mock-ui" style="color: #2d3748;">
+		<div class="mock-topbar" style="background: #fff; border: 1px solid #e2e5ea; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+			<span class="brand" style="color: #3b82f6;">Ultravisor</span>
+			<span class="nav-link" style="color: #6b7280;">Dashboard</span>
+			<span class="nav-link active" style="color: #2d3748;">Operations</span>
+			<span class="nav-link" style="color: #6b7280;">Schedule</span>
+			<span class="nav-link" style="color: #6b7280;">Manifests</span>
+		</div>
+		<div class="mock-cards">
+			<div class="mock-stat" style="background: #fff; border: 1px solid #e2e5ea;">
+				<div class="label" style="color: #6b7280;">Server Status</div>
+				<div class="value" style="color: #10b981;">Running</div>
+			</div>
+			<div class="mock-stat" style="background: #fff; border: 1px solid #e2e5ea;">
+				<div class="label" style="color: #6b7280;">Templates</div>
+				<div class="value" style="color: #2d3748;">12</div>
+			</div>
+			<div class="mock-stat" style="background: #fff; border: 1px solid #e2e5ea;">
+				<div class="label" style="color: #6b7280;">Operations</div>
+				<div class="value" style="color: #2d3748;">8</div>
+			</div>
+		</div>
+		<div class="mock-timing" style="background: #fff; border: 1px solid #e2e5ea;">
+			<h3 style="color: #6b7280;">Task Timeline</h3>
+			<div class="timing-row">
+				<span class="task-name" style="color: #374151;">Value Input</span>
+				<div class="bar-track" style="background: #f0f1f4;">
+					<div class="bar-fill" style="width:80%; background: linear-gradient(90deg, #3b82f6, #60a5fa); color: #fff;">Value Input</div>
+				</div>
+				<span class="duration" style="color: #9ca3af;">23s</span>
+			</div>
+			<div class="timing-row">
+				<span class="task-name" style="color: #374151;">Read File</span>
+				<div class="bar-track" style="background: #f0f1f4;">
+					<div class="bar-fill" style="width:35%; background: linear-gradient(90deg, #10b981, #34d399); color: #fff;">Read File</div>
+				</div>
+				<span class="duration" style="color: #9ca3af;">1ms</span>
+			</div>
+			<div class="timing-row">
+				<span class="task-name" style="color: #374151;">Replace</span>
+				<div class="bar-track" style="background: #f0f1f4;">
+					<div class="bar-fill" style="width:25%; background: linear-gradient(90deg, #6366f1, #818cf8); color: #fff;">Replace</div>
+				</div>
+				<span class="duration" style="color: #9ca3af;">1ms</span>
+			</div>
+		</div>
+		<div class="mock-buttons">
+			<div class="mock-btn" style="background: #3b82f6; color: #fff;">Run Operation</div>
+			<div class="mock-btn" style="background: #e5e7eb; color: #374151;">Refresh</div>
+			<div class="mock-btn-outline mock-btn" style="border-color: #d1d5db; color: #374151;">Export</div>
+		</div>
+	</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     4. PROFESSIONAL DARK
+     ════════════════════════════════════════════════════════════ -->
+<div class="theme-card" style="background: #111318;">
+	<h2 style="background: #1a1d24; color: #c8cdd5;">Professional Dark</h2>
+	<div class="swatches">
+		<div class="swatch" style="background: #60a5fa; color: #111318;">Primary</div>
+		<div class="swatch" style="background: #34d399; color: #111318;">Success</div>
+		<div class="swatch" style="background: #f87171; color: #111318;">Error</div>
+		<div class="swatch" style="background: #fbbf24; color: #111318;">Warning</div>
+		<div class="swatch" style="background: #a78bfa; color: #111318;">Accent</div>
+		<div class="swatch" style="background: #1e2028; color: #8b92a0;">Surface</div>
+	</div>
+	<div class="mock-ui" style="color: #c8cdd5;">
+		<div class="mock-topbar" style="background: #1a1d24; border: 1px solid #282c34;">
+			<span class="brand" style="color: #60a5fa;">Ultravisor</span>
+			<span class="nav-link" style="color: #5a6070;">Dashboard</span>
+			<span class="nav-link active" style="color: #e0e4ea;">Operations</span>
+			<span class="nav-link" style="color: #5a6070;">Schedule</span>
+			<span class="nav-link" style="color: #5a6070;">Manifests</span>
+		</div>
+		<div class="mock-cards">
+			<div class="mock-stat" style="background: #1a1d24; border: 1px solid #282c34;">
+				<div class="label" style="color: #5a6070;">Server Status</div>
+				<div class="value" style="color: #34d399;">Running</div>
+			</div>
+			<div class="mock-stat" style="background: #1a1d24; border: 1px solid #282c34;">
+				<div class="label" style="color: #5a6070;">Templates</div>
+				<div class="value" style="color: #e0e4ea;">12</div>
+			</div>
+			<div class="mock-stat" style="background: #1a1d24; border: 1px solid #282c34;">
+				<div class="label" style="color: #5a6070;">Operations</div>
+				<div class="value" style="color: #e0e4ea;">8</div>
+			</div>
+		</div>
+		<div class="mock-timing" style="background: #1a1d24; border: 1px solid #282c34;">
+			<h3 style="color: #5a6070;">Task Timeline</h3>
+			<div class="timing-row">
+				<span class="task-name" style="color: #c8cdd5;">Value Input</span>
+				<div class="bar-track" style="background: #22252e;">
+					<div class="bar-fill" style="width:80%; background: linear-gradient(90deg, #3b82f6, #60a5fa); color: #fff;">Value Input</div>
+				</div>
+				<span class="duration" style="color: #5a6070;">23s</span>
+			</div>
+			<div class="timing-row">
+				<span class="task-name" style="color: #c8cdd5;">Read File</span>
+				<div class="bar-track" style="background: #22252e;">
+					<div class="bar-fill" style="width:35%; background: linear-gradient(90deg, #10b981, #34d399); color: #111318;">Read File</div>
+				</div>
+				<span class="duration" style="color: #5a6070;">1ms</span>
+			</div>
+			<div class="timing-row">
+				<span class="task-name" style="color: #c8cdd5;">Replace</span>
+				<div class="bar-track" style="background: #22252e;">
+					<div class="bar-fill" style="width:25%; background: linear-gradient(90deg, #7c3aed, #a78bfa); color: #fff;">Replace</div>
+				</div>
+				<span class="duration" style="color: #5a6070;">1ms</span>
+			</div>
+		</div>
+		<div class="mock-buttons">
+			<div class="mock-btn" style="background: #3b82f6; color: #fff;">Run Operation</div>
+			<div class="mock-btn" style="background: #282c34; color: #c8cdd5;">Refresh</div>
+			<div class="mock-btn-outline mock-btn" style="border-color: #3a3f4a; color: #c8cdd5;">Export</div>
+		</div>
+	</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     5. DESERT DUSK (warm muted dark)
+     ════════════════════════════════════════════════════════════ -->
+<div class="theme-card" style="background: #1a1714;">
+	<h2 style="background: #252018; color: #c4956a;">Desert Dusk</h2>
+	<div class="swatches">
+		<div class="swatch" style="background: #c4956a; color: #1a1714;">Sandstone</div>
+		<div class="swatch" style="background: #d47a3e; color: #fff;">Adobe</div>
+		<div class="swatch" style="background: #6a3040; color: #fff;">Merlot</div>
+		<div class="swatch" style="background: #4a9090; color: #fff;">Oasis</div>
+		<div class="swatch" style="background: #8a9a5a; color: #1a1714;">Mesquite</div>
+		<div class="swatch" style="background: #c0a050; color: #1a1714;">Ochre</div>
+	</div>
+	<div class="mock-ui" style="color: #c8b8a0;">
+		<div class="mock-topbar" style="background: #252018; border: 1px solid #3a3028;">
+			<span class="brand" style="color: #c4956a;">Ultravisor</span>
+			<span class="nav-link" style="color: #706050;">Dashboard</span>
+			<span class="nav-link active" style="color: #e0d0b8;">Operations</span>
+			<span class="nav-link" style="color: #706050;">Schedule</span>
+			<span class="nav-link" style="color: #706050;">Manifests</span>
+		</div>
+		<div class="mock-cards">
+			<div class="mock-stat" style="background: #252018; border: 1px solid #3a3028;">
+				<div class="label" style="color: #706050;">Server Status</div>
+				<div class="value" style="color: #4a9090;">Running</div>
+			</div>
+			<div class="mock-stat" style="background: #252018; border: 1px solid #3a3028;">
+				<div class="label" style="color: #706050;">Templates</div>
+				<div class="value" style="color: #c4956a;">12</div>
+			</div>
+			<div class="mock-stat" style="background: #252018; border: 1px solid #3a3028;">
+				<div class="label" style="color: #706050;">Operations</div>
+				<div class="value" style="color: #c4956a;">8</div>
+			</div>
+		</div>
+		<div class="mock-timing" style="background: #252018; border: 1px solid #3a3028;">
+			<h3 style="color: #706050;">Task Timeline</h3>
+			<div class="timing-row">
+				<span class="task-name" style="color: #c8b8a0;">Value Input</span>
+				<div class="bar-track" style="background: #302820;">
+					<div class="bar-fill" style="width:80%; background: linear-gradient(90deg, #d47a3e, #c4956a); color: #1a1714;">Value Input</div>
+				</div>
+				<span class="duration" style="color: #706050;">23s</span>
+			</div>
+			<div class="timing-row">
+				<span class="task-name" style="color: #c8b8a0;">Read File</span>
+				<div class="bar-track" style="background: #302820;">
+					<div class="bar-fill" style="width:35%; background: linear-gradient(90deg, #4a9090, #5aa0a0); color: #fff;">Read File</div>
+				</div>
+				<span class="duration" style="color: #706050;">1ms</span>
+			</div>
+			<div class="timing-row">
+				<span class="task-name" style="color: #c8b8a0;">Replace</span>
+				<div class="bar-track" style="background: #302820;">
+					<div class="bar-fill" style="width:25%; background: linear-gradient(90deg, #6a3040, #804050); color: #ecc;">Replace</div>
+				</div>
+				<span class="duration" style="color: #706050;">1ms</span>
+			</div>
+			<div class="timing-row">
+				<span class="task-name" style="color: #c8b8a0;">Write File</span>
+				<div class="bar-track" style="background: #302820;">
+					<div class="bar-fill" style="width:45%; background: linear-gradient(90deg, #8a9a5a, #a0b070); color: #1a1714;">Write File</div>
+				</div>
+				<span class="duration" style="color: #706050;">2ms</span>
+			</div>
+		</div>
+		<div class="mock-buttons">
+			<div class="mock-btn" style="background: #4a9090; color: #fff;">Run Operation</div>
+			<div class="mock-btn" style="background: #d47a3e; color: #fff;">Refresh</div>
+			<div class="mock-btn-outline mock-btn" style="border-color: #c4956a; color: #c4956a;">Export</div>
+		</div>
+	</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     6. DESERT CANYON (vibrant dark)
+     ════════════════════════════════════════════════════════════ -->
+<div class="theme-card" style="background: #18120e;">
+	<h2 style="background: #221a14; color: #e8943a;">Desert Canyon</h2>
+	<div class="swatches">
+		<div class="swatch" style="background: #e8943a; color: #18120e;">Marigold</div>
+		<div class="swatch" style="background: #e05830; color: #fff;">Canyon Red</div>
+		<div class="swatch" style="background: #9a2850; color: #fff;">Prickly Pear</div>
+		<div class="swatch" style="background: #18a0a0; color: #18120e;">Turquoise</div>
+		<div class="swatch" style="background: #e0c870; color: #18120e;">Yucca</div>
+		<div class="swatch" style="background: #a06030; color: #fff;">Copper</div>
+	</div>
+	<div class="mock-ui" style="color: #d8c8b0;">
+		<div class="mock-topbar" style="background: linear-gradient(90deg, #221a14, #2e2018);">
+			<span class="brand" style="color: #e8943a;">Ultravisor</span>
+			<span class="nav-link" style="color: #685040;">Dashboard</span>
+			<span class="nav-link active" style="color: #e0c870;">Operations</span>
+			<span class="nav-link" style="color: #685040;">Schedule</span>
+			<span class="nav-link" style="color: #685040;">Manifests</span>
+		</div>
+		<div class="mock-cards">
+			<div class="mock-stat" style="background: #221a14; border: 1px solid #3a2a1e;">
+				<div class="label" style="color: #685040;">Server Status</div>
+				<div class="value" style="color: #18a0a0;">Running</div>
+			</div>
+			<div class="mock-stat" style="background: #221a14; border: 1px solid #3a2a1e;">
+				<div class="label" style="color: #685040;">Templates</div>
+				<div class="value" style="color: #e0c870;">12</div>
+			</div>
+			<div class="mock-stat" style="background: #221a14; border: 1px solid #3a2a1e;">
+				<div class="label" style="color: #685040;">Operations</div>
+				<div class="value" style="color: #e0c870;">8</div>
+			</div>
+		</div>
+		<div class="mock-timing" style="background: #221a14; border: 1px solid #3a2a1e;">
+			<h3 style="color: #685040;">Task Timeline</h3>
+			<div class="timing-row">
+				<span class="task-name" style="color: #d8c8b0;">Value Input</span>
+				<div class="bar-track" style="background: #2e2018;">
+					<div class="bar-fill" style="width:80%; background: linear-gradient(90deg, #e8943a, #e0c870); color: #18120e;">Value Input</div>
+				</div>
+				<span class="duration" style="color: #685040;">23s</span>
+			</div>
+			<div class="timing-row">
+				<span class="task-name" style="color: #d8c8b0;">Read File</span>
+				<div class="bar-track" style="background: #2e2018;">
+					<div class="bar-fill" style="width:35%; background: linear-gradient(90deg, #18a0a0, #30b0b0); color: #18120e;">Read File</div>
+				</div>
+				<span class="duration" style="color: #685040;">1ms</span>
+			</div>
+			<div class="timing-row">
+				<span class="task-name" style="color: #d8c8b0;">Replace</span>
+				<div class="bar-track" style="background: #2e2018;">
+					<div class="bar-fill" style="width:25%; background: linear-gradient(90deg, #9a2850, #b83060); color: #fcc;">Replace</div>
+				</div>
+				<span class="duration" style="color: #685040;">1ms</span>
+			</div>
+			<div class="timing-row">
+				<span class="task-name" style="color: #d8c8b0;">Write File</span>
+				<div class="bar-track" style="background: #2e2018;">
+					<div class="bar-fill" style="width:45%; background: linear-gradient(90deg, #a06030, #c08040); color: #fff;">Write File</div>
+				</div>
+				<span class="duration" style="color: #685040;">2ms</span>
+			</div>
+		</div>
+		<div class="mock-buttons">
+			<div class="mock-btn" style="background: #18a0a0; color: #18120e; font-weight: 700;">Run Operation</div>
+			<div class="mock-btn" style="background: #e05830; color: #fff;">Refresh</div>
+			<div class="mock-btn-outline mock-btn" style="border-color: #e8943a; color: #e8943a;">Export</div>
+		</div>
+		<table class="mock-table" style="margin-top: 4px;">
+			<tr style="background: #2e2018;">
+				<th style="color: #685040;">Operation</th>
+				<th style="color: #685040;">Status</th>
+				<th style="color: #685040;">Duration</th>
+			</tr>
+			<tr style="border-bottom: 1px solid #2e2018;">
+				<td style="color: #d8c8b0;">OPR-0005</td>
+				<td><span class="status" style="color: #18a0a0;">Complete</span></td>
+				<td style="color: #a09080;">23s 513ms</td>
+			</tr>
+			<tr style="border-bottom: 1px solid #2e2018;">
+				<td style="color: #d8c8b0;">OPR-0004</td>
+				<td><span class="status" style="color: #e05830;">Error</span></td>
+				<td style="color: #a09080;">1s 204ms</td>
+			</tr>
+			<tr>
+				<td style="color: #d8c8b0;">OPR-0003</td>
+				<td><span class="status" style="color: #e0c870;">Running</span></td>
+				<td style="color: #a09080;">45s</td>
+			</tr>
+		</table>
+	</div>
+</div>
+
+</div><!-- /theme-grid -->
+
+</body>
+</html>

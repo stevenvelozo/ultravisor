@@ -1,0 +1,155 @@
+{
+	"Name": "CSV to JSON Converter",
+	"Description": "Reads a CSV file, parses it into records, and writes the output as JSON. Demonstrates read-file, parse-csv, and write-json in a data pipeline.",
+	"Tags": ["data", "csv", "json", "conversion"],
+	"Author": "Ultravisor",
+	"Version": "1.0.0",
+	"Graph": {
+		"Nodes": [
+			{
+				"Hash": "csv-start",
+				"Type": "start",
+				"X": 50,
+				"Y": 200,
+				"Width": 140,
+				"Height": 80,
+				"Title": "Start",
+				"Ports": [
+					{ "Hash": "csv-start-out", "Direction": "output", "Side": "right-bottom", "Label": "Out" }
+				],
+				"Data": {}
+			},
+			{
+				"Hash": "csv-setpaths",
+				"Type": "set-values",
+				"X": 260,
+				"Y": 180,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Set File Paths",
+				"Ports": [
+					{ "Hash": "csv-sp-in", "Direction": "input", "Side": "left-bottom", "Label": "Execute" },
+					{ "Hash": "csv-sp-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "Mappings": [{ "Address": "Operation.InputCSV", "Value": "data.csv" }, { "Address": "Operation.OutputJSON", "Value": "data.json" }] }
+			},
+			{
+				"Hash": "csv-read",
+				"Type": "read-file",
+				"X": 530,
+				"Y": 180,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Read CSV File",
+				"Ports": [
+					{ "Hash": "csv-rd-in", "Direction": "input", "Side": "left-bottom", "Label": "BeginRead" },
+					{ "Hash": "csv-rd-done", "Direction": "output", "Side": "right-bottom", "Label": "ReadComplete" },
+					{ "Hash": "csv-rd-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "FilePath": "{~D:Record.Operation.InputCSV~}", "Encoding": "utf8" }
+			},
+			{
+				"Hash": "csv-parse",
+				"Type": "parse-csv",
+				"X": 800,
+				"Y": 180,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Parse CSV",
+				"Ports": [
+					{ "Hash": "csv-ps-in", "Direction": "input", "Side": "left-bottom", "Label": "Execute" },
+					{ "Hash": "csv-ps-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "SourceAddress": "TaskOutput.csv-read.FileContent", "Delimiter": ",", "HasHeaders": true, "Destination": "Operation.ParsedRecords" }
+			},
+			{
+				"Hash": "csv-check",
+				"Type": "if-conditional",
+				"X": 1070,
+				"Y": 160,
+				"Width": 220,
+				"Height": 100,
+				"Title": "Has Records?",
+				"Ports": [
+					{ "Hash": "csv-chk-in", "Direction": "input", "Side": "left-bottom", "Label": "Evaluate" },
+					{ "Hash": "csv-chk-true", "Direction": "output", "Side": "right-bottom", "Label": "True" },
+					{ "Hash": "csv-chk-false", "Direction": "output", "Side": "bottom", "Label": "False" }
+				],
+				"Data": { "DataAddress": "Operation.ParsedRecords", "Operator": "truthy" }
+			},
+			{
+				"Hash": "csv-write",
+				"Type": "write-json",
+				"X": 1360,
+				"Y": 140,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Write JSON",
+				"Ports": [
+					{ "Hash": "csv-wj-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "csv-wj-done", "Direction": "output", "Side": "right-bottom", "Label": "Done" },
+					{ "Hash": "csv-wj-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "File": "{~D:Record.Operation.OutputJSON~}", "Address": "Operation.ParsedRecords" }
+			},
+			{
+				"Hash": "csv-empty",
+				"Type": "error-message",
+				"X": 1070,
+				"Y": 370,
+				"Width": 220,
+				"Height": 80,
+				"Title": "No Records",
+				"Ports": [
+					{ "Hash": "csv-em-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "csv-em-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "MessageTemplate": "CSV file contained no parseable records" }
+			},
+			{
+				"Hash": "csv-rderr",
+				"Type": "error-message",
+				"X": 530,
+				"Y": 370,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Read Error",
+				"Ports": [
+					{ "Hash": "csv-rde-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "csv-rde-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "MessageTemplate": "Could not read CSV file: {~D:Record.Operation.InputCSV~}" }
+			},
+			{
+				"Hash": "csv-end",
+				"Type": "end",
+				"X": 1630,
+				"Y": 260,
+				"Width": 140,
+				"Height": 80,
+				"Title": "End",
+				"Ports": [
+					{ "Hash": "csv-end-in", "Direction": "input", "Side": "left-bottom", "Label": "In" }
+				],
+				"Data": {}
+			}
+		],
+		"Connections": [
+			{ "Hash": "csv-c1", "SourceNodeHash": "csv-start", "SourcePortHash": "csv-start-out", "TargetNodeHash": "csv-setpaths", "TargetPortHash": "csv-sp-in", "Data": {} },
+			{ "Hash": "csv-c2", "SourceNodeHash": "csv-setpaths", "SourcePortHash": "csv-sp-done", "TargetNodeHash": "csv-read", "TargetPortHash": "csv-rd-in", "Data": {} },
+			{ "Hash": "csv-c3", "SourceNodeHash": "csv-read", "SourcePortHash": "csv-rd-done", "TargetNodeHash": "csv-parse", "TargetPortHash": "csv-ps-in", "Data": {} },
+			{ "Hash": "csv-c4", "SourceNodeHash": "csv-parse", "SourcePortHash": "csv-ps-done", "TargetNodeHash": "csv-check", "TargetPortHash": "csv-chk-in", "Data": {} },
+			{ "Hash": "csv-c5", "SourceNodeHash": "csv-check", "SourcePortHash": "csv-chk-true", "TargetNodeHash": "csv-write", "TargetPortHash": "csv-wj-in", "Data": {} },
+			{ "Hash": "csv-c6", "SourceNodeHash": "csv-write", "SourcePortHash": "csv-wj-done", "TargetNodeHash": "csv-end", "TargetPortHash": "csv-end-in", "Data": {} },
+			{ "Hash": "csv-c7", "SourceNodeHash": "csv-check", "SourcePortHash": "csv-chk-false", "TargetNodeHash": "csv-empty", "TargetPortHash": "csv-em-in", "Data": {} },
+			{ "Hash": "csv-c8", "SourceNodeHash": "csv-empty", "SourcePortHash": "csv-em-done", "TargetNodeHash": "csv-end", "TargetPortHash": "csv-end-in", "Data": {} },
+			{ "Hash": "csv-c9", "SourceNodeHash": "csv-read", "SourcePortHash": "csv-rd-err", "TargetNodeHash": "csv-rderr", "TargetPortHash": "csv-rde-in", "Data": {} },
+			{ "Hash": "csv-c10", "SourceNodeHash": "csv-rderr", "SourcePortHash": "csv-rde-done", "TargetNodeHash": "csv-end", "TargetPortHash": "csv-end-in", "Data": {} },
+			{ "Hash": "csv-c11", "SourceNodeHash": "csv-write", "SourcePortHash": "csv-wj-err", "TargetNodeHash": "csv-end", "TargetPortHash": "csv-end-in", "Data": {} }
+		],
+		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
+	},
+	"SavedLayouts": [],
+	"InitialGlobalState": {},
+	"InitialOperationState": {}
+}

@@ -1,10 +1,11 @@
 const libPictService = require('pict-serviceproviderbase');
 
 /**
- * Registry of all available task type classes.
+ * Registry of all available task type classes and configs.
  *
- * Task types are registered by hash and can be instantiated on demand
- * by the ExecutionEngine when a task node needs to execute.
+ * Task types can be registered either as classes (via registerTaskType) or
+ * as config objects (via registerTaskTypeFromConfig).  Both paths produce
+ * instances that the ExecutionEngine can execute.
  */
 class UltravisorTaskTypeRegistry extends libPictService
 {
@@ -14,10 +15,13 @@ class UltravisorTaskTypeRegistry extends libPictService
 
 		this.serviceType = 'UltravisorTaskTypeRegistry';
 
-		// Map of task type hash -> task type class
+		// Map of task type hash -> task type class (class-based registration)
 		this._TaskTypes = {};
 
-		// Map of task type hash -> definition (cached from class instances)
+		// Map of task type hash -> config object (config-based registration)
+		this._TaskTypeConfigs = {};
+
+		// Map of task type hash -> definition (cached from either path)
 		this._Definitions = {};
 	}
 
@@ -25,7 +29,7 @@ class UltravisorTaskTypeRegistry extends libPictService
 	 * Register a task type class.
 	 *
 	 * @param {Function} pTaskTypeClass - A class extending UltravisorTaskType.
-	 * @returns {object} The task type definition.
+	 * @returns {object|false} The task type definition, or false on failure.
 	 */
 	registerTaskType(pTaskTypeClass)
 	{
@@ -54,13 +58,94 @@ class UltravisorTaskTypeRegistry extends libPictService
 	}
 
 	/**
+	 * Register a task type from a config object.
+	 *
+	 * @param {object} pConfig - Config object with:
+	 *   Definition  {object}   - Task type definition (Hash, Name, EventInputs, etc.)
+	 *   Execute     {function} - Optional. function(pTaskInstance, pResolvedSettings, pExecutionContext, fCallback, fFireIntermediateEvent)
+	 * @returns {object|false} The task type definition, or false on failure.
+	 */
+	registerTaskTypeFromConfig(pConfig)
+	{
+		if (!pConfig || typeof(pConfig) !== 'object')
+		{
+			this.log.error('UltravisorTaskTypeRegistry: registerTaskTypeFromConfig requires a config object.');
+			return false;
+		}
+
+		let tmpDefinition = pConfig.Definition;
+
+		if (!tmpDefinition || !tmpDefinition.Hash)
+		{
+			this.log.error('UltravisorTaskTypeRegistry: config must have a Definition with a Hash.');
+			return false;
+		}
+
+		this._TaskTypeConfigs[tmpDefinition.Hash] = pConfig;
+		this._Definitions[tmpDefinition.Hash] = tmpDefinition;
+
+		this.log.info(`UltravisorTaskTypeRegistry: registered config-driven task type [${tmpDefinition.Hash}] "${tmpDefinition.Name}"`);
+
+		return tmpDefinition;
+	}
+
+	/**
+	 * Register multiple task types from an array of config objects.
+	 *
+	 * @param {Array} pConfigs - Array of config objects.
+	 * @returns {number} Number of successfully registered task types.
+	 */
+	registerTaskTypesFromConfigArray(pConfigs)
+	{
+		if (!Array.isArray(pConfigs))
+		{
+			this.log.error('UltravisorTaskTypeRegistry: registerTaskTypesFromConfigArray requires an array.');
+			return 0;
+		}
+
+		let tmpCount = 0;
+
+		for (let i = 0; i < pConfigs.length; i++)
+		{
+			if (this.registerTaskTypeFromConfig(pConfigs[i]))
+			{
+				tmpCount++;
+			}
+		}
+
+		return tmpCount;
+	}
+
+	/**
 	 * Create a new instance of a task type by hash.
+	 *
+	 * Checks config-driven tasks first, then falls back to class-based tasks.
 	 *
 	 * @param {string} pHash - The task type hash (e.g. 'read-file').
 	 * @returns {object|null} A new instance of the task type, or null if not found.
 	 */
 	instantiateTaskType(pHash)
 	{
+		// Check config-driven tasks first
+		let tmpConfig = this._TaskTypeConfigs[pHash];
+
+		if (tmpConfig)
+		{
+			let tmpBaseClass = require('./tasks/Ultravisor-TaskType-Base.cjs');
+			let tmpOptions =
+			{
+				Definition: tmpConfig.Definition
+			};
+
+			if (typeof(tmpConfig.Execute) === 'function')
+			{
+				tmpOptions.Execute = tmpConfig.Execute;
+			}
+
+			return new tmpBaseClass(this.fable, tmpOptions, `TaskType-${pHash}-${Date.now()}`);
+		}
+
+		// Fall back to class-based tasks
 		let tmpTaskTypeClass = this._TaskTypes[pHash];
 
 		if (!tmpTaskTypeClass)
@@ -109,7 +194,7 @@ class UltravisorTaskTypeRegistry extends libPictService
 	 */
 	hasTaskType(pHash)
 	{
-		return this._TaskTypes.hasOwnProperty(pHash);
+		return this._TaskTypes.hasOwnProperty(pHash) || this._TaskTypeConfigs.hasOwnProperty(pHash);
 	}
 
 	/**
@@ -118,25 +203,10 @@ class UltravisorTaskTypeRegistry extends libPictService
 	 */
 	registerBuiltInTaskTypes()
 	{
-		// File I/O
-		this.registerTaskType(require('./tasks/file-io/Ultravisor-TaskType-ReadFile.cjs'));
-		this.registerTaskType(require('./tasks/file-io/Ultravisor-TaskType-WriteFile.cjs'));
+		let tmpBuiltInConfigs = require('./tasks/Ultravisor-BuiltIn-TaskConfigs.cjs');
+		this.registerTaskTypesFromConfigArray(tmpBuiltInConfigs);
 
-		// Data
-		this.registerTaskType(require('./tasks/data/Ultravisor-TaskType-SetValues.cjs'));
-		this.registerTaskType(require('./tasks/data/Ultravisor-TaskType-ReplaceString.cjs'));
-		this.registerTaskType(require('./tasks/data/Ultravisor-TaskType-StringAppender.cjs'));
-
-		// Control
-		this.registerTaskType(require('./tasks/control/Ultravisor-TaskType-IfConditional.cjs'));
-		this.registerTaskType(require('./tasks/control/Ultravisor-TaskType-SplitExecute.cjs'));
-		this.registerTaskType(require('./tasks/control/Ultravisor-TaskType-LaunchOperation.cjs'));
-
-		// Interaction
-		this.registerTaskType(require('./tasks/interaction/Ultravisor-TaskType-ValueInput.cjs'));
-		this.registerTaskType(require('./tasks/interaction/Ultravisor-TaskType-ErrorMessage.cjs'));
-
-		this.log.info(`UltravisorTaskTypeRegistry: ${Object.keys(this._TaskTypes).length} built-in task types registered.`);
+		this.log.info(`UltravisorTaskTypeRegistry: ${Object.keys(this._Definitions).length} built-in task types registered.`);
 	}
 }
 

@@ -35,6 +35,72 @@ class UltravisorHypervisor extends libPictService
 	}
 
 	/**
+	 * Load the schedule from the persistence provider.
+	 *
+	 * If no provider is registered the in-memory schedule is left as-is.
+	 *
+	 * @param {function} fCallback - fCallback(pError)
+	 */
+	loadSchedule(fCallback)
+	{
+		let tmpPersistence = this._getService('UltravisorSchedulePersistence');
+
+		if (!tmpPersistence)
+		{
+			this.log.warn('Ultravisor Hypervisor: no schedule persistence provider registered; using in-memory schedule only.');
+			if (typeof(fCallback) === 'function')
+			{
+				return fCallback(null);
+			}
+			return;
+		}
+
+		tmpPersistence.loadSchedule(
+			(pError, pSchedule) =>
+			{
+				if (pError)
+				{
+					this.log.error(`Ultravisor Hypervisor: failed to load schedule: ${pError.message}`);
+				}
+				else if (Array.isArray(pSchedule) && pSchedule.length > 0)
+				{
+					this._Schedule = pSchedule;
+					this.log.info(`Ultravisor Hypervisor: loaded ${pSchedule.length} schedule entries from persistence.`);
+				}
+
+				if (typeof(fCallback) === 'function')
+				{
+					return fCallback(pError);
+				}
+			});
+	}
+
+	/**
+	 * Persist the current schedule via the registered provider.
+	 *
+	 * Called internally after every mutation.  Fails silently if no
+	 * provider is registered so the Hypervisor works without persistence.
+	 */
+	_persistSchedule()
+	{
+		let tmpPersistence = this._getService('UltravisorSchedulePersistence');
+
+		if (!tmpPersistence)
+		{
+			return;
+		}
+
+		tmpPersistence.saveSchedule(this._Schedule,
+			(pError) =>
+			{
+				if (pError)
+				{
+					this.log.error(`Ultravisor Hypervisor: failed to persist schedule: ${pError.message}`);
+				}
+			});
+	}
+
+	/**
 	 * Add an operation to the schedule.
 	 *
 	 * @param {string} pOperationHash - The operation hash to schedule.
@@ -57,6 +123,7 @@ class UltravisorHypervisor extends libPictService
 
 		this._Schedule.push(tmpScheduleEntry);
 		this.log.info(`Ultravisor Hypervisor: scheduled operation ${pOperationHash} as ${tmpScheduleEntry.ScheduleType} (${tmpScheduleEntry.CronExpression})`);
+		this._persistSchedule();
 
 		return fCallback(null, tmpScheduleEntry);
 	}
@@ -154,12 +221,99 @@ class UltravisorHypervisor extends libPictService
 			this._Schedule[i].Active = false;
 		}
 
+		this._persistSchedule();
 		this.log.info(`Ultravisor Hypervisor: schedule stopped.`);
 
 		if (typeof(fCallback) === 'function')
 		{
 			return fCallback();
 		}
+	}
+
+	/**
+	 * Start a single schedule entry by GUID.
+	 */
+	startScheduleEntry(pGUID, fCallback)
+	{
+		let tmpCronService = this._getService('UltravisorHypervisorEventCron');
+		let tmpStateService = this._getService('UltravisorHypervisorState');
+		let tmpEngine = this._getService('UltravisorExecutionEngine');
+
+		for (let i = 0; i < this._Schedule.length; i++)
+		{
+			let tmpEntry = this._Schedule[i];
+
+			if (tmpEntry.GUID === pGUID)
+			{
+				if (tmpEntry.Active)
+				{
+					return fCallback(null, tmpEntry);
+				}
+
+				tmpEntry.Active = true;
+
+				tmpCronService.start(tmpEntry,
+					(pScheduleEntry) =>
+					{
+						tmpStateService.getOperation(pScheduleEntry.TargetHash,
+							(pError, pOperation) =>
+							{
+								if (pError)
+								{
+									this.log.error(`Ultravisor Hypervisor: scheduled operation ${pScheduleEntry.TargetHash} not found: ${pError.message}`);
+									return;
+								}
+								tmpEngine.executeOperation(pOperation,
+									(pExecError, pContext) =>
+									{
+										if (pExecError)
+										{
+											this.log.error(`Ultravisor Hypervisor: scheduled operation execution error: ${pExecError.message}`);
+										}
+										else
+										{
+											this.log.info(`Ultravisor Hypervisor: scheduled operation ${pScheduleEntry.TargetHash} completed: ${pContext.Status}`);
+										}
+									});
+							});
+					});
+
+				this._persistSchedule();
+				this.log.info(`Ultravisor Hypervisor: started schedule entry ${pGUID}`);
+				return fCallback(null, tmpEntry);
+			}
+		}
+
+		return fCallback(new Error(`Schedule entry ${pGUID} not found.`));
+	}
+
+	/**
+	 * Stop a single schedule entry by GUID.
+	 */
+	stopScheduleEntry(pGUID, fCallback)
+	{
+		let tmpCronService = this._getService('UltravisorHypervisorEventCron');
+
+		for (let i = 0; i < this._Schedule.length; i++)
+		{
+			let tmpEntry = this._Schedule[i];
+
+			if (tmpEntry.GUID === pGUID)
+			{
+				if (!tmpEntry.Active)
+				{
+					return fCallback(null, tmpEntry);
+				}
+
+				tmpEntry.Active = false;
+				tmpCronService.stopJob(pGUID);
+				this._persistSchedule();
+				this.log.info(`Ultravisor Hypervisor: stopped schedule entry ${pGUID}`);
+				return fCallback(null, tmpEntry);
+			}
+		}
+
+		return fCallback(new Error(`Schedule entry ${pGUID} not found.`));
 	}
 
 	/**
@@ -178,6 +332,7 @@ class UltravisorHypervisor extends libPictService
 					tmpCronService.stopJob(pGUID);
 				}
 				this._Schedule.splice(i, 1);
+				this._persistSchedule();
 				this.log.info(`Ultravisor Hypervisor: removed schedule entry ${pGUID}`);
 				return fCallback(null, true);
 			}

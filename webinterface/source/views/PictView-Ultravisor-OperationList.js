@@ -1,9 +1,5 @@
 const libPictView = require('pict-view');
 
-const libExampleCSVPipeline = require('../data/ExampleFlow-CSVPipeline.js');
-const libExampleMeadowPipeline = require('../data/ExampleFlow-MeadowPipeline.js');
-const libExampleFileProcessor = require('../data/ExampleFlow-FileProcessor.js');
-
 const _ViewConfiguration =
 {
 	ViewIdentifier: "Ultravisor-OperationList",
@@ -25,20 +21,20 @@ const _ViewConfiguration =
 			align-items: center;
 			margin-bottom: 1.5em;
 			padding-bottom: 1em;
-			border-bottom: 1px solid #2a2a4a;
+			border-bottom: 1px solid var(--uv-border-subtle);
 		}
 		.ultravisor-operationlist-header h1 {
 			margin: 0;
 			font-size: 2em;
 			font-weight: 300;
-			color: #e0e0e0;
+			color: var(--uv-text);
 		}
 		.ultravisor-operation-table {
 			width: 100%;
 			border-collapse: collapse;
 		}
 		.ultravisor-operation-table th {
-			background-color: #16213e;
+			background-color: var(--uv-bg-surface);
 		}
 		.ultravisor-operation-table tr:hover td {
 			background-color: #1a2744;
@@ -52,6 +48,33 @@ const _ViewConfiguration =
 			background-color: #2e7d32;
 			color: #c8e6c9;
 		}
+		.ultravisor-library-dropdown {
+			background-color: var(--uv-bg-base);
+			color: var(--uv-text);
+			border: 1px solid var(--uv-border-subtle);
+			border-radius: 4px;
+			padding: 0.4em 0.6em;
+			font-size: 0.9em;
+			margin-right: 0.5em;
+			cursor: pointer;
+		}
+		.ultravisor-library-dropdown:hover {
+			border-color: #4a4a7a;
+		}
+		.ultravisor-library-dropdown option {
+			background-color: var(--uv-bg-base);
+			color: var(--uv-text);
+		}
+		.ultravisor-operationlist-header-actions {
+			display: flex;
+			align-items: center;
+			gap: 0.5em;
+		}
+		.ultravisor-import-success {
+			color: var(--uv-success);
+			font-size: 0.9em;
+			padding: 0.5em 0;
+		}
 	`,
 
 	Templates:
@@ -62,11 +85,12 @@ const _ViewConfiguration =
 <div class="ultravisor-operationlist">
 	<div class="ultravisor-operationlist-header">
 		<h1>Operations</h1>
-		<div>
+		<div class="ultravisor-operationlist-header-actions">
+			<select id="Ultravisor-LibraryDropdown" class="ultravisor-library-dropdown" onchange="{~P~}.views['Ultravisor-OperationList'].onLibraryDropdownChange()">
+				<option value="">From Library...</option>
+			</select>
+			<button id="Ultravisor-LibraryAddBtn" class="ultravisor-btn ultravisor-btn-primary" onclick="{~P~}.views['Ultravisor-OperationList'].importSelectedLibraryOp()" style="display:none">Add</button>
 			<button class="ultravisor-btn ultravisor-btn-primary" onclick="{~P~}.PictApplication.editOperation()">New Operation</button>
-			<button class="ultravisor-btn ultravisor-btn-secondary" onclick="{~P~}.views['Ultravisor-OperationList'].createExampleOperation('CSVPipeline')">+ Config Processor</button>
-			<button class="ultravisor-btn ultravisor-btn-secondary" onclick="{~P~}.views['Ultravisor-OperationList'].createExampleOperation('MeadowPipeline')">+ Template Processor</button>
-			<button class="ultravisor-btn ultravisor-btn-secondary" onclick="{~P~}.views['Ultravisor-OperationList'].createExampleOperation('FileProcessor')">+ File Processor</button>
 		</div>
 	</div>
 	<div id="Ultravisor-OperationList-Body"></div>
@@ -100,6 +124,12 @@ class UltravisorOperationListView extends libPictView
 			function ()
 			{
 				this.renderOperationTable();
+			}.bind(this));
+
+		this.pict.PictApplication.loadOperationLibrary(
+			function ()
+			{
+				this.populateLibraryDropdown();
 			}.bind(this));
 
 		return super.onAfterRender(pRenderable, pRenderDestinationAddress, pRecord, pContent);
@@ -137,6 +167,7 @@ class UltravisorOperationListView extends libPictView
 			tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-execute" onclick="' + tmpGlobalRef + '.views[\'Ultravisor-OperationList\'].runOperation(\'' + tmpEscHash + '\')">Run</button>';
 			tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-edit" onclick="' + tmpGlobalRef + '.PictApplication.editOperation(\'' + tmpEscHash + '\')">Edit</button>';
 			tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-delete" onclick="if(confirm(\'Delete operation ' + tmpEscHash + '?\')){ ' + tmpGlobalRef + '.PictApplication.deleteOperation(\'' + tmpEscHash + '\', function(){ ' + tmpGlobalRef + '.PictApplication.showView(\'Ultravisor-OperationList\'); }); }">Delete</button>';
+			tmpHTML += '<button class="ultravisor-btn-sm" style="background-color:var(--uv-info);color:#bbdefb;" onclick="' + tmpGlobalRef + '.views[\'Ultravisor-OperationList\'].exportOperation(\'' + tmpEscHash + '\')">Export</button>';
 			tmpHTML += '</div></td>';
 			tmpHTML += '</tr>';
 		}
@@ -156,7 +187,7 @@ class UltravisorOperationListView extends libPictView
 				if (pError)
 				{
 					this.pict.ContentAssignment.assignContent('#Ultravisor-OperationList-Result',
-						'<div class="ultravisor-task-result-panel"><h3>Error</h3><p style="color:#ef5350;">' + this.escapeHTML(pError.message) + '</p></div>');
+						'<div class="ultravisor-task-result-panel"><h3>Error</h3><p style="color:var(--uv-error);">' + this.escapeHTML(pError.message) + '</p></div>');
 					return;
 				}
 
@@ -168,13 +199,13 @@ class UltravisorOperationListView extends libPictView
 
 				if (pData.TaskOutputs)
 				{
-					tmpHTML += '<h4 style="color:#b0bec5; margin:0.75em 0 0.25em 0;">Task Outputs</h4>';
+					tmpHTML += '<h4 style="color:var(--uv-text-secondary); margin:0.75em 0 0.25em 0;">Task Outputs</h4>';
 					tmpHTML += '<div class="ultravisor-task-result-output">' + this.escapeHTML(JSON.stringify(pData.TaskOutputs, null, 2)) + '</div>';
 				}
 
 				if (pData.Log && pData.Log.length > 0)
 				{
-					tmpHTML += '<h4 style="color:#b0bec5; margin:0.75em 0 0.25em 0;">Log</h4>';
+					tmpHTML += '<h4 style="color:var(--uv-text-secondary); margin:0.75em 0 0.25em 0;">Log</h4>';
 					tmpHTML += '<div class="ultravisor-task-result-output">' + this.escapeHTML(pData.Log.join('\n')) + '</div>';
 				}
 
@@ -183,64 +214,87 @@ class UltravisorOperationListView extends libPictView
 			}.bind(this));
 	}
 
-	createExampleOperation(pExampleName)
+	populateLibraryDropdown()
 	{
-		let tmpFlowData = null;
-		let tmpName = '';
-		let tmpDescription = '';
-
-		if (pExampleName === 'CSVPipeline')
-		{
-			tmpFlowData = libExampleCSVPipeline;
-			tmpName = 'Example: Config Processor';
-			tmpDescription = 'File-based config processing with branching and error handling.';
-		}
-		else if (pExampleName === 'MeadowPipeline')
-		{
-			tmpFlowData = libExampleMeadowPipeline;
-			tmpName = 'Example: Template Processor';
-			tmpDescription = 'Multi-step text processing with chained replacements and conditional validation.';
-		}
-		else if (pExampleName === 'FileProcessor')
-		{
-			tmpFlowData = libExampleFileProcessor;
-			tmpName = 'Example: File Processor';
-			tmpDescription = 'Search and replace pipeline with user input, looping, and file I/O.';
-		}
-
-		if (!tmpFlowData)
+		let tmpDropdown = document.getElementById('Ultravisor-LibraryDropdown');
+		if (!tmpDropdown)
 		{
 			return;
 		}
 
-		let tmpOpData =
-		{
-			Name: tmpName,
-			Description: tmpDescription,
-			Graph:
-			{
-				Nodes: JSON.parse(JSON.stringify(tmpFlowData.Nodes)),
-				Connections: JSON.parse(JSON.stringify(tmpFlowData.Connections)),
-				ViewState: tmpFlowData.ViewState ? JSON.parse(JSON.stringify(tmpFlowData.ViewState)) : {}
-			}
-		};
+		let tmpLibrary = this.pict.AppData.Ultravisor.OperationLibrary;
+		let tmpHTML = '<option value="">From Library...</option>';
 
-		this.pict.PictApplication.saveOperation(tmpOpData,
+		for (let i = 0; i < tmpLibrary.length; i++)
+		{
+			let tmpItem = tmpLibrary[i];
+			let tmpLabel = this.escapeHTML(tmpItem.Name || tmpItem.FileName);
+			tmpLabel += ' (' + (tmpItem.NodeCount || 0) + ' nodes)';
+			tmpHTML += '<option value="' + this.escapeHTML(tmpItem.FileName) + '">' + tmpLabel + '</option>';
+		}
+
+		tmpDropdown.innerHTML = tmpHTML;
+	}
+
+	onLibraryDropdownChange()
+	{
+		let tmpDropdown = document.getElementById('Ultravisor-LibraryDropdown');
+		let tmpAddBtn = document.getElementById('Ultravisor-LibraryAddBtn');
+
+		if (tmpDropdown && tmpAddBtn)
+		{
+			tmpAddBtn.style.display = tmpDropdown.value ? 'inline-block' : 'none';
+		}
+	}
+
+	importSelectedLibraryOp()
+	{
+		let tmpDropdown = document.getElementById('Ultravisor-LibraryDropdown');
+		if (!tmpDropdown || !tmpDropdown.value)
+		{
+			return;
+		}
+
+		let tmpFileName = tmpDropdown.value;
+
+		this.pict.PictApplication.importLibraryOperation(tmpFileName,
 			function (pError, pData)
 			{
 				if (pError)
 				{
 					this.pict.ContentAssignment.assignContent('#Ultravisor-OperationList-Result',
-						'<div class="ultravisor-task-result-panel"><p style="color:#ef5350;">Error creating example: ' + this.escapeHTML(pError.message) + '</p></div>');
+						'<div class="ultravisor-task-result-panel"><p style="color:var(--uv-error);">Error importing: ' + this.escapeHTML(pError.message) + '</p></div>');
 					return;
 				}
 
-				// Reload the operation list
+				this.pict.ContentAssignment.assignContent('#Ultravisor-OperationList-Result',
+					'<div class="ultravisor-import-success">Operation imported as ' + this.escapeHTML(pData.Hash) + '</div>');
+
+				// Reset dropdown
+				let tmpDd = document.getElementById('Ultravisor-LibraryDropdown');
+				if (tmpDd) { tmpDd.value = ''; }
+				let tmpBtn = document.getElementById('Ultravisor-LibraryAddBtn');
+				if (tmpBtn) { tmpBtn.style.display = 'none'; }
+
+				// Reload the table
 				this.pict.PictApplication.loadOperations(
 					function ()
 					{
 						this.renderOperationTable();
 					}.bind(this));
+			}.bind(this));
+	}
+
+	exportOperation(pHash)
+	{
+		this.pict.PictApplication.exportOperation(pHash,
+			function (pError)
+			{
+				if (pError)
+				{
+					this.pict.ContentAssignment.assignContent('#Ultravisor-OperationList-Result',
+						'<div class="ultravisor-task-result-panel"><p style="color:var(--uv-error);">Export error: ' + this.escapeHTML(pError.message) + '</p></div>');
+				}
 			}.bind(this));
 	}
 

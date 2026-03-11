@@ -1,5 +1,7 @@
 const libPictView = require('pict-view');
 
+const libTimingUtils = require('../Ultravisor-TimingUtils.js');
+
 const _ViewConfiguration =
 {
 	ViewIdentifier: "Ultravisor-TimingView",
@@ -21,13 +23,13 @@ const _ViewConfiguration =
 			align-items: center;
 			margin-bottom: 1.5em;
 			padding-bottom: 1em;
-			border-bottom: 1px solid #2a2a4a;
+			border-bottom: 1px solid var(--uv-border-subtle);
 		}
 		.ultravisor-timing-header h1 {
 			margin: 0;
 			font-size: 2em;
 			font-weight: 300;
-			color: #e0e0e0;
+			color: var(--uv-text);
 		}
 		.ultravisor-timing-selector {
 			margin-bottom: 1.5em;
@@ -38,8 +40,8 @@ const _ViewConfiguration =
 			padding: 0.6em 0.75em;
 		}
 		.ultravisor-timing-card {
-			background: #16213e;
-			border: 1px solid #2a2a4a;
+			background: var(--uv-bg-surface);
+			border: 1px solid var(--uv-border-subtle);
 			border-radius: 8px;
 			padding: 1.5em;
 			margin-bottom: 1.5em;
@@ -58,19 +60,19 @@ const _ViewConfiguration =
 			font-size: 0.75em;
 			text-transform: uppercase;
 			letter-spacing: 0.05em;
-			color: #9e9ec0;
+			color: var(--uv-text-secondary);
 			margin-bottom: 0.25em;
 		}
 		.ultravisor-timing-stat-value {
 			font-size: 1.2em;
 			font-weight: 600;
-			color: #e0e0e0;
+			color: var(--uv-text);
 		}
 		.ultravisor-timing-stat-value.complete {
-			color: #66bb6a;
+			color: var(--uv-success);
 		}
 		.ultravisor-timing-stat-value.error {
-			color: #ef5350;
+			color: var(--uv-error);
 		}
 		.ultravisor-timing-chart {
 			margin-top: 1.5em;
@@ -79,7 +81,7 @@ const _ViewConfiguration =
 			font-size: 0.85em;
 			text-transform: uppercase;
 			letter-spacing: 0.05em;
-			color: #9e9ec0;
+			color: var(--uv-text-secondary);
 			margin-bottom: 1em;
 		}
 		.ultravisor-timing-row {
@@ -91,7 +93,7 @@ const _ViewConfiguration =
 			width: 180px;
 			flex-shrink: 0;
 			font-size: 0.85em;
-			color: #b0bec5;
+			color: var(--uv-text-secondary);
 			white-space: nowrap;
 			overflow: hidden;
 			text-overflow: ellipsis;
@@ -100,7 +102,7 @@ const _ViewConfiguration =
 		.ultravisor-timing-row-bar-container {
 			flex: 1;
 			height: 28px;
-			background: #1a1a2e;
+			background: var(--uv-bg-base);
 			border-radius: 4px;
 			position: relative;
 			overflow: hidden;
@@ -121,25 +123,33 @@ const _ViewConfiguration =
 			background: linear-gradient(90deg, #c62828, #e53935);
 		}
 		.ultravisor-timing-row-bar.running {
-			background: linear-gradient(90deg, #1565c0, #1e88e5);
+			background: linear-gradient(90deg, var(--uv-info), #1e88e5);
 		}
 		.ultravisor-timing-row-bar.other {
-			background: linear-gradient(90deg, #37474f, #546e7a);
+			background: linear-gradient(90deg, var(--uv-btn-secondary-bg), #546e7a);
 		}
 		.ultravisor-timing-row-bar-text {
 			font-size: 0.75em;
 			color: #fff;
 			white-space: nowrap;
-			text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+			text-shadow: 0 1px 2px var(--uv-shadow-heavy);
 		}
 		.ultravisor-timing-row-duration {
 			width: 120px;
 			flex-shrink: 0;
 			font-size: 0.8em;
-			color: #78909c;
+			color: var(--uv-text-secondary);
 			text-align: right;
 			padding-left: 0.75em;
 			font-family: monospace;
+		}
+		.ultravisor-timing-row-count {
+			width: 60px;
+			flex-shrink: 0;
+			font-size: 0.75em;
+			color: var(--uv-text-secondary);
+			text-align: right;
+			padding-left: 0.5em;
 		}
 		.ultravisor-timing-axis {
 			display: flex;
@@ -151,12 +161,12 @@ const _ViewConfiguration =
 			flex: 1;
 			display: flex;
 			justify-content: space-between;
-			border-top: 1px solid #3a3a5c;
+			border-top: 1px solid var(--uv-border);
 			padding-top: 0.35em;
 		}
 		.ultravisor-timing-axis-tick {
 			font-size: 0.7em;
-			color: #616161;
+			color: var(--uv-text-tertiary);
 			font-family: monospace;
 		}
 		.ultravisor-timing-axis-spacer {
@@ -166,9 +176,56 @@ const _ViewConfiguration =
 		.ultravisor-timing-empty {
 			text-align: center;
 			padding: 3em;
-			color: #616161;
+			color: var(--uv-text-tertiary);
 			font-style: italic;
 		}
+		.ultravisor-timing-verbosity-controls {
+			display: flex;
+			gap: 0.5em;
+			margin-bottom: 1em;
+		}
+		.ultravisor-timing-verbosity-btn {
+			padding: 0.35em 0.75em;
+			border: 1px solid var(--uv-border);
+			border-radius: 4px;
+			background: transparent;
+			color: var(--uv-text-secondary);
+			font-size: 0.8em;
+			cursor: pointer;
+		}
+		.ultravisor-timing-verbosity-btn.active {
+			background: #1e3a5f;
+			border-color: #42a5f5;
+			color: #90caf9;
+		}
+		.ultravisor-timing-eventlog-table {
+			width: 100%;
+			border-collapse: collapse;
+			font-size: 0.8em;
+		}
+		.ultravisor-timing-eventlog-table th {
+			text-align: left;
+			padding: 0.5em 0.75em;
+			background: #0d1b2a;
+			color: var(--uv-text-secondary);
+			border-bottom: 1px solid var(--uv-border-subtle);
+			font-weight: 600;
+			text-transform: uppercase;
+			font-size: 0.85em;
+			letter-spacing: 0.05em;
+		}
+		.ultravisor-timing-eventlog-table td {
+			padding: 0.4em 0.75em;
+			border-bottom: 1px solid var(--uv-bg-base);
+			color: var(--uv-text-secondary);
+			font-family: monospace;
+		}
+		.ultravisor-timing-eventlog-table tr:hover td {
+			background: #1a2744;
+		}
+		.ultravisor-timing-eventlog-v0 { color: var(--uv-text); }
+		.ultravisor-timing-eventlog-v1 { color: var(--uv-text-secondary); }
+		.ultravisor-timing-eventlog-v2 { color: #546e7a; }
 	`,
 
 	Templates:
@@ -185,6 +242,10 @@ const _ViewConfiguration =
 	<div id="Ultravisor-Timing-Detail"></div>
 </div>
 `
+		},
+		{
+			Hash: "Ultravisor-Timing-Row-Template",
+			Template: /*html*/`<div class="ultravisor-timing-row"><div class="ultravisor-timing-row-label" title="{~D:Record.LabelTitle~}" style="{~D:Record.LabelStyle~}">{~D:Record.Label~}</div><div class="ultravisor-timing-row-bar-container"><div class="ultravisor-timing-row-bar {~D:Record.BarClass~}" style="width: {~D:Record.WidthPercent~}%;{~D:Record.BarStyle~}">{~D:Record.BarText~}</div></div><div class="ultravisor-timing-row-duration">{~D:Record.Duration~}</div>{~D:Record.CountHTML~}</div>`
 		}
 	],
 
@@ -204,6 +265,9 @@ class UltravisorTimingView extends libPictView
 	constructor(pFable, pOptions, pServiceHash)
 	{
 		super(pFable, pOptions, pServiceHash);
+
+		this._currentVerbosity = 0;
+		this._currentManifest = null;
 	}
 
 	onAfterRender(pRenderable, pRenderDestinationAddress, pRecord, pContent)
@@ -239,7 +303,7 @@ class UltravisorTimingView extends libPictView
 			let tmpLabel = (tmpManifest.OperationHash || tmpRunHash);
 			let tmpStatus = tmpManifest.Status || 'Unknown';
 			let tmpTime = tmpManifest.StartTime ? tmpManifest.StartTime.replace('T', ' ').replace(/\.\d+Z$/, '') : '';
-			tmpHTML += '<option value="' + this.escapeHTML(tmpRunHash) + '">' + this.escapeHTML(tmpLabel) + ' [' + tmpStatus + '] ' + tmpTime + '</option>';
+			tmpHTML += '<option value="' + libTimingUtils.escapeHTML(tmpRunHash) + '">' + libTimingUtils.escapeHTML(tmpLabel) + ' [' + tmpStatus + '] ' + tmpTime + '</option>';
 		}
 
 		tmpHTML += '</select>';
@@ -260,10 +324,12 @@ class UltravisorTimingView extends libPictView
 				if (pError || !pManifest)
 				{
 					this.pict.ContentAssignment.assignContent('#Ultravisor-Timing-Detail',
-						'<div class="ultravisor-timing-card"><p style="color:#ef5350;">Error loading manifest details.</p></div>');
+						'<div class="ultravisor-timing-card"><p style="color:var(--uv-error);">Error loading manifest details.</p></div>');
 					return;
 				}
 
+				this._currentManifest = pManifest;
+				this._currentVerbosity = 0;
 				this.renderTimingVisualization(pManifest);
 			}.bind(this));
 	}
@@ -279,12 +345,14 @@ class UltravisorTimingView extends libPictView
 			{
 				let tmpEntry = pManifest.TaskManifests[tmpKeys[k]];
 				tmpEntry._NodeHash = tmpKeys[k];
+				tmpEntry._ComputedElapsedMs = libTimingUtils.computeTaskElapsedMs(tmpEntry);
+				tmpEntry._ComputedStatus = libTimingUtils.computeTaskStatus(tmpEntry);
 				tmpTaskResults.push(tmpEntry);
 			}
 		}
 
 		let tmpOperationElapsedMs = pManifest.ElapsedMs || 0;
-		let tmpOperationElapsedFormatted = this.formatMs(tmpOperationElapsedMs);
+		let tmpOperationElapsedFormatted = libTimingUtils.formatMs(tmpOperationElapsedMs);
 		let tmpAverageTaskMs = 0;
 		let tmpStatus = (pManifest.Status || 'Unknown').toLowerCase();
 		let tmpStatusClass = (tmpStatus === 'complete' || tmpStatus === 'error' || tmpStatus === 'running') ? tmpStatus : '';
@@ -294,9 +362,9 @@ class UltravisorTimingView extends libPictView
 		{
 			for (let i = 0; i < tmpTaskResults.length; i++)
 			{
-				tmpOperationElapsedMs += (tmpTaskResults[i].ElapsedMs || 0);
+				tmpOperationElapsedMs += tmpTaskResults[i]._ComputedElapsedMs;
 			}
-			tmpOperationElapsedFormatted = this.formatMs(tmpOperationElapsedMs);
+			tmpOperationElapsedFormatted = libTimingUtils.formatMs(tmpOperationElapsedMs);
 		}
 
 		// Compute average
@@ -309,7 +377,7 @@ class UltravisorTimingView extends libPictView
 		let tmpMaxTaskMs = 0;
 		for (let i = 0; i < tmpTaskResults.length; i++)
 		{
-			let tmpMs = tmpTaskResults[i].ElapsedMs || 0;
+			let tmpMs = tmpTaskResults[i]._ComputedElapsedMs;
 			if (tmpMs > tmpMaxTaskMs)
 			{
 				tmpMaxTaskMs = tmpMs;
@@ -320,18 +388,19 @@ class UltravisorTimingView extends libPictView
 			tmpMaxTaskMs = 1;
 		}
 
-		let tmpHTML = '<div class="ultravisor-timing-card">';
+		let tmpHTML = '';
 
-		// Summary header
+		// ---- Summary Card ----
+		tmpHTML += '<div class="ultravisor-timing-card">';
 		tmpHTML += '<div class="ultravisor-timing-summary">';
-		tmpHTML += '<div class="ultravisor-timing-stat"><span class="ultravisor-timing-stat-label">Operation</span><span class="ultravisor-timing-stat-value">' + this.escapeHTML(pManifest.OperationHash || '') + '</span></div>';
-		tmpHTML += '<div class="ultravisor-timing-stat"><span class="ultravisor-timing-stat-label">Status</span><span class="ultravisor-timing-stat-value ' + tmpStatusClass + '">' + this.escapeHTML(pManifest.Status || 'Unknown') + '</span></div>';
-		tmpHTML += '<div class="ultravisor-timing-stat"><span class="ultravisor-timing-stat-label">Total Time</span><span class="ultravisor-timing-stat-value">' + this.escapeHTML(tmpOperationElapsedFormatted) + '</span></div>';
+		tmpHTML += '<div class="ultravisor-timing-stat"><span class="ultravisor-timing-stat-label">Operation</span><span class="ultravisor-timing-stat-value">' + libTimingUtils.escapeHTML(pManifest.OperationHash || '') + '</span></div>';
+		tmpHTML += '<div class="ultravisor-timing-stat"><span class="ultravisor-timing-stat-label">Status</span><span class="ultravisor-timing-stat-value ' + tmpStatusClass + '">' + libTimingUtils.escapeHTML(pManifest.Status || 'Unknown') + '</span></div>';
+		tmpHTML += '<div class="ultravisor-timing-stat"><span class="ultravisor-timing-stat-label">Total Time</span><span class="ultravisor-timing-stat-value">' + libTimingUtils.escapeHTML(tmpOperationElapsedFormatted) + '</span></div>';
 		tmpHTML += '<div class="ultravisor-timing-stat"><span class="ultravisor-timing-stat-label">Tasks</span><span class="ultravisor-timing-stat-value">' + tmpTaskResults.length + '</span></div>';
-		tmpHTML += '<div class="ultravisor-timing-stat"><span class="ultravisor-timing-stat-label">Avg per Task</span><span class="ultravisor-timing-stat-value">' + this.formatMs(tmpAverageTaskMs) + '</span></div>';
+		tmpHTML += '<div class="ultravisor-timing-stat"><span class="ultravisor-timing-stat-label">Avg per Task</span><span class="ultravisor-timing-stat-value">' + libTimingUtils.formatMs(tmpAverageTaskMs) + '</span></div>';
 		tmpHTML += '</div>';
 
-		// Timeline chart
+		// ---- Task Timeline ----
 		if (tmpTaskResults.length === 0)
 		{
 			tmpHTML += '<div class="ultravisor-timing-empty">No task results in this manifest.</div>';
@@ -344,9 +413,9 @@ class UltravisorTimingView extends libPictView
 			for (let i = 0; i < tmpTaskResults.length; i++)
 			{
 				let tmpResult = tmpTaskResults[i];
-				let tmpTaskMs = tmpResult.ElapsedMs || 0;
-				let tmpTaskFormatted = tmpResult.ElapsedFormatted || this.formatMs(tmpTaskMs);
-				let tmpTaskStatus = (tmpResult.Status || 'Unknown').toLowerCase();
+				let tmpTaskMs = tmpResult._ComputedElapsedMs;
+				let tmpTaskFormatted = libTimingUtils.formatMs(tmpTaskMs);
+				let tmpTaskStatus = tmpResult._ComputedStatus.toLowerCase();
 				let tmpBarClass = 'other';
 				if (tmpTaskStatus === 'complete')
 				{
@@ -363,20 +432,21 @@ class UltravisorTimingView extends libPictView
 
 				let tmpWidthPercent = (tmpMaxTaskMs > 0) ? Math.max((tmpTaskMs / tmpMaxTaskMs) * 100, 1) : 1;
 				let tmpNodeHash = tmpResult._NodeHash || '';
-				let tmpBarLabel = this.escapeHTML(tmpResult.Name || tmpNodeHash || '');
+				let tmpDisplayName = tmpResult.TaskTypeName || tmpResult._NodeHash || 'Task ' + (i + 1);
 
-				tmpHTML += '<div class="ultravisor-timing-row">';
-				tmpHTML += '<div class="ultravisor-timing-row-label" title="' + this.escapeHTML(tmpNodeHash) + '">' + this.escapeHTML(tmpResult.Name || tmpNodeHash || 'Task ' + (i + 1)) + '</div>';
-				tmpHTML += '<div class="ultravisor-timing-row-bar-container">';
-				tmpHTML += '<div class="ultravisor-timing-row-bar ' + tmpBarClass + '" style="width: ' + tmpWidthPercent.toFixed(1) + '%;">';
-				if (tmpWidthPercent > 20)
+				let tmpRowData =
 				{
-					tmpHTML += '<span class="ultravisor-timing-row-bar-text">' + tmpBarLabel + '</span>';
-				}
-				tmpHTML += '</div>';
-				tmpHTML += '</div>';
-				tmpHTML += '<div class="ultravisor-timing-row-duration">' + this.escapeHTML(tmpTaskFormatted) + '</div>';
-				tmpHTML += '</div>';
+					Label: libTimingUtils.escapeHTML(tmpDisplayName),
+					LabelTitle: libTimingUtils.escapeHTML(tmpNodeHash),
+					LabelStyle: '',
+					BarClass: tmpBarClass,
+					BarStyle: '',
+					WidthPercent: tmpWidthPercent.toFixed(1),
+					BarText: (tmpWidthPercent > 20) ? '<span class="ultravisor-timing-row-bar-text">' + libTimingUtils.escapeHTML(tmpDisplayName) + '</span>' : '',
+					Duration: libTimingUtils.escapeHTML(tmpTaskFormatted),
+					CountHTML: ''
+				};
+				tmpHTML += this.pict.parseTemplateByHash('Ultravisor-Timing-Row-Template', tmpRowData);
 			}
 
 			// Time axis
@@ -386,7 +456,7 @@ class UltravisorTimingView extends libPictView
 			for (let t = 0; t <= tmpTickCount; t++)
 			{
 				let tmpTickMs = (tmpMaxTaskMs / tmpTickCount) * t;
-				tmpHTML += '<span class="ultravisor-timing-axis-tick">' + this.formatMs(tmpTickMs) + '</span>';
+				tmpHTML += '<span class="ultravisor-timing-axis-tick">' + libTimingUtils.formatMs(tmpTickMs) + '</span>';
 			}
 			tmpHTML += '</div>';
 			tmpHTML += '<div class="ultravisor-timing-axis-spacer"></div>';
@@ -397,34 +467,213 @@ class UltravisorTimingView extends libPictView
 
 		tmpHTML += '</div>';
 
+		// ---- Category Histogram ----
+		if (pManifest.TimingSummary && pManifest.TimingSummary.ByCategory)
+		{
+			tmpHTML += this._renderCategoryHistogram(pManifest.TimingSummary.ByCategory);
+		}
+
+		// ---- Task Type Histogram ----
+		if (pManifest.TimingSummary && pManifest.TimingSummary.ByTaskType)
+		{
+			tmpHTML += this._renderTaskTypeHistogram(pManifest.TimingSummary.ByTaskType);
+		}
+
+		// ---- Event Log Panel ----
+		if (pManifest.EventLog && pManifest.EventLog.length > 0)
+		{
+			tmpHTML += this._renderEventLogPanel(pManifest);
+		}
+
 		this.pict.ContentAssignment.assignContent('#Ultravisor-Timing-Detail', tmpHTML);
 	}
 
-	formatMs(pMs)
+	_renderCategoryHistogram(pByCategory)
 	{
-		if (typeof pMs !== 'number' || pMs <= 0)
+		let tmpCategories = Object.keys(pByCategory);
+		if (tmpCategories.length === 0)
 		{
-			return '0ms';
+			return '';
 		}
-		if (pMs < 1000)
+
+		// Sort by TotalMs descending
+		tmpCategories.sort(function (pA, pB)
 		{
-			return Math.round(pMs) + 'ms';
-		}
-		if (pMs < 60000)
+			return (pByCategory[pB].TotalMs || 0) - (pByCategory[pA].TotalMs || 0);
+		});
+
+		let tmpMaxMs = pByCategory[tmpCategories[0]].TotalMs || 1;
+
+		let tmpHTML = '<div class="ultravisor-timing-card">';
+		tmpHTML += '<div class="ultravisor-timing-chart">';
+		tmpHTML += '<div class="ultravisor-timing-chart-title">Time by Category</div>';
+
+		for (let i = 0; i < tmpCategories.length; i++)
 		{
-			let tmpSeconds = Math.floor(pMs / 1000);
-			let tmpMs = Math.round(pMs % 1000);
-			return tmpSeconds + 's ' + tmpMs + 'ms';
+			let tmpCat = tmpCategories[i];
+			let tmpData = pByCategory[tmpCat];
+			let tmpMs = tmpData.TotalMs || 0;
+			let tmpWidthPercent = Math.max((tmpMs / tmpMaxMs) * 100, 1);
+			let tmpColors = libTimingUtils.CategoryColors[tmpCat] || libTimingUtils.CategoryColors['Uncategorized'];
+
+			let tmpRowData =
+			{
+				Label: libTimingUtils.escapeHTML(tmpCat),
+				LabelTitle: '',
+				LabelStyle: 'color:' + tmpColors.text + ';',
+				BarClass: '',
+				BarStyle: ' background: ' + tmpColors.bar + ';',
+				WidthPercent: tmpWidthPercent.toFixed(1),
+				BarText: (tmpWidthPercent > 15) ? '<span class="ultravisor-timing-row-bar-text">' + libTimingUtils.formatMs(tmpMs) + '</span>' : '',
+				Duration: libTimingUtils.formatMs(tmpMs),
+				CountHTML: '<div class="ultravisor-timing-row-count">' + tmpData.Count + 'x</div>'
+			};
+			tmpHTML += this.pict.parseTemplateByHash('Ultravisor-Timing-Row-Template', tmpRowData);
 		}
-		let tmpMinutes = Math.floor(pMs / 60000);
-		let tmpSeconds = Math.floor((pMs % 60000) / 1000);
-		return tmpMinutes + 'm ' + tmpSeconds + 's';
+
+		tmpHTML += '</div>';
+		tmpHTML += '</div>';
+		return tmpHTML;
 	}
 
-	escapeHTML(pValue)
+	_renderTaskTypeHistogram(pByTaskType)
 	{
-		if (!pValue) return '';
-		return String(pValue).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+		let tmpTypes = Object.keys(pByTaskType);
+		if (tmpTypes.length === 0)
+		{
+			return '';
+		}
+
+		// Sort by TotalMs descending
+		tmpTypes.sort(function (pA, pB)
+		{
+			return (pByTaskType[pB].TotalMs || 0) - (pByTaskType[pA].TotalMs || 0);
+		});
+
+		let tmpMaxMs = pByTaskType[tmpTypes[0]].TotalMs || 1;
+
+		let tmpHTML = '<div class="ultravisor-timing-card">';
+		tmpHTML += '<div class="ultravisor-timing-chart">';
+		tmpHTML += '<div class="ultravisor-timing-chart-title">Time by Task Type</div>';
+
+		for (let i = 0; i < tmpTypes.length; i++)
+		{
+			let tmpType = tmpTypes[i];
+			let tmpData = pByTaskType[tmpType];
+			let tmpMs = tmpData.TotalMs || 0;
+			let tmpWidthPercent = Math.max((tmpMs / tmpMaxMs) * 100, 1);
+			let tmpCategory = tmpData.Category || 'Uncategorized';
+			let tmpColors = libTimingUtils.CategoryColors[tmpCategory] || libTimingUtils.CategoryColors['Uncategorized'];
+			let tmpDisplayName = tmpData.Name || tmpType;
+
+			let tmpRowData =
+			{
+				Label: libTimingUtils.escapeHTML(tmpDisplayName),
+				LabelTitle: libTimingUtils.escapeHTML(tmpType),
+				LabelStyle: '',
+				BarClass: '',
+				BarStyle: ' background: ' + tmpColors.bar + ';',
+				WidthPercent: tmpWidthPercent.toFixed(1),
+				BarText: (tmpWidthPercent > 15) ? '<span class="ultravisor-timing-row-bar-text">' + libTimingUtils.formatMs(tmpMs) + '</span>' : '',
+				Duration: libTimingUtils.formatMs(tmpMs),
+				CountHTML: '<div class="ultravisor-timing-row-count">' + tmpData.Count + 'x</div>'
+			};
+			tmpHTML += this.pict.parseTemplateByHash('Ultravisor-Timing-Row-Template', tmpRowData);
+		}
+
+		tmpHTML += '</div>';
+		tmpHTML += '</div>';
+		return tmpHTML;
+	}
+
+	_renderEventLogPanel(pManifest)
+	{
+		let tmpViewRef = "_Pict.views['Ultravisor-TimingView']";
+
+		let tmpHTML = '<div class="ultravisor-timing-card">';
+		tmpHTML += '<div class="ultravisor-timing-chart">';
+		tmpHTML += '<div class="ultravisor-timing-chart-title">Event Log</div>';
+
+		// Verbosity toggle buttons
+		tmpHTML += '<div class="ultravisor-timing-verbosity-controls">';
+		tmpHTML += '<button class="ultravisor-timing-verbosity-btn' + (this._currentVerbosity === 0 ? ' active' : '') + '" onclick="' + tmpViewRef + '.setVerbosity(0)">Normal</button>';
+		tmpHTML += '<button class="ultravisor-timing-verbosity-btn' + (this._currentVerbosity === 1 ? ' active' : '') + '" onclick="' + tmpViewRef + '.setVerbosity(1)">Verbose</button>';
+		tmpHTML += '<button class="ultravisor-timing-verbosity-btn' + (this._currentVerbosity === 2 ? ' active' : '') + '" onclick="' + tmpViewRef + '.setVerbosity(2)">Ultra-verbose</button>';
+		tmpHTML += '</div>';
+
+		tmpHTML += '<div id="Ultravisor-Timing-EventLog-Body">';
+		tmpHTML += this._renderEventLogTable(pManifest.EventLog, pManifest.StartTime);
+		tmpHTML += '</div>';
+
+		tmpHTML += '</div>';
+		tmpHTML += '</div>';
+		return tmpHTML;
+	}
+
+	_renderEventLogTable(pEventLog, pOperationStartTime)
+	{
+		let tmpStartMs = pOperationStartTime ? new Date(pOperationStartTime).getTime() : 0;
+		let tmpMaxVerbosity = this._currentVerbosity;
+
+		let tmpHTML = '<table class="ultravisor-timing-eventlog-table">';
+		tmpHTML += '<thead><tr><th>Time</th><th>Node</th><th>Event</th><th>Message</th></tr></thead>';
+		tmpHTML += '<tbody>';
+
+		let tmpVisibleCount = 0;
+
+		for (let i = 0; i < pEventLog.length; i++)
+		{
+			let tmpEvent = pEventLog[i];
+
+			if (tmpEvent.Verbosity > tmpMaxVerbosity)
+			{
+				continue;
+			}
+
+			tmpVisibleCount++;
+			let tmpRelativeMs = (tmpEvent.TimestampMs && tmpStartMs) ? (tmpEvent.TimestampMs - tmpStartMs) : 0;
+			let tmpVerbClass = 'ultravisor-timing-eventlog-v' + (tmpEvent.Verbosity || 0);
+
+			tmpHTML += '<tr class="' + tmpVerbClass + '">';
+			tmpHTML += '<td>+' + libTimingUtils.formatMs(tmpRelativeMs) + '</td>';
+			tmpHTML += '<td>' + libTimingUtils.escapeHTML(tmpEvent.NodeHash || '-') + '</td>';
+			tmpHTML += '<td>' + libTimingUtils.escapeHTML(tmpEvent.EventName || '') + '</td>';
+			tmpHTML += '<td>' + libTimingUtils.escapeHTML(tmpEvent.Message || '') + '</td>';
+			tmpHTML += '</tr>';
+		}
+
+		if (tmpVisibleCount === 0)
+		{
+			tmpHTML += '<tr><td colspan="4" style="text-align:center; color:var(--uv-text-tertiary); font-style:italic;">No events at this verbosity level.</td></tr>';
+		}
+
+		tmpHTML += '</tbody></table>';
+		return tmpHTML;
+	}
+
+	setVerbosity(pLevel)
+	{
+		this._currentVerbosity = pLevel;
+
+		if (this._currentManifest && this._currentManifest.EventLog)
+		{
+			// Re-render the event log table only
+			let tmpTableHTML = this._renderEventLogTable(this._currentManifest.EventLog, this._currentManifest.StartTime);
+			this.pict.ContentAssignment.assignContent('#Ultravisor-Timing-EventLog-Body', tmpTableHTML);
+
+			// Update button active states
+			let tmpViewRef = "_Pict.views['Ultravisor-TimingView']";
+			let tmpBtnHTML = '';
+			tmpBtnHTML += '<button class="ultravisor-timing-verbosity-btn' + (pLevel === 0 ? ' active' : '') + '" onclick="' + tmpViewRef + '.setVerbosity(0)">Normal</button>';
+			tmpBtnHTML += '<button class="ultravisor-timing-verbosity-btn' + (pLevel === 1 ? ' active' : '') + '" onclick="' + tmpViewRef + '.setVerbosity(1)">Verbose</button>';
+			tmpBtnHTML += '<button class="ultravisor-timing-verbosity-btn' + (pLevel === 2 ? ' active' : '') + '" onclick="' + tmpViewRef + '.setVerbosity(2)">Ultra-verbose</button>';
+
+			let tmpControlsEl = document.querySelector('.ultravisor-timing-verbosity-controls');
+			if (tmpControlsEl)
+			{
+				tmpControlsEl.innerHTML = tmpBtnHTML;
+			}
+		}
 	}
 }
 

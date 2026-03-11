@@ -37,6 +37,10 @@
 		{
 			"path": "/FlowEditor",
 			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-FlowEditor`)~}"
+		},
+		{
+			"path": "/Docs",
+			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-Documentation`)~}"
 		}
 	]
 }

@@ -10,8 +10,13 @@
 
 		<!-- Application Stylesheet -->
 		<link href="css/ultravisor.css" rel="stylesheet">
+		<!-- Theme Definitions (CSS Custom Properties) -->
+		<link href="css/ultravisor-themes.css" rel="stylesheet">
 		<!-- PICT Dynamic View CSS Container -->
 		<style id="PICT-CSS"></style>
+
+		<!-- Apply saved theme before first paint to prevent flash -->
+		<script>(function(){var t=localStorage.getItem('ultravisor-theme');if(t&&t!=='desert-dusk')document.body.dataset.theme=t;})();</script>
 
 		<!-- Load the PICT library -->
 		<script src="./js/pict.min.js" type="text/javascript"></script>

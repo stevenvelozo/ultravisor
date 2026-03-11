@@ -203,6 +203,21 @@ class UltravisorExecutionEngine extends libPictService
 		}
 		tmpContext.TaskOutputs[pNodeHash].InputValue = pValue;
 
+		// Update the task's ElapsedMs to include the time spent waiting for input
+		let tmpTaskManifest = tmpContext.TaskManifests[pNodeHash];
+		if (tmpTaskManifest && tmpTaskManifest.Executions && tmpTaskManifest.Executions.length > 0)
+		{
+			let tmpExecution = tmpTaskManifest.Executions[tmpTaskManifest.Executions.length - 1];
+			let tmpNow = Date.now();
+			// Recompute elapsed from original start to now (includes the wait period)
+			if (tmpExecution.StartTimeMs)
+			{
+				tmpExecution.StopTimeMs = tmpNow;
+				tmpExecution.StopTime = new Date(tmpNow).toISOString();
+				tmpExecution.ElapsedMs = tmpNow - tmpExecution.StartTimeMs;
+			}
+		}
+
 		// Remove from waiting list
 		delete tmpContext.WaitingTasks[pNodeHash];
 
@@ -250,6 +265,13 @@ class UltravisorExecutionEngine extends libPictService
 
 		// Dequeue the next event
 		let tmpEvent = pContext.PendingEvents.shift();
+
+		let tmpDequeueManifest = this._getManifestService();
+		if (tmpDequeueManifest)
+		{
+			tmpDequeueManifest.recordEvent(pContext, tmpEvent.TargetNodeHash, 'EventDequeued',
+				`Dequeued [${tmpEvent.EventName}] for [${tmpEvent.TargetNodeHash}]`, 1);
+		}
 
 		this._executeTaskForEvent(tmpEvent.TargetNodeHash, tmpEvent.EventName, pContext,
 			(pError) =>
@@ -320,7 +342,16 @@ class UltravisorExecutionEngine extends libPictService
 		let tmpManifestService = this._getManifestService();
 		if (tmpManifestService)
 		{
-			tmpManifestService.recordTaskStart(pContext, pNodeHash, pEventName);
+			tmpManifestService.recordTaskStart(pContext, pNodeHash, pEventName, {
+				DefinitionHash: tmpDefinitionHash,
+				TaskTypeName: tmpDefinition.Name || '',
+				Category: tmpDefinition.Category || '',
+				Capability: tmpDefinition.Capability || '',
+				Action: tmpDefinition.Action || '',
+				Tier: tmpDefinition.Tier || ''
+			});
+			tmpManifestService.recordEvent(pContext, pNodeHash, 'TaskStart',
+				`Executing [${pNodeHash}] (${tmpDefinition.Name || tmpDefinitionHash}) triggered by [${pEventName}]`, 0);
 		}
 
 		this._log(pContext, `Executing node [${pNodeHash}] (${tmpDefinition.Name}) triggered by [${pEventName}]`);
@@ -351,6 +382,13 @@ class UltravisorExecutionEngine extends libPictService
 		// Build the fFireIntermediateEvent function for re-entrant tasks
 		let fFireIntermediateEvent = (pIntermediateEventName, pIntermediateOutputs, fResumeCallback) =>
 		{
+			// Record the intermediate event
+			if (tmpManifestService)
+			{
+				tmpManifestService.recordEvent(pContext, pNodeHash, 'IntermediateEvent',
+					`Intermediate event [${pIntermediateEventName}] from [${pNodeHash}]`, 1);
+			}
+
 			// Store the intermediate outputs
 			if (!pContext.TaskOutputs[pNodeHash])
 			{
@@ -408,6 +446,8 @@ class UltravisorExecutionEngine extends libPictService
 				if (tmpManifestService)
 				{
 					tmpManifestService.recordTaskError(pContext, pNodeHash, pError);
+					tmpManifestService.recordEvent(pContext, pNodeHash, 'TaskError',
+						`Error in [${pNodeHash}]: ${pError.message}`, 0);
 				}
 
 				// Fire error event if the task has one
@@ -488,6 +528,8 @@ class UltravisorExecutionEngine extends libPictService
 			if (tmpManifestService)
 			{
 				tmpManifestService.recordTaskComplete(pContext, pNodeHash, pResult);
+				tmpManifestService.recordEvent(pContext, pNodeHash, 'TaskComplete',
+					`Completed [${pNodeHash}] -> ${pResult.EventToFire || 'no event'}`, 0);
 			}
 
 			// Fire the output event (enqueue downstream tasks)

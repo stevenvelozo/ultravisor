@@ -18,17 +18,17 @@ const _ViewConfiguration =
 		.ultravisor-dashboard-header {
 			margin: 0 0 1.5em 0;
 			padding-bottom: 1em;
-			border-bottom: 1px solid #2a2a4a;
+			border-bottom: 1px solid var(--uv-border-subtle);
 		}
 		.ultravisor-dashboard-header h1 {
 			margin: 0 0 0.25em 0;
 			font-size: 2em;
 			font-weight: 300;
-			color: #e0e0e0;
+			color: var(--uv-text);
 		}
 		.ultravisor-dashboard-header p {
 			margin: 0;
-			color: #78909c;
+			color: var(--uv-text-secondary);
 			font-size: 1.1em;
 		}
 		.ultravisor-dashboard-cards {
@@ -38,18 +38,18 @@ const _ViewConfiguration =
 			margin-bottom: 2em;
 		}
 		.ultravisor-stat-card {
-			background: #16213e;
-			border: 1px solid #2a2a4a;
+			background: var(--uv-bg-surface);
+			border: 1px solid var(--uv-border-subtle);
 			border-radius: 8px;
 			padding: 1.25em;
 			transition: border-color 0.2s;
 		}
 		.ultravisor-stat-card:hover {
-			border-color: #4fc3f7;
+			border-color: var(--uv-brand);
 		}
 		.ultravisor-stat-card-label {
 			font-size: 0.8em;
-			color: #78909c;
+			color: var(--uv-text-secondary);
 			text-transform: uppercase;
 			letter-spacing: 0.05em;
 			margin-bottom: 0.5em;
@@ -57,13 +57,13 @@ const _ViewConfiguration =
 		.ultravisor-stat-card-value {
 			font-size: 2em;
 			font-weight: 600;
-			color: #4fc3f7;
+			color: var(--uv-brand);
 		}
 		.ultravisor-stat-card-value.running {
-			color: #66bb6a;
+			color: var(--uv-success);
 		}
 		.ultravisor-stat-card-value.stopped {
-			color: #ef5350;
+			color: var(--uv-error);
 		}
 		.ultravisor-dashboard-actions {
 			display: flex;
@@ -79,15 +79,15 @@ const _ViewConfiguration =
 			transition: background-color 0.15s;
 		}
 		.ultravisor-btn-primary {
-			background-color: #4fc3f7;
-			color: #0f3460;
+			background-color: var(--uv-brand);
+			color: var(--uv-bg-elevated);
 			font-weight: 600;
 		}
 		.ultravisor-btn-primary:hover {
-			background-color: #81d4fa;
+			background-color: var(--uv-brand-hover);
 		}
 		.ultravisor-btn-danger {
-			background-color: #ef5350;
+			background-color: var(--uv-error);
 			color: #fff;
 			font-weight: 600;
 		}
@@ -95,19 +95,19 @@ const _ViewConfiguration =
 			background-color: #e53935;
 		}
 		.ultravisor-btn-secondary {
-			background-color: #37474f;
-			color: #e0e0e0;
+			background-color: var(--uv-btn-secondary-bg);
+			color: var(--uv-text);
 		}
 		.ultravisor-btn-secondary:hover {
-			background-color: #455a64;
+			background-color: var(--uv-btn-secondary-bg);
 		}
 		.ultravisor-dashboard-section-title {
 			font-size: 1.1em;
 			font-weight: 600;
-			color: #b0bec5;
+			color: var(--uv-text-secondary);
 			margin: 2em 0 1em 0;
 			padding-bottom: 0.5em;
-			border-bottom: 1px solid #2a2a4a;
+			border-bottom: 1px solid var(--uv-border-subtle);
 		}
 	`,
 

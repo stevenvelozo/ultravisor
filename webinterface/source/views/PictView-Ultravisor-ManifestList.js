@@ -1,5 +1,7 @@
 const libPictView = require('pict-view');
 
+const libTimingUtils = require('../Ultravisor-TimingUtils.js');
+
 const _ViewConfiguration =
 {
 	ViewIdentifier: "Ultravisor-ManifestList",
@@ -21,20 +23,20 @@ const _ViewConfiguration =
 			align-items: center;
 			margin-bottom: 1.5em;
 			padding-bottom: 1em;
-			border-bottom: 1px solid #2a2a4a;
+			border-bottom: 1px solid var(--uv-border-subtle);
 		}
 		.ultravisor-manifestlist-header h1 {
 			margin: 0;
 			font-size: 2em;
 			font-weight: 300;
-			color: #e0e0e0;
+			color: var(--uv-text);
 		}
 		.ultravisor-manifest-table {
 			width: 100%;
 			border-collapse: collapse;
 		}
 		.ultravisor-manifest-table th {
-			background-color: #16213e;
+			background-color: var(--uv-bg-surface);
 		}
 		.ultravisor-manifest-table tr:hover td {
 			background-color: #1a2744;
@@ -51,20 +53,20 @@ const _ViewConfiguration =
 			color: #c8e6c9;
 		}
 		.ultravisor-manifest-status.running {
-			background-color: #1565c0;
-			color: #bbdefb;
+			background-color: var(--uv-info);
+			color: var(--uv-text-heading);
 		}
 		.ultravisor-manifest-status.error {
 			background-color: #c62828;
 			color: #ffcdd2;
 		}
 		.ultravisor-manifest-status.waiting {
-			background-color: #f57f17;
+			background-color: var(--uv-warning);
 			color: #fff9c4;
 		}
 		.ultravisor-manifest-detail {
-			background: #16213e;
-			border: 1px solid #2a2a4a;
+			background: var(--uv-bg-surface);
+			border: 1px solid var(--uv-border-subtle);
 			border-radius: 8px;
 			padding: 1.5em;
 			margin-top: 1em;
@@ -75,10 +77,10 @@ const _ViewConfiguration =
 		}
 		.ultravisor-manifest-detail h3 {
 			margin: 0 0 1em 0;
-			color: #b0bec5;
+			color: var(--uv-text-secondary);
 		}
 		.ultravisor-manifest-task-result {
-			background: #1a1a2e;
+			background: var(--uv-bg-base);
 			border-radius: 4px;
 			padding: 0.75em;
 			margin-bottom: 0.5em;
@@ -90,7 +92,7 @@ const _ViewConfiguration =
 			margin-bottom: 0.5em;
 		}
 		.ultravisor-manifest-task-result-header code {
-			color: #4fc3f7;
+			color: var(--uv-brand);
 		}
 		.ultravisor-manifest-output {
 			background: #0d1117;
@@ -183,11 +185,11 @@ class UltravisorManifestListView extends libPictView
 			}
 
 			tmpHTML += '<tr>';
-			tmpHTML += '<td><code style="font-size:0.8em;">' + this.escapeHTML(tmpRunHash) + '</code></td>';
-			tmpHTML += '<td>' + this.escapeHTML(tmpManifest.OperationHash || '') + '</td>';
-			tmpHTML += '<td><span class="ultravisor-manifest-status ' + tmpStatusClass + '">' + this.escapeHTML(tmpStatus) + '</span></td>';
+			tmpHTML += '<td><code style="font-size:0.8em;">' + libTimingUtils.escapeHTML(tmpRunHash) + '</code></td>';
+			tmpHTML += '<td>' + libTimingUtils.escapeHTML(tmpManifest.OperationHash || '') + '</td>';
+			tmpHTML += '<td><span class="ultravisor-manifest-status ' + tmpStatusClass + '">' + libTimingUtils.escapeHTML(tmpStatus) + '</span></td>';
 			tmpHTML += '<td>' + (tmpManifest.ElapsedMs ? this.fable.DataFormat.formatTimeSpan(tmpManifest.ElapsedMs) + ' (' + tmpManifest.ElapsedMs + 'ms)' : '') + '</td>';
-			tmpHTML += '<td>' + this.escapeHTML(tmpManifest.StartTime || '') + '</td>';
+			tmpHTML += '<td>' + libTimingUtils.escapeHTML(tmpManifest.StartTime || '') + '</td>';
 			tmpHTML += '<td><button class="ultravisor-btn-sm ultravisor-btn-edit" onclick="' + tmpViewRef + '.showManifestDetail(\'' + tmpEscHash + '\')">Details</button></td>';
 			tmpHTML += '</tr>';
 		}
@@ -204,22 +206,22 @@ class UltravisorManifestListView extends libPictView
 				if (pError || !pManifest)
 				{
 					this.pict.ContentAssignment.assignContent('#Ultravisor-ManifestList-Detail',
-						'<div class="ultravisor-manifest-detail visible"><p style="color:#ef5350;">Error loading manifest details.</p></div>');
+						'<div class="ultravisor-manifest-detail visible"><p style="color:var(--uv-error);">Error loading manifest details.</p></div>');
 					return;
 				}
 
 				let tmpHTML = '<div class="ultravisor-manifest-detail visible">';
-				tmpHTML += '<h3>Run: ' + this.escapeHTML(pManifest.Hash || '') + '</h3>';
-				tmpHTML += '<p><strong>Operation:</strong> ' + this.escapeHTML(pManifest.OperationHash || '') + '</p>';
-				tmpHTML += '<p><strong>Status:</strong> ' + this.escapeHTML(pManifest.Status || '') + '</p>';
-				tmpHTML += '<p><strong>Start:</strong> ' + this.escapeHTML(pManifest.StartTime || '') + ' &middot; <strong>Stop:</strong> ' + this.escapeHTML(pManifest.StopTime || '') + '</p>';
+				tmpHTML += '<h3>Run: ' + libTimingUtils.escapeHTML(pManifest.Hash || '') + '</h3>';
+				tmpHTML += '<p><strong>Operation:</strong> ' + libTimingUtils.escapeHTML(pManifest.OperationHash || '') + '</p>';
+				tmpHTML += '<p><strong>Status:</strong> ' + libTimingUtils.escapeHTML(pManifest.Status || '') + '</p>';
+				tmpHTML += '<p><strong>Start:</strong> ' + libTimingUtils.escapeHTML(pManifest.StartTime || '') + ' &middot; <strong>Stop:</strong> ' + libTimingUtils.escapeHTML(pManifest.StopTime || '') + '</p>';
 				tmpHTML += '<p><strong>Elapsed:</strong> ' + this.fable.DataFormat.formatTimeSpan(pManifest.ElapsedMs || 0) + ' (' + (pManifest.ElapsedMs || 0) + 'ms)</p>';
 
 				// Task Outputs
 				if (pManifest.TaskOutputs && Object.keys(pManifest.TaskOutputs).length > 0)
 				{
 					tmpHTML += '<h3>Task Outputs</h3>';
-					tmpHTML += '<div class="ultravisor-manifest-output">' + this.escapeHTML(JSON.stringify(pManifest.TaskOutputs, null, 2)) + '</div>';
+					tmpHTML += '<div class="ultravisor-manifest-output">' + libTimingUtils.escapeHTML(JSON.stringify(pManifest.TaskOutputs, null, 2)) + '</div>';
 				}
 
 				// Task Manifests (object keyed by node hash)
@@ -233,12 +235,12 @@ class UltravisorManifestListView extends libPictView
 						let tmpTaskManifest = pManifest.TaskManifests[tmpNodeHash];
 						tmpHTML += '<div class="ultravisor-manifest-task-result">';
 						tmpHTML += '<div class="ultravisor-manifest-task-result-header">';
-						tmpHTML += '<code>' + this.escapeHTML(tmpNodeHash) + '</code>';
-						tmpHTML += '<span class="ultravisor-manifest-status ' + (tmpTaskManifest.Status || '').toLowerCase() + '">' + this.escapeHTML(tmpTaskManifest.Status || '') + '</span>';
+						tmpHTML += '<code>' + libTimingUtils.escapeHTML(tmpNodeHash) + '</code>';
+						tmpHTML += '<span class="ultravisor-manifest-status ' + (tmpTaskManifest.Status || '').toLowerCase() + '">' + libTimingUtils.escapeHTML(tmpTaskManifest.Status || '') + '</span>';
 						tmpHTML += '</div>';
 						if (tmpTaskManifest.Output)
 						{
-							tmpHTML += '<div class="ultravisor-manifest-output">' + this.escapeHTML(JSON.stringify(tmpTaskManifest.Output, null, 2)) + '</div>';
+							tmpHTML += '<div class="ultravisor-manifest-output">' + libTimingUtils.escapeHTML(JSON.stringify(tmpTaskManifest.Output, null, 2)) + '</div>';
 						}
 						tmpHTML += '</div>';
 					}
@@ -247,15 +249,40 @@ class UltravisorManifestListView extends libPictView
 				// Errors
 				if (pManifest.Errors && pManifest.Errors.length > 0)
 				{
-					tmpHTML += '<h3 style="color:#ef5350;">Errors</h3>';
-					tmpHTML += '<div class="ultravisor-manifest-output" style="border: 1px solid #ef5350;">' + this.escapeHTML(pManifest.Errors.join('\n')) + '</div>';
+					tmpHTML += '<h3 style="color:var(--uv-error);">Errors</h3>';
+					tmpHTML += '<div class="ultravisor-manifest-output" style="border: 1px solid var(--uv-error);">' + libTimingUtils.escapeHTML(pManifest.Errors.join('\n')) + '</div>';
 				}
 
 				// Log
 				if (pManifest.Log && pManifest.Log.length > 0)
 				{
 					tmpHTML += '<h3>Log</h3>';
-					tmpHTML += '<div class="ultravisor-manifest-output">' + this.escapeHTML(pManifest.Log.join('\n')) + '</div>';
+					tmpHTML += '<div class="ultravisor-manifest-output">' + libTimingUtils.escapeHTML(pManifest.Log.join('\n')) + '</div>';
+				}
+
+				// ---- Timing Analysis ----
+				let tmpHasTimingData = (pManifest.TimingSummary &&
+					(pManifest.TimingSummary.ByCategory || pManifest.TimingSummary.ByTaskType)) ||
+					(pManifest.TaskManifests && Object.keys(pManifest.TaskManifests).length > 0);
+
+				if (tmpHasTimingData)
+				{
+					tmpHTML += '<h3 style="margin-top: 1.5em;">Timing Analysis</h3>';
+
+					// Task Timeline
+					tmpHTML += this._renderTaskTimeline(pManifest);
+
+					// Category Histogram
+					if (pManifest.TimingSummary && pManifest.TimingSummary.ByCategory)
+					{
+						tmpHTML += this._renderCategoryHistogram(pManifest.TimingSummary.ByCategory);
+					}
+
+					// Task Type Histogram
+					if (pManifest.TimingSummary && pManifest.TimingSummary.ByTaskType)
+					{
+						tmpHTML += this._renderTaskTypeHistogram(pManifest.TimingSummary.ByTaskType);
+					}
 				}
 
 				tmpHTML += '</div>';
@@ -263,10 +290,221 @@ class UltravisorManifestListView extends libPictView
 			}.bind(this));
 	}
 
-	escapeHTML(pValue)
+	// ── Timing Visualization Methods ─────────────────────────────────────
+
+	/**
+	 * Render a horizontal bar chart of individual task durations.
+	 * Color-coded by status: complete=green, error=red, running=blue.
+	 *
+	 * @param {Object} pManifest - The full manifest object
+	 * @returns {string} HTML string
+	 */
+	_renderTaskTimeline(pManifest)
 	{
-		if (!pValue) return '';
-		return String(pValue).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+		// Convert TaskManifests to array with computed elapsed + status
+		let tmpTaskResults = [];
+		if (pManifest.TaskManifests && typeof pManifest.TaskManifests === 'object')
+		{
+			let tmpKeys = Object.keys(pManifest.TaskManifests);
+			for (let k = 0; k < tmpKeys.length; k++)
+			{
+				let tmpEntry = pManifest.TaskManifests[tmpKeys[k]];
+				tmpEntry._NodeHash = tmpKeys[k];
+				tmpEntry._ComputedElapsedMs = libTimingUtils.computeTaskElapsedMs(tmpEntry);
+				tmpEntry._ComputedStatus = libTimingUtils.computeTaskStatus(tmpEntry);
+				tmpTaskResults.push(tmpEntry);
+			}
+		}
+
+		if (tmpTaskResults.length === 0)
+		{
+			return '';
+		}
+
+		// Find max task duration for bar scaling
+		let tmpMaxTaskMs = 0;
+		for (let i = 0; i < tmpTaskResults.length; i++)
+		{
+			let tmpMs = tmpTaskResults[i]._ComputedElapsedMs;
+			if (tmpMs > tmpMaxTaskMs)
+			{
+				tmpMaxTaskMs = tmpMs;
+			}
+		}
+		if (tmpMaxTaskMs <= 0)
+		{
+			tmpMaxTaskMs = 1;
+		}
+
+		let tmpHTML = '<div class="ultravisor-timing-card">';
+		tmpHTML += '<div class="ultravisor-timing-chart">';
+		tmpHTML += '<div class="ultravisor-timing-chart-title">Task Timeline</div>';
+
+		for (let i = 0; i < tmpTaskResults.length; i++)
+		{
+			let tmpResult = tmpTaskResults[i];
+			let tmpTaskMs = tmpResult._ComputedElapsedMs;
+			let tmpTaskFormatted = libTimingUtils.formatMs(tmpTaskMs);
+			let tmpTaskStatus = tmpResult._ComputedStatus.toLowerCase();
+			let tmpBarClass = 'other';
+			if (tmpTaskStatus === 'complete')
+			{
+				tmpBarClass = 'complete';
+			}
+			else if (tmpTaskStatus === 'error')
+			{
+				tmpBarClass = 'error';
+			}
+			else if (tmpTaskStatus === 'running')
+			{
+				tmpBarClass = 'running';
+			}
+
+			let tmpWidthPercent = Math.max((tmpTaskMs / tmpMaxTaskMs) * 100, 1);
+			let tmpNodeHash = tmpResult._NodeHash || '';
+			let tmpDisplayName = tmpResult.TaskTypeName || tmpResult._NodeHash || 'Task ' + (i + 1);
+
+			let tmpRowData =
+			{
+				Label: libTimingUtils.escapeHTML(tmpDisplayName),
+				LabelTitle: libTimingUtils.escapeHTML(tmpNodeHash),
+				LabelStyle: '',
+				BarClass: tmpBarClass,
+				BarStyle: '',
+				WidthPercent: tmpWidthPercent.toFixed(1),
+				BarText: (tmpWidthPercent > 20) ? '<span class="ultravisor-timing-row-bar-text">' + libTimingUtils.escapeHTML(tmpDisplayName) + '</span>' : '',
+				Duration: libTimingUtils.escapeHTML(tmpTaskFormatted),
+				CountHTML: ''
+			};
+			tmpHTML += this.pict.parseTemplateByHash('Ultravisor-Timing-Row-Template', tmpRowData);
+		}
+
+		// Time axis
+		tmpHTML += '<div class="ultravisor-timing-axis">';
+		tmpHTML += '<div class="ultravisor-timing-axis-line">';
+		let tmpTickCount = 5;
+		for (let t = 0; t <= tmpTickCount; t++)
+		{
+			let tmpTickMs = (tmpMaxTaskMs / tmpTickCount) * t;
+			tmpHTML += '<span class="ultravisor-timing-axis-tick">' + libTimingUtils.formatMs(tmpTickMs) + '</span>';
+		}
+		tmpHTML += '</div>';
+		tmpHTML += '<div class="ultravisor-timing-axis-spacer"></div>';
+		tmpHTML += '</div>';
+
+		tmpHTML += '</div>';
+		tmpHTML += '</div>';
+		return tmpHTML;
+	}
+
+	/**
+	 * Render a category histogram (time aggregated by category).
+	 *
+	 * @param {Object} pByCategory - { CategoryName: { TotalMs, Count } }
+	 * @returns {string} HTML string
+	 */
+	_renderCategoryHistogram(pByCategory)
+	{
+		let tmpCategories = Object.keys(pByCategory);
+		if (tmpCategories.length === 0)
+		{
+			return '';
+		}
+
+		// Sort by TotalMs descending
+		tmpCategories.sort(function (pA, pB)
+		{
+			return (pByCategory[pB].TotalMs || 0) - (pByCategory[pA].TotalMs || 0);
+		});
+
+		let tmpMaxMs = pByCategory[tmpCategories[0]].TotalMs || 1;
+
+		let tmpHTML = '<div class="ultravisor-timing-card">';
+		tmpHTML += '<div class="ultravisor-timing-chart">';
+		tmpHTML += '<div class="ultravisor-timing-chart-title">Time by Category</div>';
+
+		for (let i = 0; i < tmpCategories.length; i++)
+		{
+			let tmpCat = tmpCategories[i];
+			let tmpData = pByCategory[tmpCat];
+			let tmpMs = tmpData.TotalMs || 0;
+			let tmpWidthPercent = Math.max((tmpMs / tmpMaxMs) * 100, 1);
+			let tmpColors = libTimingUtils.CategoryColors[tmpCat] || libTimingUtils.CategoryColors['Uncategorized'];
+
+			let tmpRowData =
+			{
+				Label: libTimingUtils.escapeHTML(tmpCat),
+				LabelTitle: '',
+				LabelStyle: 'color:' + tmpColors.text + ';',
+				BarClass: '',
+				BarStyle: ' background: ' + tmpColors.bar + ';',
+				WidthPercent: tmpWidthPercent.toFixed(1),
+				BarText: (tmpWidthPercent > 15) ? '<span class="ultravisor-timing-row-bar-text">' + libTimingUtils.formatMs(tmpMs) + '</span>' : '',
+				Duration: libTimingUtils.formatMs(tmpMs),
+				CountHTML: '<div class="ultravisor-timing-row-count">' + tmpData.Count + 'x</div>'
+			};
+			tmpHTML += this.pict.parseTemplateByHash('Ultravisor-Timing-Row-Template', tmpRowData);
+		}
+
+		tmpHTML += '</div>';
+		tmpHTML += '</div>';
+		return tmpHTML;
+	}
+
+	/**
+	 * Render a task type histogram (time broken down by task type).
+	 *
+	 * @param {Object} pByTaskType - { TaskTypeId: { TotalMs, Count, Category, Name } }
+	 * @returns {string} HTML string
+	 */
+	_renderTaskTypeHistogram(pByTaskType)
+	{
+		let tmpTypes = Object.keys(pByTaskType);
+		if (tmpTypes.length === 0)
+		{
+			return '';
+		}
+
+		// Sort by TotalMs descending
+		tmpTypes.sort(function (pA, pB)
+		{
+			return (pByTaskType[pB].TotalMs || 0) - (pByTaskType[pA].TotalMs || 0);
+		});
+
+		let tmpMaxMs = pByTaskType[tmpTypes[0]].TotalMs || 1;
+
+		let tmpHTML = '<div class="ultravisor-timing-card">';
+		tmpHTML += '<div class="ultravisor-timing-chart">';
+		tmpHTML += '<div class="ultravisor-timing-chart-title">Time by Task Type</div>';
+
+		for (let i = 0; i < tmpTypes.length; i++)
+		{
+			let tmpType = tmpTypes[i];
+			let tmpData = pByTaskType[tmpType];
+			let tmpMs = tmpData.TotalMs || 0;
+			let tmpWidthPercent = Math.max((tmpMs / tmpMaxMs) * 100, 1);
+			let tmpCategory = tmpData.Category || 'Uncategorized';
+			let tmpColors = libTimingUtils.CategoryColors[tmpCategory] || libTimingUtils.CategoryColors['Uncategorized'];
+			let tmpDisplayName = tmpData.Name || tmpType;
+
+			let tmpRowData =
+			{
+				Label: libTimingUtils.escapeHTML(tmpDisplayName),
+				LabelTitle: libTimingUtils.escapeHTML(tmpType),
+				LabelStyle: '',
+				BarClass: '',
+				BarStyle: ' background: ' + tmpColors.bar + ';',
+				WidthPercent: tmpWidthPercent.toFixed(1),
+				BarText: (tmpWidthPercent > 15) ? '<span class="ultravisor-timing-row-bar-text">' + libTimingUtils.formatMs(tmpMs) + '</span>' : '',
+				Duration: libTimingUtils.formatMs(tmpMs),
+				CountHTML: '<div class="ultravisor-timing-row-count">' + tmpData.Count + 'x</div>'
+			};
+			tmpHTML += this.pict.parseTemplateByHash('Ultravisor-Timing-Row-Template', tmpRowData);
+		}
+
+		tmpHTML += '</div>';
+		tmpHTML += '</div>';
+		return tmpHTML;
 	}
 }
 

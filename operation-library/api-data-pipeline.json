@@ -1,0 +1,140 @@
+{
+	"Name": "API Data Pipeline",
+	"Description": "Fetches JSON from an API endpoint, extracts a field with template-string, conditionally saves the result. Demonstrates get-json, template-string, if-conditional, and write-json together.",
+	"Tags": ["http", "json", "data-pipeline"],
+	"Author": "Ultravisor",
+	"Version": "1.0.0",
+	"Graph": {
+		"Nodes": [
+			{
+				"Hash": "ap-start",
+				"Type": "start",
+				"X": 50,
+				"Y": 200,
+				"Width": 140,
+				"Height": 80,
+				"Title": "Start",
+				"Ports": [
+					{ "Hash": "ap-start-out", "Direction": "output", "Side": "right-bottom", "Label": "Out" }
+				],
+				"Data": {}
+			},
+			{
+				"Hash": "ap-seturl",
+				"Type": "set-values",
+				"X": 260,
+				"Y": 180,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Configure Endpoint",
+				"Ports": [
+					{ "Hash": "ap-su-in", "Direction": "input", "Side": "left-bottom", "Label": "Execute" },
+					{ "Hash": "ap-su-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "Mappings": [{ "Address": "Operation.APIEndpoint", "Value": "http://localhost:54321/Operation" }] }
+			},
+			{
+				"Hash": "ap-fetch",
+				"Type": "get-json",
+				"X": 530,
+				"Y": 180,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Fetch API Data",
+				"Ports": [
+					{ "Hash": "ap-ft-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "ap-ft-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "ap-ft-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "URL": "{~D:Record.Operation.APIEndpoint~}", "Destination": "Operation.APIResponse" }
+			},
+			{
+				"Hash": "ap-check",
+				"Type": "if-conditional",
+				"X": 800,
+				"Y": 160,
+				"Width": 220,
+				"Height": 100,
+				"Title": "Has Data?",
+				"Ports": [
+					{ "Hash": "ap-chk-in", "Direction": "input", "Side": "left-bottom", "Label": "Evaluate" },
+					{ "Hash": "ap-chk-true", "Direction": "output", "Side": "right-bottom", "Label": "True" },
+					{ "Hash": "ap-chk-false", "Direction": "output", "Side": "bottom", "Label": "False" }
+				],
+				"Data": { "DataAddress": "Operation.APIResponse", "Operator": "truthy" }
+			},
+			{
+				"Hash": "ap-save",
+				"Type": "write-json",
+				"X": 1090,
+				"Y": 140,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Save Snapshot",
+				"Ports": [
+					{ "Hash": "ap-sv-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "ap-sv-done", "Direction": "output", "Side": "right-bottom", "Label": "Done" },
+					{ "Hash": "ap-sv-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "File": "api-snapshot.json", "Address": "Operation.APIResponse" }
+			},
+			{
+				"Hash": "ap-nodata",
+				"Type": "error-message",
+				"X": 800,
+				"Y": 370,
+				"Width": 240,
+				"Height": 80,
+				"Title": "No Data",
+				"Ports": [
+					{ "Hash": "ap-nd-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "ap-nd-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "MessageTemplate": "API returned empty response from {~D:Record.Operation.APIEndpoint~}" }
+			},
+			{
+				"Hash": "ap-neterr",
+				"Type": "error-message",
+				"X": 530,
+				"Y": 370,
+				"Width": 220,
+				"Height": 80,
+				"Title": "Fetch Error",
+				"Ports": [
+					{ "Hash": "ap-ne-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "ap-ne-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "MessageTemplate": "Failed to fetch from API: {~D:Record.Operation.APIEndpoint~}" }
+			},
+			{
+				"Hash": "ap-end",
+				"Type": "end",
+				"X": 1360,
+				"Y": 260,
+				"Width": 140,
+				"Height": 80,
+				"Title": "End",
+				"Ports": [
+					{ "Hash": "ap-end-in", "Direction": "input", "Side": "left-bottom", "Label": "In" }
+				],
+				"Data": {}
+			}
+		],
+		"Connections": [
+			{ "Hash": "ap-c1", "SourceNodeHash": "ap-start", "SourcePortHash": "ap-start-out", "TargetNodeHash": "ap-seturl", "TargetPortHash": "ap-su-in", "Data": {} },
+			{ "Hash": "ap-c2", "SourceNodeHash": "ap-seturl", "SourcePortHash": "ap-su-done", "TargetNodeHash": "ap-fetch", "TargetPortHash": "ap-ft-in", "Data": {} },
+			{ "Hash": "ap-c3", "SourceNodeHash": "ap-fetch", "SourcePortHash": "ap-ft-done", "TargetNodeHash": "ap-check", "TargetPortHash": "ap-chk-in", "Data": {} },
+			{ "Hash": "ap-c4", "SourceNodeHash": "ap-check", "SourcePortHash": "ap-chk-true", "TargetNodeHash": "ap-save", "TargetPortHash": "ap-sv-in", "Data": {} },
+			{ "Hash": "ap-c5", "SourceNodeHash": "ap-save", "SourcePortHash": "ap-sv-done", "TargetNodeHash": "ap-end", "TargetPortHash": "ap-end-in", "Data": {} },
+			{ "Hash": "ap-c6", "SourceNodeHash": "ap-check", "SourcePortHash": "ap-chk-false", "TargetNodeHash": "ap-nodata", "TargetPortHash": "ap-nd-in", "Data": {} },
+			{ "Hash": "ap-c7", "SourceNodeHash": "ap-nodata", "SourcePortHash": "ap-nd-done", "TargetNodeHash": "ap-end", "TargetPortHash": "ap-end-in", "Data": {} },
+			{ "Hash": "ap-c8", "SourceNodeHash": "ap-fetch", "SourcePortHash": "ap-ft-err", "TargetNodeHash": "ap-neterr", "TargetPortHash": "ap-ne-in", "Data": {} },
+			{ "Hash": "ap-c9", "SourceNodeHash": "ap-neterr", "SourcePortHash": "ap-ne-done", "TargetNodeHash": "ap-end", "TargetPortHash": "ap-end-in", "Data": {} },
+			{ "Hash": "ap-c10", "SourceNodeHash": "ap-save", "SourcePortHash": "ap-sv-err", "TargetNodeHash": "ap-end", "TargetPortHash": "ap-end-in", "Data": {} }
+		],
+		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
+	},
+	"SavedLayouts": [],
+	"InitialGlobalState": {},
+	"InitialOperationState": {}
+}

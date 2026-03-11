@@ -1,0 +1,125 @@
+{
+	"Name": "JSON Config Merge",
+	"Description": "Reads two JSON config files, merges values from the override into the base, and writes the result. Demonstrates read-json, set-values, write-json.",
+	"Tags": ["file-io", "json", "config"],
+	"Author": "Ultravisor",
+	"Version": "1.0.0",
+	"Graph": {
+		"Nodes": [
+			{
+				"Hash": "jm-start",
+				"Type": "start",
+				"X": 50,
+				"Y": 200,
+				"Width": 140,
+				"Height": 80,
+				"Title": "Start",
+				"Ports": [
+					{ "Hash": "jm-start-out", "Direction": "output", "Side": "right-bottom", "Label": "Out" }
+				],
+				"Data": {}
+			},
+			{
+				"Hash": "jm-read-base",
+				"Type": "read-json",
+				"X": 260,
+				"Y": 160,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Read Base Config",
+				"Ports": [
+					{ "Hash": "jm-rb-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "jm-rb-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "jm-rb-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "File": "config.base.json", "Destination": "Operation.BaseConfig" }
+			},
+			{
+				"Hash": "jm-read-over",
+				"Type": "read-json",
+				"X": 530,
+				"Y": 160,
+				"Width": 220,
+				"Height": 80,
+				"Title": "Read Override Config",
+				"Ports": [
+					{ "Hash": "jm-ro-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "jm-ro-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "jm-ro-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "File": "config.override.json", "Destination": "Operation.OverrideConfig" }
+			},
+			{
+				"Hash": "jm-merge",
+				"Type": "set-values",
+				"X": 820,
+				"Y": 160,
+				"Width": 220,
+				"Height": 80,
+				"Title": "Merge Configs",
+				"Ports": [
+					{ "Hash": "jm-merge-in", "Direction": "input", "Side": "left-bottom", "Label": "Execute" },
+					{ "Hash": "jm-merge-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "Mappings": [{ "Address": "Operation.MergedConfig.base", "Value": "{~D:Record.Operation.BaseConfig~}" }, { "Address": "Operation.MergedConfig.overrides", "Value": "{~D:Record.Operation.OverrideConfig~}" }] }
+			},
+			{
+				"Hash": "jm-write",
+				"Type": "write-json",
+				"X": 1110,
+				"Y": 160,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Write Merged",
+				"Ports": [
+					{ "Hash": "jm-write-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "jm-write-done", "Direction": "output", "Side": "right-bottom", "Label": "Done" },
+					{ "Hash": "jm-write-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "File": "config.merged.json", "Address": "Operation.MergedConfig" }
+			},
+			{
+				"Hash": "jm-error",
+				"Type": "error-message",
+				"X": 530,
+				"Y": 360,
+				"Width": 220,
+				"Height": 80,
+				"Title": "Read Error",
+				"Ports": [
+					{ "Hash": "jm-error-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "jm-error-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "MessageTemplate": "Failed to read one of the config files" }
+			},
+			{
+				"Hash": "jm-end",
+				"Type": "end",
+				"X": 1380,
+				"Y": 240,
+				"Width": 140,
+				"Height": 80,
+				"Title": "End",
+				"Ports": [
+					{ "Hash": "jm-end-in", "Direction": "input", "Side": "left-bottom", "Label": "In" }
+				],
+				"Data": {}
+			}
+		],
+		"Connections": [
+			{ "Hash": "jm-c1", "SourceNodeHash": "jm-start", "SourcePortHash": "jm-start-out", "TargetNodeHash": "jm-read-base", "TargetPortHash": "jm-rb-in", "Data": {} },
+			{ "Hash": "jm-c2", "SourceNodeHash": "jm-read-base", "SourcePortHash": "jm-rb-done", "TargetNodeHash": "jm-read-over", "TargetPortHash": "jm-ro-in", "Data": {} },
+			{ "Hash": "jm-c3", "SourceNodeHash": "jm-read-over", "SourcePortHash": "jm-ro-done", "TargetNodeHash": "jm-merge", "TargetPortHash": "jm-merge-in", "Data": {} },
+			{ "Hash": "jm-c4", "SourceNodeHash": "jm-merge", "SourcePortHash": "jm-merge-done", "TargetNodeHash": "jm-write", "TargetPortHash": "jm-write-in", "Data": {} },
+			{ "Hash": "jm-c5", "SourceNodeHash": "jm-write", "SourcePortHash": "jm-write-done", "TargetNodeHash": "jm-end", "TargetPortHash": "jm-end-in", "Data": {} },
+			{ "Hash": "jm-c6", "SourceNodeHash": "jm-read-base", "SourcePortHash": "jm-rb-err", "TargetNodeHash": "jm-error", "TargetPortHash": "jm-error-in", "Data": {} },
+			{ "Hash": "jm-c7", "SourceNodeHash": "jm-read-over", "SourcePortHash": "jm-ro-err", "TargetNodeHash": "jm-error", "TargetPortHash": "jm-error-in", "Data": {} },
+			{ "Hash": "jm-c8", "SourceNodeHash": "jm-error", "SourcePortHash": "jm-error-done", "TargetNodeHash": "jm-end", "TargetPortHash": "jm-end-in", "Data": {} },
+			{ "Hash": "jm-c9", "SourceNodeHash": "jm-write", "SourcePortHash": "jm-write-err", "TargetNodeHash": "jm-end", "TargetPortHash": "jm-end-in", "Data": {} }
+		],
+		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
+	},
+	"SavedLayouts": [],
+	"InitialGlobalState": {},
+	"InitialOperationState": {}
+}

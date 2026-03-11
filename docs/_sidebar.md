@@ -7,6 +7,7 @@
 - Features
 
   - [Tasks](features/tasks.md)
+  - [Capabilities](features/capabilities.md)
   - [Operations](features/operations.md)
   - [Scheduling](features/scheduling.md)
   - [Manifests](features/manifests.md)

@@ -25,6 +25,9 @@ class UltravisorTaskType extends libFableServiceProviderBase
 	 *   Name            {string}   - display name
 	 *   Description     {string}   - what the task does
 	 *   Category        {string}   - grouping key (file-io, data, control, interaction)
+	 *   Capability      {string}   - capability grouping for worker dispatch (e.g. 'File System', 'Data Transform')
+	 *   Action          {string}   - verb within the capability (e.g. 'Read', 'Write')
+	 *   Tier            {string}   - capability tier: 'Engine' | 'Platform' | 'Service' | 'Extension'
 	 *   EventInputs     {Array}    - [{ Name, Description? }]
 	 *   EventOutputs    {Array}    - [{ Name, Description?, IsError? }]
 	 *   SettingsInputs  {Array}    - [{ Name, DataType, Required?, Default?, Description? }]
@@ -33,11 +36,22 @@ class UltravisorTaskType extends libFableServiceProviderBase
 	 */
 	get definition()
 	{
+		// Config-driven: if Definition was provided in options, use it
+		if (this.options.Definition && typeof(this.options.Definition) === 'object'
+			&& this.options.Definition.Hash)
+		{
+			return this.options.Definition;
+		}
+
+		// Default fallback (overridden by subclasses)
 		return {
 			Hash: 'base',
 			Name: 'Base Task',
 			Description: 'Override this in subclasses.',
 			Category: 'internal',
+			Capability: 'Internal',
+			Action: 'Base',
+			Tier: 'Engine',
 			EventInputs: [],
 			EventOutputs: [],
 			SettingsInputs: [],
@@ -74,6 +88,12 @@ class UltravisorTaskType extends libFableServiceProviderBase
 	 */
 	execute(pResolvedSettings, pExecutionContext, fCallback, fFireIntermediateEvent)
 	{
+		// Config-driven: if Execute function was provided in options, call it
+		if (typeof(this.options.Execute) === 'function')
+		{
+			return this.options.Execute(this, pResolvedSettings, pExecutionContext, fCallback, fFireIntermediateEvent);
+		}
+
 		return fCallback(new Error(`Task type "${this.definition.Hash}" has not implemented execute().`));
 	}
 

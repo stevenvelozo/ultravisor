@@ -8,6 +8,9 @@ const libServiceHypervisorState = require('../services/Ultravisor-Hypervisor-Sta
 const libServiceHypervisorEventBase = require('../services/Ultravisor-Hypervisor-Event-Base.cjs');
 const libServiceHypervisorEventCron = require('../services/events/Ultravisor-Hypervisor-Event-Cron.cjs');
 
+const libServiceSchedulePersistenceBase = require('../services/Ultravisor-Schedule-Persistence-Base.cjs');
+const libServiceSchedulePersistenceJSONFile = require('../services/persistence/Ultravisor-Schedule-Persistence-JSONFile.cjs');
+
 const libServiceTaskTypeRegistry = require('../services/Ultravisor-TaskTypeRegistry.cjs');
 const libServiceStateManager = require('../services/Ultravisor-StateManager.cjs');
 const libServiceExecutionEngine = require('../services/Ultravisor-ExecutionEngine.cjs');
@@ -102,6 +105,9 @@ _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorHyperv
 
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorHypervisorEventBase', libServiceHypervisorEventBase);
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorHypervisorEventCron', libServiceHypervisorEventCron);
+
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorSchedulePersistenceBase', libServiceSchedulePersistenceBase);
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorSchedulePersistence', libServiceSchedulePersistenceJSONFile);
 
 // --- New engine services ---
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorTaskTypeRegistry', libServiceTaskTypeRegistry);

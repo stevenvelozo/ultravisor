@@ -1,54 +1,9 @@
 const libPictView = require('pict-view');
 const libPictSectionFlow = require('pict-section-flow');
+const libPictFlowCard = require('pict-section-flow').PictFlowCard;
 
-// Flow control cards
-const libFlowCardStart = require('../cards/FlowCard-Start.js');
-const libFlowCardEnd = require('../cards/FlowCard-End.js');
-
-// Core/Control cards
-const libFlowCardCommand = require('../cards/FlowCard-Command.js');
-const libFlowCardIfConditional = require('../cards/FlowCard-IfConditional.js');
-const libFlowCardSolver = require('../cards/FlowCard-Solver.js');
-const libFlowCardTemplateString = require('../cards/FlowCard-TemplateString.js');
-const libFlowCardLaunchOperation = require('../cards/FlowCard-LaunchOperation.js');
-const libFlowCardSplitExecute = require('../cards/FlowCard-SplitExecute.js');
-
-// Data cards
-const libFlowCardReplaceString = require('../cards/FlowCard-ReplaceString.js');
-const libFlowCardSetValues = require('../cards/FlowCard-SetValues.js');
-const libFlowCardStringAppender = require('../cards/FlowCard-StringAppender.js');
-
-// Interaction cards
-const libFlowCardValueInput = require('../cards/FlowCard-ValueInput.js');
-const libFlowCardErrorMessage = require('../cards/FlowCard-ErrorMessage.js');
-
-// File I/O cards
-const libFlowCardReadFile = require('../cards/FlowCard-ReadFile.js');
-const libFlowCardWriteFile = require('../cards/FlowCard-WriteFile.js');
-const libFlowCardReadJSON = require('../cards/FlowCard-ReadJSON.js');
-const libFlowCardWriteJSON = require('../cards/FlowCard-WriteJSON.js');
-const libFlowCardListFiles = require('../cards/FlowCard-ListFiles.js');
-const libFlowCardCopyFile = require('../cards/FlowCard-CopyFile.js');
-
-// REST/HTTP cards
-const libFlowCardGetJSON = require('../cards/FlowCard-GetJSON.js');
-const libFlowCardGetText = require('../cards/FlowCard-GetText.js');
-const libFlowCardSendJSON = require('../cards/FlowCard-SendJSON.js');
-const libFlowCardRestRequest = require('../cards/FlowCard-RestRequest.js');
-
-// Meadow cards
-const libFlowCardMeadowCreate = require('../cards/FlowCard-MeadowCreate.js');
-const libFlowCardMeadowRead = require('../cards/FlowCard-MeadowRead.js');
-const libFlowCardMeadowReads = require('../cards/FlowCard-MeadowReads.js');
-const libFlowCardMeadowUpdate = require('../cards/FlowCard-MeadowUpdate.js');
-const libFlowCardMeadowDelete = require('../cards/FlowCard-MeadowDelete.js');
-const libFlowCardMeadowCount = require('../cards/FlowCard-MeadowCount.js');
-const libFlowCardCSVTransform = require('../cards/FlowCard-CSVTransform.js');
-const libFlowCardComprehensionIntersect = require('../cards/FlowCard-ComprehensionIntersect.js');
-
-// Pipeline cards
-const libFlowCardParseCSV = require('../cards/FlowCard-ParseCSV.js');
-const libFlowCardHistogram = require('../cards/FlowCard-Histogram.js');
+// Built-in card configs (33 cards: 31 task-matched + 2 flow markers)
+const libBuiltInCardConfigs = require('../cards/Ultravisor-BuiltIn-CardConfigs.js');
 
 const _ViewConfiguration =
 {
@@ -76,13 +31,13 @@ const _ViewConfiguration =
 			justify-content: space-between;
 			margin-bottom: 0.75em;
 			padding-bottom: 0.75em;
-			border-bottom: 1px solid #2a2a4a;
+			border-bottom: 1px solid var(--uv-border-subtle);
 		}
 		.ultravisor-floweditor-header h1 {
 			margin: 0;
 			font-size: 1.8em;
 			font-weight: 300;
-			color: #e0e0e0;
+			color: var(--uv-text);
 		}
 		.ultravisor-flow-actions {
 			display: flex;
@@ -97,12 +52,12 @@ const _ViewConfiguration =
 			align-items: center;
 			margin-bottom: 0.5em;
 			padding-bottom: 0.5em;
-			border-bottom: 1px solid #1a1a2e;
+			border-bottom: 1px solid var(--uv-bg-base);
 		}
 		.ultravisor-flow-meta label {
 			font-size: 0.8em;
 			font-weight: 600;
-			color: #78909c;
+			color: var(--uv-text-secondary);
 			text-transform: uppercase;
 			margin-right: 0.25em;
 		}
@@ -112,7 +67,7 @@ const _ViewConfiguration =
 		}
 		.ultravisor-flow-meta-hash {
 			font-size: 0.8em;
-			color: #607d8b;
+			color: var(--uv-text-tertiary);
 			font-family: monospace;
 		}
 		#Ultravisor-FlowEditor-Container {
@@ -171,64 +126,34 @@ class UltravisorFlowEditorView extends libPictView
 	 * These are passed as NodeTypes in the FlowView options so they
 	 * are available from the moment the NodeTypeProvider is created,
 	 * before the toolbar renders.
+	 *
+	 * @param {Array} [pAdditionalCardConfigs] - Optional extra card configs to register.
 	 */
-	_buildFlowCardNodeTypes()
+	_buildFlowCardNodeTypes(pAdditionalCardConfigs)
 	{
-		let tmpCardClasses =
-		[
-			// Flow control
-			libFlowCardStart,
-			libFlowCardEnd,
-			// Core
-			libFlowCardCommand,
-			libFlowCardIfConditional,
-			libFlowCardSolver,
-			libFlowCardTemplateString,
-			libFlowCardLaunchOperation,
-			libFlowCardSplitExecute,
-			// Data
-			libFlowCardReplaceString,
-			libFlowCardSetValues,
-			libFlowCardStringAppender,
-			// Interaction
-			libFlowCardValueInput,
-			libFlowCardErrorMessage,
-			// File I/O
-			libFlowCardReadFile,
-			libFlowCardWriteFile,
-			libFlowCardReadJSON,
-			libFlowCardWriteJSON,
-			libFlowCardListFiles,
-			libFlowCardCopyFile,
-			// REST
-			libFlowCardGetJSON,
-			libFlowCardGetText,
-			libFlowCardSendJSON,
-			libFlowCardRestRequest,
-			// Meadow
-			libFlowCardMeadowCreate,
-			libFlowCardMeadowRead,
-			libFlowCardMeadowReads,
-			libFlowCardMeadowUpdate,
-			libFlowCardMeadowDelete,
-			libFlowCardMeadowCount,
-			libFlowCardCSVTransform,
-			libFlowCardComprehensionIntersect,
-			// Pipeline
-			libFlowCardParseCSV,
-			libFlowCardHistogram
-		];
-
 		let tmpNodeTypes = {};
 
-		for (let i = 0; i < tmpCardClasses.length; i++)
+		// Register all built-in cards from the config array
+		for (let i = 0; i < libBuiltInCardConfigs.length; i++)
 		{
-			let tmpCard = new tmpCardClasses[i](this.fable, {}, `FlowCard-${i}`);
+			let tmpCard = new libPictFlowCard(this.fable, libBuiltInCardConfigs[i], `FlowCard-${i}`);
 			let tmpConfig = tmpCard.getNodeTypeConfiguration();
 			// Ultravisor flow cards render port labels outside the node
 			// boundary to avoid overlapping body content
 			tmpConfig.PortLabelsOutside = true;
 			tmpNodeTypes[tmpConfig.Hash] = tmpConfig;
+		}
+
+		// Register any additional cards (e.g. user-defined or plugin cards)
+		if (Array.isArray(pAdditionalCardConfigs))
+		{
+			for (let i = 0; i < pAdditionalCardConfigs.length; i++)
+			{
+				let tmpCard = new libPictFlowCard(this.fable, pAdditionalCardConfigs[i], `FlowCard-Extra-${i}`);
+				let tmpConfig = tmpCard.getNodeTypeConfiguration();
+				tmpConfig.PortLabelsOutside = true;
+				tmpNodeTypes[tmpConfig.Hash] = tmpConfig;
+			}
 		}
 
 		return tmpNodeTypes;

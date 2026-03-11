@@ -3,6 +3,16 @@ const libPictRouter = require('pict-router');
 const libPictSectionForm = require('pict-section-form');
 const libPictSectionContent = require('pict-section-content');
 
+const THEME_LIST =
+[
+	{ Key: 'desert-dusk', Label: 'Desert Dusk', Colors: ['#252018', '#c4956a', '#4a9090', '#6a3040', '#8a9a5a'] },
+	{ Key: 'desert-day', Label: 'Desert Day', Colors: ['#faf6f0', '#5c3d2e', '#3a8a8c', '#7a2e3a', '#6b8f4a'] },
+	{ Key: 'desert-sunset', Label: 'Desert Sunset', Colors: ['#1e1610', '#e8943a', '#2a8a8a', '#8b2442', '#d4a46a'] },
+	{ Key: 'professional-light', Label: 'Professional Light', Colors: ['#f5f6f8', '#3b82f6', '#10b981', '#ef4444', '#6366f1'] },
+	{ Key: 'professional-dark', Label: 'Professional Dark', Colors: ['#111318', '#60a5fa', '#34d399', '#f87171', '#a78bfa'] },
+	{ Key: 'desert-canyon', Label: 'Desert Canyon', Colors: ['#18120e', '#e8943a', '#18a0a0', '#e05830', '#e0c870'] }
+];
+
 // Views
 const libViewLayout = require('./views/PictView-Ultravisor-Layout.js');
 const libViewTopBar = require('./views/PictView-Ultravisor-TopBar.js');
@@ -15,12 +25,17 @@ const libViewManifestList = require('./views/PictView-Ultravisor-ManifestList.js
 const libViewTimingView = require('./views/PictView-Ultravisor-TimingView.js');
 const libViewFlowEditor = require('./views/PictView-Ultravisor-FlowEditor.js');
 const libViewPendingInput = require('./views/PictView-Ultravisor-PendingInput.js');
+const libViewDocumentation = require('./views/PictView-Ultravisor-Documentation.js');
 
 class UltravisorApplication extends libPictApplication
 {
 	constructor(pFable, pOptions, pServiceHash)
 	{
 		super(pFable, pOptions, pServiceHash);
+
+		// Skip premature route resolution during addRoute(); the Layout view
+		// calls resolve() explicitly after the DOM is ready.
+		this.pict.settings.RouterSkipRouteResolveOnAdd = true;
 
 		// Add the router provider with routes
 		this.pict.addProvider('PictRouter', require('./providers/PictRouter-Ultravisor-Configuration.json'), libPictRouter);
@@ -41,6 +56,7 @@ class UltravisorApplication extends libPictApplication
 		this.pict.addView('Ultravisor-TimingView', libViewTimingView.default_configuration, libViewTimingView);
 		this.pict.addView('Ultravisor-FlowEditor', libViewFlowEditor.default_configuration, libViewFlowEditor);
 		this.pict.addView('Ultravisor-PendingInput', libViewPendingInput.default_configuration, libViewPendingInput);
+		this.pict.addView('Ultravisor-Documentation', libViewDocumentation.default_configuration, libViewDocumentation);
 
 		// Register pict-section-form service types so Form panels can use them
 		this.pict.addServiceType('PictFormMetacontroller', libPictSectionForm.PictFormMetacontroller);
@@ -51,6 +67,9 @@ class UltravisorApplication extends libPictApplication
 
 	onAfterInitializeAsync(fCallback)
 	{
+		// Apply saved theme before first render
+		this.loadSavedTheme();
+
 		// Initialize application state
 		this.pict.AppData.Ultravisor =
 		{
@@ -64,6 +83,7 @@ class UltravisorApplication extends libPictApplication
 			Schedule: [],
 			Manifests: [],
 			PendingInputs: [],
+			OperationLibrary: [],
 			CurrentEditOperation: null,
 			Flows: {}
 		};
@@ -336,6 +356,30 @@ class UltravisorApplication extends libPictApplication
 			}.bind(this));
 	}
 
+	startScheduleEntry(pGUID, fCallback)
+	{
+		this.apiCall('GET', `/Schedule/Start/${encodeURIComponent(pGUID)}`, null,
+			function (pError, pData)
+			{
+				if (typeof fCallback === 'function')
+				{
+					fCallback(pError, pData);
+				}
+			}.bind(this));
+	}
+
+	stopScheduleEntry(pGUID, fCallback)
+	{
+		this.apiCall('GET', `/Schedule/Stop/${encodeURIComponent(pGUID)}`, null,
+			function (pError, pData)
+			{
+				if (typeof fCallback === 'function')
+				{
+					fCallback(pError, pData);
+				}
+			}.bind(this));
+	}
+
 	// --- Manifests ---
 	loadManifests(fCallback)
 	{
@@ -393,6 +437,126 @@ class UltravisorApplication extends libPictApplication
 					fCallback(pError, pData);
 				}
 			}.bind(this));
+	}
+
+	// --- Operation Library ---
+	loadOperationLibrary(fCallback)
+	{
+		this.apiCall('GET', '/OperationLibrary', null,
+			function (pError, pData)
+			{
+				if (!pError && pData)
+				{
+					this.pict.AppData.Ultravisor.OperationLibrary = Array.isArray(pData) ? pData : [];
+				}
+				if (typeof fCallback === 'function')
+				{
+					fCallback(pError, pData);
+				}
+			}.bind(this));
+	}
+
+	importLibraryOperation(pFileName, fCallback)
+	{
+		this.apiCall('GET', `/OperationLibrary/${encodeURIComponent(pFileName)}`, null,
+			function (pError, pData)
+			{
+				if (pError)
+				{
+					if (typeof fCallback === 'function')
+					{
+						fCallback(pError);
+					}
+					return;
+				}
+
+				// Strip library metadata, keep operation-relevant fields
+				let tmpOperationData =
+				{
+					Name: pData.Name || '',
+					Description: pData.Description || '',
+					Graph: pData.Graph || { Nodes: [], Connections: [], ViewState: {} }
+				};
+
+				if (pData.SavedLayouts)
+				{
+					tmpOperationData.SavedLayouts = pData.SavedLayouts;
+				}
+				if (pData.InitialGlobalState)
+				{
+					tmpOperationData.InitialGlobalState = pData.InitialGlobalState;
+				}
+				if (pData.InitialOperationState)
+				{
+					tmpOperationData.InitialOperationState = pData.InitialOperationState;
+				}
+
+				// Save as a new operation (no Hash => auto-generated)
+				this.saveOperation(tmpOperationData, fCallback);
+			}.bind(this));
+	}
+
+	exportOperation(pHash, fCallback)
+	{
+		this.apiCall('GET', `/Operation/${encodeURIComponent(pHash)}/Export`, null,
+			function (pError, pData)
+			{
+				if (pError)
+				{
+					if (typeof fCallback === 'function')
+					{
+						fCallback(pError);
+					}
+					return;
+				}
+
+				// Trigger a browser download of the JSON
+				let tmpFileName = (pData.Name || pData.Hash || 'operation').replace(/[^a-zA-Z0-9_-]/g, '_') + '.json';
+				let tmpBlob = new Blob([JSON.stringify(pData, null, '\t')], { type: 'application/json' });
+				let tmpLink = document.createElement('a');
+				tmpLink.href = URL.createObjectURL(tmpBlob);
+				tmpLink.download = tmpFileName;
+				tmpLink.click();
+				URL.revokeObjectURL(tmpLink.href);
+
+				if (typeof fCallback === 'function')
+				{
+					fCallback(null, pData);
+				}
+			}.bind(this));
+	}
+
+	// --- Theme ---
+	applyTheme(pThemeKey)
+	{
+		let tmpThemeKey = pThemeKey || 'desert-dusk';
+
+		if (tmpThemeKey === 'desert-dusk')
+		{
+			delete document.body.dataset.theme;
+		}
+		else
+		{
+			document.body.dataset.theme = tmpThemeKey;
+		}
+
+		localStorage.setItem('ultravisor-theme', tmpThemeKey);
+
+		if (this.pict.AppData.Ultravisor)
+		{
+			this.pict.AppData.Ultravisor.CurrentTheme = tmpThemeKey;
+		}
+	}
+
+	loadSavedTheme()
+	{
+		let tmpSavedTheme = localStorage.getItem('ultravisor-theme') || 'desert-dusk';
+		this.applyTheme(tmpSavedTheme);
+	}
+
+	getThemeList()
+	{
+		return THEME_LIST;
 	}
 
 	// --- Edit helpers ---

@@ -1,0 +1,138 @@
+{
+	"Name": "HTTP Health Check",
+	"Description": "Fetches a health endpoint via HTTP GET, checks the response for a success indicator, and logs the result. Demonstrates get-text, if-conditional, and template-string for monitoring.",
+	"Tags": ["http", "monitoring", "health-check"],
+	"Author": "Ultravisor",
+	"Version": "1.0.0",
+	"Graph": {
+		"Nodes": [
+			{
+				"Hash": "hc-start",
+				"Type": "start",
+				"X": 50,
+				"Y": 200,
+				"Width": 140,
+				"Height": 80,
+				"Title": "Start",
+				"Ports": [
+					{ "Hash": "hc-start-out", "Direction": "output", "Side": "right-bottom", "Label": "Out" }
+				],
+				"Data": {}
+			},
+			{
+				"Hash": "hc-seturl",
+				"Type": "set-values",
+				"X": 260,
+				"Y": 180,
+				"Width": 220,
+				"Height": 80,
+				"Title": "Set Target URL",
+				"Ports": [
+					{ "Hash": "hc-su-in", "Direction": "input", "Side": "left-bottom", "Label": "Execute" },
+					{ "Hash": "hc-su-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "Mappings": [{ "Address": "Operation.TargetURL", "Value": "http://localhost:54321/Status" }] }
+			},
+			{
+				"Hash": "hc-fetch",
+				"Type": "get-text",
+				"X": 550,
+				"Y": 180,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Fetch Health",
+				"Ports": [
+					{ "Hash": "hc-ft-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "hc-ft-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "hc-ft-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "URL": "{~D:Record.Operation.TargetURL~}", "Destination": "Operation.ResponseBody" }
+			},
+			{
+				"Hash": "hc-check",
+				"Type": "if-conditional",
+				"X": 820,
+				"Y": 160,
+				"Width": 220,
+				"Height": 100,
+				"Title": "Is Healthy?",
+				"Ports": [
+					{ "Hash": "hc-chk-in", "Direction": "input", "Side": "left-bottom", "Label": "Evaluate" },
+					{ "Hash": "hc-chk-true", "Direction": "output", "Side": "right-bottom", "Label": "True" },
+					{ "Hash": "hc-chk-false", "Direction": "output", "Side": "bottom", "Label": "False" }
+				],
+				"Data": { "DataAddress": "Operation.ResponseBody", "Operator": "truthy" }
+			},
+			{
+				"Hash": "hc-ok",
+				"Type": "template-string",
+				"X": 1110,
+				"Y": 140,
+				"Width": 220,
+				"Height": 80,
+				"Title": "Log Healthy",
+				"Ports": [
+					{ "Hash": "hc-ok-in", "Direction": "input", "Side": "left-bottom", "Label": "In" },
+					{ "Hash": "hc-ok-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "Template": "HEALTHY: {~D:Record.Operation.TargetURL~} responded successfully", "Destination": "Operation.StatusMessage" }
+			},
+			{
+				"Hash": "hc-fail",
+				"Type": "error-message",
+				"X": 820,
+				"Y": 360,
+				"Width": 240,
+				"Height": 80,
+				"Title": "Log Unhealthy",
+				"Ports": [
+					{ "Hash": "hc-fl-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "hc-fl-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "MessageTemplate": "UNHEALTHY: {~D:Record.Operation.TargetURL~} returned empty response" }
+			},
+			{
+				"Hash": "hc-neterr",
+				"Type": "error-message",
+				"X": 550,
+				"Y": 360,
+				"Width": 220,
+				"Height": 80,
+				"Title": "Network Error",
+				"Ports": [
+					{ "Hash": "hc-ne-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "hc-ne-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "MessageTemplate": "DOWN: Could not reach {~D:Record.Operation.TargetURL~}" }
+			},
+			{
+				"Hash": "hc-end",
+				"Type": "end",
+				"X": 1380,
+				"Y": 260,
+				"Width": 140,
+				"Height": 80,
+				"Title": "End",
+				"Ports": [
+					{ "Hash": "hc-end-in", "Direction": "input", "Side": "left-bottom", "Label": "In" }
+				],
+				"Data": {}
+			}
+		],
+		"Connections": [
+			{ "Hash": "hc-c1", "SourceNodeHash": "hc-start", "SourcePortHash": "hc-start-out", "TargetNodeHash": "hc-seturl", "TargetPortHash": "hc-su-in", "Data": {} },
+			{ "Hash": "hc-c2", "SourceNodeHash": "hc-seturl", "SourcePortHash": "hc-su-done", "TargetNodeHash": "hc-fetch", "TargetPortHash": "hc-ft-in", "Data": {} },
+			{ "Hash": "hc-c3", "SourceNodeHash": "hc-fetch", "SourcePortHash": "hc-ft-done", "TargetNodeHash": "hc-check", "TargetPortHash": "hc-chk-in", "Data": {} },
+			{ "Hash": "hc-c4", "SourceNodeHash": "hc-check", "SourcePortHash": "hc-chk-true", "TargetNodeHash": "hc-ok", "TargetPortHash": "hc-ok-in", "Data": {} },
+			{ "Hash": "hc-c5", "SourceNodeHash": "hc-ok", "SourcePortHash": "hc-ok-done", "TargetNodeHash": "hc-end", "TargetPortHash": "hc-end-in", "Data": {} },
+			{ "Hash": "hc-c6", "SourceNodeHash": "hc-check", "SourcePortHash": "hc-chk-false", "TargetNodeHash": "hc-fail", "TargetPortHash": "hc-fl-in", "Data": {} },
+			{ "Hash": "hc-c7", "SourceNodeHash": "hc-fail", "SourcePortHash": "hc-fl-done", "TargetNodeHash": "hc-end", "TargetPortHash": "hc-end-in", "Data": {} },
+			{ "Hash": "hc-c8", "SourceNodeHash": "hc-fetch", "SourcePortHash": "hc-ft-err", "TargetNodeHash": "hc-neterr", "TargetPortHash": "hc-ne-in", "Data": {} },
+			{ "Hash": "hc-c9", "SourceNodeHash": "hc-neterr", "SourcePortHash": "hc-ne-done", "TargetNodeHash": "hc-end", "TargetPortHash": "hc-end-in", "Data": {} }
+		],
+		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
+	},
+	"SavedLayouts": [],
+	"InitialGlobalState": {},
+	"InitialOperationState": {}
+}

@@ -1,5 +1,6 @@
 const libPictService = require(`pict-serviceproviderbase`);
 
+const libFS = require('fs');
 const libPath = require('path');
 const libOrator = require('orator');
 const libOratorServiceServerRestify = require(`orator-serviceserver-restify`);
@@ -321,6 +322,8 @@ class UltravisorAPIServer extends libPictService
 										StopTime: pContext.StopTime,
 										ElapsedMs: pContext.ElapsedMs,
 										TaskManifests: pContext.TaskManifests,
+										TimingSummary: pContext.TimingSummary,
+										EventLog: pContext.EventLog,
 										WaitingTasks: pContext.WaitingTasks
 									});
 									return fNext();
@@ -419,6 +422,26 @@ class UltravisorAPIServer extends libPictService
 
 		this._OratorServer.get
 			(
+				'/Schedule/Start/:GUID',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpHypervisor = this._getService('UltravisorHypervisor');
+					tmpHypervisor.startScheduleEntry(pRequest.params.GUID,
+						function (pError, pEntry)
+						{
+							if (pError)
+							{
+								pResponse.send(404, { Error: pError.message });
+								return fNext();
+							}
+							pResponse.send({ Status: 'Entry Started', Entry: pEntry });
+							return fNext();
+						});
+				}.bind(this)
+			);
+
+		this._OratorServer.get
+			(
 				'/Schedule/Stop',
 				function (pRequest, pResponse, fNext)
 				{
@@ -427,6 +450,26 @@ class UltravisorAPIServer extends libPictService
 						function ()
 						{
 							pResponse.send({ Status: 'Schedule Stopped' });
+							return fNext();
+						});
+				}.bind(this)
+			);
+
+		this._OratorServer.get
+			(
+				'/Schedule/Stop/:GUID',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpHypervisor = this._getService('UltravisorHypervisor');
+					tmpHypervisor.stopScheduleEntry(pRequest.params.GUID,
+						function (pError, pEntry)
+						{
+							if (pError)
+							{
+								pResponse.send(404, { Error: pError.message });
+								return fNext();
+							}
+							pResponse.send({ Status: 'Entry Stopped', Entry: pEntry });
 							return fNext();
 						});
 				}.bind(this)
@@ -569,6 +612,149 @@ class UltravisorAPIServer extends libPictService
 								Errors: pContext.Errors,
 								WaitingTasks: pContext.WaitingTasks
 							});
+							return fNext();
+						});
+				}.bind(this)
+			);
+
+		// --- Operation Library ---
+		this._OratorServer.get
+			(
+				'/OperationLibrary',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpLibraryPath = this.fable?.ProgramConfiguration?.UltravisorOperationLibraryPath;
+					if (!tmpLibraryPath)
+					{
+						pResponse.send([]);
+						return fNext();
+					}
+
+					let tmpResolvedPath = libPath.resolve(process.cwd(), tmpLibraryPath);
+
+					let tmpFiles;
+					try
+					{
+						tmpFiles = libFS.readdirSync(tmpResolvedPath);
+					}
+					catch (pError)
+					{
+						this.log.warn(`OperationLibrary: could not read directory [${tmpResolvedPath}]: ${pError.message}`);
+						pResponse.send([]);
+						return fNext();
+					}
+
+					let tmpLibraryItems = [];
+
+					for (let i = 0; i < tmpFiles.length; i++)
+					{
+						let tmpFileName = tmpFiles[i];
+						if (!tmpFileName.endsWith('.json'))
+						{
+							continue;
+						}
+
+						try
+						{
+							let tmpFilePath = libPath.join(tmpResolvedPath, tmpFileName);
+							let tmpContent = libFS.readFileSync(tmpFilePath, 'utf8');
+							let tmpOperation = JSON.parse(tmpContent);
+
+							tmpLibraryItems.push({
+								FileName: tmpFileName,
+								Name: tmpOperation.Name || tmpFileName,
+								Description: tmpOperation.Description || '',
+								Tags: tmpOperation.Tags || [],
+								Author: tmpOperation.Author || '',
+								Version: tmpOperation.Version || '',
+								NodeCount: (tmpOperation.Graph && tmpOperation.Graph.Nodes) ? tmpOperation.Graph.Nodes.length : 0
+							});
+						}
+						catch (pError)
+						{
+							this.log.warn(`OperationLibrary: could not parse [${tmpFileName}]: ${pError.message}`);
+						}
+					}
+
+					tmpLibraryItems.sort(
+						function (a, b)
+						{
+							return a.Name.localeCompare(b.Name);
+						});
+
+					pResponse.send(tmpLibraryItems);
+					return fNext();
+				}.bind(this)
+			);
+
+		this._OratorServer.get
+			(
+				'/OperationLibrary/:FileName',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpFileName = pRequest.params.FileName;
+
+					// Security: prevent directory traversal
+					if (!tmpFileName || !tmpFileName.endsWith('.json') ||
+						tmpFileName.indexOf('/') >= 0 || tmpFileName.indexOf('\\') >= 0 ||
+						tmpFileName.indexOf('..') >= 0)
+					{
+						pResponse.send(400, { Error: 'Invalid file name.' });
+						return fNext();
+					}
+
+					let tmpLibraryPath = this.fable?.ProgramConfiguration?.UltravisorOperationLibraryPath;
+					if (!tmpLibraryPath)
+					{
+						pResponse.send(404, { Error: 'Operation library not configured.' });
+						return fNext();
+					}
+
+					let tmpResolvedPath = libPath.resolve(process.cwd(), tmpLibraryPath);
+					let tmpFilePath = libPath.join(tmpResolvedPath, tmpFileName);
+
+					try
+					{
+						let tmpContent = libFS.readFileSync(tmpFilePath, 'utf8');
+						let tmpOperation = JSON.parse(tmpContent);
+						pResponse.send(tmpOperation);
+					}
+					catch (pError)
+					{
+						pResponse.send(404, { Error: `Library operation [${tmpFileName}] not found.` });
+					}
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- Operation Export ---
+		this._OratorServer.get
+			(
+				'/Operation/:Hash/Export',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpState = this._getService('UltravisorHypervisorState');
+					tmpState.getOperation(pRequest.params.Hash,
+						function (pError, pOperation)
+						{
+							if (pError)
+							{
+								pResponse.send(404, { Error: pError.message });
+								return fNext();
+							}
+
+							let tmpExport = {
+								Hash: pOperation.Hash,
+								Name: pOperation.Name || '',
+								Description: pOperation.Description || '',
+								Graph: pOperation.Graph || { Nodes: [], Connections: [], ViewState: {} },
+								SavedLayouts: pOperation.SavedLayouts || [],
+								InitialGlobalState: pOperation.InitialGlobalState || {},
+								InitialOperationState: pOperation.InitialOperationState || {},
+								ExportedAt: new Date().toISOString()
+							};
+
+							pResponse.send(tmpExport);
 							return fNext();
 						});
 				}.bind(this)

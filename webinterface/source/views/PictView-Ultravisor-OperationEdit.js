@@ -18,13 +18,13 @@ const _ViewConfiguration =
 		.ultravisor-operationedit-header {
 			margin-bottom: 1.5em;
 			padding-bottom: 1em;
-			border-bottom: 1px solid #2a2a4a;
+			border-bottom: 1px solid var(--uv-border-subtle);
 		}
 		.ultravisor-operationedit-header h1 {
 			margin: 0;
 			font-size: 2em;
 			font-weight: 300;
-			color: #e0e0e0;
+			color: var(--uv-text);
 		}
 	`,
 
@@ -124,7 +124,7 @@ class UltravisorOperationEditView extends libPictView
 		if (!tmpIsNew)
 		{
 			tmpHTML += '<div class="ultravisor-form-group"><label>Graph</label>';
-			tmpHTML += '<p style="color:#78909c;">' + tmpNodeCount + ' node' + (tmpNodeCount !== 1 ? 's' : '') + ' in graph. Use the Flow Editor to modify the operation graph.</p>';
+			tmpHTML += '<p style="color:var(--uv-text-secondary);">' + tmpNodeCount + ' node' + (tmpNodeCount !== 1 ? 's' : '') + ' in graph. Use the Flow Editor to modify the operation graph.</p>';
 			tmpHTML += '</div>';
 		}
 

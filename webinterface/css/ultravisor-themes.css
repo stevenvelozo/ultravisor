@@ -1,0 +1,329 @@
+/* ══════════════════════════════════════════════════════════════
+   Ultravisor Theme Definitions
+   ══════════════════════════════════════════════════════════════
+   Default theme (Desert Dusk) is defined on :root.
+   Other themes override via body[data-theme="..."] selectors.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Desert Dusk (default) ── warm muted dark ──────────────── */
+:root
+{
+	/* Backgrounds */
+	--uv-bg-base: #1a1714;
+	--uv-bg-surface: #252018;
+	--uv-bg-elevated: #302818;
+	--uv-bg-input: #1a1714;
+	--uv-bg-code: #151210;
+
+	/* Borders */
+	--uv-border: #3a3028;
+	--uv-border-subtle: #302818;
+	--uv-border-focus: #c4956a;
+
+	/* Text */
+	--uv-text: #c8b8a0;
+	--uv-text-heading: #d8c8a8;
+	--uv-text-secondary: #907860;
+	--uv-text-tertiary: #706050;
+
+	/* Brand */
+	--uv-brand: #c4956a;
+	--uv-brand-hover: #d4a57a;
+
+	/* Links */
+	--uv-link: #4a9090;
+	--uv-link-hover: #5aacac;
+
+	/* Buttons */
+	--uv-btn-primary-bg: #4a9090;
+	--uv-btn-primary-text: #fff;
+	--uv-btn-danger-bg: #6a3040;
+	--uv-btn-danger-text: #ecc;
+	--uv-btn-secondary-bg: #3a3028;
+	--uv-btn-secondary-text: #c8b8a0;
+
+	/* Status */
+	--uv-success: #8a9a5a;
+	--uv-error: #b04050;
+	--uv-warning: #c0a050;
+	--uv-info: #4a9090;
+
+	/* Topbar */
+	--uv-topbar-bg: #252018;
+	--uv-topbar-text: #c8b8a0;
+	--uv-topbar-hover: #3a3028;
+
+	/* Scrollbar */
+	--uv-scrollbar-track: #252018;
+	--uv-scrollbar-thumb: #3a3028;
+	--uv-scrollbar-thumb-hover: #4a4038;
+
+	/* Shadow */
+	--uv-shadow: rgba(0, 0, 0, 0.3);
+	--uv-shadow-heavy: rgba(0, 0, 0, 0.5);
+
+	/* Table */
+	--uv-table-header-bg: #302818;
+	--uv-table-row-hover: #302818;
+	--uv-table-stripe: rgba(58, 48, 40, 0.3);
+}
+
+/* ── Desert Day ── light ───────────────────────────────────── */
+body[data-theme="desert-day"]
+{
+	--uv-bg-base: #faf6f0;
+	--uv-bg-surface: #f0e6d6;
+	--uv-bg-elevated: #e8ddd0;
+	--uv-bg-input: #fff;
+	--uv-bg-code: #f0e6d6;
+
+	--uv-border: #e0d0b8;
+	--uv-border-subtle: #e8ddd0;
+	--uv-border-focus: #c2703e;
+
+	--uv-text: #3d2b1f;
+	--uv-text-heading: #2e1e14;
+	--uv-text-secondary: #8a7560;
+	--uv-text-tertiary: #a09080;
+
+	--uv-brand: #5c3d2e;
+	--uv-brand-hover: #7a5040;
+
+	--uv-link: #3a8a8c;
+	--uv-link-hover: #2a7070;
+
+	--uv-btn-primary-bg: #3a8a8c;
+	--uv-btn-primary-text: #fff;
+	--uv-btn-danger-bg: #7a2e3a;
+	--uv-btn-danger-text: #fff;
+	--uv-btn-secondary-bg: #e8ddd0;
+	--uv-btn-secondary-text: #5c3d2e;
+
+	--uv-success: #5a7a30;
+	--uv-error: #a03040;
+	--uv-warning: #b08020;
+	--uv-info: #3a8a8c;
+
+	--uv-topbar-bg: #5c3d2e;
+	--uv-topbar-text: #e8ddd0;
+	--uv-topbar-hover: #7a5040;
+
+	--uv-scrollbar-track: #f0e6d6;
+	--uv-scrollbar-thumb: #d0c0a8;
+	--uv-scrollbar-thumb-hover: #c0b098;
+
+	--uv-shadow: rgba(92, 61, 46, 0.1);
+	--uv-shadow-heavy: rgba(92, 61, 46, 0.2);
+
+	--uv-table-header-bg: #e8ddd0;
+	--uv-table-row-hover: #f0e6d6;
+	--uv-table-stripe: rgba(224, 208, 184, 0.3);
+}
+
+/* ── Desert Sunset ── dark ─────────────────────────────────── */
+body[data-theme="desert-sunset"]
+{
+	--uv-bg-base: #1e1610;
+	--uv-bg-surface: #2a2018;
+	--uv-bg-elevated: #342818;
+	--uv-bg-input: #1e1610;
+	--uv-bg-code: #18120e;
+
+	--uv-border: #3a2e22;
+	--uv-border-subtle: #342818;
+	--uv-border-focus: #e8943a;
+
+	--uv-text: #d4c4aa;
+	--uv-text-heading: #e0d0b8;
+	--uv-text-secondary: #8a7560;
+	--uv-text-tertiary: #6a5840;
+
+	--uv-brand: #e8943a;
+	--uv-brand-hover: #f0a44a;
+
+	--uv-link: #2a8a8a;
+	--uv-link-hover: #3a9a9a;
+
+	--uv-btn-primary-bg: #2a8a8a;
+	--uv-btn-primary-text: #fff;
+	--uv-btn-danger-bg: #8b2442;
+	--uv-btn-danger-text: #fcc;
+	--uv-btn-secondary-bg: #3a2e22;
+	--uv-btn-secondary-text: #d4c4aa;
+
+	--uv-success: #6a9a3a;
+	--uv-error: #c44e2a;
+	--uv-warning: #d4a46a;
+	--uv-info: #2a8a8a;
+
+	--uv-topbar-bg: #2a1e15;
+	--uv-topbar-text: #d4c4aa;
+	--uv-topbar-hover: #3a2e22;
+
+	--uv-scrollbar-track: #2a2018;
+	--uv-scrollbar-thumb: #3a2e22;
+	--uv-scrollbar-thumb-hover: #4a3e32;
+
+	--uv-shadow: rgba(0, 0, 0, 0.3);
+	--uv-shadow-heavy: rgba(0, 0, 0, 0.5);
+
+	--uv-table-header-bg: #342818;
+	--uv-table-row-hover: #342818;
+	--uv-table-stripe: rgba(58, 46, 34, 0.3);
+}
+
+/* ── Professional Light ────────────────────────────────────── */
+body[data-theme="professional-light"]
+{
+	--uv-bg-base: #f5f6f8;
+	--uv-bg-surface: #fff;
+	--uv-bg-elevated: #e4e7ec;
+	--uv-bg-input: #fff;
+	--uv-bg-code: #f0f1f4;
+
+	--uv-border: #e2e5ea;
+	--uv-border-subtle: #eceef2;
+	--uv-border-focus: #3b82f6;
+
+	--uv-text: #2d3748;
+	--uv-text-heading: #1a202c;
+	--uv-text-secondary: #6b7280;
+	--uv-text-tertiary: #9ca3af;
+
+	--uv-brand: #3b82f6;
+	--uv-brand-hover: #2563eb;
+
+	--uv-link: #3b82f6;
+	--uv-link-hover: #2563eb;
+
+	--uv-btn-primary-bg: #3b82f6;
+	--uv-btn-primary-text: #fff;
+	--uv-btn-danger-bg: #ef4444;
+	--uv-btn-danger-text: #fff;
+	--uv-btn-secondary-bg: #e5e7eb;
+	--uv-btn-secondary-text: #374151;
+
+	--uv-success: #10b981;
+	--uv-error: #ef4444;
+	--uv-warning: #f59e0b;
+	--uv-info: #3b82f6;
+
+	--uv-topbar-bg: #fff;
+	--uv-topbar-text: #6b7280;
+	--uv-topbar-hover: #f0f1f4;
+
+	--uv-scrollbar-track: #f0f1f4;
+	--uv-scrollbar-thumb: #d1d5db;
+	--uv-scrollbar-thumb-hover: #b0b5bd;
+
+	--uv-shadow: rgba(0, 0, 0, 0.06);
+	--uv-shadow-heavy: rgba(0, 0, 0, 0.12);
+
+	--uv-table-header-bg: #f5f6f8;
+	--uv-table-row-hover: #f9fafb;
+	--uv-table-stripe: rgba(226, 229, 234, 0.3);
+}
+
+/* ── Professional Dark ─────────────────────────────────────── */
+body[data-theme="professional-dark"]
+{
+	--uv-bg-base: #111318;
+	--uv-bg-surface: #1a1d24;
+	--uv-bg-elevated: #22252e;
+	--uv-bg-input: #111318;
+	--uv-bg-code: #0d0f14;
+
+	--uv-border: #282c34;
+	--uv-border-subtle: #22252e;
+	--uv-border-focus: #60a5fa;
+
+	--uv-text: #c8cdd5;
+	--uv-text-heading: #e0e4ea;
+	--uv-text-secondary: #8b92a0;
+	--uv-text-tertiary: #5a6070;
+
+	--uv-brand: #60a5fa;
+	--uv-brand-hover: #93c5fd;
+
+	--uv-link: #60a5fa;
+	--uv-link-hover: #93c5fd;
+
+	--uv-btn-primary-bg: #3b82f6;
+	--uv-btn-primary-text: #fff;
+	--uv-btn-danger-bg: #dc2626;
+	--uv-btn-danger-text: #fecaca;
+	--uv-btn-secondary-bg: #282c34;
+	--uv-btn-secondary-text: #c8cdd5;
+
+	--uv-success: #34d399;
+	--uv-error: #f87171;
+	--uv-warning: #fbbf24;
+	--uv-info: #60a5fa;
+
+	--uv-topbar-bg: #1a1d24;
+	--uv-topbar-text: #8b92a0;
+	--uv-topbar-hover: #282c34;
+
+	--uv-scrollbar-track: #1a1d24;
+	--uv-scrollbar-thumb: #282c34;
+	--uv-scrollbar-thumb-hover: #3a3f4a;
+
+	--uv-shadow: rgba(0, 0, 0, 0.3);
+	--uv-shadow-heavy: rgba(0, 0, 0, 0.5);
+
+	--uv-table-header-bg: #22252e;
+	--uv-table-row-hover: #22252e;
+	--uv-table-stripe: rgba(40, 44, 52, 0.3);
+}
+
+/* ── Desert Canyon ── vibrant dark ─────────────────────────── */
+body[data-theme="desert-canyon"]
+{
+	--uv-bg-base: #18120e;
+	--uv-bg-surface: #221a14;
+	--uv-bg-elevated: #2e2018;
+	--uv-bg-input: #18120e;
+	--uv-bg-code: #120e0a;
+
+	--uv-border: #3a2a1e;
+	--uv-border-subtle: #2e2018;
+	--uv-border-focus: #e8943a;
+
+	--uv-text: #d8c8b0;
+	--uv-text-heading: #e8d8c0;
+	--uv-text-secondary: #a09080;
+	--uv-text-tertiary: #685040;
+
+	--uv-brand: #e8943a;
+	--uv-brand-hover: #f0a44a;
+
+	--uv-link: #18a0a0;
+	--uv-link-hover: #30b0b0;
+
+	--uv-btn-primary-bg: #18a0a0;
+	--uv-btn-primary-text: #18120e;
+	--uv-btn-danger-bg: #e05830;
+	--uv-btn-danger-text: #fff;
+	--uv-btn-secondary-bg: #3a2a1e;
+	--uv-btn-secondary-text: #d8c8b0;
+
+	--uv-success: #18a0a0;
+	--uv-error: #e05830;
+	--uv-warning: #e0c870;
+	--uv-info: #18a0a0;
+
+	--uv-topbar-bg: #221a14;
+	--uv-topbar-text: #d8c8b0;
+	--uv-topbar-hover: #3a2a1e;
+
+	--uv-scrollbar-track: #221a14;
+	--uv-scrollbar-thumb: #3a2a1e;
+	--uv-scrollbar-thumb-hover: #4a3a2e;
+
+	--uv-shadow: rgba(0, 0, 0, 0.3);
+	--uv-shadow-heavy: rgba(0, 0, 0, 0.5);
+
+	--uv-table-header-bg: #2e2018;
+	--uv-table-row-hover: #2e2018;
+	--uv-table-stripe: rgba(58, 42, 30, 0.3);
+}

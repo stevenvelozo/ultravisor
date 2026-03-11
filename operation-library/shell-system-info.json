@@ -1,0 +1,127 @@
+{
+	"Name": "System Info Collector",
+	"Description": "Runs shell commands to gather system information (hostname, uptime, disk usage) and writes a report. Demonstrates command nodes with template assembly.",
+	"Tags": ["command", "system", "reporting"],
+	"Author": "Ultravisor",
+	"Version": "1.0.0",
+	"Graph": {
+		"Nodes": [
+			{
+				"Hash": "si-start",
+				"Type": "start",
+				"X": 50,
+				"Y": 200,
+				"Width": 140,
+				"Height": 80,
+				"Title": "Start",
+				"Ports": [
+					{ "Hash": "si-start-out", "Direction": "output", "Side": "right-bottom", "Label": "Out" }
+				],
+				"Data": {}
+			},
+			{
+				"Hash": "si-hostname",
+				"Type": "command",
+				"X": 260,
+				"Y": 180,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Get Hostname",
+				"Ports": [
+					{ "Hash": "si-hn-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "si-hn-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "si-hn-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "Command": "hostname", "Description": "Get system hostname" }
+			},
+			{
+				"Hash": "si-uptime",
+				"Type": "command",
+				"X": 530,
+				"Y": 180,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Get Uptime",
+				"Ports": [
+					{ "Hash": "si-up-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "si-up-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "si-up-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "Command": "uptime", "Description": "Get system uptime" }
+			},
+			{
+				"Hash": "si-date",
+				"Type": "command",
+				"X": 800,
+				"Y": 180,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Get Date",
+				"Ports": [
+					{ "Hash": "si-dt-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "si-dt-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "si-dt-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "Command": "date", "Description": "Get current date and time" }
+			},
+			{
+				"Hash": "si-report",
+				"Type": "template-string",
+				"X": 1070,
+				"Y": 180,
+				"Width": 240,
+				"Height": 80,
+				"Title": "Build Report",
+				"Ports": [
+					{ "Hash": "si-rpt-in", "Direction": "input", "Side": "left-bottom", "Label": "In" },
+					{ "Hash": "si-rpt-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": { "Template": "=== System Info Report ===\nHostname: {~D:Record.TaskOutput.si-hostname.StdOut~}\nUptime: {~D:Record.TaskOutput.si-uptime.StdOut~}\nDate: {~D:Record.TaskOutput.si-date.StdOut~}\n", "Destination": "Operation.Report" }
+			},
+			{
+				"Hash": "si-write",
+				"Type": "write-file",
+				"X": 1380,
+				"Y": 180,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Save Report",
+				"Ports": [
+					{ "Hash": "si-wr-in", "Direction": "input", "Side": "left-bottom", "Label": "BeginWrite" },
+					{ "Hash": "si-wr-done", "Direction": "output", "Side": "right-bottom", "Label": "WriteComplete" },
+					{ "Hash": "si-wr-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": { "FilePath": "system-info-report.txt", "Content": "{~D:Record.Operation.Report~}", "Encoding": "utf8" }
+			},
+			{
+				"Hash": "si-end",
+				"Type": "end",
+				"X": 1650,
+				"Y": 260,
+				"Width": 140,
+				"Height": 80,
+				"Title": "End",
+				"Ports": [
+					{ "Hash": "si-end-in", "Direction": "input", "Side": "left-bottom", "Label": "In" }
+				],
+				"Data": {}
+			}
+		],
+		"Connections": [
+			{ "Hash": "si-c1", "SourceNodeHash": "si-start", "SourcePortHash": "si-start-out", "TargetNodeHash": "si-hostname", "TargetPortHash": "si-hn-in", "Data": {} },
+			{ "Hash": "si-c2", "SourceNodeHash": "si-hostname", "SourcePortHash": "si-hn-done", "TargetNodeHash": "si-uptime", "TargetPortHash": "si-up-in", "Data": {} },
+			{ "Hash": "si-c3", "SourceNodeHash": "si-uptime", "SourcePortHash": "si-up-done", "TargetNodeHash": "si-date", "TargetPortHash": "si-dt-in", "Data": {} },
+			{ "Hash": "si-c4", "SourceNodeHash": "si-date", "SourcePortHash": "si-dt-done", "TargetNodeHash": "si-report", "TargetPortHash": "si-rpt-in", "Data": {} },
+			{ "Hash": "si-c5", "SourceNodeHash": "si-report", "SourcePortHash": "si-rpt-done", "TargetNodeHash": "si-write", "TargetPortHash": "si-wr-in", "Data": {} },
+			{ "Hash": "si-c6", "SourceNodeHash": "si-write", "SourcePortHash": "si-wr-done", "TargetNodeHash": "si-end", "TargetPortHash": "si-end-in", "Data": {} },
+			{ "Hash": "si-c7", "SourceNodeHash": "si-hostname", "SourcePortHash": "si-hn-err", "TargetNodeHash": "si-end", "TargetPortHash": "si-end-in", "Data": {} },
+			{ "Hash": "si-c8", "SourceNodeHash": "si-uptime", "SourcePortHash": "si-up-err", "TargetNodeHash": "si-end", "TargetPortHash": "si-end-in", "Data": {} },
+			{ "Hash": "si-c9", "SourceNodeHash": "si-date", "SourcePortHash": "si-dt-err", "TargetNodeHash": "si-end", "TargetPortHash": "si-end-in", "Data": {} },
+			{ "Hash": "si-c10", "SourceNodeHash": "si-write", "SourcePortHash": "si-wr-err", "TargetNodeHash": "si-end", "TargetPortHash": "si-end-in", "Data": {} }
+		],
+		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
+	},
+	"SavedLayouts": [],
+	"InitialGlobalState": {},
+	"InitialOperationState": {}
+}

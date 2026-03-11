@@ -8,17 +8,21 @@ module.exports = (
 		HypervisorState: require('./services/Ultravisor-Hypervisor-State.cjs'),
 		Hypervisor: require('./services/Ultravisor-Hypervisor.cjs'),
 
-		// Task type classes
+		// Config-driven task type definitions (preferred for new tasks)
+		BuiltInTaskConfigs: require('./services/tasks/Ultravisor-BuiltIn-TaskConfigs.cjs'),
+
+		// Task type classes (kept for backward compatibility)
 		TaskTypes:
 		{
-			ReadFile: require('./services/tasks/file-io/Ultravisor-TaskType-ReadFile.cjs'),
-			WriteFile: require('./services/tasks/file-io/Ultravisor-TaskType-WriteFile.cjs'),
-			SetValues: require('./services/tasks/data/Ultravisor-TaskType-SetValues.cjs'),
-			ReplaceString: require('./services/tasks/data/Ultravisor-TaskType-ReplaceString.cjs'),
-			StringAppender: require('./services/tasks/data/Ultravisor-TaskType-StringAppender.cjs'),
-			IfConditional: require('./services/tasks/control/Ultravisor-TaskType-IfConditional.cjs'),
-			SplitExecute: require('./services/tasks/control/Ultravisor-TaskType-SplitExecute.cjs'),
-			ValueInput: require('./services/tasks/interaction/Ultravisor-TaskType-ValueInput.cjs'),
-			ErrorMessage: require('./services/tasks/interaction/Ultravisor-TaskType-ErrorMessage.cjs')
+			ReadFile: require('./services/tasks/file-system/Ultravisor-TaskType-ReadFile.cjs'),
+			WriteFile: require('./services/tasks/file-system/Ultravisor-TaskType-WriteFile.cjs'),
+			SetValues: require('./services/tasks/data-transform/Ultravisor-TaskType-SetValues.cjs'),
+			ReplaceString: require('./services/tasks/data-transform/Ultravisor-TaskType-ReplaceString.cjs'),
+			StringAppender: require('./services/tasks/data-transform/Ultravisor-TaskType-StringAppender.cjs'),
+			IfConditional: require('./services/tasks/flow-control/Ultravisor-TaskType-IfConditional.cjs'),
+			SplitExecute: require('./services/tasks/flow-control/Ultravisor-TaskType-SplitExecute.cjs'),
+			LaunchOperation: require('./services/tasks/flow-control/Ultravisor-TaskType-LaunchOperation.cjs'),
+			ValueInput: require('./services/tasks/user-interaction/Ultravisor-TaskType-ValueInput.cjs'),
+			ErrorMessage: require('./services/tasks/user-interaction/Ultravisor-TaskType-ErrorMessage.cjs')
 		}
 	});

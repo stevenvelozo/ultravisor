@@ -13,9 +13,10 @@
 		"pict": "^1.0.343",
 		"pict-application": "^1.0.28",
 		"pict-provider": "^1.0.3",
-		"pict-router": "^1.0.4",
+		"pict-router": "^1.0.7",
 		"pict-section-content": "^0.0.6",
-		"pict-section-flow": "file:../../../../pict/pict-section-flow",
+		"pict-docuserve": "file:../../../../pict/pict-docuserve",
+		"pict-section-flow": "^0.0.6",
 		"pict-section-form": "^1.0.194",
 		"pict-view": "^1.0.64"
 	},
@@ -37,6 +38,10 @@
 		{
 			"from": "./node_modules/pict/dist/*",
 			"to": "./dist/js/"
+		},
+		{
+			"from": "../docs/**",
+			"to": "./dist/docs/"
 		}
 	]
 }

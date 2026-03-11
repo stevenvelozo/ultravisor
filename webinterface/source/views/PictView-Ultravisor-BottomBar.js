@@ -14,18 +14,18 @@ const _ViewConfiguration =
 			display: flex;
 			align-items: center;
 			justify-content: center;
-			background-color: #0f3460;
-			color: #607d8b;
+			background-color: var(--uv-bg-elevated);
+			color: var(--uv-text-tertiary);
 			padding: 0.75em 1.5em;
 			font-size: 0.8em;
-			border-top: 1px solid #1a4a7a;
+			border-top: 1px solid var(--uv-topbar-hover);
 		}
 		.ultravisor-bottombar a {
-			color: #4fc3f7;
+			color: var(--uv-link);
 			text-decoration: none;
 		}
 		.ultravisor-bottombar a:hover {
-			color: #81d4fa;
+			color: var(--uv-link-hover);
 		}
 	`,
 
