@@ -1,0 +1,68 @@
+{
+	"Name": "Beacon Remote Command",
+	"Description": "Dispatches a shell command to a remote Beacon worker node and collects the output. Demonstrates the beacon-dispatch task type for remote execution.",
+	"Tags": ["beacon", "remote", "command"],
+	"Author": "Ultravisor",
+	"Version": "1.0.0",
+	"Graph": {
+		"Nodes": [
+			{
+				"Hash": "brc-start",
+				"Type": "start",
+				"X": 50,
+				"Y": 200,
+				"Width": 140,
+				"Height": 80,
+				"Title": "Start",
+				"Ports": [
+					{ "Hash": "brc-start-out", "Direction": "output", "Side": "right-bottom", "Label": "Out" }
+				],
+				"Data": {}
+			},
+			{
+				"Hash": "brc-dispatch",
+				"Type": "beacon-dispatch",
+				"X": 260,
+				"Y": 180,
+				"Width": 240,
+				"Height": 80,
+				"Title": "Remote System Info",
+				"Ports": [
+					{ "Hash": "brc-disp-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "brc-disp-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "brc-disp-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": {
+					"RemoteCapability": "Shell",
+					"RemoteAction": "Execute",
+					"Command": "uname -a",
+					"Parameters": "",
+					"AffinityKey": "",
+					"TimeoutMs": 30000
+				}
+			},
+			{
+				"Hash": "brc-end",
+				"Type": "end",
+				"X": 580,
+				"Y": 260,
+				"Width": 140,
+				"Height": 80,
+				"Title": "End",
+				"Ports": [
+					{ "Hash": "brc-end-in", "Direction": "input", "Side": "left-bottom", "Label": "In" }
+				],
+				"Data": {}
+			}
+		],
+		"Connections": [
+			{ "Hash": "brc-c1", "SourceNodeHash": "brc-start", "SourcePortHash": "brc-start-out", "TargetNodeHash": "brc-dispatch", "TargetPortHash": "brc-disp-in", "Data": {} },
+			{ "Hash": "brc-c2", "SourceNodeHash": "brc-dispatch", "SourcePortHash": "brc-disp-done", "TargetNodeHash": "brc-end", "TargetPortHash": "brc-end-in", "Data": {} },
+			{ "Hash": "brc-c3", "SourceNodeHash": "brc-dispatch", "SourcePortHash": "brc-disp-err", "TargetNodeHash": "brc-end", "TargetPortHash": "brc-end-in", "Data": {} }
+		],
+		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
+	},
+	"SavedLayouts": [],
+	"InitialGlobalState": {},
+	"InitialOperationState": {}
+}

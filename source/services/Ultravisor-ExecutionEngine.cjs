@@ -196,12 +196,22 @@ class UltravisorExecutionEngine extends libPictService
 			tmpStateManager.setAddress(tmpWaitingInfo.OutputAddress, pValue, tmpContext, pNodeHash);
 		}
 
-		// Also store in task outputs
+		// Store in task outputs
 		if (!tmpContext.TaskOutputs[pNodeHash])
 		{
 			tmpContext.TaskOutputs[pNodeHash] = {};
 		}
-		tmpContext.TaskOutputs[pNodeHash].InputValue = pValue;
+
+		// If pValue is a structured object, merge all keys into TaskOutputs (beacon results)
+		// If pValue is a scalar, store as InputValue (backward compat for value-input)
+		if (typeof pValue === 'object' && pValue !== null && !Array.isArray(pValue))
+		{
+			Object.assign(tmpContext.TaskOutputs[pNodeHash], pValue);
+		}
+		else
+		{
+			tmpContext.TaskOutputs[pNodeHash].InputValue = pValue;
+		}
 
 		// Update the task's ElapsedMs to include the time spent waiting for input
 		let tmpTaskManifest = tmpContext.TaskManifests[pNodeHash];
@@ -221,11 +231,12 @@ class UltravisorExecutionEngine extends libPictService
 		// Remove from waiting list
 		delete tmpContext.WaitingTasks[pNodeHash];
 
-		// Fire the completion event
+		// Fire the completion event (custom resume event for beacon-dispatch, default for value-input)
+		let tmpResumeEvent = tmpWaitingInfo.ResumeEventName || 'ValueInputComplete';
 		tmpContext.Status = 'Running';
-		this._log(tmpContext, `Value input received for node [${pNodeHash}], resuming execution.`);
+		this._log(tmpContext, `Input received for node [${pNodeHash}], resuming execution (event: ${tmpResumeEvent}).`);
 
-		this._enqueueDownstreamEvents(pNodeHash, 'ValueInputComplete', tmpContext);
+		this._enqueueDownstreamEvents(pNodeHash, tmpResumeEvent, tmpContext);
 
 		// Process the event queue
 		this._processEventQueue(tmpContext,
@@ -461,15 +472,16 @@ class UltravisorExecutionEngine extends libPictService
 				return fCallback(null);
 			}
 
-			// Check for WaitingForInput (value-input task)
+			// Check for WaitingForInput (value-input or beacon-dispatch task)
 			if (pResult.WaitingForInput)
 			{
 				pContext.WaitingTasks[pNodeHash] = {
 					PromptMessage: pResult.PromptMessage || '',
 					OutputAddress: pResult.OutputAddress || '',
+					ResumeEventName: pResult.ResumeEventName || '',
 					Timestamp: new Date().toISOString()
 				};
-				this._log(pContext, `Task [${pNodeHash}] is waiting for user input.`);
+				this._log(pContext, `Task [${pNodeHash}] is waiting for input (resume event: ${pResult.ResumeEventName || 'ValueInputComplete'}).`);
 				if (tmpManifestService)
 				{
 					tmpManifestService.recordTaskComplete(pContext, pNodeHash, pResult);

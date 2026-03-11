@@ -8,6 +8,7 @@
 
   - [Tasks](features/tasks.md)
   - [Capabilities](features/capabilities.md)
+  - [Beacons](features/beacons.md)
   - [Operations](features/operations.md)
   - [Scheduling](features/scheduling.md)
   - [Manifests](features/manifests.md)

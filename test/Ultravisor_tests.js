@@ -19,6 +19,8 @@ const libUltravisorHypervisorEventCron = require('../source/services/events/Ultr
 const libUltravisorSchedulePersistenceBase = require('../source/services/Ultravisor-Schedule-Persistence-Base.cjs');
 const libUltravisorSchedulePersistenceJSONFile = require('../source/services/persistence/Ultravisor-Schedule-Persistence-JSONFile.cjs');
 
+const libUltravisorBeaconCoordinator = require('../source/services/Ultravisor-Beacon-Coordinator.cjs');
+
 const libTaskTypeReadFile = require('../source/services/tasks/file-system/Ultravisor-TaskType-ReadFile.cjs');
 const libTaskTypeWriteFile = require('../source/services/tasks/file-system/Ultravisor-TaskType-WriteFile.cjs');
 const libTaskTypeSetValues = require('../source/services/tasks/data-transform/Ultravisor-TaskType-SetValues.cjs');
@@ -74,6 +76,9 @@ function createTestFable()
 	// Schedule persistence services
 	tmpFable.addAndInstantiateServiceTypeIfNotExists('UltravisorSchedulePersistenceBase', libUltravisorSchedulePersistenceBase);
 	tmpFable.addAndInstantiateServiceTypeIfNotExists('UltravisorSchedulePersistence', libUltravisorSchedulePersistenceJSONFile);
+
+	// Beacon coordinator
+	tmpFable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconCoordinator', libUltravisorBeaconCoordinator);
 
 	// Register task types
 	let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
@@ -1647,11 +1652,12 @@ suite
 						let tmpBuiltInConfigs = require('../source/services/tasks/Ultravisor-BuiltIn-TaskConfigs.cjs');
 						let tmpCount = tmpRegistry.registerTaskTypesFromConfigArray(tmpBuiltInConfigs);
 
-						Expect(tmpCount).to.equal(31);
+						Expect(tmpCount).to.equal(32);
 
 						// Spot-check a few
 						Expect(tmpRegistry.hasTaskType('error-message')).to.equal(true);
 						Expect(tmpRegistry.hasTaskType('read-file')).to.equal(true);
+						Expect(tmpRegistry.hasTaskType('beacon-dispatch')).to.equal(true);
 						Expect(tmpRegistry.hasTaskType('command')).to.equal(true);
 						Expect(tmpRegistry.hasTaskType('get-json')).to.equal(true);
 						Expect(tmpRegistry.hasTaskType('meadow-read')).to.equal(true);
@@ -1840,7 +1846,7 @@ suite
 						tmpRegistry.registerBuiltInTaskTypes();
 
 						let tmpDefs = tmpRegistry.listDefinitions();
-						Expect(tmpDefs.length).to.equal(31);
+						Expect(tmpDefs.length).to.equal(32);
 					}
 				);
 			}
@@ -2091,7 +2097,7 @@ suite
 						let tmpFiles = libFS.readdirSync(tmpLibraryPath);
 						let tmpJsonFiles = tmpFiles.filter(function (pFile) { return pFile.endsWith('.json'); });
 
-						Expect(tmpJsonFiles.length).to.equal(16);
+						Expect(tmpJsonFiles.length).to.equal(17);
 						// Original three
 						Expect(tmpJsonFiles).to.include('file-search-replace.json');
 						Expect(tmpJsonFiles).to.include('config-processor.json');
@@ -3420,5 +3426,531 @@ suite
 							});
 					}
 				);
+			}
+		);
+
+	// ============================================================
+	// Beacon Coordinator
+	// ============================================================
+	suite
+		(
+			'Beacon Coordinator',
+			function ()
+			{
+				test
+					(
+						'should register and list Beacons.',
+						function ()
+						{
+							let tmpFable = createTestFable();
+							let tmpCoordinator = Object.values(tmpFable.servicesMap['UltravisorBeaconCoordinator'])[0];
+							Expect(tmpCoordinator).to.not.equal(undefined);
+
+							let tmpBeacon = tmpCoordinator.registerBeacon({
+								Name: 'TestWorker',
+								Capabilities: ['Shell', 'FileSystem'],
+								MaxConcurrent: 2,
+								Tags: { gpu: false }
+							});
+
+							Expect(tmpBeacon.BeaconID).to.be.a('string');
+							Expect(tmpBeacon.BeaconID).to.contain('bcn-testworker-');
+							Expect(tmpBeacon.Name).to.equal('TestWorker');
+							Expect(tmpBeacon.Capabilities).to.deep.equal(['Shell', 'FileSystem']);
+							Expect(tmpBeacon.MaxConcurrent).to.equal(2);
+							Expect(tmpBeacon.Status).to.equal('Online');
+
+							let tmpList = tmpCoordinator.listBeacons();
+							Expect(tmpList.length).to.equal(1);
+							Expect(tmpList[0].BeaconID).to.equal(tmpBeacon.BeaconID);
+						}
+					);
+
+				test
+					(
+						'should deregister a Beacon.',
+						function ()
+						{
+							let tmpFable = createTestFable();
+							let tmpCoordinator = Object.values(tmpFable.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							let tmpBeacon = tmpCoordinator.registerBeacon({ Name: 'Worker1', Capabilities: ['Shell'] });
+							Expect(tmpCoordinator.listBeacons().length).to.equal(1);
+
+							let tmpRemoved = tmpCoordinator.deregisterBeacon(tmpBeacon.BeaconID);
+							Expect(tmpRemoved).to.equal(true);
+							Expect(tmpCoordinator.listBeacons().length).to.equal(0);
+
+							let tmpNotFound = tmpCoordinator.deregisterBeacon('nonexistent');
+							Expect(tmpNotFound).to.equal(false);
+						}
+					);
+
+				test
+					(
+						'should process heartbeats.',
+						function ()
+						{
+							let tmpFable = createTestFable();
+							let tmpCoordinator = Object.values(tmpFable.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							let tmpBeacon = tmpCoordinator.registerBeacon({ Name: 'HeartbeatTest', Capabilities: ['Shell'] });
+							let tmpOriginalHeartbeat = tmpBeacon.LastHeartbeat;
+
+							let tmpUpdated = tmpCoordinator.heartbeat(tmpBeacon.BeaconID);
+							Expect(tmpUpdated).to.not.equal(null);
+							Expect(tmpUpdated.Status).to.equal('Online');
+
+							let tmpMissing = tmpCoordinator.heartbeat('nonexistent');
+							Expect(tmpMissing).to.equal(null);
+						}
+					);
+
+				test
+					(
+						'should enqueue and poll work items.',
+						function ()
+						{
+							let tmpFable = createTestFable();
+							let tmpCoordinator = Object.values(tmpFable.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							let tmpBeacon = tmpCoordinator.registerBeacon({ Name: 'PollWorker', Capabilities: ['Shell'] });
+
+							// Enqueue a work item
+							let tmpWorkItem = tmpCoordinator.enqueueWorkItem({
+								RunHash: 'run-test-1',
+								NodeHash: 'node-cmd-1',
+								OperationHash: 'OPR-TEST',
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: { Command: 'echo', Parameters: 'hello' }
+							});
+
+							Expect(tmpWorkItem.WorkItemHash).to.be.a('string');
+							Expect(tmpWorkItem.Status).to.equal('Pending');
+
+							// Poll for work
+							let tmpPolled = tmpCoordinator.pollForWork(tmpBeacon.BeaconID);
+							Expect(tmpPolled).to.not.equal(null);
+							Expect(tmpPolled.WorkItemHash).to.equal(tmpWorkItem.WorkItemHash);
+							Expect(tmpPolled.Capability).to.equal('Shell');
+							Expect(tmpPolled.Settings.Command).to.equal('echo');
+
+							// Verify the work item is now Running
+							let tmpInternalItem = tmpCoordinator.getWorkItem(tmpWorkItem.WorkItemHash);
+							Expect(tmpInternalItem.Status).to.equal('Running');
+							Expect(tmpInternalItem.AssignedBeaconID).to.equal(tmpBeacon.BeaconID);
+
+							// Second poll should return null (at capacity, MaxConcurrent=1)
+							let tmpSecondPoll = tmpCoordinator.pollForWork(tmpBeacon.BeaconID);
+							Expect(tmpSecondPoll).to.equal(null);
+						}
+					);
+
+				test
+					(
+						'should not return work items for mismatched capabilities.',
+						function ()
+						{
+							let tmpFable = createTestFable();
+							let tmpCoordinator = Object.values(tmpFable.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							let tmpBeacon = tmpCoordinator.registerBeacon({ Name: 'FileWorker', Capabilities: ['FileSystem'] });
+
+							tmpCoordinator.enqueueWorkItem({
+								RunHash: 'run-test-2',
+								NodeHash: 'node-shell-1',
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: { Command: 'echo', Parameters: 'test' }
+							});
+
+							// Should not match — Beacon has FileSystem, work item needs Shell
+							let tmpPolled = tmpCoordinator.pollForWork(tmpBeacon.BeaconID);
+							Expect(tmpPolled).to.equal(null);
+						}
+					);
+
+				test
+					(
+						'should create and use affinity bindings.',
+						function ()
+						{
+							let tmpFable = createTestFable();
+							let tmpCoordinator = Object.values(tmpFable.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							let tmpBeacon1 = tmpCoordinator.registerBeacon({ Name: 'Worker1', Capabilities: ['Shell'], MaxConcurrent: 5 });
+							let tmpBeacon2 = tmpCoordinator.registerBeacon({ Name: 'Worker2', Capabilities: ['Shell'], MaxConcurrent: 5 });
+
+							// Enqueue first work item with affinity key
+							tmpCoordinator.enqueueWorkItem({
+								RunHash: 'run-test-3',
+								NodeHash: 'node-1',
+								Capability: 'Shell',
+								Action: 'Execute',
+								AffinityKey: '/videos/movie.mp4',
+								Settings: { Command: 'ffprobe', Parameters: '/videos/movie.mp4' }
+							});
+
+							// Beacon1 claims it first
+							let tmpPolled1 = tmpCoordinator.pollForWork(tmpBeacon1.BeaconID);
+							Expect(tmpPolled1).to.not.equal(null);
+
+							// Verify affinity binding was created
+							let tmpBindings = tmpCoordinator.listAffinityBindings();
+							Expect(tmpBindings.length).to.equal(1);
+							Expect(tmpBindings[0].AffinityKey).to.equal('/videos/movie.mp4');
+							Expect(tmpBindings[0].BeaconID).to.equal(tmpBeacon1.BeaconID);
+
+							// Enqueue second work item with same affinity key
+							let tmpWorkItem2 = tmpCoordinator.enqueueWorkItem({
+								RunHash: 'run-test-3',
+								NodeHash: 'node-2',
+								Capability: 'Shell',
+								Action: 'Execute',
+								AffinityKey: '/videos/movie.mp4',
+								Settings: { Command: 'ffmpeg', Parameters: '-i /videos/movie.mp4 ...' }
+							});
+
+							// Should be pre-assigned to Beacon1 via affinity
+							Expect(tmpWorkItem2.Status).to.equal('Assigned');
+							Expect(tmpWorkItem2.AssignedBeaconID).to.equal(tmpBeacon1.BeaconID);
+
+							// Beacon2 should NOT get it
+							let tmpPolledB2 = tmpCoordinator.pollForWork(tmpBeacon2.BeaconID);
+							Expect(tmpPolledB2).to.equal(null);
+
+							// Beacon1 should get it
+							let tmpPolledB1 = tmpCoordinator.pollForWork(tmpBeacon1.BeaconID);
+							Expect(tmpPolledB1).to.not.equal(null);
+							Expect(tmpPolledB1.Settings.Command).to.equal('ffmpeg');
+						}
+					);
+
+				test
+					(
+						'should clear affinity bindings.',
+						function ()
+						{
+							let tmpFable = createTestFable();
+							let tmpCoordinator = Object.values(tmpFable.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							let tmpBeacon = tmpCoordinator.registerBeacon({ Name: 'AffinityWorker', Capabilities: ['Shell'], MaxConcurrent: 5 });
+
+							tmpCoordinator.enqueueWorkItem({
+								RunHash: 'run-aff',
+								NodeHash: 'n1',
+								Capability: 'Shell',
+								AffinityKey: '/data/file.csv',
+								Settings: { Command: 'cat', Parameters: '/data/file.csv' }
+							});
+
+							tmpCoordinator.pollForWork(tmpBeacon.BeaconID);
+							Expect(tmpCoordinator.listAffinityBindings().length).to.equal(1);
+
+							let tmpCleared = tmpCoordinator.clearAffinityBinding('/data/file.csv');
+							Expect(tmpCleared).to.equal(true);
+							Expect(tmpCoordinator.listAffinityBindings().length).to.equal(0);
+
+							let tmpNotFound = tmpCoordinator.clearAffinityBinding('/nonexistent');
+							Expect(tmpNotFound).to.equal(false);
+						}
+					);
+
+				test
+					(
+						'beacon-dispatch task type should be registered with correct definition.',
+						function ()
+						{
+							let tmpFable = createTestFable();
+							let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
+							let tmpBuiltInConfigs = require('../source/services/tasks/Ultravisor-BuiltIn-TaskConfigs.cjs');
+							tmpRegistry.registerTaskTypesFromConfigArray(tmpBuiltInConfigs);
+
+							let tmpDef = tmpRegistry.getDefinition('beacon-dispatch');
+							Expect(tmpDef).to.not.equal(undefined);
+							Expect(tmpDef.Name).to.equal('Beacon Dispatch');
+							Expect(tmpDef.Capability).to.equal('Extension');
+							Expect(tmpDef.Action).to.equal('Dispatch');
+							Expect(tmpDef.Tier).to.equal('Extension');
+							Expect(tmpDef.EventOutputs.length).to.equal(2);
+							Expect(tmpDef.EventOutputs[0].Name).to.equal('Complete');
+							Expect(tmpDef.EventOutputs[1].Name).to.equal('Error');
+							Expect(tmpDef.EventOutputs[1].IsError).to.equal(true);
+							Expect(tmpDef.SettingsInputs.length).to.equal(7);
+							Expect(tmpDef.StateOutputs.length).to.equal(4);
+						}
+					);
+
+				test
+					(
+						'beacon-dispatch should return WaitingForInput with ResumeEventName when Beacons are registered.',
+						function (fDone)
+						{
+							let tmpFable = createTestFable();
+							let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
+							let tmpCoordinator = Object.values(tmpFable.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							// Register built-in task types including beacon-dispatch
+							tmpRegistry.registerBuiltInTaskTypes();
+
+							// Register a Beacon so dispatch doesn't fail
+							tmpCoordinator.registerBeacon({ Name: 'TestBeacon', Capabilities: ['Shell'] });
+
+							// Build a simple operation with beacon-dispatch
+							let tmpEngine = Object.values(tmpFable.servicesMap['UltravisorExecutionEngine'])[0];
+							let tmpManifest = Object.values(tmpFable.servicesMap['UltravisorExecutionManifest'])[0];
+
+							let tmpOperation = {
+								Hash: 'OPR-BEACON-TEST',
+								Name: 'Beacon Dispatch Test',
+								Graph: {
+									Nodes: [
+										{ Hash: 'start-1', Type: 'start', Ports: [{ Hash: 'start-1-eo-Begin', Label: 'Begin' }] },
+										{
+											Hash: 'dispatch-1', Type: 'beacon-dispatch', DefinitionHash: 'beacon-dispatch',
+											Settings: { RemoteCapability: 'Shell', RemoteAction: 'Execute', Command: 'echo', Parameters: 'hello' },
+											Ports: [
+												{ Hash: 'dispatch-1-ei-Trigger', Label: 'Trigger' },
+												{ Hash: 'dispatch-1-eo-Complete', Label: 'Complete' },
+												{ Hash: 'dispatch-1-eo-Error', Label: 'Error' }
+											]
+										},
+										{ Hash: 'end-1', Type: 'end', Ports: [{ Hash: 'end-1-ei-Finish', Label: 'Finish' }] }
+									],
+									Connections: [
+										{ SourceNodeHash: 'start-1', SourcePortHash: 'start-1-eo-Begin', TargetNodeHash: 'dispatch-1', TargetPortHash: 'dispatch-1-ei-Trigger', ConnectionType: 'Event' },
+										{ SourceNodeHash: 'dispatch-1', SourcePortHash: 'dispatch-1-eo-Complete', TargetNodeHash: 'end-1', TargetPortHash: 'end-1-ei-Finish', ConnectionType: 'Event' }
+									]
+								}
+							};
+
+							tmpEngine.executeOperation(tmpOperation,
+								function (pError, pContext)
+								{
+									Expect(pError).to.equal(null);
+									// Should be WaitingForInput (beacon-dispatch pauses until Beacon completes)
+									Expect(pContext.Status).to.equal('WaitingForInput');
+
+									// Verify WaitingTasks has the dispatch node
+									Expect(pContext.WaitingTasks['dispatch-1']).to.not.equal(undefined);
+									Expect(pContext.WaitingTasks['dispatch-1'].ResumeEventName).to.equal('Complete');
+
+									// Verify a work item was enqueued
+									let tmpWorkItems = tmpCoordinator.listWorkItems();
+									Expect(tmpWorkItems.length).to.equal(1);
+									Expect(tmpWorkItems[0].Capability).to.equal('Shell');
+									Expect(tmpWorkItems[0].Settings.Command).to.equal('echo');
+									Expect(tmpWorkItems[0].RunHash).to.equal(pContext.Hash);
+
+									fDone();
+								});
+						}
+					);
+
+				test
+					(
+						'should complete work item and resume operation via custom ResumeEventName.',
+						function (fDone)
+						{
+							let tmpFable = createTestFable();
+							let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
+							let tmpCoordinator = Object.values(tmpFable.servicesMap['UltravisorBeaconCoordinator'])[0];
+							let tmpEngine = Object.values(tmpFable.servicesMap['UltravisorExecutionEngine'])[0];
+
+							tmpRegistry.registerBuiltInTaskTypes();
+
+							// Register a Beacon
+							let tmpBeacon = tmpCoordinator.registerBeacon({ Name: 'ResumeTestBeacon', Capabilities: ['Shell'] });
+
+							// Build operation with beacon-dispatch
+							let tmpOperation = {
+								Hash: 'OPR-RESUME-TEST',
+								Name: 'Resume Test',
+								Graph: {
+									Nodes: [
+										{ Hash: 'start-1', Type: 'start', Ports: [{ Hash: 'start-1-eo-Begin', Label: 'Begin' }] },
+										{
+											Hash: 'dispatch-1', Type: 'beacon-dispatch', DefinitionHash: 'beacon-dispatch',
+											Settings: { RemoteCapability: 'Shell', Command: 'echo', Parameters: 'world' },
+											Ports: [
+												{ Hash: 'dispatch-1-ei-Trigger', Label: 'Trigger' },
+												{ Hash: 'dispatch-1-eo-Complete', Label: 'Complete' },
+												{ Hash: 'dispatch-1-eo-Error', Label: 'Error' }
+											]
+										},
+										{ Hash: 'end-1', Type: 'end', Ports: [{ Hash: 'end-1-ei-Finish', Label: 'Finish' }] }
+									],
+									Connections: [
+										{ SourceNodeHash: 'start-1', SourcePortHash: 'start-1-eo-Begin', TargetNodeHash: 'dispatch-1', TargetPortHash: 'dispatch-1-ei-Trigger', ConnectionType: 'Event' },
+										{ SourceNodeHash: 'dispatch-1', SourcePortHash: 'dispatch-1-eo-Complete', TargetNodeHash: 'end-1', TargetPortHash: 'end-1-ei-Finish', ConnectionType: 'Event' }
+									]
+								}
+							};
+
+							// Execute — should pause at beacon-dispatch
+							tmpEngine.executeOperation(tmpOperation,
+								function (pError, pContext)
+								{
+									Expect(pContext.Status).to.equal('WaitingForInput');
+									let tmpRunHash = pContext.Hash;
+
+									// Simulate Beacon polling for work
+									let tmpWorkItem = tmpCoordinator.pollForWork(tmpBeacon.BeaconID);
+									Expect(tmpWorkItem).to.not.equal(null);
+
+									// Simulate Beacon completing the work
+									tmpCoordinator.completeWorkItem(tmpWorkItem.WorkItemHash,
+										{
+											Outputs: { StdOut: 'world\n', ExitCode: 0, Result: 'world\n' },
+											Log: ['echo world executed']
+										},
+										function (pCompleteError)
+										{
+											Expect(pCompleteError).to.equal(null);
+
+											// The operation should have resumed and completed
+											let tmpManifest = Object.values(tmpFable.servicesMap['UltravisorExecutionManifest'])[0];
+											let tmpFinalContext = tmpManifest.getRun(tmpRunHash);
+											Expect(tmpFinalContext.Status).to.equal('Complete');
+
+											// Verify structured outputs were merged into TaskOutputs
+											Expect(tmpFinalContext.TaskOutputs['dispatch-1']).to.not.equal(undefined);
+											Expect(tmpFinalContext.TaskOutputs['dispatch-1'].StdOut).to.equal('world\n');
+											Expect(tmpFinalContext.TaskOutputs['dispatch-1'].ExitCode).to.equal(0);
+											Expect(tmpFinalContext.TaskOutputs['dispatch-1'].BeaconID).to.equal(tmpBeacon.BeaconID);
+
+											fDone();
+										});
+								});
+						}
+					);
+
+				test
+					(
+						'should fail work item and fire Error event.',
+						function (fDone)
+						{
+							let tmpFable = createTestFable();
+							let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
+							let tmpCoordinator = Object.values(tmpFable.servicesMap['UltravisorBeaconCoordinator'])[0];
+							let tmpEngine = Object.values(tmpFable.servicesMap['UltravisorExecutionEngine'])[0];
+
+							tmpRegistry.registerBuiltInTaskTypes();
+							let tmpBeacon = tmpCoordinator.registerBeacon({ Name: 'FailTestBeacon', Capabilities: ['Shell'] });
+
+							let tmpOperation = {
+								Hash: 'OPR-FAIL-TEST',
+								Name: 'Fail Test',
+								Graph: {
+									Nodes: [
+										{ Hash: 'start-1', Type: 'start', Ports: [{ Hash: 'start-1-eo-Begin', Label: 'Begin' }] },
+										{
+											Hash: 'dispatch-1', Type: 'beacon-dispatch', DefinitionHash: 'beacon-dispatch',
+											Settings: { RemoteCapability: 'Shell', Command: 'badcommand' },
+											Ports: [
+												{ Hash: 'dispatch-1-ei-Trigger', Label: 'Trigger' },
+												{ Hash: 'dispatch-1-eo-Complete', Label: 'Complete' },
+												{ Hash: 'dispatch-1-eo-Error', Label: 'Error' }
+											]
+										},
+										{ Hash: 'end-1', Type: 'end', Ports: [{ Hash: 'end-1-ei-Finish', Label: 'Finish' }] }
+									],
+									Connections: [
+										{ SourceNodeHash: 'start-1', SourcePortHash: 'start-1-eo-Begin', TargetNodeHash: 'dispatch-1', TargetPortHash: 'dispatch-1-ei-Trigger', ConnectionType: 'Event' },
+										// Error path leads to end
+										{ SourceNodeHash: 'dispatch-1', SourcePortHash: 'dispatch-1-eo-Error', TargetNodeHash: 'end-1', TargetPortHash: 'end-1-ei-Finish', ConnectionType: 'Event' }
+									]
+								}
+							};
+
+							tmpEngine.executeOperation(tmpOperation,
+								function (pError, pContext)
+								{
+									Expect(pContext.Status).to.equal('WaitingForInput');
+									let tmpRunHash = pContext.Hash;
+
+									let tmpWorkItem = tmpCoordinator.pollForWork(tmpBeacon.BeaconID);
+									Expect(tmpWorkItem).to.not.equal(null);
+
+									// Simulate failure
+									tmpCoordinator.failWorkItem(tmpWorkItem.WorkItemHash,
+										{ ErrorMessage: 'Command not found: badcommand', Log: ['FAIL'] },
+										function (pFailError)
+										{
+											Expect(pFailError).to.equal(null);
+
+											// The operation should have resumed via Error event path
+											let tmpManifest = Object.values(tmpFable.servicesMap['UltravisorExecutionManifest'])[0];
+											let tmpFinalContext = tmpManifest.getRun(tmpRunHash);
+											Expect(tmpFinalContext.Status).to.equal('Complete');
+
+											// Error outputs should be in TaskOutputs
+											Expect(tmpFinalContext.TaskOutputs['dispatch-1']._BeaconError).to.equal(true);
+
+											fDone();
+										});
+								});
+						}
+					);
+
+				test
+					(
+						'backward compat: resumeOperation with scalar value should still work for value-input.',
+						function (fDone)
+						{
+							let tmpFable = createTestFable();
+							let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
+							let tmpEngine = Object.values(tmpFable.servicesMap['UltravisorExecutionEngine'])[0];
+
+							tmpRegistry.registerBuiltInTaskTypes();
+
+							let tmpOperation = {
+								Hash: 'OPR-COMPAT-TEST',
+								Name: 'Backward Compat Test',
+								Graph: {
+									Nodes: [
+										{ Hash: 'start-1', Type: 'start', Ports: [{ Hash: 'start-1-eo-Begin', Label: 'Begin' }] },
+										{
+											Hash: 'input-1', Type: 'value-input', DefinitionHash: 'value-input',
+											Settings: { PromptMessage: 'Enter name:', OutputAddress: 'Operation.UserName' },
+											Ports: [
+												{ Hash: 'input-1-ei-RequestInput', Label: 'RequestInput' },
+												{ Hash: 'input-1-eo-ValueInputComplete', Label: 'ValueInputComplete' }
+											]
+										},
+										{ Hash: 'end-1', Type: 'end', Ports: [{ Hash: 'end-1-ei-Finish', Label: 'Finish' }] }
+									],
+									Connections: [
+										{ SourceNodeHash: 'start-1', SourcePortHash: 'start-1-eo-Begin', TargetNodeHash: 'input-1', TargetPortHash: 'input-1-ei-RequestInput', ConnectionType: 'Event' },
+										{ SourceNodeHash: 'input-1', SourcePortHash: 'input-1-eo-ValueInputComplete', TargetNodeHash: 'end-1', TargetPortHash: 'end-1-ei-Finish', ConnectionType: 'Event' }
+									]
+								}
+							};
+
+							tmpEngine.executeOperation(tmpOperation,
+								function (pError, pContext)
+								{
+									Expect(pContext.Status).to.equal('WaitingForInput');
+									let tmpRunHash = pContext.Hash;
+
+									// Resume with a scalar value (backward compat)
+									tmpEngine.resumeOperation(tmpRunHash, 'input-1', 'TestUser',
+										function (pResumeError, pResumedContext)
+										{
+											Expect(pResumeError).to.equal(null);
+											Expect(pResumedContext.Status).to.equal('Complete');
+
+											// Scalar value should be stored as InputValue
+											Expect(pResumedContext.TaskOutputs['input-1'].InputValue).to.equal('TestUser');
+
+											// OutputAddress should have been written
+											Expect(pResumedContext.OperationState.UserName).to.equal('TestUser');
+
+											fDone();
+										});
+								});
+						}
+					);
 			}
 		);

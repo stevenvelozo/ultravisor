@@ -25,7 +25,8 @@ const _CategoryColors =
 	'file-io':      { TitleBarColor: '#2980b9', BodyStyle: { fill: '#eaf2f8', stroke: '#2980b9' } },
 	'rest':         { TitleBarColor: '#0277bd', BodyStyle: { fill: '#e1f5fe', stroke: '#0277bd' } },
 	'meadow':       { TitleBarColor: '#2e7d32', BodyStyle: { fill: '#e8f5e9', stroke: '#2e7d32' } },
-	'pipeline':     { TitleBarColor: '#ad1457', BodyStyle: { fill: '#fce4ec', stroke: '#ad1457' } }
+	'pipeline':     { TitleBarColor: '#ad1457', BodyStyle: { fill: '#fce4ec', stroke: '#ad1457' } },
+	'extension':    { TitleBarColor: '#7c3aed', BodyStyle: { fill: '#ede9fe', stroke: '#7c3aed' } }
 };
 
 // ── Capability color palette ─────────────────────────────────────────
@@ -39,7 +40,8 @@ const _CapabilityColors =
 	'shell':             { TitleBarColor: '#7b1fa2', BodyStyle: { fill: '#f3e5f5', stroke: '#7b1fa2' } },
 	'http client':       { TitleBarColor: '#0277bd', BodyStyle: { fill: '#e1f5fe', stroke: '#0277bd' } },
 	'meadow api':        { TitleBarColor: '#2e7d32', BodyStyle: { fill: '#e8f5e9', stroke: '#2e7d32' } },
-	'user interaction':  { TitleBarColor: '#c62828', BodyStyle: { fill: '#ffebee', stroke: '#c62828' } }
+	'user interaction':  { TitleBarColor: '#c62828', BodyStyle: { fill: '#ffebee', stroke: '#c62828' } },
+	'extension':         { TitleBarColor: '#7c3aed', BodyStyle: { fill: '#ede9fe', stroke: '#7c3aed' } }
 };
 
 // Default colors for unknown categories

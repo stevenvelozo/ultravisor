@@ -6,7 +6,7 @@
  * from their task type Definition via the CardConfigGenerator.  Flow markers
  * (start / end) are direct config objects since they have no backend task.
  *
- * Total: 33 cards (31 task-matched + 2 flow markers)
+ * Total: 34 cards (32 task-matched + 2 flow markers)
  */
 
 const generateCardConfig = require('./Ultravisor-CardConfigGenerator.js');
@@ -717,6 +717,39 @@ const _TaskDefinitions =
 			{ Name: 'Stats', DataType: 'Object' }
 		],
 		DefaultSettings: { SourceAddress: '', Field: 'score', Bins: 5, Destination: '' }
+	},
+
+	// ── Extension ──────────────────────────────────────────────
+	{
+		Hash: 'beacon-dispatch',
+		Type: 'beacon-dispatch',
+		Name: 'Beacon Dispatch',
+		Description: 'Dispatches work to a remote Beacon worker node.',
+		Category: 'extension',
+		Capability: 'Extension',
+		Action: 'Dispatch',
+		Tier: 'Extension',
+		EventInputs: [{ Name: 'Trigger' }],
+		EventOutputs: [
+			{ Name: 'Complete' },
+			{ Name: 'Error', IsError: true }
+		],
+		SettingsInputs: [
+			{ Name: 'RemoteCapability', DataType: 'String', Required: true, Description: 'Required capability on the Beacon' },
+			{ Name: 'RemoteAction', DataType: 'String', Required: false, Description: 'Specific action within the capability' },
+			{ Name: 'Command', DataType: 'String', Required: false, Description: 'Shell command to execute on the Beacon' },
+			{ Name: 'Parameters', DataType: 'String', Required: false, Description: 'Command-line parameters' },
+			{ Name: 'AffinityKey', DataType: 'String', Required: false, Description: 'Key for worker affinity routing' },
+			{ Name: 'TimeoutMs', DataType: 'Number', Required: false, Description: 'Work item timeout in milliseconds' },
+			{ Name: 'InputData', DataType: 'String', Required: false, Description: 'JSON data to pass to the worker' }
+		],
+		StateOutputs: [
+			{ Name: 'StdOut', DataType: 'String', Description: 'Standard output from the Beacon execution' },
+			{ Name: 'Result', DataType: 'String', Description: 'Result data from the Beacon' },
+			{ Name: 'ExitCode', DataType: 'Number', Description: 'Exit code of the remote command' },
+			{ Name: 'BeaconID', DataType: 'String', Description: 'ID of the Beacon that executed the work' }
+		],
+		DefaultSettings: { RemoteCapability: 'Shell', RemoteAction: 'Execute', TimeoutMs: 300000 }
 	}
 ];
 
@@ -825,7 +858,7 @@ const _FlowMarkerConfigs =
 
 let _BuiltInCardConfigs = [];
 
-// Generate configs for all 31 task-matched cards
+// Generate configs for all 32 task-matched cards
 for (let i = 0; i < _TaskDefinitions.length; i++)
 {
 	let tmpDef = _TaskDefinitions[i];

@@ -15,6 +15,7 @@ const libServiceTaskTypeRegistry = require('../services/Ultravisor-TaskTypeRegis
 const libServiceStateManager = require('../services/Ultravisor-StateManager.cjs');
 const libServiceExecutionEngine = require('../services/Ultravisor-ExecutionEngine.cjs');
 const libServiceExecutionManifest = require('../services/Ultravisor-ExecutionManifest.cjs');
+const libServiceBeaconCoordinator = require('../services/Ultravisor-Beacon-Coordinator.cjs');
 
 // TODO: Remove this when Restify is fixed.
 process.removeAllListeners('warning')
@@ -121,6 +122,9 @@ if (tmpRegistry)
 {
 	tmpRegistry.registerBuiltInTaskTypes();
 }
+
+// --- Beacon coordinator ---
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconCoordinator', libServiceBeaconCoordinator);
 
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorAPIServer', libWebServerAPIServer);
 

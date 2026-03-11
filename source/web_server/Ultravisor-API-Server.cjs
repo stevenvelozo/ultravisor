@@ -760,6 +760,251 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
+		// ===================================================================
+		// Beacon Worker Endpoints
+		// ===================================================================
+
+		// --- Beacon Registration ---
+		this._OratorServer.post
+			(
+				'/Beacon/Register',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send(500, { Error: 'BeaconCoordinator service not available.' });
+						return fNext();
+					}
+
+					let tmpBody = pRequest.body || {};
+					if (!tmpBody.Name || !tmpBody.Capabilities)
+					{
+						pResponse.send(400, { Error: 'Name and Capabilities are required.' });
+						return fNext();
+					}
+
+					let tmpBeacon = tmpCoordinator.registerBeacon(tmpBody);
+					pResponse.send(tmpBeacon);
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- List Beacons ---
+		this._OratorServer.get
+			(
+				'/Beacon',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send([]);
+						return fNext();
+					}
+
+					pResponse.send(tmpCoordinator.listBeacons());
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- Get Beacon ---
+		this._OratorServer.get
+			(
+				'/Beacon/Work',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send([]);
+						return fNext();
+					}
+
+					pResponse.send(tmpCoordinator.listWorkItems());
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- List Affinity Bindings ---
+		this._OratorServer.get
+			(
+				'/Beacon/Affinity',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send([]);
+						return fNext();
+					}
+
+					pResponse.send(tmpCoordinator.listAffinityBindings());
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- Get Specific Beacon ---
+		this._OratorServer.get
+			(
+				'/Beacon/:BeaconID',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send(404, { Error: 'BeaconCoordinator service not available.' });
+						return fNext();
+					}
+
+					let tmpBeacon = tmpCoordinator.getBeacon(pRequest.params.BeaconID);
+					if (!tmpBeacon)
+					{
+						pResponse.send(404, { Error: `Beacon [${pRequest.params.BeaconID}] not found.` });
+						return fNext();
+					}
+
+					pResponse.send(tmpBeacon);
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- Deregister Beacon ---
+		this._OratorServer.del
+			(
+				'/Beacon/:BeaconID',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send(500, { Error: 'BeaconCoordinator service not available.' });
+						return fNext();
+					}
+
+					let tmpRemoved = tmpCoordinator.deregisterBeacon(pRequest.params.BeaconID);
+					if (!tmpRemoved)
+					{
+						pResponse.send(404, { Error: `Beacon [${pRequest.params.BeaconID}] not found.` });
+						return fNext();
+					}
+
+					pResponse.send({ Status: 'Deregistered', BeaconID: pRequest.params.BeaconID });
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- Beacon Heartbeat ---
+		this._OratorServer.post
+			(
+				'/Beacon/:BeaconID/Heartbeat',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send(500, { Error: 'BeaconCoordinator service not available.' });
+						return fNext();
+					}
+
+					let tmpBeacon = tmpCoordinator.heartbeat(pRequest.params.BeaconID);
+					if (!tmpBeacon)
+					{
+						pResponse.send(404, { Error: `Beacon [${pRequest.params.BeaconID}] not found.` });
+						return fNext();
+					}
+
+					pResponse.send(tmpBeacon);
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- Poll for Work ---
+		this._OratorServer.post
+			(
+				'/Beacon/Work/Poll',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send(500, { Error: 'BeaconCoordinator service not available.' });
+						return fNext();
+					}
+
+					let tmpBody = pRequest.body || {};
+					if (!tmpBody.BeaconID)
+					{
+						pResponse.send(400, { Error: 'BeaconID is required.' });
+						return fNext();
+					}
+
+					let tmpWorkItem = tmpCoordinator.pollForWork(tmpBody.BeaconID);
+					pResponse.send({ WorkItem: tmpWorkItem });
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- Complete Work Item ---
+		this._OratorServer.post
+			(
+				'/Beacon/Work/:WorkItemHash/Complete',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send(500, { Error: 'BeaconCoordinator service not available.' });
+						return fNext();
+					}
+
+					let tmpBody = pRequest.body || {};
+					tmpCoordinator.completeWorkItem(pRequest.params.WorkItemHash,
+						{ Outputs: tmpBody.Outputs || {}, Log: tmpBody.Log || [] },
+						function (pError)
+						{
+							if (pError)
+							{
+								pResponse.send(400, { Error: pError.message });
+								return fNext();
+							}
+
+							pResponse.send({ Status: 'Completed', WorkItemHash: pRequest.params.WorkItemHash });
+							return fNext();
+						});
+				}.bind(this)
+			);
+
+		// --- Fail Work Item ---
+		this._OratorServer.post
+			(
+				'/Beacon/Work/:WorkItemHash/Error',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send(500, { Error: 'BeaconCoordinator service not available.' });
+						return fNext();
+					}
+
+					let tmpBody = pRequest.body || {};
+					tmpCoordinator.failWorkItem(pRequest.params.WorkItemHash,
+						{ ErrorMessage: tmpBody.ErrorMessage || 'Unknown error', Log: tmpBody.Log || [] },
+						function (pError)
+						{
+							if (pError)
+							{
+								pResponse.send(400, { Error: pError.message });
+								return fNext();
+							}
+
+							pResponse.send({ Status: 'Failed', WorkItemHash: pRequest.params.WorkItemHash });
+							return fNext();
+						});
+				}.bind(this)
+			);
+
 		return fCallback();
 	}
 

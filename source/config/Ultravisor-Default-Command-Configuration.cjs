@@ -9,5 +9,11 @@ module.exports = (
 		"UltravisorCommandTimeoutMilliseconds": 300000,
 		"UltravisorCommandMaxBufferBytes": 10485760,
 		"UltravisorWebInterfacePath": `${_ModuleRoot}/webinterface/dist`,
-		"UltravisorOperationLibraryPath": `${_ModuleRoot}/operation-library`
+		"UltravisorOperationLibraryPath": `${_ModuleRoot}/operation-library`,
+
+		// Beacon worker configuration
+		"UltravisorBeaconHeartbeatTimeoutMs": 60000,
+		"UltravisorBeaconWorkItemTimeoutMs": 300000,
+		"UltravisorBeaconAffinityTTLMs": 3600000,
+		"UltravisorBeaconPollIntervalMs": 5000
 	});
