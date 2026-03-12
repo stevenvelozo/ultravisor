@@ -34,6 +34,11 @@ class UltravisorBeaconCoordinator extends libPictService
 		// --- Timeout Checker ---
 		this._TimeoutInterval = null;
 		this._TimeoutCheckIntervalMs = 10000; // Check every 10s
+
+		// --- Direct Dispatch Callbacks ---
+		// Map of WorkItemHash → { callback, timeoutHandle }
+		// Used by dispatchAndWait() for synchronous HTTP dispatch
+		this._DirectDispatchCallbacks = {};
 	}
 
 	// ====================================================================
@@ -418,6 +423,26 @@ class UltravisorBeaconCoordinator extends libPictService
 
 		this.log.info(`BeaconCoordinator: work item [${pWorkItemHash}] completed by beacon [${tmpWorkItem.AssignedBeaconID}].`);
 
+		// Check for direct dispatch callback (synchronous HTTP dispatch)
+		if (this._resolveDirectDispatch(pWorkItemHash, null, {
+			Success: true,
+			WorkItemHash: pWorkItemHash,
+			Outputs: tmpFinalResult.Outputs || {},
+			Log: tmpFinalResult.Log || []
+		}))
+		{
+			// Direct dispatch — clean up and done
+			delete this._WorkQueue[pWorkItemHash];
+			return fCallback(null);
+		}
+
+		// No RunHash means this was a standalone work item (not part of an operation)
+		if (!tmpWorkItem.RunHash)
+		{
+			delete this._WorkQueue[pWorkItemHash];
+			return fCallback(null);
+		}
+
 		// Resume the paused operation
 		let tmpEngine = this._getService('UltravisorExecutionEngine');
 
@@ -483,6 +508,22 @@ class UltravisorBeaconCoordinator extends libPictService
 
 		this.log.warn(`BeaconCoordinator: work item [${pWorkItemHash}] failed: ${pError.ErrorMessage || 'Unknown error'}`);
 
+		// Check for direct dispatch callback (synchronous HTTP dispatch)
+		if (this._resolveDirectDispatch(pWorkItemHash,
+			new Error(pError.ErrorMessage || 'Beacon work item failed.'), null))
+		{
+			// Direct dispatch — clean up and done
+			delete this._WorkQueue[pWorkItemHash];
+			return fCallback(null);
+		}
+
+		// No RunHash means this was a standalone work item (not part of an operation)
+		if (!tmpWorkItem.RunHash)
+		{
+			delete this._WorkQueue[pWorkItemHash];
+			return fCallback(null);
+		}
+
 		// Resume the operation — the beacon-dispatch task type fires 'Error' event
 		// by storing error info in outputs; the ResumeEventName handles routing
 		let tmpEngine = this._getService('UltravisorExecutionEngine');
@@ -547,6 +588,100 @@ class UltravisorBeaconCoordinator extends libPictService
 	getWorkItem(pWorkItemHash)
 	{
 		return this._WorkQueue[pWorkItemHash] || null;
+	}
+
+	// ====================================================================
+	// Direct Dispatch (synchronous HTTP dispatch)
+	// ====================================================================
+
+	/**
+	 * Dispatch a work item and wait for completion.
+	 *
+	 * Used by the POST /Beacon/Work/Dispatch endpoint to provide
+	 * synchronous request/response semantics for external consumers
+	 * (e.g. retold-remote). The HTTP connection stays open until the
+	 * beacon completes the work item.
+	 *
+	 * @param {object} pWorkItemInfo - Work item details (no RunHash/NodeHash needed)
+	 * @param {function} fCallback - function(pError, pResult) called when work completes
+	 */
+	dispatchAndWait(pWorkItemInfo, fCallback)
+	{
+		// Ensure no RunHash — direct dispatch bypasses the operation graph
+		pWorkItemInfo.RunHash = '';
+		pWorkItemInfo.NodeHash = '';
+		pWorkItemInfo.OperationHash = '';
+
+		// Enqueue the work item
+		let tmpWorkItem = this.enqueueWorkItem(pWorkItemInfo);
+
+		let tmpTimeoutMs = pWorkItemInfo.TimeoutMs || this.fable.settings.UltravisorBeaconWorkItemTimeoutMs || 300000;
+
+		// Register completion callback
+		let tmpTimeoutHandle = setTimeout(
+			() =>
+			{
+				// Timeout — clean up and call back with error
+				let tmpEntry = this._DirectDispatchCallbacks[tmpWorkItem.WorkItemHash];
+				if (tmpEntry)
+				{
+					delete this._DirectDispatchCallbacks[tmpWorkItem.WorkItemHash];
+
+					// Clean up the work item from the queue
+					let tmpWI = this._WorkQueue[tmpWorkItem.WorkItemHash];
+					if (tmpWI)
+					{
+						this._removeWorkItemFromBeacon(tmpWI.AssignedBeaconID, tmpWorkItem.WorkItemHash);
+						delete this._WorkQueue[tmpWorkItem.WorkItemHash];
+					}
+
+					this.log.warn(`BeaconCoordinator: direct dispatch [${tmpWorkItem.WorkItemHash}] timed out after ${tmpTimeoutMs}ms.`);
+					tmpEntry.callback(new Error(`Direct dispatch timed out after ${tmpTimeoutMs}ms.`));
+				}
+			},
+			tmpTimeoutMs);
+
+		this._DirectDispatchCallbacks[tmpWorkItem.WorkItemHash] =
+		{
+			callback: fCallback,
+			timeoutHandle: tmpTimeoutHandle
+		};
+
+		this.log.info(`BeaconCoordinator: direct dispatch [${tmpWorkItem.WorkItemHash}] waiting for completion (timeout: ${tmpTimeoutMs}ms).`);
+	}
+
+	/**
+	 * Check if a work item has a direct dispatch callback registered.
+	 * If so, call it and return true. Otherwise return false.
+	 *
+	 * @param {string} pWorkItemHash
+	 * @param {object|null} pError - Error object (for fail path)
+	 * @param {object|null} pResult - Result object (for complete path)
+	 * @returns {boolean} True if a direct dispatch callback was found and called
+	 */
+	_resolveDirectDispatch(pWorkItemHash, pError, pResult)
+	{
+		let tmpEntry = this._DirectDispatchCallbacks[pWorkItemHash];
+
+		if (!tmpEntry)
+		{
+			return false;
+		}
+
+		// Clear the timeout
+		clearTimeout(tmpEntry.timeoutHandle);
+		delete this._DirectDispatchCallbacks[pWorkItemHash];
+
+		if (pError)
+		{
+			tmpEntry.callback(pError);
+		}
+		else
+		{
+			tmpEntry.callback(null, pResult);
+		}
+
+		return true;
 	}
 
 	// ====================================================================

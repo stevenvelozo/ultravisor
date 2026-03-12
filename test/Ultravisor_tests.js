@@ -4613,3 +4613,378 @@ suite
 					);
 			}
 		);
+
+		suite
+		(
+			'Beacon File Transfer',
+			function ()
+			{
+				this.timeout(15000);
+
+				test
+					(
+						'executor should handle execute without file transfer (backward compat).',
+						function (fDone)
+						{
+							// Ensure staging dir exists for exec cwd
+							if (!libFS.existsSync(TEST_STAGING_ROOT))
+							{
+								libFS.mkdirSync(TEST_STAGING_ROOT, { recursive: true });
+							}
+
+							let tmpExecutor = new libBeaconExecutor({ StagingPath: TEST_STAGING_ROOT });
+							let tmpProviders = [{ Source: 'Shell' }];
+							tmpExecutor.providerRegistry.loadProviders(tmpProviders);
+
+							let tmpWorkItem = {
+								WorkItemHash: 'compat-test-01',
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: { Command: 'echo "no file transfer"' }
+							};
+
+							tmpExecutor.execute(tmpWorkItem, function (pError, pResult)
+							{
+								Expect(pError).to.be.null;
+								Expect(pResult).to.be.an('object');
+								Expect(pResult.Outputs).to.be.an('object');
+								Expect(pResult.Outputs.StdOut).to.contain('no file transfer');
+								Expect(pResult.Outputs.ExitCode).to.equal(0);
+								fDone();
+							});
+						}
+					);
+
+				test
+					(
+						'executor should substitute {OutputPath} in Command.',
+						function (fDone)
+						{
+							let tmpExecutor = new libBeaconExecutor({ StagingPath: TEST_STAGING_ROOT });
+							let tmpProviders = [{ Source: 'Shell' }];
+							tmpExecutor.providerRegistry.loadProviders(tmpProviders);
+
+							let tmpWorkItem = {
+								WorkItemHash: 'subst-test-01',
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: {
+									Command: 'echo "output={OutputPath}"',
+									OutputFilename: 'result.txt'
+								}
+							};
+
+							tmpExecutor.execute(tmpWorkItem, function (pError, pResult)
+							{
+								Expect(pError).to.be.null;
+								Expect(pResult).to.be.an('object');
+								Expect(pResult.Outputs.StdOut).to.contain('output=');
+								Expect(pResult.Outputs.StdOut).to.not.contain('{OutputPath}');
+
+								tmpExecutor._cleanupWorkDir('subst-test-01');
+								fDone();
+							});
+						}
+					);
+
+				test
+					(
+						'executor should create and clean up work directories.',
+						function ()
+						{
+							let tmpExecutor = new libBeaconExecutor({ StagingPath: TEST_STAGING_ROOT });
+
+							let tmpWorkItem = { WorkItemHash: 'cleanup-test-01', Settings: {} };
+							let tmpDir = tmpExecutor._getWorkDir(tmpWorkItem);
+
+							Expect(libFS.existsSync(tmpDir)).to.be.true;
+
+							tmpExecutor._cleanupWorkDir('cleanup-test-01');
+							Expect(libFS.existsSync(tmpDir)).to.be.false;
+						}
+					);
+
+				test
+					(
+						'executor should create affinity-scoped directories.',
+						function ()
+						{
+							let tmpExecutor = new libBeaconExecutor({ StagingPath: TEST_STAGING_ROOT });
+
+							let tmpWorkItem = {
+								WorkItemHash: 'affinity-test-01',
+								Settings: { AffinityKey: 'test-video.mp4' }
+							};
+
+							let tmpDir = tmpExecutor._getAffinityDir(tmpWorkItem);
+
+							Expect(libFS.existsSync(tmpDir)).to.be.true;
+							Expect(tmpDir).to.contain('affinity-');
+
+							let tmpDir2 = tmpExecutor._getAffinityDir(tmpWorkItem);
+							Expect(tmpDir2).to.equal(tmpDir);
+
+							tmpExecutor.cleanupAffinityDirs();
+							Expect(libFS.existsSync(tmpDir)).to.be.false;
+						}
+					);
+
+				test
+					(
+						'executor should collect output files as base64.',
+						function (fDone)
+						{
+							let tmpExecutor = new libBeaconExecutor({ StagingPath: TEST_STAGING_ROOT });
+							let tmpProviders = [{ Source: 'Shell' }];
+							tmpExecutor.providerRegistry.loadProviders(tmpProviders);
+
+							let tmpWorkItem = {
+								WorkItemHash: 'collect-test-01',
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: {
+									Command: 'echo "test output data" > "{OutputPath}"',
+									OutputFilename: 'output.txt',
+									ReturnOutputAsBase64: true
+								}
+							};
+
+							tmpExecutor.execute(tmpWorkItem, function (pError, pResult)
+							{
+								Expect(pError).to.be.null;
+								Expect(pResult).to.be.an('object');
+								Expect(pResult.Outputs).to.be.an('object');
+								Expect(pResult.Outputs.OutputData).to.be.a('string');
+								Expect(pResult.Outputs.OutputFilename).to.equal('output.txt');
+								Expect(pResult.Outputs.OutputSize).to.be.above(0);
+
+								let tmpDecoded = Buffer.from(pResult.Outputs.OutputData, 'base64').toString('utf8');
+								Expect(tmpDecoded).to.contain('test output data');
+
+								fDone();
+							});
+						}
+					);
+
+				test
+					(
+						'executor should format file sizes correctly.',
+						function ()
+						{
+							let tmpExecutor = new libBeaconExecutor({ StagingPath: TEST_STAGING_ROOT });
+
+							let tmpTestFile = libPath.join(TEST_STAGING_ROOT, 'size_test.txt');
+							libFS.writeFileSync(tmpTestFile, 'hello');
+
+							let tmpSize = tmpExecutor._formatFileSize(tmpTestFile);
+							Expect(tmpSize).to.equal('5 B');
+
+							let tmpUnknown = tmpExecutor._formatFileSize('/nonexistent/file');
+							Expect(tmpUnknown).to.equal('unknown size');
+
+							libFS.unlinkSync(tmpTestFile);
+						}
+					);
+
+				test
+					(
+						'executor should sanitize affinity key for directory name.',
+						function ()
+						{
+							let tmpExecutor = new libBeaconExecutor({ StagingPath: TEST_STAGING_ROOT });
+
+							let tmpWorkItem = {
+								Settings: { AffinityKey: 'path/to/file with spaces!@#$.mp4' }
+							};
+
+							let tmpDir = tmpExecutor._getAffinityDir(tmpWorkItem);
+							Expect(tmpDir).to.contain('affinity-');
+							Expect(tmpDir).to.not.contain('!');
+
+							tmpExecutor.cleanupAffinityDirs();
+						}
+					);
+			}
+		);
+
+		suite
+		(
+			'Beacon Direct Dispatch',
+			function ()
+			{
+				this.timeout(15000);
+
+				test
+					(
+						'coordinator dispatchAndWait should register callback and fire on completion.',
+						function (fDone)
+						{
+							let tmpFable = createTestFable();
+							let tmpCoordinator = tmpFable.services.UltravisorBeaconCoordinator;
+
+							tmpCoordinator.registerBeacon(
+							{
+								Name: 'dispatch-test-beacon',
+								Capabilities: ['Shell']
+							});
+
+							let tmpWorkItemInfo = {
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: { Command: 'echo "dispatch test"' },
+								TimeoutMs: 10000
+							};
+
+							tmpCoordinator.dispatchAndWait(tmpWorkItemInfo,
+								function (pDispatchError, pResult)
+								{
+									Expect(pDispatchError).to.be.null;
+									Expect(pResult).to.be.an('object');
+									Expect(pResult.Success).to.be.true;
+									Expect(pResult.WorkItemHash).to.be.a('string');
+									fDone();
+								});
+
+							// Simulate beacon completing the work item after 100ms
+							setTimeout(function ()
+							{
+								let tmpKeys = Object.keys(tmpCoordinator._WorkQueue);
+								let tmpDispatchKey = tmpKeys.find(function (pKey)
+								{
+									return tmpCoordinator._WorkQueue[pKey] && !tmpCoordinator._WorkQueue[pKey].RunHash;
+								});
+
+								if (tmpDispatchKey)
+								{
+									tmpCoordinator.completeWorkItem(tmpDispatchKey,
+									{
+										Outputs: { StdOut: 'dispatch test', ExitCode: 0, Result: '' },
+										Log: ['test log']
+									},
+									function () {});
+								}
+							}, 100);
+						}
+					);
+
+				test
+					(
+						'coordinator dispatchAndWait should fire callback with error on failWorkItem.',
+						function (fDone)
+						{
+							let tmpFable = createTestFable();
+							let tmpCoordinator = tmpFable.services.UltravisorBeaconCoordinator;
+
+							tmpCoordinator.registerBeacon(
+							{
+								Name: 'fail-test-beacon',
+								Capabilities: ['Shell']
+							});
+
+							let tmpWorkItemInfo = {
+								Capability: 'Shell',
+								Settings: { Command: 'fail-test' },
+								TimeoutMs: 10000
+							};
+
+							tmpCoordinator.dispatchAndWait(tmpWorkItemInfo,
+								function (pDispatchError)
+								{
+									Expect(pDispatchError).to.be.an('error');
+									Expect(pDispatchError.message).to.contain('something went wrong');
+									fDone();
+								});
+
+							// Simulate beacon failing the work item after 100ms
+							setTimeout(function ()
+							{
+								let tmpKeys = Object.keys(tmpCoordinator._WorkQueue);
+								let tmpDispatchKey = tmpKeys.find(function (pKey)
+								{
+									return tmpCoordinator._WorkQueue[pKey] && !tmpCoordinator._WorkQueue[pKey].RunHash;
+								});
+
+								if (tmpDispatchKey)
+								{
+									tmpCoordinator.failWorkItem(tmpDispatchKey,
+										{ ErrorMessage: 'something went wrong', Log: ['test failure'] },
+										function () {});
+								}
+							}, 100);
+						}
+					);
+
+				test
+					(
+						'coordinator dispatchAndWait should timeout and call callback with error.',
+						function (fDone)
+						{
+							let tmpFable = createTestFable();
+							let tmpCoordinator = tmpFable.services.UltravisorBeaconCoordinator;
+
+							tmpCoordinator.registerBeacon(
+							{
+								Name: 'timeout-test-beacon',
+								Capabilities: ['Shell']
+							});
+
+							let tmpWorkItemInfo = {
+								Capability: 'Shell',
+								Settings: { Command: 'timeout-test' },
+								TimeoutMs: 200
+							};
+
+							tmpCoordinator.dispatchAndWait(tmpWorkItemInfo,
+								function (pDispatchError)
+								{
+									Expect(pDispatchError).to.be.an('error');
+									Expect(pDispatchError.message).to.contain('timed out');
+									fDone();
+								});
+						}
+					);
+
+				test
+					(
+						'operation-graph work items should still call resumeOperation (backward compat).',
+						function (fDone)
+						{
+							let tmpFable = createTestFable();
+							let tmpCoordinator = tmpFable.services.UltravisorBeaconCoordinator;
+
+							tmpCoordinator.registerBeacon(
+							{
+								Name: 'compat-beacon',
+								Capabilities: ['Shell']
+							});
+
+							let tmpResult = tmpCoordinator.enqueueWorkItem(
+							{
+								RunHash: 'test-run-hash',
+								NodeHash: 'test-node-hash',
+								Capability: 'Shell',
+								Settings: { Command: 'echo compat' }
+							});
+
+							Expect(tmpResult).to.be.an('object');
+							Expect(tmpResult.WorkItemHash).to.be.a('string');
+							let tmpWorkItemHash = tmpResult.WorkItemHash;
+
+							// completeWorkItem with a RunHash will try resumeOperation
+							// which will fail (no engine run context), but should not
+							// have a direct dispatch callback registered
+							tmpCoordinator.completeWorkItem(tmpWorkItemHash,
+							{
+								Outputs: { StdOut: 'compat', ExitCode: 0 },
+								Log: []
+							},
+							function (pError)
+							{
+								// The direct dispatch callback should NOT be involved
+								Expect(tmpCoordinator._DirectDispatchCallbacks[tmpWorkItemHash]).to.be.undefined;
+								fDone();
+							});
+						}
+					);
+			}
+		);

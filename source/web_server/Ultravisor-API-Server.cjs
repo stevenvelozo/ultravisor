@@ -1002,6 +1002,96 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
+		// --- Direct Dispatch (synchronous) ---
+		this._OratorServer.post
+			(
+				'/Beacon/Work/Dispatch',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send(500, { Success: false, Error: 'BeaconCoordinator service not available.' });
+						return fNext();
+					}
+
+					let tmpBody = pRequest.body || {};
+					if (!tmpBody.Capability)
+					{
+						pResponse.send(400, { Success: false, Error: 'Capability is required.' });
+						return fNext();
+					}
+
+					// Check if any Beacons are registered
+					let tmpBeacons = tmpCoordinator.listBeacons();
+					if (tmpBeacons.length === 0)
+					{
+						pResponse.send(503, { Success: false, Error: 'No Beacon workers are registered.' });
+						return fNext();
+					}
+
+					// Disable request timeout for long-running dispatch
+					if (pRequest.connection)
+					{
+						pRequest.connection.setTimeout(0);
+					}
+
+					let tmpWorkItemInfo = {
+						Capability: tmpBody.Capability || 'Shell',
+						Action: tmpBody.Action || 'Execute',
+						Settings: tmpBody.Settings || {},
+						AffinityKey: tmpBody.AffinityKey || '',
+						TimeoutMs: tmpBody.TimeoutMs || 300000
+					};
+
+					tmpCoordinator.dispatchAndWait(tmpWorkItemInfo,
+						(pError, pResult) =>
+						{
+							if (pError)
+							{
+								pResponse.send(500, { Success: false, Error: pError.message });
+								return fNext();
+							}
+
+							pResponse.send(pResult);
+							return fNext();
+						});
+				}.bind(this)
+			);
+
+		// --- Beacon Capabilities ---
+		this._OratorServer.get
+			(
+				'/Beacon/Capabilities',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send({ Capabilities: [] });
+						return fNext();
+					}
+
+					let tmpBeacons = tmpCoordinator.listBeacons();
+					let tmpCapabilitySet = {};
+
+					for (let i = 0; i < tmpBeacons.length; i++)
+					{
+						let tmpCaps = tmpBeacons[i].Capabilities || [];
+						for (let j = 0; j < tmpCaps.length; j++)
+						{
+							tmpCapabilitySet[tmpCaps[j]] = true;
+						}
+					}
+
+					pResponse.send({
+						Capabilities: Object.keys(tmpCapabilitySet),
+						BeaconCount: tmpBeacons.length
+					});
+					return fNext();
+				}.bind(this)
+			);
+
 		// --- Fail Work Item ---
 		this._OratorServer.post
 			(

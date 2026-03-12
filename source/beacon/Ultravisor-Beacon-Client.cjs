@@ -145,6 +145,9 @@ class UltravisorBeaconClient
 			this._HeartbeatInterval = null;
 		}
 
+		// Clean up affinity staging directories
+		this._Executor.cleanupAffinityDirs();
+
 		// Shutdown providers
 		this._Executor.providerRegistry.shutdownAll((pShutdownError) =>
 		{
