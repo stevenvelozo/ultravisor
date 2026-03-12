@@ -9,6 +9,9 @@
  *   --server URL          Ultravisor server URL (default: http://localhost:54321)
  *   --name NAME           Beacon worker name (default: beacon-worker)
  *   --capabilities LIST   Comma-separated capabilities (default: Shell)
+ *
+ * For advanced provider configuration, use a .ultravisor-beacon.json file
+ * with a "Providers" array instead of --capabilities.
  *   --max-concurrent N    Max concurrent work items (default: 1)
  *   --poll-interval MS    Poll interval in ms (default: 5000)
  *   --staging-path PATH   Local staging directory (default: cwd)
@@ -84,6 +87,18 @@ for (let i = 2; i < process.argv.length; i++)
 			console.log('  --poll-interval MS    Poll interval in ms (default: 5000)');
 			console.log('  --staging-path PATH   Local staging directory (default: cwd)');
 			console.log('  --help, -h            Show this help');
+			console.log('');
+			console.log('Provider Configuration:');
+			console.log('  For advanced provider configuration, create a .ultravisor-beacon.json');
+			console.log('  file with a "Providers" array:');
+			console.log('');
+			console.log('  {');
+			console.log('    "Providers": [');
+			console.log('      { "Source": "Shell" },');
+			console.log('      { "Source": "FileSystem", "Config": { "AllowedPaths": ["/data"] } },');
+			console.log('      { "Source": "./my-custom-provider.cjs", "Config": {} }');
+			console.log('    ]');
+			console.log('  }');
 			process.exit(0);
 	}
 }

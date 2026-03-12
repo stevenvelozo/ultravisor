@@ -21,6 +21,12 @@ const libUltravisorSchedulePersistenceJSONFile = require('../source/services/per
 
 const libUltravisorBeaconCoordinator = require('../source/services/Ultravisor-Beacon-Coordinator.cjs');
 
+const libBeaconCapabilityProvider = require('../source/beacon/Ultravisor-Beacon-CapabilityProvider.cjs');
+const libBeaconProviderRegistry = require('../source/beacon/Ultravisor-Beacon-ProviderRegistry.cjs');
+const libBeaconExecutor = require('../source/beacon/Ultravisor-Beacon-Executor.cjs');
+const libBeaconProviderShell = require('../source/beacon/providers/Ultravisor-Beacon-Provider-Shell.cjs');
+const libBeaconProviderFileSystem = require('../source/beacon/providers/Ultravisor-Beacon-Provider-FileSystem.cjs');
+
 const libTaskTypeReadFile = require('../source/services/tasks/file-system/Ultravisor-TaskType-ReadFile.cjs');
 const libTaskTypeWriteFile = require('../source/services/tasks/file-system/Ultravisor-TaskType-WriteFile.cjs');
 const libTaskTypeSetValues = require('../source/services/tasks/data-transform/Ultravisor-TaskType-SetValues.cjs');
@@ -3950,6 +3956,659 @@ suite
 											fDone();
 										});
 								});
+						}
+					);
+
+				test
+					(
+						'should update progress on a running work item and surface in WaitingTasks.',
+						function (fDone)
+						{
+							let tmpFable = createTestFable();
+							let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
+							let tmpCoordinator = Object.values(tmpFable.servicesMap['UltravisorBeaconCoordinator'])[0];
+							let tmpEngine = Object.values(tmpFable.servicesMap['UltravisorExecutionEngine'])[0];
+							let tmpManifest = Object.values(tmpFable.servicesMap['UltravisorExecutionManifest'])[0];
+
+							tmpRegistry.registerBuiltInTaskTypes();
+							let tmpBeacon = tmpCoordinator.registerBeacon({ Name: 'ProgressTestBeacon', Capabilities: ['Shell'] });
+
+							let tmpOperation = {
+								Hash: 'OPR-PROGRESS-TEST',
+								Name: 'Progress Test',
+								Graph: {
+									Nodes: [
+										{ Hash: 'start-1', Type: 'start', Ports: [{ Hash: 'start-1-eo-Begin', Label: 'Begin' }] },
+										{
+											Hash: 'dispatch-1', Type: 'beacon-dispatch', DefinitionHash: 'beacon-dispatch',
+											Settings: { RemoteCapability: 'Shell', Command: 'echo', Parameters: 'progress' },
+											Ports: [
+												{ Hash: 'dispatch-1-ei-Trigger', Label: 'Trigger' },
+												{ Hash: 'dispatch-1-eo-Complete', Label: 'Complete' }
+											]
+										},
+										{ Hash: 'end-1', Type: 'end', Ports: [{ Hash: 'end-1-ei-Finish', Label: 'Finish' }] }
+									],
+									Connections: [
+										{ SourceNodeHash: 'start-1', SourcePortHash: 'start-1-eo-Begin', TargetNodeHash: 'dispatch-1', TargetPortHash: 'dispatch-1-ei-Trigger', ConnectionType: 'Event' },
+										{ SourceNodeHash: 'dispatch-1', SourcePortHash: 'dispatch-1-eo-Complete', TargetNodeHash: 'end-1', TargetPortHash: 'end-1-ei-Finish', ConnectionType: 'Event' }
+									]
+								}
+							};
+
+							tmpEngine.executeOperation(tmpOperation,
+								function (pError, pContext)
+								{
+									Expect(pContext.Status).to.equal('WaitingForInput');
+									let tmpRunHash = pContext.Hash;
+
+									// Poll for work
+									let tmpWorkItem = tmpCoordinator.pollForWork(tmpBeacon.BeaconID);
+									Expect(tmpWorkItem).to.not.equal(null);
+
+									// Report progress
+									let tmpUpdated = tmpCoordinator.updateProgress(tmpWorkItem.WorkItemHash,
+										{ Percent: 50, Message: 'Halfway done', Step: 1, TotalSteps: 2, Log: ['Step 1 complete'] });
+									Expect(tmpUpdated).to.equal(true);
+
+									// Verify progress surfaces in WaitingTasks
+									let tmpRunContext = tmpManifest.getRun(tmpRunHash);
+									Expect(tmpRunContext.WaitingTasks['dispatch-1'].Progress).to.not.equal(undefined);
+									Expect(tmpRunContext.WaitingTasks['dispatch-1'].Progress.Percent).to.equal(50);
+									Expect(tmpRunContext.WaitingTasks['dispatch-1'].Progress.Message).to.equal('Halfway done');
+
+									// Verify work item has accumulated log
+									let tmpFullWorkItem = tmpCoordinator.getWorkItem(tmpWorkItem.WorkItemHash);
+									Expect(tmpFullWorkItem.AccumulatedLog).to.be.an('array');
+									Expect(tmpFullWorkItem.AccumulatedLog.length).to.equal(1);
+									Expect(tmpFullWorkItem.AccumulatedLog[0]).to.equal('Step 1 complete');
+
+									// Complete the work item — accumulated log should merge
+									tmpCoordinator.completeWorkItem(tmpWorkItem.WorkItemHash,
+										{ Outputs: { StdOut: 'done', ExitCode: 0, Result: 'done' }, Log: ['Final step'] },
+										function (pCompleteError)
+										{
+											Expect(pCompleteError).to.equal(null);
+											let tmpFinalContext = tmpManifest.getRun(tmpRunHash);
+											Expect(tmpFinalContext.Status).to.equal('Complete');
+											fDone();
+										});
+								});
+						}
+					);
+
+				test
+					(
+						'updateProgress should return false for non-existent work item.',
+						function ()
+						{
+							let tmpFable = createTestFable();
+							let tmpCoordinator = Object.values(tmpFable.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							let tmpResult = tmpCoordinator.updateProgress('wi-nonexistent', { Percent: 50 });
+							Expect(tmpResult).to.equal(false);
+						}
+					);
+			}
+		);
+
+	// =========================================================================
+	// Beacon Capability Providers
+	// =========================================================================
+	suite
+		(
+			'Beacon Capability Providers',
+			function ()
+			{
+				setup ( () => { ensureTestFixtures(); } );
+				teardown ( () => { cleanupTestStaging(); } );
+
+				// --- Base Class ---
+				test
+					(
+						'base class should have default Name and Capability.',
+						function ()
+						{
+							let tmpProvider = new libBeaconCapabilityProvider();
+							Expect(tmpProvider.Name).to.equal('BaseProvider');
+							Expect(tmpProvider.Capability).to.equal('Unknown');
+						}
+					);
+
+				test
+					(
+						'base class actions should return empty object.',
+						function ()
+						{
+							let tmpProvider = new libBeaconCapabilityProvider();
+							let tmpActions = tmpProvider.actions;
+							Expect(Object.keys(tmpActions).length).to.equal(0);
+						}
+					);
+
+				test
+					(
+						'base class getCapabilities should return [Capability].',
+						function ()
+						{
+							let tmpProvider = new libBeaconCapabilityProvider();
+							tmpProvider.Capability = 'TestCap';
+							let tmpCaps = tmpProvider.getCapabilities();
+							Expect(tmpCaps).to.deep.equal(['TestCap']);
+						}
+					);
+
+				test
+					(
+						'base class describeActions should return structured array.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderShell();
+							let tmpDescriptions = tmpProvider.describeActions();
+							Expect(tmpDescriptions.length).to.be.greaterThan(0);
+							Expect(tmpDescriptions[0].Capability).to.equal('Shell');
+							Expect(tmpDescriptions[0].Action).to.equal('Execute');
+						}
+					);
+
+				test
+					(
+						'base class initialize and shutdown should call callbacks.',
+						function (fDone)
+						{
+							let tmpProvider = new libBeaconCapabilityProvider();
+							tmpProvider.initialize(function (pError)
+							{
+								Expect(pError).to.equal(null);
+								tmpProvider.shutdown(function (pError2)
+								{
+									Expect(pError2).to.equal(null);
+									fDone();
+								});
+							});
+						}
+					);
+
+				test
+					(
+						'base class execute should return error for unimplemented action.',
+						function (fDone)
+						{
+							let tmpProvider = new libBeaconCapabilityProvider();
+							tmpProvider.execute('DoSomething', {}, {}, function (pError)
+							{
+								Expect(pError).to.be.an.instanceOf(Error);
+								Expect(pError.message).to.contain('has not implemented execute()');
+								fDone();
+							});
+						}
+					);
+
+				// --- Provider Registry ---
+				test
+					(
+						'registry should register a provider and track capabilities.',
+						function ()
+						{
+							let tmpRegistry = new libBeaconProviderRegistry();
+							let tmpProvider = new libBeaconProviderShell();
+							let tmpResult = tmpRegistry.registerProvider(tmpProvider);
+
+							Expect(tmpResult).to.equal(true);
+							Expect(tmpRegistry.getCapabilities()).to.deep.equal(['Shell']);
+						}
+					);
+
+				test
+					(
+						'registry should resolve Capability:Action to correct provider.',
+						function ()
+						{
+							let tmpRegistry = new libBeaconProviderRegistry();
+							tmpRegistry.registerProvider(new libBeaconProviderShell());
+
+							let tmpResolved = tmpRegistry.resolve('Shell', 'Execute');
+							Expect(tmpResolved).to.not.equal(null);
+							Expect(tmpResolved.provider.Name).to.equal('Shell');
+							Expect(tmpResolved.action).to.equal('Execute');
+						}
+					);
+
+				test
+					(
+						'registry should fall back to default action when Action is empty.',
+						function ()
+						{
+							let tmpRegistry = new libBeaconProviderRegistry();
+							tmpRegistry.registerProvider(new libBeaconProviderShell());
+
+							let tmpResolved = tmpRegistry.resolve('Shell', '');
+							Expect(tmpResolved).to.not.equal(null);
+							Expect(tmpResolved.action).to.equal('Execute');
+						}
+					);
+
+				test
+					(
+						'registry should return null for unknown capability.',
+						function ()
+						{
+							let tmpRegistry = new libBeaconProviderRegistry();
+							tmpRegistry.registerProvider(new libBeaconProviderShell());
+
+							let tmpResolved = tmpRegistry.resolve('VideoProcessing', 'Transcode');
+							Expect(tmpResolved).to.equal(null);
+						}
+					);
+
+				test
+					(
+						'registry should load built-in provider by name.',
+						function ()
+						{
+							let tmpRegistry = new libBeaconProviderRegistry();
+							let tmpResult = tmpRegistry.loadProvider({ Source: 'Shell' });
+							Expect(tmpResult).to.equal(true);
+							Expect(tmpRegistry.getCapabilities()).to.deep.equal(['Shell']);
+						}
+					);
+
+				test
+					(
+						'registry should aggregate capabilities from multiple providers.',
+						function ()
+						{
+							let tmpRegistry = new libBeaconProviderRegistry();
+							tmpRegistry.loadProvider({ Source: 'Shell' });
+							tmpRegistry.loadProvider({ Source: 'FileSystem' });
+
+							let tmpCaps = tmpRegistry.getCapabilities();
+							Expect(tmpCaps).to.include('Shell');
+							Expect(tmpCaps).to.include('FileSystem');
+							Expect(tmpCaps.length).to.equal(2);
+						}
+					);
+
+				test
+					(
+						'registry should initialize all providers in sequence.',
+						function (fDone)
+						{
+							let tmpRegistry = new libBeaconProviderRegistry();
+							tmpRegistry.loadProvider({ Source: 'Shell' });
+							tmpRegistry.loadProvider({ Source: 'FileSystem' });
+
+							tmpRegistry.initializeAll(function (pError)
+							{
+								Expect(pError).to.equal(null);
+								tmpRegistry.shutdownAll(function (pError2)
+								{
+									Expect(pError2).to.equal(null);
+									fDone();
+								});
+							});
+						}
+					);
+
+				test
+					(
+						'registry should return false for provider without Capability.',
+						function ()
+						{
+							let tmpRegistry = new libBeaconProviderRegistry();
+							let tmpResult = tmpRegistry.registerProvider({});
+							Expect(tmpResult).to.equal(false);
+						}
+					);
+
+				// --- Shell Provider ---
+				test
+					(
+						'Shell provider should execute echo command.',
+						function (fDone)
+						{
+							let tmpProvider = new libBeaconProviderShell();
+							let tmpWorkItem = {
+								WorkItemHash: 'wi-test-1',
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: { Command: 'echo', Parameters: 'hello provider' },
+								TimeoutMs: 10000
+							};
+
+							tmpProvider.execute('Execute', tmpWorkItem, { StagingPath: process.cwd() },
+								function (pError, pResult)
+								{
+									Expect(pError).to.equal(null);
+									Expect(pResult.Outputs.ExitCode).to.equal(0);
+									Expect(pResult.Outputs.StdOut).to.contain('hello provider');
+									fDone();
+								});
+						}
+					);
+
+				test
+					(
+						'Shell provider should handle missing command.',
+						function (fDone)
+						{
+							let tmpProvider = new libBeaconProviderShell();
+							let tmpWorkItem = {
+								WorkItemHash: 'wi-test-2',
+								Settings: {}
+							};
+
+							tmpProvider.execute('Execute', tmpWorkItem, {},
+								function (pError, pResult)
+								{
+									Expect(pError).to.equal(null);
+									Expect(pResult.Outputs.ExitCode).to.equal(-1);
+									Expect(pResult.Outputs.StdOut).to.contain('No command');
+									fDone();
+								});
+						}
+					);
+
+				test
+					(
+						'Shell provider should handle command failure with non-zero exit code.',
+						function (fDone)
+						{
+							let tmpProvider = new libBeaconProviderShell();
+							let tmpWorkItem = {
+								WorkItemHash: 'wi-test-3',
+								Settings: { Command: 'false' },
+								TimeoutMs: 5000
+							};
+
+							tmpProvider.execute('Execute', tmpWorkItem, { StagingPath: process.cwd() },
+								function (pError, pResult)
+								{
+									Expect(pError).to.equal(null);
+									Expect(pResult.Outputs.ExitCode).to.not.equal(0);
+									fDone();
+								});
+						}
+					);
+
+				// --- FileSystem Provider ---
+				test
+					(
+						'FileSystem provider should read a file.',
+						function (fDone)
+						{
+							let tmpProvider = new libBeaconProviderFileSystem();
+							let tmpWorkItem = {
+								WorkItemHash: 'wi-fs-read-1',
+								Settings: { FilePath: TEST_INPUT_FILE }
+							};
+
+							tmpProvider.execute('Read', tmpWorkItem, { StagingPath: TEST_STAGING_ROOT },
+								function (pError, pResult)
+								{
+									Expect(pError).to.equal(null);
+									Expect(pResult.Outputs.ExitCode).to.equal(0);
+									Expect(pResult.Outputs.Result).to.contain('Hello, John!');
+									fDone();
+								});
+						}
+					);
+
+				test
+					(
+						'FileSystem provider should write and read back a file.',
+						function (fDone)
+						{
+							let tmpProvider = new libBeaconProviderFileSystem();
+							let tmpWritePath = libPath.resolve(TEST_STAGING_ROOT, 'provider_write_test.txt');
+							let tmpWriteItem = {
+								WorkItemHash: 'wi-fs-write-1',
+								Settings: { FilePath: tmpWritePath, Content: 'Provider write test content' }
+							};
+
+							tmpProvider.execute('Write', tmpWriteItem, { StagingPath: TEST_STAGING_ROOT },
+								function (pError, pResult)
+								{
+									Expect(pError).to.equal(null);
+									Expect(pResult.Outputs.ExitCode).to.equal(0);
+
+									// Read it back
+									let tmpReadItem = { WorkItemHash: 'wi-fs-read-2', Settings: { FilePath: tmpWritePath } };
+									tmpProvider.execute('Read', tmpReadItem, { StagingPath: TEST_STAGING_ROOT },
+										function (pReadError, pReadResult)
+										{
+											Expect(pReadError).to.equal(null);
+											Expect(pReadResult.Outputs.Result).to.equal('Provider write test content');
+
+											// Clean up
+											try { libFS.unlinkSync(tmpWritePath); } catch(e) {}
+											fDone();
+										});
+								});
+						}
+					);
+
+				test
+					(
+						'FileSystem provider should list files in a directory.',
+						function (fDone)
+						{
+							let tmpProvider = new libBeaconProviderFileSystem();
+							let tmpListItem = {
+								WorkItemHash: 'wi-fs-list-1',
+								Settings: { Folder: TEST_STAGING_ROOT }
+							};
+
+							tmpProvider.execute('List', tmpListItem, { StagingPath: TEST_STAGING_ROOT },
+								function (pError, pResult)
+								{
+									Expect(pError).to.equal(null);
+									Expect(pResult.Outputs.ExitCode).to.equal(0);
+									let tmpFiles = JSON.parse(pResult.Outputs.Result);
+									Expect(tmpFiles).to.be.an('array');
+									Expect(tmpFiles.length).to.be.greaterThan(0);
+									fDone();
+								});
+						}
+					);
+
+				test
+					(
+						'FileSystem provider should enforce AllowedPaths.',
+						function (fDone)
+						{
+							let tmpProvider = new libBeaconProviderFileSystem({ AllowedPaths: ['/restricted/path'] });
+							let tmpReadItem = {
+								WorkItemHash: 'wi-fs-restricted',
+								Settings: { FilePath: '/tmp/not_allowed.txt' }
+							};
+
+							tmpProvider.execute('Read', tmpReadItem, {},
+								function (pError, pResult)
+								{
+									Expect(pError).to.equal(null);
+									Expect(pResult.Outputs.ExitCode).to.equal(-1);
+									Expect(pResult.Outputs.StdOut).to.contain('not allowed');
+									fDone();
+								});
+						}
+					);
+
+				test
+					(
+						'FileSystem provider should handle unknown action.',
+						function (fDone)
+						{
+							let tmpProvider = new libBeaconProviderFileSystem();
+							tmpProvider.execute('Delete', {}, {},
+								function (pError, pResult)
+								{
+									Expect(pError).to.equal(null);
+									Expect(pResult.Outputs.ExitCode).to.equal(-1);
+									Expect(pResult.Outputs.StdOut).to.contain('Unknown FileSystem action');
+									fDone();
+								});
+						}
+					);
+
+				// --- Executor with Providers ---
+				test
+					(
+						'executor should route Shell/Execute to Shell provider.',
+						function (fDone)
+						{
+							let tmpExecutor = new libBeaconExecutor({ StagingPath: TEST_STAGING_ROOT });
+							tmpExecutor.providerRegistry.loadProvider({ Source: 'Shell' });
+
+							let tmpWorkItem = {
+								WorkItemHash: 'wi-exec-1',
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: { Command: 'echo', Parameters: 'executor test' },
+								TimeoutMs: 5000
+							};
+
+							tmpExecutor.execute(tmpWorkItem,
+								function (pError, pResult)
+								{
+									Expect(pError).to.equal(null);
+									Expect(pResult.Outputs.ExitCode).to.equal(0);
+									Expect(pResult.Outputs.StdOut).to.contain('executor test');
+									fDone();
+								});
+						}
+					);
+
+				test
+					(
+						'executor should route FileSystem/Read to FileSystem provider.',
+						function (fDone)
+						{
+							let tmpExecutor = new libBeaconExecutor({ StagingPath: TEST_STAGING_ROOT });
+							tmpExecutor.providerRegistry.loadProvider({ Source: 'Shell' });
+							tmpExecutor.providerRegistry.loadProvider({ Source: 'FileSystem' });
+
+							let tmpWorkItem = {
+								WorkItemHash: 'wi-exec-2',
+								Capability: 'FileSystem',
+								Action: 'Read',
+								Settings: { FilePath: TEST_INPUT_FILE }
+							};
+
+							tmpExecutor.execute(tmpWorkItem,
+								function (pError, pResult)
+								{
+									Expect(pError).to.equal(null);
+									Expect(pResult.Outputs.ExitCode).to.equal(0);
+									Expect(pResult.Outputs.Result).to.contain('Hello, John!');
+									fDone();
+								});
+						}
+					);
+
+				test
+					(
+						'executor should return error for unknown capability.',
+						function (fDone)
+						{
+							let tmpExecutor = new libBeaconExecutor({ StagingPath: TEST_STAGING_ROOT });
+							tmpExecutor.providerRegistry.loadProvider({ Source: 'Shell' });
+
+							let tmpWorkItem = {
+								WorkItemHash: 'wi-exec-3',
+								Capability: 'VideoProcessing',
+								Action: 'Transcode',
+								Settings: {}
+							};
+
+							tmpExecutor.execute(tmpWorkItem,
+								function (pError, pResult)
+								{
+									Expect(pError).to.equal(null);
+									Expect(pResult.Outputs.ExitCode).to.equal(-1);
+									Expect(pResult.Outputs.StdOut).to.contain('Unknown capability');
+									fDone();
+								});
+						}
+					);
+
+				test
+					(
+						'executor should derive capabilities from loaded providers.',
+						function ()
+						{
+							let tmpExecutor = new libBeaconExecutor({ StagingPath: TEST_STAGING_ROOT });
+							tmpExecutor.providerRegistry.loadProvider({ Source: 'Shell' });
+							tmpExecutor.providerRegistry.loadProvider({ Source: 'FileSystem' });
+
+							let tmpCaps = tmpExecutor.providerRegistry.getCapabilities();
+							Expect(tmpCaps).to.include('Shell');
+							Expect(tmpCaps).to.include('FileSystem');
+						}
+					);
+
+				test
+					(
+						'executor should pass progress callback through to provider.',
+						function (fDone)
+						{
+							let tmpExecutor = new libBeaconExecutor({ StagingPath: TEST_STAGING_ROOT });
+							tmpExecutor.providerRegistry.loadProvider({ Source: 'Shell' });
+
+							let tmpProgressCalled = false;
+							let fProgress = function () { tmpProgressCalled = true; };
+
+							// Shell provider doesn't call fReportProgress itself,
+							// but the callback should be passed through without error
+							let tmpWorkItem = {
+								WorkItemHash: 'wi-exec-progress',
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: { Command: 'echo', Parameters: 'progress test' },
+								TimeoutMs: 5000
+							};
+
+							tmpExecutor.execute(tmpWorkItem,
+								function (pError, pResult)
+								{
+									Expect(pError).to.equal(null);
+									Expect(pResult.Outputs.ExitCode).to.equal(0);
+									fDone();
+								}, fProgress);
+						}
+					);
+
+				// --- Backward Compatibility ---
+				test
+					(
+						'backward compat: Capabilities array should auto-convert to Providers.',
+						function ()
+						{
+							// Simulate what BeaconClient does internally
+							let tmpCapabilities = ['Shell', 'FileSystem'];
+							let tmpProviders = tmpCapabilities.map(function (pCap)
+							{
+								return { Source: pCap, Config: {} };
+							});
+
+							let tmpRegistry = new libBeaconProviderRegistry();
+							let tmpCount = tmpRegistry.loadProviders(tmpProviders);
+							Expect(tmpCount).to.equal(2);
+							Expect(tmpRegistry.getCapabilities()).to.include('Shell');
+							Expect(tmpRegistry.getCapabilities()).to.include('FileSystem');
+						}
+					);
+
+				test
+					(
+						'backward compat: default to Shell when no config.',
+						function ()
+						{
+							let tmpRegistry = new libBeaconProviderRegistry();
+							let tmpProviders = [{ Source: 'Shell' }];
+							let tmpCount = tmpRegistry.loadProviders(tmpProviders);
+							Expect(tmpCount).to.equal(1);
+							Expect(tmpRegistry.getCapabilities()).to.deep.equal(['Shell']);
 						}
 					);
 			}

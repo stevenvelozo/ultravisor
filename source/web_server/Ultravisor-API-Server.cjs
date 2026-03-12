@@ -975,6 +975,33 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
+		// --- Report Progress ---
+		this._OratorServer.post
+			(
+				'/Beacon/Work/:WorkItemHash/Progress',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send(500, { Error: 'BeaconCoordinator service not available.' });
+						return fNext();
+					}
+
+					let tmpBody = pRequest.body || {};
+					let tmpUpdated = tmpCoordinator.updateProgress(pRequest.params.WorkItemHash, tmpBody);
+
+					if (!tmpUpdated)
+					{
+						pResponse.send(404, { Error: `Work item [${pRequest.params.WorkItemHash}] not found or not running.` });
+						return fNext();
+					}
+
+					pResponse.send({ Success: true, WorkItemHash: pRequest.params.WorkItemHash });
+					return fNext();
+				}.bind(this)
+			);
+
 		// --- Fail Work Item ---
 		this._OratorServer.post
 			(

@@ -1,101 +1,65 @@
 /**
  * Ultravisor Beacon Executor
  *
- * Executes work items locally on the Beacon worker.
- * Phase 1: Shell capability (child_process.exec).
+ * Routes work items to the appropriate capability provider via the
+ * ProviderRegistry. Replaces the former hard-coded switch statement
+ * with a pluggable, composable provider architecture.
  */
 
-const libChildProcess = require('child_process');
+const libBeaconProviderRegistry = require('./Ultravisor-Beacon-ProviderRegistry.cjs');
 
 class UltravisorBeaconExecutor
 {
 	constructor(pConfig)
 	{
 		this._Config = pConfig || {};
-		this._StagingPath = pConfig.StagingPath || process.cwd();
+		this._StagingPath = this._Config.StagingPath || process.cwd();
+		this._ProviderRegistry = new libBeaconProviderRegistry();
 	}
 
 	/**
-	 * Execute a work item based on its Capability.
+	 * Get the provider registry.
+	 * Used by BeaconClient for capability list and provider lifecycle.
+	 */
+	get providerRegistry()
+	{
+		return this._ProviderRegistry;
+	}
+
+	/**
+	 * Execute a work item by routing to the appropriate provider.
 	 *
 	 * @param {object} pWorkItem - { WorkItemHash, Capability, Action, Settings, TimeoutMs }
 	 * @param {function} fCallback - function(pError, pResult) where pResult = { Outputs, Log }
+	 * @param {function} [fReportProgress] - Optional progress callback passed through to provider
 	 */
-	execute(pWorkItem, fCallback)
+	execute(pWorkItem, fCallback, fReportProgress)
 	{
 		let tmpCapability = pWorkItem.Capability || 'Shell';
+		let tmpAction = pWorkItem.Action || '';
 
-		switch (tmpCapability)
-		{
-			case 'Shell':
-				return this._executeShell(pWorkItem, fCallback);
-			case 'FileSystem':
-				return this._executeFileSystem(pWorkItem, fCallback);
-			default:
-				return fCallback(null, {
-					Outputs: { StdOut: `Unknown capability: ${tmpCapability}`, ExitCode: -1, Result: '' },
-					Log: [`Beacon Executor: unsupported capability [${tmpCapability}].`]
-				});
-		}
-	}
+		let tmpResolved = this._ProviderRegistry.resolve(tmpCapability, tmpAction);
 
-	_executeShell(pWorkItem, fCallback)
-	{
-		let tmpSettings = pWorkItem.Settings || {};
-		let tmpCommand = tmpSettings.Command || '';
-		let tmpParameters = tmpSettings.Parameters || '';
-
-		if (!tmpCommand)
+		if (!tmpResolved)
 		{
 			return fCallback(null, {
-				Outputs: { StdOut: 'No command specified.', ExitCode: -1, Result: '' },
-				Log: ['Beacon Executor: no command specified.']
+				Outputs: {
+					StdOut: `Unknown capability: ${tmpCapability}` +
+						(tmpAction ? `/${tmpAction}` : ''),
+					ExitCode: -1,
+					Result: ''
+				},
+				Log: [`Beacon Executor: no provider for [${tmpCapability}` +
+					(tmpAction ? `/${tmpAction}` : '') + `].`]
 			});
 		}
 
-		let tmpFullCommand = tmpParameters ? (tmpCommand + ' ' + tmpParameters) : tmpCommand;
-		let tmpTimeout = pWorkItem.TimeoutMs || 300000;
+		let tmpContext = {
+			StagingPath: this._StagingPath
+		};
 
-		console.log(`  [Executor] Running: ${tmpFullCommand}`);
-
-		libChildProcess.exec(tmpFullCommand,
-			{
-				cwd: this._StagingPath,
-				timeout: tmpTimeout,
-				maxBuffer: 10485760
-			},
-			function (pError, pStdOut, pStdErr)
-			{
-				if (pError)
-				{
-					return fCallback(null, {
-						Outputs: {
-							StdOut: (pStdOut || '') + (pStdErr || ''),
-							ExitCode: pError.code || 1,
-							Result: ''
-						},
-						Log: [`Command failed: ${pError.message}`, pStdErr || '']
-					});
-				}
-
-				return fCallback(null, {
-					Outputs: {
-						StdOut: pStdOut || '',
-						ExitCode: 0,
-						Result: pStdOut || ''
-					},
-					Log: [`Command executed: ${tmpFullCommand}`]
-				});
-			});
-	}
-
-	_executeFileSystem(pWorkItem, fCallback)
-	{
-		// Phase 1: basic file system operations placeholder
-		return fCallback(null, {
-			Outputs: { StdOut: 'FileSystem capability not yet implemented on Beacon.', ExitCode: -1, Result: '' },
-			Log: ['Beacon Executor: FileSystem capability is planned for Phase 2.']
-		});
+		tmpResolved.provider.execute(
+			tmpResolved.action, pWorkItem, tmpContext, fCallback, fReportProgress);
 	}
 }
 

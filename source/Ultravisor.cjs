@@ -8,6 +8,8 @@ module.exports = (
 		HypervisorState: require('./services/Ultravisor-Hypervisor-State.cjs'),
 		Hypervisor: require('./services/Ultravisor-Hypervisor.cjs'),
 		BeaconCoordinator: require('./services/Ultravisor-Beacon-Coordinator.cjs'),
+		BeaconCapabilityProvider: require('./beacon/Ultravisor-Beacon-CapabilityProvider.cjs'),
+		BeaconProviderRegistry: require('./beacon/Ultravisor-Beacon-ProviderRegistry.cjs'),
 
 		// Config-driven task type definitions (preferred for new tasks)
 		BuiltInTaskConfigs: require('./services/tasks/Ultravisor-BuiltIn-TaskConfigs.cjs'),

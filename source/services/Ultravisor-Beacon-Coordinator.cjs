@@ -402,7 +402,16 @@ class UltravisorBeaconCoordinator extends libPictService
 
 		tmpWorkItem.Status = 'Complete';
 		tmpWorkItem.CompletedAt = new Date().toISOString();
-		tmpWorkItem.Result = pResult || {};
+
+		// Merge accumulated progress logs with the final completion log
+		let tmpFinalResult = pResult || {};
+		if (tmpWorkItem.AccumulatedLog && tmpWorkItem.AccumulatedLog.length > 0)
+		{
+			let tmpCompletionLog = tmpFinalResult.Log || [];
+			tmpFinalResult.Log = tmpWorkItem.AccumulatedLog.concat(tmpCompletionLog);
+		}
+
+		tmpWorkItem.Result = tmpFinalResult;
 
 		// Remove from Beacon's current work list
 		this._removeWorkItemFromBeacon(tmpWorkItem.AssignedBeaconID, pWorkItemHash);
@@ -418,7 +427,7 @@ class UltravisorBeaconCoordinator extends libPictService
 		}
 
 		// Build the structured outputs to pass to resumeOperation
-		let tmpOutputs = pResult.Outputs || {};
+		let tmpOutputs = tmpFinalResult.Outputs || {};
 
 		// Include the BeaconID in the outputs so downstream tasks can reference it
 		tmpOutputs.BeaconID = tmpWorkItem.AssignedBeaconID || '';
@@ -538,6 +547,73 @@ class UltravisorBeaconCoordinator extends libPictService
 	getWorkItem(pWorkItemHash)
 	{
 		return this._WorkQueue[pWorkItemHash] || null;
+	}
+
+	// ====================================================================
+	// Progress Reporting
+	// ====================================================================
+
+	/**
+	 * Update progress for a running work item.
+	 *
+	 * Called by the Beacon during execution to report progress and
+	 * stream log entries. Progress data is stored on the work item
+	 * record and reflected in the manifest's WaitingTasks so it
+	 * surfaces via GET /Manifest/:RunHash.
+	 *
+	 * @param {string} pWorkItemHash
+	 * @param {object} pProgressData - { Percent?, Message?, Step?, TotalSteps?, Log? }
+	 * @returns {boolean} true if progress was updated
+	 */
+	updateProgress(pWorkItemHash, pProgressData)
+	{
+		let tmpWorkItem = this._WorkQueue[pWorkItemHash];
+
+		if (!tmpWorkItem)
+		{
+			return false;
+		}
+
+		if (tmpWorkItem.Status !== 'Running' && tmpWorkItem.Status !== 'Assigned')
+		{
+			return false;
+		}
+
+		// Update progress fields on the work item
+		tmpWorkItem.Progress = {
+			Percent: (pProgressData.Percent !== undefined) ? pProgressData.Percent : (tmpWorkItem.Progress ? tmpWorkItem.Progress.Percent : undefined),
+			Message: pProgressData.Message || (tmpWorkItem.Progress ? tmpWorkItem.Progress.Message : ''),
+			Step: (pProgressData.Step !== undefined) ? pProgressData.Step : (tmpWorkItem.Progress ? tmpWorkItem.Progress.Step : undefined),
+			TotalSteps: (pProgressData.TotalSteps !== undefined) ? pProgressData.TotalSteps : (tmpWorkItem.Progress ? tmpWorkItem.Progress.TotalSteps : undefined),
+			UpdatedAt: new Date().toISOString()
+		};
+
+		// Accumulate log entries
+		if (Array.isArray(pProgressData.Log) && pProgressData.Log.length > 0)
+		{
+			if (!tmpWorkItem.AccumulatedLog)
+			{
+				tmpWorkItem.AccumulatedLog = [];
+			}
+			for (let i = 0; i < pProgressData.Log.length; i++)
+			{
+				tmpWorkItem.AccumulatedLog.push(pProgressData.Log[i]);
+			}
+		}
+
+		// Update the manifest's WaitingTasks entry so progress surfaces
+		// via GET /Manifest/:RunHash
+		let tmpManifest = this._getService('UltravisorExecutionManifest');
+		if (tmpManifest)
+		{
+			let tmpContext = tmpManifest.getRun(tmpWorkItem.RunHash);
+			if (tmpContext && tmpContext.WaitingTasks[tmpWorkItem.NodeHash])
+			{
+				tmpContext.WaitingTasks[tmpWorkItem.NodeHash].Progress = tmpWorkItem.Progress;
+			}
+		}
+
+		return true;
 	}
 
 	// ====================================================================

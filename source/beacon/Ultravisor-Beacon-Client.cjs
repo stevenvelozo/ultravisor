@@ -5,12 +5,15 @@
  * registers its capabilities, polls for work, executes tasks locally,
  * and reports results back to the orchestrator.
  *
+ * Capabilities are provided by pluggable CapabilityProviders loaded
+ * via the ProviderRegistry. The beacon advertises the aggregate set
+ * of capabilities from all loaded providers.
+ *
  * Communication is HTTP-based (transport-agnostic design means this
  * can be swapped for WebSocket, MQTT, etc. in the future).
  */
 
 const libHTTP = require('http');
-const libURL = require('url');
 
 const libBeaconExecutor = require('./Ultravisor-Beacon-Executor.cjs');
 
@@ -38,6 +41,31 @@ class UltravisorBeaconClient
 		this._Executor = new libBeaconExecutor({
 			StagingPath: this._Config.StagingPath
 		});
+
+		// Load capability providers
+		this._loadProviders();
+	}
+
+	// ================================================================
+	// Provider Loading
+	// ================================================================
+
+	_loadProviders()
+	{
+		let tmpProviders = this._Config.Providers;
+
+		if (!tmpProviders)
+		{
+			// Backward compatibility: convert Capabilities array to Provider descriptors
+			let tmpCapabilities = this._Config.Capabilities || ['Shell'];
+			tmpProviders = tmpCapabilities.map(function (pCap)
+			{
+				return { Source: pCap, Config: {} };
+			});
+		}
+
+		let tmpCount = this._Executor.providerRegistry.loadProviders(tmpProviders);
+		console.log(`[Beacon] Loaded ${tmpCount} capability provider(s).`);
 	}
 
 	// ================================================================
@@ -45,48 +73,60 @@ class UltravisorBeaconClient
 	// ================================================================
 
 	/**
-	 * Start the Beacon client: register, then begin polling.
+	 * Start the Beacon client: initialize providers, register, then begin polling.
 	 */
 	start(fCallback)
 	{
 		console.log(`[Beacon] Starting "${this._Config.Name}"...`);
 		console.log(`[Beacon] Server: ${this._Config.ServerURL}`);
-		console.log(`[Beacon] Capabilities: ${this._Config.Capabilities.join(', ')}`);
 
-		this._register((pError, pBeacon) =>
+		// Initialize all providers before registering
+		this._Executor.providerRegistry.initializeAll((pInitError) =>
 		{
-			if (pError)
+			if (pInitError)
 			{
-				console.error(`[Beacon] Registration failed: ${pError.message}`);
-				return fCallback(pError);
+				console.error(`[Beacon] Provider initialization failed: ${pInitError.message}`);
+				return fCallback(pInitError);
 			}
 
-			this._BeaconID = pBeacon.BeaconID;
-			this._Running = true;
+			let tmpCapabilities = this._Executor.providerRegistry.getCapabilities();
+			console.log(`[Beacon] Capabilities: ${tmpCapabilities.join(', ')}`);
 
-			console.log(`[Beacon] Registered as ${this._BeaconID}`);
-
-			// Start polling for work
-			this._PollInterval = setInterval(() =>
+			this._register((pError, pBeacon) =>
 			{
+				if (pError)
+				{
+					console.error(`[Beacon] Registration failed: ${pError.message}`);
+					return fCallback(pError);
+				}
+
+				this._BeaconID = pBeacon.BeaconID;
+				this._Running = true;
+
+				console.log(`[Beacon] Registered as ${this._BeaconID}`);
+
+				// Start polling for work
+				this._PollInterval = setInterval(() =>
+				{
+					this._poll();
+				}, this._Config.PollIntervalMs);
+
+				// Start heartbeat
+				this._HeartbeatInterval = setInterval(() =>
+				{
+					this._heartbeat();
+				}, this._Config.HeartbeatIntervalMs);
+
+				// Do an immediate poll
 				this._poll();
-			}, this._Config.PollIntervalMs);
 
-			// Start heartbeat
-			this._HeartbeatInterval = setInterval(() =>
-			{
-				this._heartbeat();
-			}, this._Config.HeartbeatIntervalMs);
-
-			// Do an immediate poll
-			this._poll();
-
-			return fCallback(null, pBeacon);
+				return fCallback(null, pBeacon);
+			});
 		});
 	}
 
 	/**
-	 * Stop the Beacon client: deregister and stop polling.
+	 * Stop the Beacon client: stop polling, shutdown providers, deregister.
 	 */
 	stop(fCallback)
 	{
@@ -105,23 +145,32 @@ class UltravisorBeaconClient
 			this._HeartbeatInterval = null;
 		}
 
-		if (this._BeaconID)
+		// Shutdown providers
+		this._Executor.providerRegistry.shutdownAll((pShutdownError) =>
 		{
-			this._deregister((pError) =>
+			if (pShutdownError)
 			{
-				if (pError)
+				console.warn(`[Beacon] Provider shutdown warning: ${pShutdownError.message}`);
+			}
+
+			if (this._BeaconID)
+			{
+				this._deregister((pError) =>
 				{
-					console.warn(`[Beacon] Deregistration warning: ${pError.message}`);
-				}
+					if (pError)
+					{
+						console.warn(`[Beacon] Deregistration warning: ${pError.message}`);
+					}
+					console.log(`[Beacon] Stopped.`);
+					if (fCallback) return fCallback(null);
+				});
+			}
+			else
+			{
 				console.log(`[Beacon] Stopped.`);
 				if (fCallback) return fCallback(null);
-			});
-		}
-		else
-		{
-			console.log(`[Beacon] Stopped.`);
-			if (fCallback) return fCallback(null);
-		}
+			}
+		});
 	}
 
 	// ================================================================
@@ -132,7 +181,7 @@ class UltravisorBeaconClient
 	{
 		let tmpBody = {
 			Name: this._Config.Name,
-			Capabilities: this._Config.Capabilities,
+			Capabilities: this._Executor.providerRegistry.getCapabilities(),
 			MaxConcurrent: this._Config.MaxConcurrent,
 			Tags: this._Config.Tags
 		};
@@ -190,6 +239,13 @@ class UltravisorBeaconClient
 		this._ActiveWorkItems++;
 		console.log(`[Beacon] Executing work item [${pWorkItem.WorkItemHash}] (${pWorkItem.Capability}/${pWorkItem.Action})`);
 
+		// Create a progress callback that sends updates to the server
+		let tmpWorkItemHash = pWorkItem.WorkItemHash;
+		let fReportProgress = (pProgressData) =>
+		{
+			this._reportProgress(tmpWorkItemHash, pProgressData);
+		};
+
 		this._Executor.execute(pWorkItem, (pError, pResult) =>
 		{
 			this._ActiveWorkItems--;
@@ -213,7 +269,7 @@ class UltravisorBeaconClient
 			}
 
 			this._reportComplete(pWorkItem.WorkItemHash, tmpOutputs, pResult.Log || []);
-		});
+		}, fReportProgress);
 	}
 
 	// ================================================================
@@ -242,6 +298,25 @@ class UltravisorBeaconClient
 				if (pError)
 				{
 					console.error(`[Beacon] Failed to report error for [${pWorkItemHash}]: ${pError.message}`);
+				}
+			});
+	}
+
+	_reportProgress(pWorkItemHash, pProgressData)
+	{
+		if (!pProgressData || !this._Running)
+		{
+			return;
+		}
+
+		this._httpRequest('POST', `/Beacon/Work/${pWorkItemHash}/Progress`,
+			pProgressData,
+			(pError) =>
+			{
+				if (pError)
+				{
+					// Fire-and-forget — log but don't affect execution
+					console.warn(`[Beacon] Failed to report progress for [${pWorkItemHash}]: ${pError.message}`);
 				}
 			});
 	}

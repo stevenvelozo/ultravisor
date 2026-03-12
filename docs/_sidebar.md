@@ -9,6 +9,7 @@
   - [Tasks](features/tasks.md)
   - [Capabilities](features/capabilities.md)
   - [Beacons](features/beacons.md)
+  - [Building Beacon Providers](features/beacon-providers.md)
   - [Operations](features/operations.md)
   - [Scheduling](features/scheduling.md)
   - [Manifests](features/manifests.md)

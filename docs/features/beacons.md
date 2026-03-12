@@ -224,6 +224,219 @@ List all active affinity bindings.
 **Response:** Array of affinity binding records, each containing
 `AffinityKey`, `BeaconID`, `CreatedAt`, and `ExpiresAt`.
 
+## Custom Capability Providers
+
+Beacons use a pluggable **CapabilityProvider** system. Each provider handles
+one or more capabilities and their associated actions. Two providers ship
+built-in (Shell and FileSystem), and you can add your own.
+
+For full, runnable examples (headless Chrome, FFmpeg transcoding), see the
+[Building Beacon Providers](beacon-providers.md) guide.
+
+### The Provider Interface
+
+Every provider extends the `UltravisorBeaconCapabilityProvider` base class:
+
+```js
+const libBeaconCapabilityProvider = require('ultravisor').BeaconCapabilityProvider;
+
+class MyFFmpegProvider extends libBeaconCapabilityProvider
+{
+    constructor(pProviderConfig)
+    {
+        super(pProviderConfig);
+        this.Name = 'FFmpeg';
+        this.Capability = 'MediaProcessing';
+    }
+
+    get actions()
+    {
+        return {
+            'Transcode': { Description: 'Transcode a media file' },
+            'Thumbnail': { Description: 'Extract a thumbnail frame' }
+        };
+    }
+
+    execute(pAction, pWorkItem, pContext, fCallback, fReportProgress)
+    {
+        // pAction is 'Transcode' or 'Thumbnail'
+        // pWorkItem.Settings has the task parameters
+        // pContext.StagingPath is the local staging directory
+        // fReportProgress({ Percent: 50, Message: '...' }) for progress
+        // fCallback(null, { Outputs: { ... }, Log: [...] }) when done
+    }
+}
+
+module.exports = MyFFmpegProvider;
+```
+
+Key methods:
+
+| Method | Purpose |
+|--------|---------|
+| `get actions()` | Returns `{ ActionName: { Description } }` map of supported actions |
+| `execute(pAction, pWorkItem, pContext, fCallback, fReportProgress)` | Execute a work item |
+| `getCapabilities()` | Returns capability strings (default: `[this.Capability]`) |
+| `initialize(fCallback)` | Optional async setup (validate prerequisites, etc.) |
+| `shutdown(fCallback)` | Optional cleanup on Beacon stop |
+
+### Loading Providers via Config
+
+The `.ultravisor-beacon.json` file supports a `Providers` array that
+specifies which providers to load:
+
+```json
+{
+    "ServerURL": "http://orchestrator:54321",
+    "Name": "media-worker-1",
+    "MaxConcurrent": 4,
+    "StagingPath": "/data/staging",
+    "Providers": [
+        { "Source": "Shell" },
+        {
+            "Source": "FileSystem",
+            "Config": {
+                "AllowedPaths": ["/data/staging", "/data/output"],
+                "MaxFileSizeBytes": 104857600
+            }
+        },
+        {
+            "Source": "./my-ffmpeg-provider.cjs",
+            "Config": { "FFmpegPath": "/usr/bin/ffmpeg" }
+        }
+    ]
+}
+```
+
+Each entry has:
+
+| Field | Description |
+|-------|-------------|
+| `Source` | Built-in name (`Shell`, `FileSystem`), local file path (`./my-provider.cjs`), or npm package name |
+| `Config` | Optional per-provider configuration object, available as `this._ProviderConfig` in the provider |
+
+The `Source` field determines how the provider is loaded:
+
+- **Built-in names** (`Shell`, `FileSystem`) resolve to the `providers/` directory inside the Beacon module.
+- **Paths starting with `.` or `/`** are loaded via `require(path.resolve(source))`.
+- **Everything else** is loaded via `require(source)`, supporting npm packages.
+
+### Backward Compatibility
+
+If `Providers` is absent but `Capabilities` is present, the Beacon
+automatically converts each capability string into a provider descriptor.
+For example, `"Capabilities": ["Shell", "FileSystem"]` is equivalent to
+`"Providers": [{ "Source": "Shell" }, { "Source": "FileSystem" }]`.
+
+If neither `Providers` nor `Capabilities` is specified, the Beacon defaults
+to loading the Shell provider.
+
+### Provider Lifecycle
+
+When the Beacon starts, all providers are initialized in sequence via their
+`initialize()` method. This is the place to validate prerequisites (e.g.,
+check that `ffmpeg` is installed) before the Beacon begins accepting work.
+If any provider fails to initialize, the Beacon does not start.
+
+On shutdown, providers are stopped in sequence via `shutdown()`, allowing
+them to release resources, close connections, or clean up temporary files.
+
+### Built-In Providers
+
+#### Shell Provider
+
+Executes operating system commands via `child_process.exec()`.
+
+- **Capability:** `Shell`
+- **Actions:** `Execute`
+- **Settings:** `Command` (string), `Parameters` (string), `WorkingDirectory` (string)
+- **Config:** `MaxBufferBytes` (default: 10MB)
+- **Outputs:** `StdOut`, `ExitCode`, `Result`
+
+#### FileSystem Provider
+
+Performs local file operations.
+
+- **Capability:** `FileSystem`
+- **Actions:** `Read`, `Write`, `List`, `Copy`
+- **Config:** `AllowedPaths` (string array, empty = allow all), `MaxFileSizeBytes` (default: 100MB)
+
+Action settings:
+
+| Action | Settings |
+|--------|----------|
+| `Read` | `FilePath`, `Encoding` (default: utf8) |
+| `Write` | `FilePath`, `Content`, `Encoding` (default: utf8) |
+| `List` | `Folder`, `Pattern` (glob, default: *) |
+| `Copy` | `Source`, `TargetFile` |
+
+Relative paths in settings are resolved against `pContext.StagingPath`.
+
+## Progress Reporting
+
+Providers can report progress during long-running operations. Progress
+updates flow from the provider through the Beacon client to the server,
+where they surface in the manifest's WaitingTasks and the work item record.
+
+### Reporting Progress from a Provider
+
+The `fReportProgress` callback passed to `execute()` accepts an object with
+these optional fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Percent` | number | Completion percentage (0–100) |
+| `Message` | string | Human-readable status message |
+| `Step` | number | Current step number |
+| `TotalSteps` | number | Total number of steps |
+| `Log` | array | Array of log strings to accumulate |
+
+All fields are optional. Use whichever combination makes sense:
+
+```js
+// Percentage-based progress
+fReportProgress({ Percent: 45, Message: 'Extracting frames...' });
+
+// Step-based progress
+fReportProgress({ Step: 3, TotalSteps: 10, Message: 'Pass 3 of 10' });
+
+// Log-only (no progress bar update)
+fReportProgress({ Log: ['Processing file xyz.mp4'] });
+
+// Combined progress + logging
+fReportProgress({ Percent: 80, Log: ['Scene detection pass 2 complete'] });
+```
+
+### How Progress Flows
+
+1. **Provider** calls `fReportProgress({ Percent: 50, Message: '...' })`.
+2. **BeaconClient** sends `POST /Beacon/Work/:Hash/Progress` to the server.
+3. **BeaconCoordinator** updates the work item record with the progress data
+   and appends any `Log` entries to the work item's accumulated log.
+4. **Manifest** `WaitingTasks` entry for the corresponding node is updated
+   with the progress data, visible via `GET /Manifest/:RunHash`.
+5. On completion, the final `Log` from the Complete call is merged with
+   previously accumulated log entries.
+
+### POST /Beacon/Work/:WorkItemHash/Progress
+
+Report progress on an in-flight work item.
+
+**Request body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `Percent` | number | no | Completion percentage (0–100) |
+| `Message` | string | no | Human-readable status message |
+| `Step` | number | no | Current step number |
+| `TotalSteps` | number | no | Total number of steps |
+| `Log` | array | no | Array of log strings to accumulate |
+
+**Response:** `{ Success: true }`
+
+Progress is fire-and-forget from the Beacon's perspective — failures to
+report progress do not affect work item execution.
+
 ## Running a Beacon
 
 ### CLI
@@ -253,14 +466,14 @@ node source/beacon/Ultravisor-Beacon-CLI.cjs \
 Place a `.ultravisor-beacon.json` file in the working directory to set
 defaults. CLI arguments override config file values.
 
+For simple Beacons, use `Capabilities`:
+
 ```json
 {
     "ServerURL": "http://orchestrator:54321",
     "Name": "GPU-Worker-1",
-    "Capabilities": ["Shell", "FileSystem", "MLInference"],
+    "Capabilities": ["Shell", "FileSystem"],
     "MaxConcurrent": 4,
-    "PollIntervalMs": 3000,
-    "HeartbeatIntervalMs": 15000,
     "StagingPath": "/data/staging",
     "Tags": {
         "GPU": "A100",
@@ -268,6 +481,9 @@ defaults. CLI arguments override config file values.
     }
 }
 ```
+
+For advanced setups with custom providers and per-provider config, use
+`Providers` instead (see [Loading Providers via Config](#loading-providers-via-config)).
 
 ## Configuration
 
