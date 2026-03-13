@@ -15,7 +15,7 @@
 		"pict-provider": "^1.0.3",
 		"pict-router": "^1.0.7",
 		"pict-section-content": "^0.0.6",
-		"pict-docuserve": "file:../../../../pict/pict-docuserve",
+		"pict-docuserve": "^0.0.32",
 		"pict-section-flow": "^0.0.6",
 		"pict-section-form": "^1.0.194",
 		"pict-view": "^1.0.64"
