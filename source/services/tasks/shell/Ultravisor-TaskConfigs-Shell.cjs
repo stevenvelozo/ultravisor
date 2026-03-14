@@ -15,6 +15,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'command',
+			Type: 'command',
 			Name: 'Command',
 			Description: 'Executes a shell command on the server.',
 			Category: 'control',

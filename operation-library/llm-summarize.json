@@ -1,0 +1,264 @@
+{
+	"Name": "LLM Summarize File",
+	"Description": "Reads a file, sends its contents to an LLM for summarization, and writes the summary to an output file. Demonstrates single-turn LLM usage with InputAddress and Destination.",
+	"Tags": [
+		"llm",
+		"summarization",
+		"file-processing"
+	],
+	"Author": "Ultravisor",
+	"Version": "1.0.0",
+	"Graph": {
+		"Nodes": [
+			{
+				"Hash": "ls-start",
+				"Type": "start",
+				"X": 50,
+				"Y": 200,
+				"Width": 140,
+				"Height": 80,
+				"Title": "Start",
+				"Ports": [
+					{
+						"Hash": "ls-start-out",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Out"
+					}
+				],
+				"Data": {}
+			},
+			{
+				"Hash": "ls-read",
+				"Type": "read-file",
+				"X": 260,
+				"Y": 180,
+				"Width": 200,
+				"Height": 120,
+				"Title": "Read Input File",
+				"Ports": [
+					{
+						"Hash": "ls-read-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "BeginRead"
+					},
+					{
+						"Hash": "ls-read-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "ReadComplete"
+					},
+					{
+						"Hash": "ls-read-err",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "ls-read-so-FileContent",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "FileContent"
+					},
+					{
+						"Hash": "ls-read-so-BytesRead",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "BytesRead"
+					}
+				],
+				"Data": {
+					"FilePath": "{~D:Record.Operation.InputFilePath~}",
+					"Encoding": "utf8"
+				}
+			},
+			{
+				"Hash": "ls-llm",
+				"Type": "llm-chat-completion",
+				"X": 530,
+				"Y": 180,
+				"Width": 260,
+				"Height": 100,
+				"Title": "Summarize with LLM",
+				"Ports": [
+					{
+						"Hash": "ls-llm-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Trigger"
+					},
+					{
+						"Hash": "ls-llm-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "ls-llm-err",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "ls-llm-so-Content",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "Content"
+					}
+				],
+				"Data": {
+					"SystemPrompt": "You are a summarization assistant. Provide a clear, concise summary of the provided content. Focus on key points and maintain accuracy.",
+					"UserPrompt": "Please summarize the following content:",
+					"InputAddress": "TaskOutput.ls-read.FileContent",
+					"Destination": "Operation.Summary",
+					"Temperature": 0.3,
+					"MaxTokens": 2048
+				}
+			},
+			{
+				"Hash": "ls-write",
+				"Type": "write-file",
+				"X": 860,
+				"Y": 180,
+				"Width": 200,
+				"Height": 120,
+				"Title": "Write Summary",
+				"Ports": [
+					{
+						"Hash": "ls-wr-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "BeginWrite"
+					},
+					{
+						"Hash": "ls-wr-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "WriteComplete"
+					},
+					{
+						"Hash": "ls-wr-err",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "ls-wr-si-Content",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Content"
+					},
+					{
+						"Hash": "ls-wr-so-BytesWritten",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "BytesWritten"
+					}
+				],
+				"Data": {
+					"FilePath": "{~D:Record.Operation.OutputFilePath~}",
+					"Content": "{~D:Record.Operation.Summary~}",
+					"Encoding": "utf8"
+				}
+			},
+			{
+				"Hash": "ls-end",
+				"Type": "end",
+				"X": 1130,
+				"Y": 260,
+				"Width": 140,
+				"Height": 80,
+				"Title": "End",
+				"Ports": [
+					{
+						"Hash": "ls-end-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "In"
+					}
+				],
+				"Data": {}
+			}
+		],
+		"Connections": [
+			{
+				"Hash": "ls-c1",
+				"SourceNodeHash": "ls-start",
+				"SourcePortHash": "ls-start-out",
+				"TargetNodeHash": "ls-read",
+				"TargetPortHash": "ls-read-in",
+				"Data": {}
+			},
+			{
+				"Hash": "ls-c2",
+				"SourceNodeHash": "ls-read",
+				"SourcePortHash": "ls-read-done",
+				"TargetNodeHash": "ls-llm",
+				"TargetPortHash": "ls-llm-in",
+				"Data": {}
+			},
+			{
+				"Hash": "ls-c3",
+				"SourceNodeHash": "ls-llm",
+				"SourcePortHash": "ls-llm-done",
+				"TargetNodeHash": "ls-write",
+				"TargetPortHash": "ls-wr-in",
+				"Data": {}
+			},
+			{
+				"Hash": "ls-c4",
+				"SourceNodeHash": "ls-write",
+				"SourcePortHash": "ls-wr-done",
+				"TargetNodeHash": "ls-end",
+				"TargetPortHash": "ls-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "ls-c5",
+				"SourceNodeHash": "ls-read",
+				"SourcePortHash": "ls-read-err",
+				"TargetNodeHash": "ls-end",
+				"TargetPortHash": "ls-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "ls-c6",
+				"SourceNodeHash": "ls-llm",
+				"SourcePortHash": "ls-llm-err",
+				"TargetNodeHash": "ls-end",
+				"TargetPortHash": "ls-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "ls-c7",
+				"SourceNodeHash": "ls-write",
+				"SourcePortHash": "ls-wr-err",
+				"TargetNodeHash": "ls-end",
+				"TargetPortHash": "ls-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "ls-sc1",
+				"SourceNodeHash": "ls-llm",
+				"SourcePortHash": "ls-llm-so-Content",
+				"TargetNodeHash": "ls-write",
+				"TargetPortHash": "ls-wr-si-Content",
+				"Data": {}
+			}
+		],
+		"ViewState": {
+			"PanX": 0,
+			"PanY": 0,
+			"Zoom": 1,
+			"SelectedNodeHash": null,
+			"SelectedConnectionHash": null
+		}
+	},
+	"SavedLayouts": [],
+	"InitialGlobalState": {},
+	"InitialOperationState": {
+		"InputFilePath": "input.txt",
+		"OutputFilePath": "summary.txt"
+	}
+}

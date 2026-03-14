@@ -10,6 +10,8 @@
   - [Capabilities](features/capabilities.md)
   - [Beacons](features/beacons.md)
   - [Building Beacon Providers](features/beacon-providers.md)
+  - [LLM Integration](features/llm.md)
+  - [LLM Model Setup Guide](features/llm-model-setup.md)
   - [Operations](features/operations.md)
   - [Scheduling](features/scheduling.md)
   - [Manifests](features/manifests.md)

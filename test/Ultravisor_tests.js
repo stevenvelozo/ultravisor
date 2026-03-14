@@ -26,6 +26,7 @@ const libBeaconProviderRegistry = require('../source/beacon/Ultravisor-Beacon-Pr
 const libBeaconExecutor = require('../source/beacon/Ultravisor-Beacon-Executor.cjs');
 const libBeaconProviderShell = require('../source/beacon/providers/Ultravisor-Beacon-Provider-Shell.cjs');
 const libBeaconProviderFileSystem = require('../source/beacon/providers/Ultravisor-Beacon-Provider-FileSystem.cjs');
+const libBeaconProviderLLM = require('../source/beacon/providers/Ultravisor-Beacon-Provider-LLM.cjs');
 
 const libTaskTypeReadFile = require('../source/services/tasks/file-system/Ultravisor-TaskType-ReadFile.cjs');
 const libTaskTypeWriteFile = require('../source/services/tasks/file-system/Ultravisor-TaskType-WriteFile.cjs');
@@ -1658,7 +1659,7 @@ suite
 						let tmpBuiltInConfigs = require('../source/services/tasks/Ultravisor-BuiltIn-TaskConfigs.cjs');
 						let tmpCount = tmpRegistry.registerTaskTypesFromConfigArray(tmpBuiltInConfigs);
 
-						Expect(tmpCount).to.equal(32);
+						Expect(tmpCount).to.equal(35);
 
 						// Spot-check a few
 						Expect(tmpRegistry.hasTaskType('error-message')).to.equal(true);
@@ -1852,7 +1853,7 @@ suite
 						tmpRegistry.registerBuiltInTaskTypes();
 
 						let tmpDefs = tmpRegistry.listDefinitions();
-						Expect(tmpDefs.length).to.equal(32);
+						Expect(tmpDefs.length).to.equal(35);
 					}
 				);
 			}
@@ -2103,7 +2104,7 @@ suite
 						let tmpFiles = libFS.readdirSync(tmpLibraryPath);
 						let tmpJsonFiles = tmpFiles.filter(function (pFile) { return pFile.endsWith('.json'); });
 
-						Expect(tmpJsonFiles.length).to.equal(17);
+						Expect(tmpJsonFiles.length).to.equal(23);
 						// Original three
 						Expect(tmpJsonFiles).to.include('file-search-replace.json');
 						Expect(tmpJsonFiles).to.include('config-processor.json');
@@ -2182,7 +2183,7 @@ suite
 
 						Expect(tmpOperation.Name).to.equal('File Search & Replace');
 						Expect(tmpOperation.Graph.Nodes.length).to.equal(9);
-						Expect(tmpOperation.Graph.Connections.length).to.equal(14);
+						Expect(tmpOperation.Graph.Connections.length).to.equal(15);
 
 						// Verify it has Start and End nodes
 						let tmpNodeTypes = tmpOperation.Graph.Nodes.map(function (pNode) { return pNode.Type; });
@@ -2220,7 +2221,7 @@ suite
 						Expect(tmpImportData.Graph.Nodes).to.be.an('array');
 						Expect(tmpImportData.Graph.Nodes.length).to.equal(7);
 						Expect(tmpImportData.Graph.Connections).to.be.an('array');
-						Expect(tmpImportData.Graph.Connections.length).to.equal(10);
+						Expect(tmpImportData.Graph.Connections.length).to.equal(12);
 
 						// Verify no library-only metadata leaked through
 						Expect(tmpImportData.Tags).to.be.undefined;
@@ -4984,6 +4985,690 @@ suite
 								Expect(tmpCoordinator._DirectDispatchCallbacks[tmpWorkItemHash]).to.be.undefined;
 								fDone();
 							});
+						}
+					);
+			}
+		);
+
+	// =========================================================================
+	// LLM Beacon Provider
+	// =========================================================================
+	suite
+		(
+			'LLM Beacon Provider',
+			function ()
+			{
+				// --- Construction & Identity ---
+				test
+					(
+						'LLM provider should have correct Name and Capability.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'openai', BaseURL: 'https://api.openai.com', Model: 'gpt-4' });
+							Expect(tmpProvider.Name).to.equal('LLM');
+							Expect(tmpProvider.Capability).to.equal('LLM');
+						}
+					);
+
+				test
+					(
+						'LLM provider should store config values.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({
+								Backend: 'anthropic',
+								BaseURL: 'https://api.anthropic.com',
+								APIKey: 'test-key-123',
+								Model: 'claude-sonnet-4-20250514',
+								DefaultParameters: { Temperature: 0.5, MaxTokens: 2048 },
+								TimeoutMs: 60000
+							});
+							Expect(tmpProvider._Backend).to.equal('anthropic');
+							Expect(tmpProvider._BaseURL).to.equal('https://api.anthropic.com');
+							Expect(tmpProvider._Model).to.equal('claude-sonnet-4-20250514');
+							Expect(tmpProvider._TimeoutMs).to.equal(60000);
+							Expect(tmpProvider._DefaultParameters.Temperature).to.equal(0.5);
+						}
+					);
+
+				test
+					(
+						'LLM provider should default to openai backend.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({});
+							Expect(tmpProvider._Backend).to.equal('openai');
+							Expect(tmpProvider._TimeoutMs).to.equal(120000);
+						}
+					);
+
+				// --- Actions ---
+				test
+					(
+						'LLM provider should declare ChatCompletion, Embedding, and ToolUse actions.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({});
+							let tmpActions = tmpProvider.actions;
+							Expect(tmpActions).to.have.property('ChatCompletion');
+							Expect(tmpActions).to.have.property('Embedding');
+							Expect(tmpActions).to.have.property('ToolUse');
+							Expect(tmpActions.ChatCompletion.SettingsSchema.length).to.be.greaterThan(0);
+						}
+					);
+
+				test
+					(
+						'LLM provider should describe actions correctly.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({});
+							let tmpDescriptions = tmpProvider.describeActions();
+							Expect(tmpDescriptions.length).to.equal(3);
+							Expect(tmpDescriptions[0].Capability).to.equal('LLM');
+						}
+					);
+
+				test
+					(
+						'LLM provider getCapabilities should return [LLM].',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({});
+							let tmpCaps = tmpProvider.getCapabilities();
+							Expect(tmpCaps).to.deep.equal(['LLM']);
+						}
+					);
+
+				// --- API Key Resolution ---
+				test
+					(
+						'LLM provider should resolve $ENV_VAR API keys.',
+						function ()
+						{
+							process.env.TEST_LLM_API_KEY = 'resolved-key-value';
+							let tmpProvider = new libBeaconProviderLLM({ APIKey: '$TEST_LLM_API_KEY' });
+							let tmpResolved = tmpProvider._resolveAPIKey(tmpProvider._APIKeyConfig);
+							Expect(tmpResolved).to.equal('resolved-key-value');
+							delete process.env.TEST_LLM_API_KEY;
+						}
+					);
+
+				test
+					(
+						'LLM provider should return literal API keys directly.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({ APIKey: 'sk-literal-key' });
+							let tmpResolved = tmpProvider._resolveAPIKey(tmpProvider._APIKeyConfig);
+							Expect(tmpResolved).to.equal('sk-literal-key');
+						}
+					);
+
+				test
+					(
+						'LLM provider should return empty string for missing env var.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({ APIKey: '$NONEXISTENT_VAR_12345' });
+							let tmpResolved = tmpProvider._resolveAPIKey(tmpProvider._APIKeyConfig);
+							Expect(tmpResolved).to.equal('');
+						}
+					);
+
+				// --- Initialize & Shutdown ---
+				test
+					(
+						'LLM provider should initialize and resolve API key.',
+						function (fDone)
+						{
+							process.env.TEST_LLM_INIT_KEY = 'init-resolved';
+							let tmpProvider = new libBeaconProviderLLM({
+								Backend: 'openai',
+								BaseURL: 'https://api.openai.com/v1',
+								APIKey: '$TEST_LLM_INIT_KEY',
+								Model: 'gpt-4'
+							});
+
+							tmpProvider.initialize(function (pError)
+							{
+								Expect(pError).to.equal(null);
+								Expect(tmpProvider._ResolvedAPIKey).to.equal('init-resolved');
+								delete process.env.TEST_LLM_INIT_KEY;
+								fDone();
+							});
+						}
+					);
+
+				test
+					(
+						'LLM provider should shutdown cleanly.',
+						function (fDone)
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'openai' });
+							tmpProvider.shutdown(function (pError)
+							{
+								Expect(pError).to.equal(null);
+								fDone();
+							});
+						}
+					);
+
+				// --- Message Parsing ---
+				test
+					(
+						'LLM provider should parse Messages JSON array.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({});
+							let tmpMessages = tmpProvider._parseMessages({
+								Messages: JSON.stringify([
+									{ role: 'user', content: 'Hello' },
+									{ role: 'assistant', content: 'Hi there' }
+								])
+							});
+							Expect(tmpMessages.length).to.equal(2);
+							Expect(tmpMessages[0].role).to.equal('user');
+						}
+					);
+
+				test
+					(
+						'LLM provider should treat plain string Messages as user message.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({});
+							let tmpMessages = tmpProvider._parseMessages({
+								Messages: 'Just a plain question'
+							});
+							Expect(tmpMessages.length).to.equal(1);
+							Expect(tmpMessages[0].role).to.equal('user');
+							Expect(tmpMessages[0].content).to.equal('Just a plain question');
+						}
+					);
+
+				test
+					(
+						'LLM provider should prepend SystemPrompt to messages.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({});
+							let tmpMessages = tmpProvider._parseMessages({
+								SystemPrompt: 'You are helpful.',
+								Messages: JSON.stringify([{ role: 'user', content: 'Hello' }])
+							});
+							Expect(tmpMessages.length).to.equal(2);
+							Expect(tmpMessages[0].role).to.equal('system');
+							Expect(tmpMessages[0].content).to.equal('You are helpful.');
+						}
+					);
+
+				test
+					(
+						'LLM provider should not duplicate SystemPrompt if system message exists.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({});
+							let tmpMessages = tmpProvider._parseMessages({
+								SystemPrompt: 'You are helpful.',
+								Messages: JSON.stringify([
+									{ role: 'system', content: 'Existing system prompt.' },
+									{ role: 'user', content: 'Hello' }
+								])
+							});
+							Expect(tmpMessages.length).to.equal(2);
+							Expect(tmpMessages[0].content).to.equal('Existing system prompt.');
+						}
+					);
+
+				// --- Request Body Building ---
+				test
+					(
+						'LLM provider should build OpenAI chat request body.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'openai' });
+							let tmpMessages = [{ role: 'user', content: 'Hello' }];
+							let tmpBody = tmpProvider._buildChatRequestBody(tmpMessages, 'gpt-4', { Temperature: 0.5, MaxTokens: 100 }, false);
+							Expect(tmpBody.model).to.equal('gpt-4');
+							Expect(tmpBody.messages).to.deep.equal(tmpMessages);
+							Expect(tmpBody.temperature).to.equal(0.5);
+							Expect(tmpBody.max_tokens).to.equal(100);
+						}
+					);
+
+				test
+					(
+						'LLM provider should build Anthropic chat request body with separated system.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'anthropic' });
+							let tmpMessages = [
+								{ role: 'system', content: 'Be helpful.' },
+								{ role: 'user', content: 'Hello' }
+							];
+							let tmpBody = tmpProvider._buildChatRequestBody(tmpMessages, 'claude-sonnet-4-20250514', { MaxTokens: 1024 }, false);
+							Expect(tmpBody.model).to.equal('claude-sonnet-4-20250514');
+							Expect(tmpBody.system).to.equal('Be helpful.');
+							Expect(tmpBody.messages.length).to.equal(1);
+							Expect(tmpBody.messages[0].role).to.equal('user');
+							Expect(tmpBody.max_tokens).to.equal(1024);
+						}
+					);
+
+				test
+					(
+						'LLM provider should build Ollama chat request body with options.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'ollama' });
+							let tmpMessages = [{ role: 'user', content: 'Hello' }];
+							let tmpBody = tmpProvider._buildChatRequestBody(tmpMessages, 'llama3', { Temperature: 0.8, MaxTokens: 512 }, false);
+							Expect(tmpBody.model).to.equal('llama3');
+							Expect(tmpBody.messages).to.deep.equal(tmpMessages);
+							Expect(tmpBody.stream).to.equal(false);
+							Expect(tmpBody.options.temperature).to.equal(0.8);
+							Expect(tmpBody.options.num_predict).to.equal(512);
+						}
+					);
+
+				// --- Request Options ---
+				test
+					(
+						'LLM provider should build OpenAI request options with Bearer auth.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'openai', BaseURL: 'https://api.openai.com', APIKey: 'sk-test' });
+							tmpProvider._ResolvedAPIKey = 'sk-test';
+							let tmpInfo = tmpProvider._buildRequestOptions('chat', { model: 'gpt-4', messages: [] });
+							Expect(tmpInfo.options.hostname).to.equal('api.openai.com');
+							Expect(tmpInfo.options.path).to.equal('/v1/chat/completions');
+							Expect(tmpInfo.options.headers['Authorization']).to.equal('Bearer sk-test');
+						}
+					);
+
+				test
+					(
+						'LLM provider should build Anthropic request options with x-api-key.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'anthropic', BaseURL: 'https://api.anthropic.com', APIKey: 'ak-test' });
+							tmpProvider._ResolvedAPIKey = 'ak-test';
+							let tmpInfo = tmpProvider._buildRequestOptions('chat', { model: 'claude-sonnet-4-20250514', messages: [] });
+							Expect(tmpInfo.options.path).to.equal('/v1/messages');
+							Expect(tmpInfo.options.headers['x-api-key']).to.equal('ak-test');
+							Expect(tmpInfo.options.headers['anthropic-version']).to.equal('2023-06-01');
+						}
+					);
+
+				test
+					(
+						'LLM provider should build Ollama request options without auth.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'ollama', BaseURL: 'http://localhost:11434' });
+							let tmpInfo = tmpProvider._buildRequestOptions('chat', { model: 'llama3', messages: [] });
+							Expect(tmpInfo.options.hostname).to.equal('localhost');
+							Expect(tmpInfo.options.port).to.equal('11434');
+							Expect(tmpInfo.options.path).to.equal('/api/chat');
+							Expect(tmpInfo.protocol).to.equal('http:');
+							Expect(tmpInfo.options.headers['Authorization']).to.be.undefined;
+						}
+					);
+
+				test
+					(
+						'LLM provider should use embedding paths.',
+						function ()
+						{
+							let tmpProviderOAI = new libBeaconProviderLLM({ Backend: 'openai', BaseURL: 'https://api.openai.com' });
+							let tmpInfoOAI = tmpProviderOAI._buildRequestOptions('embedding', { model: 'text-embedding-3-small', input: 'test' });
+							Expect(tmpInfoOAI.options.path).to.equal('/v1/embeddings');
+
+							let tmpProviderOllama = new libBeaconProviderLLM({ Backend: 'ollama', BaseURL: 'http://localhost:11434' });
+							let tmpInfoOllama = tmpProviderOllama._buildRequestOptions('embedding', { model: 'llama3', prompt: 'test' });
+							Expect(tmpInfoOllama.options.path).to.equal('/api/embeddings');
+						}
+					);
+
+				// --- Response Parsing ---
+				test
+					(
+						'LLM provider should parse OpenAI chat response.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'openai' });
+							let tmpParsed = tmpProvider._parseChatResponse({
+								model: 'gpt-4',
+								choices: [{ message: { content: 'Hello back!' }, finish_reason: 'stop' }],
+								usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }
+							});
+							Expect(tmpParsed.Content).to.equal('Hello back!');
+							Expect(tmpParsed.Model).to.equal('gpt-4');
+							Expect(tmpParsed.FinishReason).to.equal('stop');
+							Expect(tmpParsed.PromptTokens).to.equal(10);
+							Expect(tmpParsed.CompletionTokens).to.equal(5);
+							Expect(tmpParsed.TotalTokens).to.equal(15);
+						}
+					);
+
+				test
+					(
+						'LLM provider should parse Anthropic chat response.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'anthropic' });
+							let tmpParsed = tmpProvider._parseChatResponse({
+								model: 'claude-sonnet-4-20250514',
+								content: [{ type: 'text', text: 'Hello from Claude!' }],
+								stop_reason: 'end_turn',
+								usage: { input_tokens: 12, output_tokens: 8 }
+							});
+							Expect(tmpParsed.Content).to.equal('Hello from Claude!');
+							Expect(tmpParsed.Model).to.equal('claude-sonnet-4-20250514');
+							Expect(tmpParsed.FinishReason).to.equal('end_turn');
+							Expect(tmpParsed.PromptTokens).to.equal(12);
+							Expect(tmpParsed.CompletionTokens).to.equal(8);
+							Expect(tmpParsed.TotalTokens).to.equal(20);
+						}
+					);
+
+				test
+					(
+						'LLM provider should parse Ollama chat response.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'ollama' });
+							let tmpParsed = tmpProvider._parseChatResponse({
+								model: 'llama3',
+								message: { role: 'assistant', content: 'Ollama says hi!' },
+								done: true,
+								prompt_eval_count: 20,
+								eval_count: 10
+							});
+							Expect(tmpParsed.Content).to.equal('Ollama says hi!');
+							Expect(tmpParsed.Model).to.equal('llama3');
+							Expect(tmpParsed.FinishReason).to.equal('stop');
+							Expect(tmpParsed.TotalTokens).to.equal(30);
+						}
+					);
+
+				test
+					(
+						'LLM provider should parse OpenAI embedding response.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'openai' });
+							let tmpParsed = tmpProvider._parseEmbeddingResponse({
+								model: 'text-embedding-3-small',
+								data: [{ embedding: [0.1, 0.2, 0.3, 0.4] }]
+							});
+							Expect(tmpParsed.Dimensions).to.equal(4);
+							Expect(tmpParsed.Model).to.equal('text-embedding-3-small');
+							let tmpEmbedding = JSON.parse(tmpParsed.Embedding);
+							Expect(tmpEmbedding).to.deep.equal([0.1, 0.2, 0.3, 0.4]);
+						}
+					);
+
+				test
+					(
+						'LLM provider should parse Ollama embedding response.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'ollama' });
+							let tmpParsed = tmpProvider._parseEmbeddingResponse({
+								model: 'llama3',
+								embedding: [0.5, 0.6, 0.7]
+							});
+							Expect(tmpParsed.Dimensions).to.equal(3);
+							let tmpEmbedding = JSON.parse(tmpParsed.Embedding);
+							Expect(tmpEmbedding).to.deep.equal([0.5, 0.6, 0.7]);
+						}
+					);
+
+				// --- Tool Use Response Parsing ---
+				test
+					(
+						'LLM provider should parse OpenAI tool use response.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'openai' });
+							let tmpParsed = tmpProvider._parseToolUseResponse({
+								model: 'gpt-4',
+								choices: [{
+									message: {
+										content: '',
+										tool_calls: [
+											{ id: 'call_1', type: 'function', function: { name: 'get_weather', arguments: '{"city":"NYC"}' } }
+										]
+									},
+									finish_reason: 'tool_calls'
+								}],
+								usage: { prompt_tokens: 50, completion_tokens: 20, total_tokens: 70 }
+							});
+							Expect(tmpParsed.ToolCallCount).to.equal(1);
+							Expect(tmpParsed.FinishReason).to.equal('tool_calls');
+							let tmpToolCalls = JSON.parse(tmpParsed.ToolCalls);
+							Expect(tmpToolCalls[0].function.name).to.equal('get_weather');
+						}
+					);
+
+				test
+					(
+						'LLM provider should parse Anthropic tool use response and normalize to OpenAI format.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'anthropic' });
+							let tmpParsed = tmpProvider._parseToolUseResponse({
+								model: 'claude-sonnet-4-20250514',
+								content: [
+									{ type: 'text', text: 'Let me check the weather.' },
+									{ type: 'tool_use', id: 'tu_1', name: 'get_weather', input: { city: 'NYC' } }
+								],
+								stop_reason: 'tool_use',
+								usage: { input_tokens: 40, output_tokens: 30 }
+							});
+							Expect(tmpParsed.Content).to.equal('Let me check the weather.');
+							Expect(tmpParsed.ToolCallCount).to.equal(1);
+							let tmpToolCalls = JSON.parse(tmpParsed.ToolCalls);
+							Expect(tmpToolCalls[0].type).to.equal('function');
+							Expect(tmpToolCalls[0].function.name).to.equal('get_weather');
+							let tmpArgs = JSON.parse(tmpToolCalls[0].function.arguments);
+							Expect(tmpArgs.city).to.equal('NYC');
+						}
+					);
+
+				// --- Tool Definitions ---
+				test
+					(
+						'LLM provider should add OpenAI-format tools to request body.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'openai' });
+							let tmpBody = { model: 'gpt-4', messages: [] };
+							let tmpTools = [{ type: 'function', function: { name: 'get_weather', parameters: { type: 'object' } } }];
+							tmpProvider._addToolsToRequestBody(tmpBody, tmpTools, 'auto');
+							Expect(tmpBody.tools).to.deep.equal(tmpTools);
+							Expect(tmpBody.tool_choice).to.equal('auto');
+						}
+					);
+
+				test
+					(
+						'LLM provider should convert OpenAI tool format to Anthropic format.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'anthropic' });
+							let tmpBody = { model: 'claude-sonnet-4-20250514', messages: [] };
+							let tmpTools = [{ type: 'function', function: { name: 'get_weather', description: 'Get weather', parameters: { type: 'object' } } }];
+							tmpProvider._addToolsToRequestBody(tmpBody, tmpTools, 'auto');
+							Expect(tmpBody.tools[0].name).to.equal('get_weather');
+							Expect(tmpBody.tools[0].input_schema).to.deep.equal({ type: 'object' });
+							Expect(tmpBody.tool_choice.type).to.equal('auto');
+						}
+					);
+
+				// --- Registry Integration ---
+				test
+					(
+						'LLM provider should register in ProviderRegistry.',
+						function ()
+						{
+							let tmpRegistry = new libBeaconProviderRegistry();
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'openai', Model: 'gpt-4' });
+							let tmpResult = tmpRegistry.registerProvider(tmpProvider);
+							Expect(tmpResult).to.equal(true);
+							Expect(tmpRegistry.getCapabilities()).to.include('LLM');
+						}
+					);
+
+				test
+					(
+						'LLM provider should resolve LLM:ChatCompletion in registry.',
+						function ()
+						{
+							let tmpRegistry = new libBeaconProviderRegistry();
+							tmpRegistry.registerProvider(new libBeaconProviderLLM({ Backend: 'openai' }));
+							let tmpResolved = tmpRegistry.resolve('LLM', 'ChatCompletion');
+							Expect(tmpResolved).to.not.equal(null);
+							Expect(tmpResolved.provider.Name).to.equal('LLM');
+							Expect(tmpResolved.action).to.equal('ChatCompletion');
+						}
+					);
+
+				test
+					(
+						'LLM provider should load as built-in from registry.',
+						function ()
+						{
+							let tmpRegistry = new libBeaconProviderRegistry();
+							let tmpResult = tmpRegistry.loadProvider({ Source: 'LLM', Config: { Backend: 'ollama', BaseURL: 'http://localhost:11434', Model: 'llama3' } });
+							Expect(tmpResult).to.equal(true);
+							Expect(tmpRegistry.getCapabilities()).to.include('LLM');
+							let tmpResolved = tmpRegistry.resolve('LLM', 'Embedding');
+							Expect(tmpResolved.action).to.equal('Embedding');
+						}
+					);
+
+				// --- Execute Routing ---
+				test
+					(
+						'LLM provider should return error for unknown action.',
+						function (fDone)
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'openai' });
+							tmpProvider.execute('UnknownAction', {}, {}, function (pError)
+							{
+								Expect(pError).to.be.an.instanceOf(Error);
+								Expect(pError.message).to.contain('unknown action');
+								fDone();
+							});
+						}
+					);
+
+				test
+					(
+						'LLM provider should handle empty messages gracefully.',
+						function (fDone)
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'openai' });
+							tmpProvider.execute('ChatCompletion', { Settings: {} }, {}, function (pError, pResult)
+							{
+								Expect(pError).to.equal(null);
+								Expect(pResult.Outputs.Content).to.equal('');
+								Expect(pResult.Outputs.FinishReason).to.equal('error');
+								fDone();
+							});
+						}
+					);
+
+				test
+					(
+						'LLM provider should handle empty embedding text gracefully.',
+						function (fDone)
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'openai' });
+							tmpProvider.execute('Embedding', { Settings: {} }, {}, function (pError, pResult)
+							{
+								Expect(pError).to.equal(null);
+								Expect(pResult.Outputs.Embedding).to.equal('[]');
+								fDone();
+							});
+						}
+					);
+
+				test
+					(
+						'LLM provider should handle empty tool use gracefully.',
+						function (fDone)
+						{
+							let tmpProvider = new libBeaconProviderLLM({ Backend: 'openai' });
+							tmpProvider.execute('ToolUse', { Settings: { Messages: JSON.stringify([{ role: 'user', content: 'test' }]) } }, {}, function (pError, pResult)
+							{
+								Expect(pError).to.equal(null);
+								Expect(pResult.Outputs.ToolCalls).to.equal('[]');
+								Expect(pResult.Outputs.FinishReason).to.equal('error');
+								fDone();
+							});
+						}
+					);
+
+				// --- Safe JSON Parsing ---
+				test
+					(
+						'LLM provider should safely parse invalid JSON.',
+						function ()
+						{
+							let tmpProvider = new libBeaconProviderLLM({});
+							Expect(tmpProvider._safeParseJSON('not json', 'fallback')).to.equal('fallback');
+							Expect(tmpProvider._safeParseJSON(null, [])).to.deep.equal([]);
+							Expect(tmpProvider._safeParseJSON('{"a":1}', null)).to.deep.equal({ a: 1 });
+						}
+					);
+
+				// --- LLM Task Config Registration ---
+				test
+					(
+						'LLM task configs should be included in built-in task configs.',
+						function ()
+						{
+							let tmpAllConfigs = require('../source/services/tasks/Ultravisor-BuiltIn-TaskConfigs.cjs');
+							let tmpLLMConfigs = tmpAllConfigs.filter(function (pConfig)
+							{
+								return pConfig.Definition && pConfig.Definition.Category === 'llm';
+							});
+							Expect(tmpLLMConfigs.length).to.equal(3);
+
+							let tmpHashes = tmpLLMConfigs.map(function (pConfig) { return pConfig.Definition.Hash; });
+							Expect(tmpHashes).to.include('llm-chat-completion');
+							Expect(tmpHashes).to.include('llm-embedding');
+							Expect(tmpHashes).to.include('llm-tool-use');
+						}
+					);
+
+				test
+					(
+						'LLM chat completion task should have conversation settings.',
+						function ()
+						{
+							let tmpAllConfigs = require('../source/services/tasks/Ultravisor-BuiltIn-TaskConfigs.cjs');
+							let tmpChatConfig = tmpAllConfigs.find(function (pConfig)
+							{
+								return pConfig.Definition && pConfig.Definition.Hash === 'llm-chat-completion';
+							});
+
+							Expect(tmpChatConfig).to.not.be.undefined;
+							let tmpSettingNames = tmpChatConfig.Definition.SettingsInputs.map(function (pS) { return pS.Name; });
+							Expect(tmpSettingNames).to.include('ConversationAddress');
+							Expect(tmpSettingNames).to.include('AppendToConversation');
+							Expect(tmpSettingNames).to.include('ConversationMaxMessages');
+							Expect(tmpSettingNames).to.include('ConversationMaxTokens');
+							Expect(tmpSettingNames).to.include('PersistConversation');
+							Expect(tmpSettingNames).to.include('ConversationPersistAddress');
+							Expect(tmpSettingNames).to.include('SystemPrompt');
+							Expect(tmpSettingNames).to.include('UserPrompt');
+							Expect(tmpSettingNames).to.include('InputAddress');
+							Expect(tmpSettingNames).to.include('Destination');
 						}
 					);
 			}

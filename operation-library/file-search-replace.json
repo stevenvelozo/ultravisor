@@ -30,9 +30,9 @@
 				"Ports": [
 					{ "Hash": "fp-input-req", "Direction": "input", "Side": "left-bottom", "Label": "RequestInput" },
 					{ "Hash": "fp-input-done", "Direction": "output", "Side": "right-bottom", "Label": "ValueInputComplete" },
-					{ "Hash": "fp-input-filepath", "Direction": "output", "Side": "right-top", "Label": "InputFilePath" }
+					{ "Hash": "fp-input-filepath", "Direction": "output", "Side": "right-top", "Label": "InputValue" }
 				],
-				"Data": { "PromptMessage": "Enter a file path and name", "OutputAddress": "Operation.InputFilePath" }
+				"Data": {"PromptMessage": "Enter a file path and name", "OutputAddress": "Operation.InputFilePath"}
 			},
 			{
 				"Hash": "fp-read",
@@ -47,9 +47,10 @@
 					{ "Hash": "fp-read-filepath", "Direction": "input", "Side": "left-top", "Label": "FilePath" },
 					{ "Hash": "fp-read-done", "Direction": "output", "Side": "right-bottom", "Label": "ReadComplete" },
 					{ "Hash": "fp-read-content", "Direction": "output", "Side": "right-top", "Label": "FileContent" },
-					{ "Hash": "fp-read-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "fp-read-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "fp-read-so-BytesRead", "Direction": "output", "Side": "right-top", "Label": "BytesRead" }
 				],
-				"Data": { "FilePath": "{~D:Record.Operation.InputFilePath~}", "Encoding": "utf8" }
+				"Data": {"FilePath": "{~D:Record.Operation.InputFilePath~}", "Encoding": "utf8"}
 			},
 			{
 				"Hash": "fp-error",
@@ -63,7 +64,7 @@
 					{ "Hash": "fp-error-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
 					{ "Hash": "fp-error-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
 				],
-				"Data": { "MessageTemplate": "Failed to read file: {~D:Record.Operation.InputFilePath~}" }
+				"Data": {"MessageTemplate": "Failed to read file: {~D:Record.Operation.InputFilePath~}"}
 			},
 			{
 				"Hash": "fp-split",
@@ -79,9 +80,12 @@
 					{ "Hash": "fp-split-inputstr", "Direction": "input", "Side": "left-top", "Label": "InputString" },
 					{ "Hash": "fp-split-token", "Direction": "output", "Side": "right-bottom", "Label": "TokenDataSent" },
 					{ "Hash": "fp-split-alldone", "Direction": "output", "Side": "right-bottom", "Label": "CompletedAllSubtasks" },
-					{ "Hash": "fp-split-currenttoken", "Direction": "output", "Side": "right-top", "Label": "CurrentToken" }
+					{ "Hash": "fp-split-currenttoken", "Direction": "output", "Side": "right-top", "Label": "CurrentToken" },
+					{ "Hash": "fp-split-so-TokenIndex", "Direction": "output", "Side": "right-top", "Label": "TokenIndex" },
+					{ "Hash": "fp-split-so-TokenCount", "Direction": "output", "Side": "right-top", "Label": "TokenCount" },
+					{ "Hash": "fp-split-so-CompletedCount", "Direction": "output", "Side": "right-top", "Label": "CompletedCount" }
 				],
-				"Data": { "InputString": "{~D:Record.TaskOutput.fp-read.FileContent~}", "SplitDelimiter": "\n" }
+				"Data": {"InputString": "{~D:Record.TaskOutput.fp-read.FileContent~}", "SplitDelimiter": "\n"}
 			},
 			{
 				"Hash": "fp-replace",
@@ -97,7 +101,7 @@
 					{ "Hash": "fp-replace-done", "Direction": "output", "Side": "right-bottom", "Label": "ReplaceComplete" },
 					{ "Hash": "fp-replace-result", "Direction": "output", "Side": "right-top", "Label": "ReplacedString" }
 				],
-				"Data": { "InputString": "{~D:Record.TaskOutput.fp-split.CurrentToken~}", "SearchString": "John", "ReplaceString": "Jane" }
+				"Data": {"InputString": "{~D:Record.TaskOutput.fp-split.CurrentToken~}", "SearchString": "John", "ReplaceString": "Jane"}
 			},
 			{
 				"Hash": "fp-append",
@@ -110,9 +114,10 @@
 				"Ports": [
 					{ "Hash": "fp-append-in", "Direction": "input", "Side": "left-bottom", "Label": "Append" },
 					{ "Hash": "fp-append-inputstr", "Direction": "input", "Side": "left-top", "Label": "InputString" },
-					{ "Hash": "fp-append-done", "Direction": "output", "Side": "right-bottom", "Label": "Completed" }
+					{ "Hash": "fp-append-done", "Direction": "output", "Side": "right-bottom", "Label": "Completed" },
+					{ "Hash": "fp-append-so-AppendedString", "Direction": "output", "Side": "right-top", "Label": "AppendedString" }
 				],
-				"Data": { "InputString": "{~D:Record.TaskOutput.fp-replace.ReplacedString~}", "OutputAddress": "Operation.OutputFileContents", "AppendNewline": true }
+				"Data": {"InputString": "{~D:Record.TaskOutput.fp-replace.ReplacedString~}", "OutputAddress": "Operation.OutputFileContents", "AppendNewline": true}
 			},
 			{
 				"Hash": "fp-write",
@@ -125,9 +130,11 @@
 				"Ports": [
 					{ "Hash": "fp-write-begin", "Direction": "input", "Side": "left-bottom", "Label": "BeginWrite" },
 					{ "Hash": "fp-write-done", "Direction": "output", "Side": "right-bottom", "Label": "WriteComplete" },
-					{ "Hash": "fp-write-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "fp-write-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "fp-write-si-Content", "Direction": "input", "Side": "left-top", "Label": "Content" },
+					{ "Hash": "fp-write-so-BytesWritten", "Direction": "output", "Side": "right-top", "Label": "BytesWritten" }
 				],
-				"Data": { "FilePath": "{~D:Record.Operation.InputFilePath~}.ultracopy", "Content": "{~D:Record.Operation.OutputFileContents~}", "Encoding": "utf8" }
+				"Data": {"FilePath": "{~D:Record.Operation.InputFilePath~}.ultracopy", "Content": "{~D:Record.Operation.OutputFileContents~}", "Encoding": "utf8"}
 			},
 			{
 				"Hash": "fp-end",
@@ -144,126 +151,23 @@
 			}
 		],
 		"Connections": [
-			{
-				"Hash": "fp-ev1",
-				"SourceNodeHash": "fp-start",
-				"SourcePortHash": "fp-start-out",
-				"TargetNodeHash": "fp-input",
-				"TargetPortHash": "fp-input-req",
-				"Data": {}
-			},
-			{
-				"Hash": "fp-ev2",
-				"SourceNodeHash": "fp-input",
-				"SourcePortHash": "fp-input-done",
-				"TargetNodeHash": "fp-read",
-				"TargetPortHash": "fp-read-begin",
-				"Data": {}
-			},
-			{
-				"Hash": "fp-ev3",
-				"SourceNodeHash": "fp-read",
-				"SourcePortHash": "fp-read-done",
-				"TargetNodeHash": "fp-split",
-				"TargetPortHash": "fp-split-begin",
-				"Data": {}
-			},
-			{
-				"Hash": "fp-ev4",
-				"SourceNodeHash": "fp-read",
-				"SourcePortHash": "fp-read-err",
-				"TargetNodeHash": "fp-error",
-				"TargetPortHash": "fp-error-in",
-				"Data": {}
-			},
-			{
-				"Hash": "fp-ev5",
-				"SourceNodeHash": "fp-error",
-				"SourcePortHash": "fp-error-done",
-				"TargetNodeHash": "fp-end",
-				"TargetPortHash": "fp-end-in",
-				"Data": {}
-			},
-			{
-				"Hash": "fp-ev6",
-				"SourceNodeHash": "fp-split",
-				"SourcePortHash": "fp-split-token",
-				"TargetNodeHash": "fp-replace",
-				"TargetPortHash": "fp-replace-in",
-				"Data": {}
-			},
-			{
-				"Hash": "fp-ev7",
-				"SourceNodeHash": "fp-replace",
-				"SourcePortHash": "fp-replace-done",
-				"TargetNodeHash": "fp-append",
-				"TargetPortHash": "fp-append-in",
-				"Data": {}
-			},
-			{
-				"Hash": "fp-ev8",
-				"SourceNodeHash": "fp-append",
-				"SourcePortHash": "fp-append-done",
-				"TargetNodeHash": "fp-split",
-				"TargetPortHash": "fp-split-step",
-				"Data": {}
-			},
-			{
-				"Hash": "fp-ev9",
-				"SourceNodeHash": "fp-split",
-				"SourcePortHash": "fp-split-alldone",
-				"TargetNodeHash": "fp-write",
-				"TargetPortHash": "fp-write-begin",
-				"Data": {}
-			},
-			{
-				"Hash": "fp-ev10",
-				"SourceNodeHash": "fp-write",
-				"SourcePortHash": "fp-write-done",
-				"TargetNodeHash": "fp-end",
-				"TargetPortHash": "fp-end-in",
-				"Data": {}
-			},
-			{
-				"Hash": "fp-st1",
-				"SourceNodeHash": "fp-input",
-				"SourcePortHash": "fp-input-filepath",
-				"TargetNodeHash": "fp-read",
-				"TargetPortHash": "fp-read-filepath",
-				"Data": {}
-			},
-			{
-				"Hash": "fp-st2",
-				"SourceNodeHash": "fp-read",
-				"SourcePortHash": "fp-read-content",
-				"TargetNodeHash": "fp-split",
-				"TargetPortHash": "fp-split-inputstr",
-				"Data": {}
-			},
-			{
-				"Hash": "fp-st3",
-				"SourceNodeHash": "fp-replace",
-				"SourcePortHash": "fp-replace-result",
-				"TargetNodeHash": "fp-append",
-				"TargetPortHash": "fp-append-inputstr",
-				"Data": {}
-			},
-			{
-				"Hash": "fp-st4",
-				"SourceNodeHash": "fp-split",
-				"SourcePortHash": "fp-split-currenttoken",
-				"TargetNodeHash": "fp-replace",
-				"TargetPortHash": "fp-replace-inputstr",
-				"Data": {}
-			}
+			{ "Hash": "fp-ev1", "SourceNodeHash": "fp-start", "SourcePortHash": "fp-start-out", "TargetNodeHash": "fp-input", "TargetPortHash": "fp-input-req", "Data": {} },
+			{ "Hash": "fp-ev2", "SourceNodeHash": "fp-input", "SourcePortHash": "fp-input-done", "TargetNodeHash": "fp-read", "TargetPortHash": "fp-read-begin", "Data": {} },
+			{ "Hash": "fp-ev3", "SourceNodeHash": "fp-read", "SourcePortHash": "fp-read-done", "TargetNodeHash": "fp-split", "TargetPortHash": "fp-split-begin", "Data": {} },
+			{ "Hash": "fp-ev4", "SourceNodeHash": "fp-read", "SourcePortHash": "fp-read-err", "TargetNodeHash": "fp-error", "TargetPortHash": "fp-error-in", "Data": {} },
+			{ "Hash": "fp-ev5", "SourceNodeHash": "fp-error", "SourcePortHash": "fp-error-done", "TargetNodeHash": "fp-end", "TargetPortHash": "fp-end-in", "Data": {} },
+			{ "Hash": "fp-ev6", "SourceNodeHash": "fp-split", "SourcePortHash": "fp-split-token", "TargetNodeHash": "fp-replace", "TargetPortHash": "fp-replace-in", "Data": {} },
+			{ "Hash": "fp-ev7", "SourceNodeHash": "fp-replace", "SourcePortHash": "fp-replace-done", "TargetNodeHash": "fp-append", "TargetPortHash": "fp-append-in", "Data": {} },
+			{ "Hash": "fp-ev8", "SourceNodeHash": "fp-append", "SourcePortHash": "fp-append-done", "TargetNodeHash": "fp-split", "TargetPortHash": "fp-split-step", "Data": {} },
+			{ "Hash": "fp-ev9", "SourceNodeHash": "fp-split", "SourcePortHash": "fp-split-alldone", "TargetNodeHash": "fp-write", "TargetPortHash": "fp-write-begin", "Data": {} },
+			{ "Hash": "fp-ev10", "SourceNodeHash": "fp-write", "SourcePortHash": "fp-write-done", "TargetNodeHash": "fp-end", "TargetPortHash": "fp-end-in", "Data": {} },
+			{ "Hash": "fp-st1", "SourceNodeHash": "fp-input", "SourcePortHash": "fp-input-filepath", "TargetNodeHash": "fp-read", "TargetPortHash": "fp-read-filepath", "Data": {} },
+			{ "Hash": "fp-st2", "SourceNodeHash": "fp-read", "SourcePortHash": "fp-read-content", "TargetNodeHash": "fp-split", "TargetPortHash": "fp-split-inputstr", "Data": {} },
+			{ "Hash": "fp-st3", "SourceNodeHash": "fp-replace", "SourcePortHash": "fp-replace-result", "TargetNodeHash": "fp-append", "TargetPortHash": "fp-append-inputstr", "Data": {} },
+			{ "Hash": "fp-st4", "SourceNodeHash": "fp-split", "SourcePortHash": "fp-split-currenttoken", "TargetNodeHash": "fp-replace", "TargetPortHash": "fp-replace-inputstr", "Data": {} },
+			{ "Hash": "fp-sc5", "SourceNodeHash": "fp-append", "SourcePortHash": "fp-append-so-AppendedString", "TargetNodeHash": "fp-write", "TargetPortHash": "fp-write-si-Content", "Data": {} }
 		],
-		"ViewState": {
-			"PanX": 0,
-			"PanY": 0,
-			"Zoom": 1,
-			"SelectedNodeHash": null,
-			"SelectedConnectionHash": null
-		}
+		"ViewState": {"PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null}
 	},
 	"SavedLayouts": [],
 	"InitialGlobalState": {},

@@ -25,14 +25,16 @@
 				"X": 270,
 				"Y": 180,
 				"Width": 200,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Read Config Template",
 				"Ports": [
 					{ "Hash": "cfg-read-in", "Direction": "input", "Side": "left", "Label": "BeginRead" },
 					{ "Hash": "cfg-read-done", "Direction": "output", "Side": "right", "Label": "ReadComplete" },
-					{ "Hash": "cfg-read-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "cfg-read-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "cfg-read-so-FileContent", "Direction": "output", "Side": "right-top", "Label": "FileContent" },
+					{ "Hash": "cfg-read-so-BytesRead", "Direction": "output", "Side": "right-top", "Label": "BytesRead" }
 				],
-				"Data": { "FilePath": "config.template.json", "Encoding": "utf8" }
+				"Data": {"FilePath": "config.template.json", "Encoding": "utf8"}
 			},
 			{
 				"Hash": "cfg-check",
@@ -45,9 +47,10 @@
 				"Ports": [
 					{ "Hash": "cfg-check-in", "Direction": "input", "Side": "left", "Label": "Evaluate" },
 					{ "Hash": "cfg-check-true", "Direction": "output", "Side": "right", "Label": "True" },
-					{ "Hash": "cfg-check-false", "Direction": "output", "Side": "bottom", "Label": "False" }
+					{ "Hash": "cfg-check-false", "Direction": "output", "Side": "bottom", "Label": "False" },
+					{ "Hash": "cfg-check-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
 				],
-				"Data": { "DataAddress": "TaskOutput.cfg-read.FileContent", "CompareValue": "{{API_KEY}}", "Operator": "contains" }
+				"Data": {"DataAddress": "TaskOutput.cfg-read.FileContent", "CompareValue": "{{API_KEY}}", "Operator": "contains"}
 			},
 			{
 				"Hash": "cfg-replace",
@@ -55,14 +58,16 @@
 				"X": 850,
 				"Y": 140,
 				"Width": 220,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Fill In API Key",
 				"Ports": [
 					{ "Hash": "cfg-replace-in", "Direction": "input", "Side": "left", "Label": "Replace" },
 					{ "Hash": "cfg-replace-done", "Direction": "output", "Side": "right", "Label": "ReplaceComplete" },
-					{ "Hash": "cfg-replace-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "cfg-replace-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "cfg-replace-si-InputString", "Direction": "input", "Side": "left-top", "Label": "InputString" },
+					{ "Hash": "cfg-replace-so-ReplacedString", "Direction": "output", "Side": "right-top", "Label": "ReplacedString" }
 				],
-				"Data": { "InputString": "{~D:Record.TaskOutput.cfg-read.FileContent~}", "SearchString": "{{API_KEY}}", "ReplaceString": "sk-live-abc123def456" }
+				"Data": {"InputString": "{~D:Record.TaskOutput.cfg-read.FileContent~}", "SearchString": "{{API_KEY}}", "ReplaceString": "sk-live-abc123def456"}
 			},
 			{
 				"Hash": "cfg-write",
@@ -70,14 +75,16 @@
 				"X": 1150,
 				"Y": 140,
 				"Width": 200,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Write Config",
 				"Ports": [
 					{ "Hash": "cfg-write-in", "Direction": "input", "Side": "left", "Label": "BeginWrite" },
 					{ "Hash": "cfg-write-done", "Direction": "output", "Side": "right", "Label": "WriteComplete" },
-					{ "Hash": "cfg-write-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "cfg-write-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "cfg-write-si-Content", "Direction": "input", "Side": "left-top", "Label": "Content" },
+					{ "Hash": "cfg-write-so-BytesWritten", "Direction": "output", "Side": "right-top", "Label": "BytesWritten" }
 				],
-				"Data": { "FilePath": "config.json", "Content": "{~D:Record.TaskOutput.cfg-replace.ReplacedString~}", "Encoding": "utf8" }
+				"Data": {"FilePath": "config.json", "Content": "{~D:Record.TaskOutput.cfg-replace.ReplacedString~}", "Encoding": "utf8"}
 			},
 			{
 				"Hash": "cfg-error",
@@ -91,7 +98,7 @@
 					{ "Hash": "cfg-error-in", "Direction": "input", "Side": "left", "Label": "Trigger" },
 					{ "Hash": "cfg-error-done", "Direction": "output", "Side": "right", "Label": "Complete" }
 				],
-				"Data": { "MessageTemplate": "Config template does not contain the {{API_KEY}} placeholder" }
+				"Data": {"MessageTemplate": "Config template does not contain the {{API_KEY}} placeholder"}
 			},
 			{
 				"Hash": "cfg-end",
@@ -108,94 +115,20 @@
 			}
 		],
 		"Connections": [
-			{
-				"Hash": "cfg-c1",
-				"SourceNodeHash": "cfg-start",
-				"SourcePortHash": "cfg-start-out",
-				"TargetNodeHash": "cfg-read",
-				"TargetPortHash": "cfg-read-in",
-				"Data": {}
-			},
-			{
-				"Hash": "cfg-c2",
-				"SourceNodeHash": "cfg-read",
-				"SourcePortHash": "cfg-read-done",
-				"TargetNodeHash": "cfg-check",
-				"TargetPortHash": "cfg-check-in",
-				"Data": {}
-			},
-			{
-				"Hash": "cfg-c3",
-				"SourceNodeHash": "cfg-check",
-				"SourcePortHash": "cfg-check-true",
-				"TargetNodeHash": "cfg-replace",
-				"TargetPortHash": "cfg-replace-in",
-				"Data": {}
-			},
-			{
-				"Hash": "cfg-c4",
-				"SourceNodeHash": "cfg-replace",
-				"SourcePortHash": "cfg-replace-done",
-				"TargetNodeHash": "cfg-write",
-				"TargetPortHash": "cfg-write-in",
-				"Data": {}
-			},
-			{
-				"Hash": "cfg-c5",
-				"SourceNodeHash": "cfg-write",
-				"SourcePortHash": "cfg-write-done",
-				"TargetNodeHash": "cfg-end",
-				"TargetPortHash": "cfg-end-in",
-				"Data": {}
-			},
-			{
-				"Hash": "cfg-c6",
-				"SourceNodeHash": "cfg-check",
-				"SourcePortHash": "cfg-check-false",
-				"TargetNodeHash": "cfg-error",
-				"TargetPortHash": "cfg-error-in",
-				"Data": {}
-			},
-			{
-				"Hash": "cfg-c7",
-				"SourceNodeHash": "cfg-error",
-				"SourcePortHash": "cfg-error-done",
-				"TargetNodeHash": "cfg-end",
-				"TargetPortHash": "cfg-end-in",
-				"Data": {}
-			},
-			{
-				"Hash": "cfg-c8",
-				"SourceNodeHash": "cfg-read",
-				"SourcePortHash": "cfg-read-err",
-				"TargetNodeHash": "cfg-end",
-				"TargetPortHash": "cfg-end-in",
-				"Data": {}
-			},
-			{
-				"Hash": "cfg-c9",
-				"SourceNodeHash": "cfg-replace",
-				"SourcePortHash": "cfg-replace-err",
-				"TargetNodeHash": "cfg-end",
-				"TargetPortHash": "cfg-end-in",
-				"Data": {}
-			},
-			{
-				"Hash": "cfg-c10",
-				"SourceNodeHash": "cfg-write",
-				"SourcePortHash": "cfg-write-err",
-				"TargetNodeHash": "cfg-end",
-				"TargetPortHash": "cfg-end-in",
-				"Data": {}
-			}
+			{ "Hash": "cfg-c1", "SourceNodeHash": "cfg-start", "SourcePortHash": "cfg-start-out", "TargetNodeHash": "cfg-read", "TargetPortHash": "cfg-read-in", "Data": {} },
+			{ "Hash": "cfg-c2", "SourceNodeHash": "cfg-read", "SourcePortHash": "cfg-read-done", "TargetNodeHash": "cfg-check", "TargetPortHash": "cfg-check-in", "Data": {} },
+			{ "Hash": "cfg-c3", "SourceNodeHash": "cfg-check", "SourcePortHash": "cfg-check-true", "TargetNodeHash": "cfg-replace", "TargetPortHash": "cfg-replace-in", "Data": {} },
+			{ "Hash": "cfg-c4", "SourceNodeHash": "cfg-replace", "SourcePortHash": "cfg-replace-done", "TargetNodeHash": "cfg-write", "TargetPortHash": "cfg-write-in", "Data": {} },
+			{ "Hash": "cfg-c5", "SourceNodeHash": "cfg-write", "SourcePortHash": "cfg-write-done", "TargetNodeHash": "cfg-end", "TargetPortHash": "cfg-end-in", "Data": {} },
+			{ "Hash": "cfg-c6", "SourceNodeHash": "cfg-check", "SourcePortHash": "cfg-check-false", "TargetNodeHash": "cfg-error", "TargetPortHash": "cfg-error-in", "Data": {} },
+			{ "Hash": "cfg-c7", "SourceNodeHash": "cfg-error", "SourcePortHash": "cfg-error-done", "TargetNodeHash": "cfg-end", "TargetPortHash": "cfg-end-in", "Data": {} },
+			{ "Hash": "cfg-c8", "SourceNodeHash": "cfg-read", "SourcePortHash": "cfg-read-err", "TargetNodeHash": "cfg-end", "TargetPortHash": "cfg-end-in", "Data": {} },
+			{ "Hash": "cfg-c9", "SourceNodeHash": "cfg-replace", "SourcePortHash": "cfg-replace-err", "TargetNodeHash": "cfg-end", "TargetPortHash": "cfg-end-in", "Data": {} },
+			{ "Hash": "cfg-c10", "SourceNodeHash": "cfg-write", "SourcePortHash": "cfg-write-err", "TargetNodeHash": "cfg-end", "TargetPortHash": "cfg-end-in", "Data": {} },
+			{ "Hash": "cfg-sc1", "SourceNodeHash": "cfg-read", "SourcePortHash": "cfg-read-so-FileContent", "TargetNodeHash": "cfg-replace", "TargetPortHash": "cfg-replace-si-InputString", "Data": {} },
+			{ "Hash": "cfg-sc2", "SourceNodeHash": "cfg-replace", "SourcePortHash": "cfg-replace-so-ReplacedString", "TargetNodeHash": "cfg-write", "TargetPortHash": "cfg-write-si-Content", "Data": {} }
 		],
-		"ViewState": {
-			"PanX": 0,
-			"PanY": 0,
-			"Zoom": 1,
-			"SelectedNodeHash": null,
-			"SelectedConnectionHash": null
-		}
+		"ViewState": {"PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null}
 	},
 	"SavedLayouts": [],
 	"InitialGlobalState": {},

@@ -59,6 +59,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'get-json',
+			Type: 'get-json',
 			Name: 'Get JSON',
 			Description: 'Performs an HTTP GET request and parses the response as JSON.',
 			Category: 'rest',
@@ -125,6 +126,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'get-text',
+			Type: 'get-text',
 			Name: 'Get Text',
 			Description: 'Performs an HTTP GET request and returns the response as text.',
 			Category: 'rest',
@@ -188,6 +190,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'send-json',
+			Type: 'send-json',
 			Name: 'Send JSON',
 			Description: 'Sends JSON data via HTTP POST or PUT.',
 			Category: 'rest',
@@ -266,6 +269,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'rest-request',
+			Type: 'rest-request',
 			Name: 'REST Request',
 			Description: 'Performs a fully configurable HTTP REST request.',
 			Category: 'rest',

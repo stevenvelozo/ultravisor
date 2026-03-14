@@ -256,10 +256,240 @@ class UltravisorFlowEditorView extends libPictView
 		this._FlowView.initialRenderComplete = false;
 		this._FlowView.render();
 
+		// Register and apply the desert theme to match Ultravisor's UI.
+		// Must happen after render() since the ThemeProvider is created during init.
+		this._registerDesertTheme();
+
 		// Re-inject CSS after the flow view creates its dynamic styles
 		this.pict.CSSMap.injectCSS();
 
 		return super.onAfterRender(pRenderable, pRenderDestinationAddress, pRecord, pContent);
+	}
+
+	/**
+	 * Register a custom "desert" flow theme that harmonizes with
+	 * Ultravisor's Desert Dusk color scheme.
+	 */
+	_registerDesertTheme()
+	{
+		if (!this._FlowView || !this._FlowView._ThemeProvider)
+		{
+			return;
+		}
+
+		this._FlowView._ThemeProvider.registerTheme('desert',
+		{
+			Key: 'desert',
+			Label: 'Desert Dusk',
+			CSSVariables:
+			{
+				// Canvas — muted turquoise tint, lighter than cards so they stand out
+				'--pf-canvas-bg': '#243030',
+				'--pf-grid-stroke': '#2c3838',
+
+				// Nodes
+				'--pf-node-body-fill': '#1e1a16',
+				'--pf-node-body-stroke': '#3a3028',
+				'--pf-node-body-stroke-width': '1',
+				'--pf-node-body-radius': '6px',
+				'--pf-node-shadow': 'drop-shadow(0 1px 3px rgba(0, 0, 0, 0.30))',
+				'--pf-node-shadow-hover': 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.40))',
+				'--pf-node-shadow-selected': 'drop-shadow(0 2px 8px rgba(196, 149, 106, 0.30))',
+				'--pf-node-shadow-dragging': 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.50))',
+				'--pf-node-title-fill': '#d8c8a8',
+				'--pf-node-title-size': '11.5px',
+				'--pf-node-title-weight': '600',
+				'--pf-node-type-label-fill': '#706050',
+				'--pf-node-selected-stroke': '#c4956a',
+
+				// Ports — keep the 5-type semantic colors, adjusted for dark bg
+				'--pf-port-input-fill': '#5a9ecb',
+				'--pf-port-output-fill': '#5ab88a',
+				'--pf-port-stroke': '#252018',
+				'--pf-port-event-in-fill': '#5a9ecb',
+				'--pf-port-event-out-fill': '#5ab88a',
+				'--pf-port-setting-fill': '#d4884a',
+				'--pf-port-value-fill': '#d4b040',
+				'--pf-port-error-fill': '#c44e4e',
+
+				// Port labels
+				'--pf-port-label-bg': 'rgba(30, 26, 22, 0.85)',
+				'--pf-port-label-text': '#c8b8a0',
+
+				// Connections
+				'--pf-connection-stroke': '#706050',
+				'--pf-connection-selected-stroke': '#c4956a',
+				'--pf-connection-event-in-stroke': '#5a9ecb',
+				'--pf-connection-event-out-stroke': '#5ab88a',
+				'--pf-connection-setting-stroke': '#d4884a',
+				'--pf-connection-value-stroke': '#d4b040',
+				'--pf-connection-error-stroke': '#c44e4e',
+
+				// Panels
+				'--pf-panel-bg': '#252018',
+				'--pf-panel-border': '#3a3028',
+				'--pf-panel-radius': '6px',
+				'--pf-panel-shadow': '0 4px 12px rgba(0,0,0,0.30), 0 1px 3px rgba(0,0,0,0.20)',
+				'--pf-panel-titlebar-bg': '#302818',
+				'--pf-panel-titlebar-border': '#3a3028',
+				'--pf-panel-title-color': '#d8c8a8'
+			},
+			AdditionalCSS: `
+				.pict-flow-container {
+					border: 1px solid #3a3028;
+					border-radius: 6px;
+				}
+				.pict-flow-toolbar {
+					background-color: #252018;
+					border-bottom-color: #3a3028;
+				}
+				.pict-flow-toolbar-btn {
+					background-color: #302818;
+					border-color: #3a3028;
+					color: #c8b8a0;
+				}
+				.pict-flow-toolbar-btn:hover {
+					background-color: #3a3028;
+					color: #d8c8a8;
+				}
+				.pict-flow-toolbar-btn.active {
+					background-color: #4a3828;
+					border-color: #c4956a;
+					color: #d8c8a8;
+				}
+				.pict-flow-toolbar-separator {
+					border-left-color: #3a3028;
+				}
+				.pict-flow-toolbar-dropdown {
+					background-color: #252018;
+					border-color: #3a3028;
+					color: #c8b8a0;
+				}
+				.pict-flow-toolbar-dropdown-menu {
+					background-color: #252018;
+					border-color: #3a3028;
+				}
+				.pict-flow-toolbar-dropdown-item {
+					color: #c8b8a0;
+				}
+				.pict-flow-toolbar-dropdown-item:hover {
+					background-color: #3a3028;
+					color: #d8c8a8;
+				}
+				.pict-flow-node-title-icon {
+					filter: brightness(0.8) sepia(0.3) !important;
+				}
+				/* Info panel styles for dark theme */
+				.pict-flow-info-panel {
+					color: #c8b8a0;
+				}
+				.pict-flow-info-panel-section-title {
+					color: #907860;
+				}
+				.pict-flow-info-panel-port {
+					color: #c8b8a0;
+					background-color: #302818;
+					border-color: #3a3028;
+				}
+				.pict-flow-info-panel-port-constraint {
+					color: #907860;
+				}
+				/* Form panel styles for dark theme */
+				.pict-flow-panel-body .pict-form label {
+					color: #c8b8a0 !important;
+				}
+				.pict-flow-panel-body .pict-form input,
+				.pict-flow-panel-body .pict-form textarea,
+				.pict-flow-panel-body .pict-form select {
+					background-color: #1a1714 !important;
+					border-color: #3a3028 !important;
+					color: #c8b8a0 !important;
+				}
+				.pict-flow-panel-body .pict-form input:focus,
+				.pict-flow-panel-body .pict-form textarea:focus,
+				.pict-flow-panel-body .pict-form select:focus {
+					border-color: #c4956a !important;
+				}
+				/* Port summary in panels */
+				.pict-flow-port-summary {
+					border-top-color: #3a3028;
+				}
+				/* Override per-card light-mode body fills with dark theme fill.
+				   SVG fill="" is a presentation attribute; CSS overrides it. */
+				.pict-flow-node-body {
+					fill: #1e1a16;
+					stroke: #3a3028;
+				}
+				/* Override built-in start/end/halt/decision body colors (specificity 0,2,0
+				   matches the base CSS rules so this later stylesheet wins). */
+				.pict-flow-node-start .pict-flow-node-body {
+					fill: #182018;
+					stroke: #2a4030;
+					stroke-width: 1.5;
+				}
+				.pict-flow-node-end .pict-flow-node-body {
+					fill: #161e20;
+					stroke: #2a3840;
+					stroke-width: 1.5;
+				}
+				.pict-flow-node-halt .pict-flow-node-body {
+					fill: #201414;
+					stroke: #4a2020;
+					stroke-width: 1.5;
+				}
+				.pict-flow-node-decision .pict-flow-node-body {
+					fill: #1e1a12;
+					stroke: #4a3820;
+					stroke-width: 1.5;
+				}
+				/* Desert title bar: warm muted base for all nodes.
+				   CSS overrides the SVG fill="" presentation attribute. */
+				.pict-flow-node-title-bar,
+				.pict-flow-node-title-bar-bottom {
+					fill: #3a3028;
+				}
+				/* Distinct title bars for special node types */
+				.pict-flow-node-start .pict-flow-node-title-bar,
+				.pict-flow-node-start .pict-flow-node-title-bar-bottom {
+					fill: #2a4030;
+				}
+				.pict-flow-node-end .pict-flow-node-title-bar,
+				.pict-flow-node-end .pict-flow-node-title-bar-bottom {
+					fill: #2a3840;
+				}
+				.pict-flow-node-halt .pict-flow-node-title-bar,
+				.pict-flow-node-halt .pict-flow-node-title-bar-bottom {
+					fill: #4a2020;
+				}
+				.pict-flow-node-decision .pict-flow-node-title-bar,
+				.pict-flow-node-decision .pict-flow-node-title-bar-bottom {
+					fill: #4a3820;
+				}
+			`,
+			NodeBodyMode: 'rect',
+			BracketConfig: null,
+			ConnectionConfig:
+			{
+				StrokeDashArray: null,
+				StrokeWidth: 2,
+				ArrowheadStyle: 'triangle'
+			},
+			NoiseConfig:
+			{
+				Enabled: false,
+				DefaultLevel: 0,
+				MaxJitterPx: 0,
+				AffectsNodes: false,
+				AffectsConnections: false
+			},
+			ShapeOverrides:
+			{
+				'arrowhead-connection': { Fill: '#706050' },
+				'arrowhead-connection-selected': { Fill: '#c4956a' }
+			}
+		});
+
+		this._FlowView.setTheme('desert');
 	}
 
 	loadExample(pExampleName)

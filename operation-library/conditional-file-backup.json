@@ -39,12 +39,14 @@
 				"X": 530,
 				"Y": 180,
 				"Width": 200,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Read Source",
 				"Ports": [
 					{ "Hash": "bk-rd-in", "Direction": "input", "Side": "left-bottom", "Label": "BeginRead" },
 					{ "Hash": "bk-rd-done", "Direction": "output", "Side": "right-bottom", "Label": "ReadComplete" },
-					{ "Hash": "bk-rd-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "bk-rd-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "bk-rd-so-FileContent", "Direction": "output", "Side": "right-top", "Label": "FileContent" },
+					{ "Hash": "bk-rd-so-BytesRead", "Direction": "output", "Side": "right-top", "Label": "BytesRead" }
 				],
 				"Data": { "FilePath": "{~D:Record.Operation.SourceFile~}", "Encoding": "utf8" }
 			},
@@ -59,7 +61,8 @@
 				"Ports": [
 					{ "Hash": "bk-chk-in", "Direction": "input", "Side": "left-bottom", "Label": "Evaluate" },
 					{ "Hash": "bk-chk-true", "Direction": "output", "Side": "right-bottom", "Label": "True" },
-					{ "Hash": "bk-chk-false", "Direction": "output", "Side": "bottom", "Label": "False" }
+					{ "Hash": "bk-chk-false", "Direction": "output", "Side": "bottom", "Label": "False" },
+					{ "Hash": "bk-chk-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
 				],
 				"Data": { "DataAddress": "TaskOutput.bk-read.FileContent", "CompareValue": "version", "Operator": "contains" }
 			},

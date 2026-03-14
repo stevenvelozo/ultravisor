@@ -6,7 +6,7 @@
  * from their task type Definition via the CardConfigGenerator.  Flow markers
  * (start / end) are direct config objects since they have no backend task.
  *
- * Total: 34 cards (32 task-matched + 2 flow markers)
+ * Total: 37 cards (35 task-matched + 2 flow markers)
  */
 
 const generateCardConfig = require('./Ultravisor-CardConfigGenerator.js');
@@ -160,6 +160,9 @@ const _TaskDefinitions =
 			{ Name: 'Encoding', DataType: 'String', Required: false }
 		],
 		StateOutputs: [
+			{ Name: 'FileLocation', DataType: 'String' },
+			{ Name: 'FileName', DataType: 'String' },
+			{ Name: 'FilePath', DataType: 'String' },
 			{ Name: 'BytesWritten', DataType: 'Number' }
 		],
 		DefaultSettings: { FilePath: '', Content: '', Encoding: 'utf8' }
@@ -204,6 +207,9 @@ const _TaskDefinitions =
 			{ Name: 'Address', DataType: 'String', Required: false }
 		],
 		StateOutputs: [
+			{ Name: 'FileLocation', DataType: 'String' },
+			{ Name: 'FileName', DataType: 'String' },
+			{ Name: 'FilePath', DataType: 'String' },
 			{ Name: 'BytesWritten', DataType: 'Number' }
 		],
 		DefaultSettings: { File: '', Address: '' }
@@ -248,7 +254,11 @@ const _TaskDefinitions =
 			{ Name: 'Source', DataType: 'String', Required: true },
 			{ Name: 'TargetFile', DataType: 'String', Required: true }
 		],
-		StateOutputs: [],
+		StateOutputs: [
+			{ Name: 'FileLocation', DataType: 'String' },
+			{ Name: 'FileName', DataType: 'String' },
+			{ Name: 'FilePath', DataType: 'String' }
+		],
 		DefaultSettings: { Source: '', TargetFile: '' }
 	},
 
@@ -717,6 +727,122 @@ const _TaskDefinitions =
 			{ Name: 'Stats', DataType: 'Object' }
 		],
 		DefaultSettings: { SourceAddress: '', Field: 'score', Bins: 5, Destination: '' }
+	},
+
+	// ── LLM ───────────────────────────────────────────────────
+	{
+		Hash: 'llm-chat-completion',
+		Name: 'LLM Chat Completion',
+		Description: 'Sends messages to an LLM and returns the completion. Supports multi-turn conversation history.',
+		Category: 'llm',
+		Capability: 'LLM',
+		Action: 'ChatCompletion',
+		Tier: 'Extension',
+		EventInputs: [{ Name: 'Trigger' }],
+		EventOutputs: [
+			{ Name: 'Complete' },
+			{ Name: 'Error', IsError: true }
+		],
+		SettingsInputs: [
+			{ Name: 'SystemPrompt', DataType: 'String', Required: false },
+			{ Name: 'UserPrompt', DataType: 'String', Required: false },
+			{ Name: 'Messages', DataType: 'String', Required: false },
+			{ Name: 'Model', DataType: 'String', Required: false },
+			{ Name: 'Temperature', DataType: 'Number', Required: false },
+			{ Name: 'MaxTokens', DataType: 'Number', Required: false },
+			{ Name: 'TopP', DataType: 'Number', Required: false },
+			{ Name: 'StopSequences', DataType: 'String', Required: false },
+			{ Name: 'ResponseFormat', DataType: 'String', Required: false },
+			{ Name: 'ConversationAddress', DataType: 'String', Required: false },
+			{ Name: 'AppendToConversation', DataType: 'String', Required: false },
+			{ Name: 'ConversationMaxMessages', DataType: 'Number', Required: false },
+			{ Name: 'ConversationMaxTokens', DataType: 'Number', Required: false },
+			{ Name: 'PersistConversation', DataType: 'String', Required: false },
+			{ Name: 'ConversationPersistAddress', DataType: 'String', Required: false },
+			{ Name: 'InputAddress', DataType: 'String', Required: false },
+			{ Name: 'Destination', DataType: 'String', Required: false },
+			{ Name: 'AffinityKey', DataType: 'String', Required: false },
+			{ Name: 'TimeoutMs', DataType: 'Number', Required: false }
+		],
+		StateOutputs: [
+			{ Name: 'Content', DataType: 'String' },
+			{ Name: 'Model', DataType: 'String' },
+			{ Name: 'PromptTokens', DataType: 'Number' },
+			{ Name: 'CompletionTokens', DataType: 'Number' },
+			{ Name: 'FinishReason', DataType: 'String' },
+			{ Name: 'BeaconID', DataType: 'String' }
+		],
+		DefaultSettings: { Temperature: 0.7, MaxTokens: 4096, TimeoutMs: 120000 }
+	},
+	{
+		Hash: 'llm-embedding',
+		Name: 'LLM Embedding',
+		Description: 'Generates embeddings for text input using an LLM provider.',
+		Category: 'llm',
+		Capability: 'LLM',
+		Action: 'Embedding',
+		Tier: 'Extension',
+		EventInputs: [{ Name: 'Trigger' }],
+		EventOutputs: [
+			{ Name: 'Complete' },
+			{ Name: 'Error', IsError: true }
+		],
+		SettingsInputs: [
+			{ Name: 'Text', DataType: 'String', Required: false },
+			{ Name: 'Model', DataType: 'String', Required: false },
+			{ Name: 'InputAddress', DataType: 'String', Required: false },
+			{ Name: 'Destination', DataType: 'String', Required: false },
+			{ Name: 'AffinityKey', DataType: 'String', Required: false },
+			{ Name: 'TimeoutMs', DataType: 'Number', Required: false }
+		],
+		StateOutputs: [
+			{ Name: 'Embedding', DataType: 'String' },
+			{ Name: 'Dimensions', DataType: 'Number' },
+			{ Name: 'Model', DataType: 'String' },
+			{ Name: 'BeaconID', DataType: 'String' }
+		],
+		DefaultSettings: { TimeoutMs: 60000 }
+	},
+	{
+		Hash: 'llm-tool-use',
+		Name: 'LLM Tool Use',
+		Description: 'Sends messages to an LLM with tool/function definitions. Returns content and tool call results.',
+		Category: 'llm',
+		Capability: 'LLM',
+		Action: 'ToolUse',
+		Tier: 'Extension',
+		EventInputs: [{ Name: 'Trigger' }],
+		EventOutputs: [
+			{ Name: 'Complete' },
+			{ Name: 'ToolCall' },
+			{ Name: 'Error', IsError: true }
+		],
+		SettingsInputs: [
+			{ Name: 'SystemPrompt', DataType: 'String', Required: false },
+			{ Name: 'UserPrompt', DataType: 'String', Required: false },
+			{ Name: 'Messages', DataType: 'String', Required: false },
+			{ Name: 'Tools', DataType: 'String', Required: true },
+			{ Name: 'Model', DataType: 'String', Required: false },
+			{ Name: 'ToolChoice', DataType: 'String', Required: false },
+			{ Name: 'Temperature', DataType: 'Number', Required: false },
+			{ Name: 'MaxTokens', DataType: 'Number', Required: false },
+			{ Name: 'ConversationAddress', DataType: 'String', Required: false },
+			{ Name: 'AppendToConversation', DataType: 'String', Required: false },
+			{ Name: 'InputAddress', DataType: 'String', Required: false },
+			{ Name: 'Destination', DataType: 'String', Required: false },
+			{ Name: 'AffinityKey', DataType: 'String', Required: false },
+			{ Name: 'TimeoutMs', DataType: 'Number', Required: false }
+		],
+		StateOutputs: [
+			{ Name: 'Content', DataType: 'String' },
+			{ Name: 'ToolCalls', DataType: 'String' },
+			{ Name: 'Model', DataType: 'String' },
+			{ Name: 'FinishReason', DataType: 'String' },
+			{ Name: 'PromptTokens', DataType: 'Number' },
+			{ Name: 'CompletionTokens', DataType: 'Number' },
+			{ Name: 'BeaconID', DataType: 'String' }
+		],
+		DefaultSettings: { Temperature: 0.7, MaxTokens: 4096, TimeoutMs: 120000, ToolChoice: 'auto' }
 	},
 
 	// ── Extension ──────────────────────────────────────────────

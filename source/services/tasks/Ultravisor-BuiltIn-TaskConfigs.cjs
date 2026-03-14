@@ -13,5 +13,6 @@ module.exports = [].concat(
 	require('./http-client/Ultravisor-TaskConfigs-HttpClient.cjs'),
 	require('./user-interaction/Ultravisor-TaskConfigs-UserInteraction.cjs'),
 	require('./meadow-api/Ultravisor-TaskConfigs-MeadowApi.cjs'),
-	require('./extension/Ultravisor-TaskConfigs-Extension.cjs')
+	require('./extension/Ultravisor-TaskConfigs-Extension.cjs'),
+	require('./llm/Ultravisor-TaskConfigs-LLM.cjs')
 );

@@ -1,0 +1,314 @@
+{
+	"Name": "LLM Embedding and Tool Use",
+	"Description": "Reads a document, generates an embedding for it, uses LLM tool-use to classify the document based on its content, checks if the classification is confident, and writes a combined analysis report. Demonstrates llm-embedding and llm-tool-use task types.",
+	"Tags": [
+		"llm",
+		"embedding",
+		"tool-use",
+		"classification",
+		"file-processing"
+	],
+	"Author": "Ultravisor",
+	"Version": "1.0.0",
+	"Graph": {
+		"Nodes": [
+			{
+				"Hash": "le-start",
+				"Type": "start",
+				"X": 50,
+				"Y": 220,
+				"Width": 140,
+				"Height": 80,
+				"Title": "Start",
+				"Ports": [
+					{ "Hash": "le-start-out", "Direction": "output", "Side": "right-bottom", "Label": "Out" }
+				],
+				"Data": {}
+			},
+			{
+				"Hash": "le-read",
+				"Type": "read-file",
+				"X": 250,
+				"Y": 200,
+				"Width": 200,
+				"Height": 120,
+				"Title": "Read Document",
+				"Ports": [
+					{ "Hash": "le-ei-BeginRead", "Direction": "input", "Side": "left-bottom", "Label": "BeginRead" },
+					{ "Hash": "le-eo-ReadComplete", "Direction": "output", "Side": "right-bottom", "Label": "ReadComplete" },
+					{ "Hash": "le-eo-ReadError", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "le-so-FileContent", "Direction": "output", "Side": "right-top", "Label": "FileContent" },
+					{ "Hash": "le-so-BytesRead", "Direction": "output", "Side": "right-top", "Label": "BytesRead" }
+				],
+				"Data": {
+					"FilePath": "document.txt",
+					"Encoding": "utf8"
+				}
+			},
+			{
+				"Hash": "le-embed",
+				"Type": "llm-embedding",
+				"X": 520,
+				"Y": 200,
+				"Width": 240,
+				"Height": 140,
+				"Title": "Generate Embedding",
+				"Ports": [
+					{ "Hash": "le-ei-EmbedTrigger", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "le-eo-EmbedComplete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "le-eo-EmbedError", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "le-so-Embedding", "Direction": "output", "Side": "right-top", "Label": "Embedding" },
+					{ "Hash": "le-so-Dimensions", "Direction": "output", "Side": "right-top", "Label": "Dimensions" },
+					{ "Hash": "le-so-EmbedModel", "Direction": "output", "Side": "right-top", "Label": "Model" },
+					{ "Hash": "le-so-EmbedBeaconID", "Direction": "output", "Side": "right-top", "Label": "BeaconID" }
+				],
+				"Data": {
+					"InputAddress": "TaskOutput.le-read.FileContent",
+					"Destination": "Operation.Embedding",
+					"TimeoutMs": 60000
+				}
+			},
+			{
+				"Hash": "le-classify",
+				"Type": "llm-tool-use",
+				"X": 830,
+				"Y": 200,
+				"Width": 260,
+				"Height": 160,
+				"Title": "Classify Document",
+				"Ports": [
+					{ "Hash": "le-ei-ClassifyTrigger", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "le-eo-ClassifyComplete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "le-eo-ToolCall", "Direction": "output", "Side": "right-bottom", "Label": "ToolCall" },
+					{ "Hash": "le-eo-ClassifyError", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "le-so-Content", "Direction": "output", "Side": "right-top", "Label": "Content" },
+					{ "Hash": "le-so-ToolCalls", "Direction": "output", "Side": "right-top", "Label": "ToolCalls" },
+					{ "Hash": "le-so-ClassifyModel", "Direction": "output", "Side": "right-top", "Label": "Model" },
+					{ "Hash": "le-so-FinishReason", "Direction": "output", "Side": "right-top", "Label": "FinishReason" },
+					{ "Hash": "le-so-PromptTokens", "Direction": "output", "Side": "right-top", "Label": "PromptTokens" },
+					{ "Hash": "le-so-CompletionTokens", "Direction": "output", "Side": "right-top", "Label": "CompletionTokens" },
+					{ "Hash": "le-so-ClassifyBeaconID", "Direction": "output", "Side": "right-top", "Label": "BeaconID" }
+				],
+				"Data": {
+					"SystemPrompt": "You are a document classifier. Use the classify_document tool to categorize the given text.",
+					"UserPrompt": "Classify this document:",
+					"InputAddress": "TaskOutput.le-read.FileContent",
+					"Tools": "[{\"type\":\"function\",\"function\":{\"name\":\"classify_document\",\"description\":\"Classify a document into a category\",\"parameters\":{\"type\":\"object\",\"properties\":{\"category\":{\"type\":\"string\",\"enum\":[\"technical\",\"business\",\"legal\",\"personal\",\"academic\"]},\"confidence\":{\"type\":\"number\",\"minimum\":0,\"maximum\":1},\"summary\":{\"type\":\"string\"}},\"required\":[\"category\",\"confidence\",\"summary\"]}}}]",
+					"Destination": "Operation.Classification",
+					"Temperature": 0.3,
+					"MaxTokens": 1024
+				}
+			},
+			{
+				"Hash": "le-check",
+				"Type": "if-conditional",
+				"X": 1160,
+				"Y": 200,
+				"Width": 200,
+				"Height": 120,
+				"Title": "Classification Confident?",
+				"Ports": [
+					{ "Hash": "le-ei-Evaluate", "Direction": "input", "Side": "left-bottom", "Label": "Evaluate" },
+					{ "Hash": "le-eo-True", "Direction": "output", "Side": "right-bottom", "Label": "True" },
+					{ "Hash": "le-eo-False", "Direction": "output", "Side": "bottom", "Label": "False" },
+					{ "Hash": "le-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
+				],
+				"Data": {
+					"DataAddress": "TaskOutput.le-classify.Content",
+					"Operator": "truthy"
+				}
+			},
+			{
+				"Hash": "le-format",
+				"Type": "template-string",
+				"X": 1430,
+				"Y": 180,
+				"Width": 260,
+				"Height": 100,
+				"Title": "Format Report",
+				"Ports": [
+					{ "Hash": "le-ei-In", "Direction": "input", "Side": "left-bottom", "Label": "In" },
+					{ "Hash": "le-eo-FormatComplete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "le-so-FormatResult", "Direction": "output", "Side": "right-top", "Label": "Result" }
+				],
+				"Data": {
+					"Template": "Document Analysis Report\n========================\nFile: document.txt\nBytes: {~D:Record.TaskOutput.le-read.BytesRead~}\n\nEmbedding:\n  Dimensions: {~D:Record.TaskOutput.le-embed.Dimensions~}\n  Model: {~D:Record.TaskOutput.le-embed.Model~}\n\nClassification:\n  Content: {~D:Record.TaskOutput.le-classify.Content~}\n  Tool Calls: {~D:Record.TaskOutput.le-classify.ToolCalls~}\n  Finish Reason: {~D:Record.TaskOutput.le-classify.FinishReason~}\n  Tokens: {~D:Record.TaskOutput.le-classify.PromptTokens~} prompt / {~D:Record.TaskOutput.le-classify.CompletionTokens~} completion\n",
+					"Destination": "Operation.Report"
+				}
+			},
+			{
+				"Hash": "le-write",
+				"Type": "write-file",
+				"X": 1760,
+				"Y": 180,
+				"Width": 200,
+				"Height": 120,
+				"Title": "Write Report",
+				"Ports": [
+					{ "Hash": "le-ei-BeginWrite", "Direction": "input", "Side": "left-bottom", "Label": "BeginWrite" },
+					{ "Hash": "le-eo-WriteComplete", "Direction": "output", "Side": "right-bottom", "Label": "WriteComplete" },
+					{ "Hash": "le-eo-WriteError", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "le-si-Content", "Direction": "input", "Side": "left-top", "Label": "Content" },
+					{ "Hash": "le-so-BytesWritten", "Direction": "output", "Side": "right-top", "Label": "BytesWritten" }
+				],
+				"Data": {
+					"FilePath": "analysis-report.txt",
+					"Content": "{~D:Record.Operation.Report~}"
+				}
+			},
+			{
+				"Hash": "le-err",
+				"Type": "error-message",
+				"X": 830,
+				"Y": 440,
+				"Width": 220,
+				"Height": 80,
+				"Title": "Pipeline Error",
+				"Ports": [
+					{ "Hash": "le-ei-ErrTrigger", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "le-eo-ErrComplete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": {
+					"MessageTemplate": "LLM embedding/tool-use pipeline failed"
+				}
+			},
+			{
+				"Hash": "le-end",
+				"Type": "end",
+				"X": 2030,
+				"Y": 240,
+				"Width": 140,
+				"Height": 80,
+				"Title": "End",
+				"Ports": [
+					{ "Hash": "le-ei-End", "Direction": "input", "Side": "left-bottom", "Label": "In" }
+				],
+				"Data": {}
+			}
+		],
+		"Connections": [
+			{
+				"Hash": "le-c1",
+				"SourceNodeHash": "le-start",
+				"SourcePortHash": "le-start-out",
+				"TargetNodeHash": "le-read",
+				"TargetPortHash": "le-ei-BeginRead",
+				"Data": {}
+			},
+			{
+				"Hash": "le-c2",
+				"SourceNodeHash": "le-read",
+				"SourcePortHash": "le-eo-ReadComplete",
+				"TargetNodeHash": "le-embed",
+				"TargetPortHash": "le-ei-EmbedTrigger",
+				"Data": {}
+			},
+			{
+				"Hash": "le-c3",
+				"SourceNodeHash": "le-embed",
+				"SourcePortHash": "le-eo-EmbedComplete",
+				"TargetNodeHash": "le-classify",
+				"TargetPortHash": "le-ei-ClassifyTrigger",
+				"Data": {}
+			},
+			{
+				"Hash": "le-c4",
+				"SourceNodeHash": "le-classify",
+				"SourcePortHash": "le-eo-ClassifyComplete",
+				"TargetNodeHash": "le-check",
+				"TargetPortHash": "le-ei-Evaluate",
+				"Data": {}
+			},
+			{
+				"Hash": "le-c5",
+				"SourceNodeHash": "le-check",
+				"SourcePortHash": "le-eo-True",
+				"TargetNodeHash": "le-format",
+				"TargetPortHash": "le-ei-In",
+				"Data": {}
+			},
+			{
+				"Hash": "le-c6",
+				"SourceNodeHash": "le-format",
+				"SourcePortHash": "le-eo-FormatComplete",
+				"TargetNodeHash": "le-write",
+				"TargetPortHash": "le-ei-BeginWrite",
+				"Data": {}
+			},
+			{
+				"Hash": "le-c7",
+				"SourceNodeHash": "le-write",
+				"SourcePortHash": "le-eo-WriteComplete",
+				"TargetNodeHash": "le-end",
+				"TargetPortHash": "le-ei-End",
+				"Data": {}
+			},
+			{
+				"Hash": "le-c8",
+				"SourceNodeHash": "le-read",
+				"SourcePortHash": "le-eo-ReadError",
+				"TargetNodeHash": "le-err",
+				"TargetPortHash": "le-ei-ErrTrigger",
+				"Data": {}
+			},
+			{
+				"Hash": "le-c9",
+				"SourceNodeHash": "le-embed",
+				"SourcePortHash": "le-eo-EmbedError",
+				"TargetNodeHash": "le-err",
+				"TargetPortHash": "le-ei-ErrTrigger",
+				"Data": {}
+			},
+			{
+				"Hash": "le-c10",
+				"SourceNodeHash": "le-classify",
+				"SourcePortHash": "le-eo-ClassifyError",
+				"TargetNodeHash": "le-err",
+				"TargetPortHash": "le-ei-ErrTrigger",
+				"Data": {}
+			},
+			{
+				"Hash": "le-c11",
+				"SourceNodeHash": "le-check",
+				"SourcePortHash": "le-eo-False",
+				"TargetNodeHash": "le-err",
+				"TargetPortHash": "le-ei-ErrTrigger",
+				"Data": {}
+			},
+			{
+				"Hash": "le-c12",
+				"SourceNodeHash": "le-write",
+				"SourcePortHash": "le-eo-WriteError",
+				"TargetNodeHash": "le-end",
+				"TargetPortHash": "le-ei-End",
+				"Data": {}
+			},
+			{
+				"Hash": "le-c13",
+				"SourceNodeHash": "le-err",
+				"SourcePortHash": "le-eo-ErrComplete",
+				"TargetNodeHash": "le-end",
+				"TargetPortHash": "le-ei-End",
+				"Data": {}
+			},
+			{
+				"Hash": "le-sc1",
+				"SourceNodeHash": "le-format",
+				"SourcePortHash": "le-so-FormatResult",
+				"TargetNodeHash": "le-write",
+				"TargetPortHash": "le-si-Content",
+				"Data": {}
+			}
+		],
+		"ViewState": {
+			"PanX": 0,
+			"PanY": 0,
+			"Zoom": 1,
+			"SelectedNodeHash": null,
+			"SelectedConnectionHash": null
+		}
+	},
+	"SavedLayouts": [],
+	"InitialGlobalState": {},
+	"InitialOperationState": {}
+}

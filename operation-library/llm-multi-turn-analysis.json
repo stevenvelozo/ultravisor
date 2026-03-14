@@ -1,0 +1,322 @@
+{
+	"Name": "LLM Multi-Turn Analysis",
+	"Description": "Demonstrates multi-turn conversation with an LLM. Three chained LLM calls share a ConversationAddress: initial analysis, follow-up question, and final synthesis. Each call builds on the prior conversation context.",
+	"Tags": [
+		"llm",
+		"multi-turn",
+		"conversation",
+		"analysis"
+	],
+	"Author": "Ultravisor",
+	"Version": "1.0.0",
+	"Graph": {
+		"Nodes": [
+			{
+				"Hash": "mt-start",
+				"Type": "start",
+				"X": 50,
+				"Y": 200,
+				"Width": 140,
+				"Height": 80,
+				"Title": "Start",
+				"Ports": [
+					{
+						"Hash": "mt-start-out",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Out"
+					}
+				],
+				"Data": {}
+			},
+			{
+				"Hash": "mt-analyze",
+				"Type": "llm-chat-completion",
+				"X": 260,
+				"Y": 180,
+				"Width": 260,
+				"Height": 100,
+				"Title": "Initial Analysis",
+				"Ports": [
+					{
+						"Hash": "mt-a-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Trigger"
+					},
+					{
+						"Hash": "mt-a-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "mt-a-err",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "mt-a-so-Content",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "Content"
+					}
+				],
+				"Data": {
+					"SystemPrompt": "You are an analytical assistant. When given a topic, provide a thorough initial analysis identifying key themes, patterns, and areas that warrant deeper investigation.",
+					"UserPrompt": "{~D:Record.Operation.Topic~}",
+					"ConversationAddress": "Operation.Conversation",
+					"AppendToConversation": "true",
+					"Temperature": 0.5,
+					"MaxTokens": 2048
+				}
+			},
+			{
+				"Hash": "mt-followup",
+				"Type": "llm-chat-completion",
+				"X": 590,
+				"Y": 180,
+				"Width": 260,
+				"Height": 100,
+				"Title": "Follow-Up Question",
+				"Ports": [
+					{
+						"Hash": "mt-f-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Trigger"
+					},
+					{
+						"Hash": "mt-f-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "mt-f-err",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "mt-f-so-Content",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "Content"
+					}
+				],
+				"Data": {
+					"UserPrompt": "Based on your analysis, what are the most significant implications or risks? Please elaborate on the top 3.",
+					"ConversationAddress": "Operation.Conversation",
+					"AppendToConversation": "true",
+					"Temperature": 0.5,
+					"MaxTokens": 2048
+				}
+			},
+			{
+				"Hash": "mt-synthesize",
+				"Type": "llm-chat-completion",
+				"X": 920,
+				"Y": 180,
+				"Width": 260,
+				"Height": 100,
+				"Title": "Final Synthesis",
+				"Ports": [
+					{
+						"Hash": "mt-s-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Trigger"
+					},
+					{
+						"Hash": "mt-s-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "mt-s-err",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "mt-s-so-Content",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "Content"
+					}
+				],
+				"Data": {
+					"UserPrompt": "Now synthesize everything we have discussed into a concise executive summary with actionable recommendations. Use bullet points for clarity.",
+					"ConversationAddress": "Operation.Conversation",
+					"AppendToConversation": "true",
+					"PersistConversation": "true",
+					"ConversationPersistAddress": "Global.Sessions.LastAnalysis",
+					"Destination": "Operation.FinalSummary",
+					"Temperature": 0.3,
+					"MaxTokens": 2048
+				}
+			},
+			{
+				"Hash": "mt-write",
+				"Type": "write-file",
+				"X": 1250,
+				"Y": 180,
+				"Width": 200,
+				"Height": 120,
+				"Title": "Write Report",
+				"Ports": [
+					{
+						"Hash": "mt-wr-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "BeginWrite"
+					},
+					{
+						"Hash": "mt-wr-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "WriteComplete"
+					},
+					{
+						"Hash": "mt-wr-err",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "mt-wr-si-Content",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Content"
+					},
+					{
+						"Hash": "mt-wr-so-BytesWritten",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "BytesWritten"
+					}
+				],
+				"Data": {
+					"FilePath": "analysis-report.txt",
+					"Content": "{~D:Record.Operation.FinalSummary~}",
+					"Encoding": "utf8"
+				}
+			},
+			{
+				"Hash": "mt-end",
+				"Type": "end",
+				"X": 1520,
+				"Y": 260,
+				"Width": 140,
+				"Height": 80,
+				"Title": "End",
+				"Ports": [
+					{
+						"Hash": "mt-end-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "In"
+					}
+				],
+				"Data": {}
+			}
+		],
+		"Connections": [
+			{
+				"Hash": "mt-c1",
+				"SourceNodeHash": "mt-start",
+				"SourcePortHash": "mt-start-out",
+				"TargetNodeHash": "mt-analyze",
+				"TargetPortHash": "mt-a-in",
+				"Data": {}
+			},
+			{
+				"Hash": "mt-c2",
+				"SourceNodeHash": "mt-analyze",
+				"SourcePortHash": "mt-a-done",
+				"TargetNodeHash": "mt-followup",
+				"TargetPortHash": "mt-f-in",
+				"Data": {}
+			},
+			{
+				"Hash": "mt-c3",
+				"SourceNodeHash": "mt-followup",
+				"SourcePortHash": "mt-f-done",
+				"TargetNodeHash": "mt-synthesize",
+				"TargetPortHash": "mt-s-in",
+				"Data": {}
+			},
+			{
+				"Hash": "mt-c4",
+				"SourceNodeHash": "mt-synthesize",
+				"SourcePortHash": "mt-s-done",
+				"TargetNodeHash": "mt-write",
+				"TargetPortHash": "mt-wr-in",
+				"Data": {}
+			},
+			{
+				"Hash": "mt-c5",
+				"SourceNodeHash": "mt-write",
+				"SourcePortHash": "mt-wr-done",
+				"TargetNodeHash": "mt-end",
+				"TargetPortHash": "mt-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "mt-c6",
+				"SourceNodeHash": "mt-analyze",
+				"SourcePortHash": "mt-a-err",
+				"TargetNodeHash": "mt-end",
+				"TargetPortHash": "mt-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "mt-c7",
+				"SourceNodeHash": "mt-followup",
+				"SourcePortHash": "mt-f-err",
+				"TargetNodeHash": "mt-end",
+				"TargetPortHash": "mt-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "mt-c8",
+				"SourceNodeHash": "mt-synthesize",
+				"SourcePortHash": "mt-s-err",
+				"TargetNodeHash": "mt-end",
+				"TargetPortHash": "mt-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "mt-c9",
+				"SourceNodeHash": "mt-write",
+				"SourcePortHash": "mt-wr-err",
+				"TargetNodeHash": "mt-end",
+				"TargetPortHash": "mt-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "mt-sc1",
+				"SourceNodeHash": "mt-synthesize",
+				"SourcePortHash": "mt-s-so-Content",
+				"TargetNodeHash": "mt-write",
+				"TargetPortHash": "mt-wr-si-Content",
+				"Data": {}
+			}
+		],
+		"ViewState": {
+			"PanX": 0,
+			"PanY": 0,
+			"Zoom": 1,
+			"SelectedNodeHash": null,
+			"SelectedConnectionHash": null
+		}
+	},
+	"SavedLayouts": [],
+	"InitialGlobalState": {},
+	"InitialOperationState": {
+		"Topic": "Analyze the current state of AI adoption in enterprise software development, including benefits, challenges, and emerging best practices."
+	}
+}

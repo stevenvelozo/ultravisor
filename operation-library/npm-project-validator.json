@@ -25,12 +25,13 @@
 				"X": 260,
 				"Y": 180,
 				"Width": 220,
-				"Height": 80,
+				"Height": 100,
 				"Title": "Read package.json",
 				"Ports": [
 					{ "Hash": "nv-rp-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
 					{ "Hash": "nv-rp-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
-					{ "Hash": "nv-rp-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "nv-rp-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "nv-rp-so-Data", "Direction": "output", "Side": "right-top", "Label": "Data" }
 				],
 				"Data": { "File": "package.json", "Destination": "Operation.Package" }
 			},
@@ -45,7 +46,8 @@
 				"Ports": [
 					{ "Hash": "nv-cn-in", "Direction": "input", "Side": "left-bottom", "Label": "Evaluate" },
 					{ "Hash": "nv-cn-true", "Direction": "output", "Side": "right-bottom", "Label": "True" },
-					{ "Hash": "nv-cn-false", "Direction": "output", "Side": "bottom", "Label": "False" }
+					{ "Hash": "nv-cn-false", "Direction": "output", "Side": "bottom", "Label": "False" },
+					{ "Hash": "nv-cn-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
 				],
 				"Data": { "DataAddress": "Operation.Package.name", "Operator": "truthy" }
 			},
@@ -60,7 +62,8 @@
 				"Ports": [
 					{ "Hash": "nv-cv-in", "Direction": "input", "Side": "left-bottom", "Label": "Evaluate" },
 					{ "Hash": "nv-cv-true", "Direction": "output", "Side": "right-bottom", "Label": "True" },
-					{ "Hash": "nv-cv-false", "Direction": "output", "Side": "bottom", "Label": "False" }
+					{ "Hash": "nv-cv-false", "Direction": "output", "Side": "bottom", "Label": "False" },
+					{ "Hash": "nv-cv-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
 				],
 				"Data": { "DataAddress": "Operation.Package.version", "Operator": "truthy" }
 			},
@@ -70,12 +73,14 @@
 				"X": 1130,
 				"Y": 160,
 				"Width": 200,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Run npm test",
 				"Ports": [
 					{ "Hash": "nv-ts-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
 					{ "Hash": "nv-ts-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
-					{ "Hash": "nv-ts-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "nv-ts-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "nv-ts-so-StdOut", "Direction": "output", "Side": "right-top", "Label": "StdOut" },
+					{ "Hash": "nv-ts-so-ExitCode", "Direction": "output", "Side": "right-top", "Label": "ExitCode" }
 				],
 				"Data": { "Command": "npm", "Parameters": "test", "Description": "Run test suite" }
 			},
@@ -85,11 +90,12 @@
 				"X": 1400,
 				"Y": 160,
 				"Width": 240,
-				"Height": 80,
+				"Height": 100,
 				"Title": "Validation Result",
 				"Ports": [
 					{ "Hash": "nv-rs-in", "Direction": "input", "Side": "left-bottom", "Label": "In" },
-					{ "Hash": "nv-rs-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+					{ "Hash": "nv-rs-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "nv-rs-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
 				],
 				"Data": { "Template": "PASS: {~D:Record.Operation.Package.name~}@{~D:Record.Operation.Package.version~} - tests passed (exit code {~D:Record.TaskOutput.nv-test.ExitCode~})", "Destination": "Operation.ValidationResult" }
 			},

@@ -26,6 +26,7 @@ const _CategoryColors =
 	'rest':         { TitleBarColor: '#0277bd', BodyStyle: { fill: '#e1f5fe', stroke: '#0277bd' } },
 	'meadow':       { TitleBarColor: '#2e7d32', BodyStyle: { fill: '#e8f5e9', stroke: '#2e7d32' } },
 	'pipeline':     { TitleBarColor: '#ad1457', BodyStyle: { fill: '#fce4ec', stroke: '#ad1457' } },
+	'llm':          { TitleBarColor: '#00838f', BodyStyle: { fill: '#e0f7fa', stroke: '#00838f' } },
 	'extension':    { TitleBarColor: '#7c3aed', BodyStyle: { fill: '#ede9fe', stroke: '#7c3aed' } }
 };
 
@@ -41,6 +42,7 @@ const _CapabilityColors =
 	'http client':       { TitleBarColor: '#0277bd', BodyStyle: { fill: '#e1f5fe', stroke: '#0277bd' } },
 	'meadow api':        { TitleBarColor: '#2e7d32', BodyStyle: { fill: '#e8f5e9', stroke: '#2e7d32' } },
 	'user interaction':  { TitleBarColor: '#c62828', BodyStyle: { fill: '#ffebee', stroke: '#c62828' } },
+	'llm':               { TitleBarColor: '#00838f', BodyStyle: { fill: '#e0f7fa', stroke: '#00838f' } },
 	'extension':         { TitleBarColor: '#7c3aed', BodyStyle: { fill: '#ede9fe', stroke: '#7c3aed' } }
 };
 
@@ -237,7 +239,21 @@ function _buildPropertiesPanel(pDefinition)
 		tmpRowIndex++;
 	}
 
-	let tmpPanelHeight = 160 + (tmpSettings.length * 50);
+	// Account for settings form fields plus port summary sections below
+	let tmpPortSummaryHeight = 0;
+	if (Array.isArray(pDefinition.EventInputs) && pDefinition.EventInputs.length > 0)
+	{
+		tmpPortSummaryHeight += 30 + (pDefinition.EventInputs.length * 20);
+	}
+	if (Array.isArray(pDefinition.EventOutputs) && pDefinition.EventOutputs.length > 0)
+	{
+		tmpPortSummaryHeight += 30 + (pDefinition.EventOutputs.length * 20);
+	}
+	if (Array.isArray(pDefinition.StateOutputs) && pDefinition.StateOutputs.length > 0)
+	{
+		tmpPortSummaryHeight += 30 + (pDefinition.StateOutputs.length * 20);
+	}
+	let tmpPanelHeight = 160 + (tmpSettings.length * 50) + tmpPortSummaryHeight;
 
 	return {
 		PanelType: 'Form',
@@ -376,12 +392,17 @@ function generateCardConfigFromTaskDefinition(pTaskDefinition, pOverrides)
 	{
 		for (let i = 0; i < tmpDef.StateOutputs.length; i++)
 		{
-			tmpOutputs.push(
+			let tmpStateOut =
 			{
 				Name: tmpDef.StateOutputs[i].Name,
 				Side: 'right-top',
 				PortType: 'value'
-			});
+			};
+			if (tmpDef.StateOutputs[i].DataType)
+			{
+				tmpStateOut.DataType = tmpDef.StateOutputs[i].DataType;
+			}
+			tmpOutputs.push(tmpStateOut);
 		}
 	}
 

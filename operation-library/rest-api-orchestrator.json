@@ -1,0 +1,218 @@
+{
+	"Name": "REST API Orchestrator",
+	"Description": "Fetches data from a REST API endpoint, validates the response, sends a transformed version to another endpoint, launches a child operation for additional processing, formats a summary report, and writes it to disk. Demonstrates rest-request, send-json, launch-operation, set-values, if-conditional, template-string, and write-file.",
+	"Tags": ["http", "orchestration", "rest-api", "multi-step"],
+	"Author": "Ultravisor",
+	"Version": "1.0.0",
+	"Graph": {
+		"Nodes": [
+			{
+				"Hash": "ro-start",
+				"Type": "start",
+				"X": 50,
+				"Y": 200,
+				"Width": 140,
+				"Height": 80,
+				"Title": "Start",
+				"Ports": [
+					{ "Hash": "ro-start-out", "Direction": "output", "Side": "right-bottom", "Label": "Out" }
+				],
+				"Data": {}
+			},
+			{
+				"Hash": "ro-init",
+				"Type": "set-values",
+				"X": 250,
+				"Y": 180,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Initialize Settings",
+				"Ports": [
+					{ "Hash": "ro-ei-Execute", "Direction": "input", "Side": "left-bottom", "Label": "Execute" },
+					{ "Hash": "ro-eo-InitComplete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": {
+					"Mappings": [
+						{ "Address": "Operation.SourceURL", "Value": "https://jsonplaceholder.typicode.com/posts/1" },
+						{ "Address": "Operation.TargetURL", "Value": "https://httpbin.org/post" },
+						{ "Address": "Operation.ChildOperationHash", "Value": "simple-echo" }
+					]
+				}
+			},
+			{
+				"Hash": "ro-fetch",
+				"Type": "rest-request",
+				"X": 520,
+				"Y": 180,
+				"Width": 220,
+				"Height": 120,
+				"Title": "Fetch API Data",
+				"Ports": [
+					{ "Hash": "ro-ei-In", "Direction": "input", "Side": "left-bottom", "Label": "In" },
+					{ "Hash": "ro-eo-FetchComplete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "ro-eo-FetchError", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "ro-so-Response", "Direction": "output", "Side": "right-top", "Label": "Response" }
+				],
+				"Data": {
+					"URL": "{~D:Record.Operation.SourceURL~}",
+					"Method": "GET",
+					"ContentType": "application/json",
+					"Destination": "Operation.FetchedData"
+				}
+			},
+			{
+				"Hash": "ro-check",
+				"Type": "if-conditional",
+				"X": 810,
+				"Y": 180,
+				"Width": 200,
+				"Height": 120,
+				"Title": "Response Valid?",
+				"Ports": [
+					{ "Hash": "ro-ei-Evaluate", "Direction": "input", "Side": "left-bottom", "Label": "Evaluate" },
+					{ "Hash": "ro-eo-True", "Direction": "output", "Side": "right-bottom", "Label": "True" },
+					{ "Hash": "ro-eo-False", "Direction": "output", "Side": "bottom", "Label": "False" },
+					{ "Hash": "ro-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
+				],
+				"Data": {
+					"DataAddress": "TaskOutput.ro-fetch.Response",
+					"Operator": "truthy"
+				}
+			},
+			{
+				"Hash": "ro-send",
+				"Type": "send-json",
+				"X": 1080,
+				"Y": 160,
+				"Width": 220,
+				"Height": 120,
+				"Title": "Send to Target",
+				"Ports": [
+					{ "Hash": "ro-ei-Trigger", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "ro-eo-SendComplete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "ro-eo-SendError", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "ro-so-SendResponse", "Direction": "output", "Side": "right-top", "Label": "Response" }
+				],
+				"Data": {
+					"URL": "{~D:Record.Operation.TargetURL~}",
+					"Method": "POST",
+					"Address": "Operation.FetchedData",
+					"Destination": "Operation.SendResult"
+				}
+			},
+			{
+				"Hash": "ro-launch",
+				"Type": "launch-operation",
+				"X": 1370,
+				"Y": 160,
+				"Width": 240,
+				"Height": 120,
+				"Title": "Launch Child Operation",
+				"Ports": [
+					{ "Hash": "ro-ei-Launch", "Direction": "input", "Side": "left-bottom", "Label": "Launch" },
+					{ "Hash": "ro-eo-Completed", "Direction": "output", "Side": "right-bottom", "Label": "Completed" },
+					{ "Hash": "ro-eo-LaunchError", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "ro-so-LaunchResult", "Direction": "output", "Side": "right-top", "Label": "Result" },
+					{ "Hash": "ro-so-Status", "Direction": "output", "Side": "right-top", "Label": "Status" },
+					{ "Hash": "ro-so-ElapsedMs", "Direction": "output", "Side": "right-top", "Label": "ElapsedMs" }
+				],
+				"Data": {
+					"OperationHash": "{~D:Record.Operation.ChildOperationHash~}",
+					"InputData": "{~D:Record.Operation.FetchedData~}"
+				}
+			},
+			{
+				"Hash": "ro-format",
+				"Type": "template-string",
+				"X": 1670,
+				"Y": 160,
+				"Width": 240,
+				"Height": 100,
+				"Title": "Format Report",
+				"Ports": [
+					{ "Hash": "ro-ei-FormatIn", "Direction": "input", "Side": "left-bottom", "Label": "In" },
+					{ "Hash": "ro-eo-FormatComplete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "ro-so-FormatResult", "Direction": "output", "Side": "right-top", "Label": "Result" }
+				],
+				"Data": {
+					"Template": "API Orchestration Report\n========================\nSource: {~D:Record.Operation.SourceURL~}\nTarget: {~D:Record.Operation.TargetURL~}\nChild Operation: {~D:Record.Operation.ChildOperationHash~}\nChild Status: {~D:Record.TaskOutput.ro-launch.Status~}\nElapsed: {~D:Record.TaskOutput.ro-launch.ElapsedMs~}ms\n",
+					"Destination": "Operation.Report"
+				}
+			},
+			{
+				"Hash": "ro-write",
+				"Type": "write-file",
+				"X": 1970,
+				"Y": 160,
+				"Width": 200,
+				"Height": 120,
+				"Title": "Write Report",
+				"Ports": [
+					{ "Hash": "ro-ei-BeginWrite", "Direction": "input", "Side": "left-bottom", "Label": "BeginWrite" },
+					{ "Hash": "ro-eo-WriteComplete", "Direction": "output", "Side": "right-bottom", "Label": "WriteComplete" },
+					{ "Hash": "ro-eo-WriteError", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "ro-si-Content", "Direction": "input", "Side": "left-top", "Label": "Content" },
+					{ "Hash": "ro-so-BytesWritten", "Direction": "output", "Side": "right-top", "Label": "BytesWritten" }
+				],
+				"Data": {
+					"FilePath": "orchestration-report.txt",
+					"Content": "{~D:Record.Operation.Report~}"
+				}
+			},
+			{
+				"Hash": "ro-err",
+				"Type": "error-message",
+				"X": 1080,
+				"Y": 400,
+				"Width": 220,
+				"Height": 80,
+				"Title": "Orchestration Error",
+				"Ports": [
+					{ "Hash": "ro-ei-ErrTrigger", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "ro-eo-ErrComplete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": {
+					"MessageTemplate": "REST API orchestration encountered an error"
+				}
+			},
+			{
+				"Hash": "ro-end",
+				"Type": "end",
+				"X": 2240,
+				"Y": 220,
+				"Width": 140,
+				"Height": 80,
+				"Title": "End",
+				"Ports": [
+					{ "Hash": "ro-ei-EndIn", "Direction": "input", "Side": "left-bottom", "Label": "In" }
+				],
+				"Data": {}
+			}
+		],
+		"Connections": [
+			{ "Hash": "ro-c1", "SourceNodeHash": "ro-start", "SourcePortHash": "ro-start-out", "TargetNodeHash": "ro-init", "TargetPortHash": "ro-ei-Execute", "Data": {} },
+			{ "Hash": "ro-c2", "SourceNodeHash": "ro-init", "SourcePortHash": "ro-eo-InitComplete", "TargetNodeHash": "ro-fetch", "TargetPortHash": "ro-ei-In", "Data": {} },
+			{ "Hash": "ro-c3", "SourceNodeHash": "ro-fetch", "SourcePortHash": "ro-eo-FetchComplete", "TargetNodeHash": "ro-check", "TargetPortHash": "ro-ei-Evaluate", "Data": {} },
+			{ "Hash": "ro-c4", "SourceNodeHash": "ro-check", "SourcePortHash": "ro-eo-True", "TargetNodeHash": "ro-send", "TargetPortHash": "ro-ei-Trigger", "Data": {} },
+			{ "Hash": "ro-c5", "SourceNodeHash": "ro-send", "SourcePortHash": "ro-eo-SendComplete", "TargetNodeHash": "ro-launch", "TargetPortHash": "ro-ei-Launch", "Data": {} },
+			{ "Hash": "ro-c6", "SourceNodeHash": "ro-launch", "SourcePortHash": "ro-eo-Completed", "TargetNodeHash": "ro-format", "TargetPortHash": "ro-ei-FormatIn", "Data": {} },
+			{ "Hash": "ro-c7", "SourceNodeHash": "ro-format", "SourcePortHash": "ro-eo-FormatComplete", "TargetNodeHash": "ro-write", "TargetPortHash": "ro-ei-BeginWrite", "Data": {} },
+			{ "Hash": "ro-c8", "SourceNodeHash": "ro-write", "SourcePortHash": "ro-eo-WriteComplete", "TargetNodeHash": "ro-end", "TargetPortHash": "ro-ei-EndIn", "Data": {} },
+			{ "Hash": "ro-c9", "SourceNodeHash": "ro-fetch", "SourcePortHash": "ro-eo-FetchError", "TargetNodeHash": "ro-err", "TargetPortHash": "ro-ei-ErrTrigger", "Data": {} },
+			{ "Hash": "ro-c10", "SourceNodeHash": "ro-check", "SourcePortHash": "ro-eo-False", "TargetNodeHash": "ro-err", "TargetPortHash": "ro-ei-ErrTrigger", "Data": {} },
+			{ "Hash": "ro-c11", "SourceNodeHash": "ro-send", "SourcePortHash": "ro-eo-SendError", "TargetNodeHash": "ro-err", "TargetPortHash": "ro-ei-ErrTrigger", "Data": {} },
+			{ "Hash": "ro-c12", "SourceNodeHash": "ro-launch", "SourcePortHash": "ro-eo-LaunchError", "TargetNodeHash": "ro-err", "TargetPortHash": "ro-ei-ErrTrigger", "Data": {} },
+			{ "Hash": "ro-c13", "SourceNodeHash": "ro-write", "SourcePortHash": "ro-eo-WriteError", "TargetNodeHash": "ro-end", "TargetPortHash": "ro-ei-EndIn", "Data": {} },
+			{ "Hash": "ro-c14", "SourceNodeHash": "ro-err", "SourcePortHash": "ro-eo-ErrComplete", "TargetNodeHash": "ro-end", "TargetPortHash": "ro-ei-EndIn", "Data": {} },
+			{ "Hash": "ro-sc1", "SourceNodeHash": "ro-format", "SourcePortHash": "ro-so-FormatResult", "TargetNodeHash": "ro-write", "TargetPortHash": "ro-si-Content", "Data": {} }
+		],
+		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
+	},
+	"SavedLayouts": [],
+	"InitialGlobalState": {},
+	"InitialOperationState": {
+		"SourceURL": "https://jsonplaceholder.typicode.com/posts/1",
+		"TargetURL": "https://httpbin.org/post",
+		"ChildOperationHash": "simple-echo"
+	}
+}

@@ -25,11 +25,12 @@
 				"X": 260,
 				"Y": 180,
 				"Width": 220,
-				"Height": 100,
+				"Height": 120,
 				"Title": "Enter File Path",
 				"Ports": [
 					{ "Hash": "ts-inp-req", "Direction": "input", "Side": "left-bottom", "Label": "RequestInput" },
-					{ "Hash": "ts-inp-done", "Direction": "output", "Side": "right-bottom", "Label": "ValueInputComplete" }
+					{ "Hash": "ts-inp-done", "Direction": "output", "Side": "right-bottom", "Label": "ValueInputComplete" },
+					{ "Hash": "ts-inp-so-InputValue", "Direction": "output", "Side": "right-top", "Label": "InputValue" }
 				],
 				"Data": { "PromptMessage": "Enter the path to the text file to sanitize", "OutputAddress": "Operation.FilePath" }
 			},
@@ -39,12 +40,15 @@
 				"X": 550,
 				"Y": 180,
 				"Width": 200,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Read File",
 				"Ports": [
 					{ "Hash": "ts-rd-in", "Direction": "input", "Side": "left-bottom", "Label": "BeginRead" },
 					{ "Hash": "ts-rd-done", "Direction": "output", "Side": "right-bottom", "Label": "ReadComplete" },
-					{ "Hash": "ts-rd-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "ts-rd-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "ts-rd-si-FilePath", "Direction": "input", "Side": "left-top", "Label": "FilePath" },
+					{ "Hash": "ts-rd-so-FileContent", "Direction": "output", "Side": "right-top", "Label": "FileContent" },
+					{ "Hash": "ts-rd-so-BytesRead", "Direction": "output", "Side": "right-top", "Label": "BytesRead" }
 				],
 				"Data": { "FilePath": "{~D:Record.Operation.FilePath~}", "Encoding": "utf8" }
 			},
@@ -54,12 +58,14 @@
 				"X": 820,
 				"Y": 180,
 				"Width": 220,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Tabs to Spaces",
 				"Ports": [
 					{ "Hash": "ts-r1-in", "Direction": "input", "Side": "left-bottom", "Label": "Replace" },
 					{ "Hash": "ts-r1-done", "Direction": "output", "Side": "right-bottom", "Label": "ReplaceComplete" },
-					{ "Hash": "ts-r1-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "ts-r1-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "ts-r1-si-InputString", "Direction": "input", "Side": "left-top", "Label": "InputString" },
+					{ "Hash": "ts-r1-so-ReplacedString", "Direction": "output", "Side": "right-top", "Label": "ReplacedString" }
 				],
 				"Data": { "InputString": "{~D:Record.TaskOutput.ts-read.FileContent~}", "SearchString": "\t", "ReplaceString": "  " }
 			},
@@ -69,12 +75,14 @@
 				"X": 1110,
 				"Y": 180,
 				"Width": 220,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Strip Carriage Returns",
 				"Ports": [
 					{ "Hash": "ts-r2-in", "Direction": "input", "Side": "left-bottom", "Label": "Replace" },
 					{ "Hash": "ts-r2-done", "Direction": "output", "Side": "right-bottom", "Label": "ReplaceComplete" },
-					{ "Hash": "ts-r2-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "ts-r2-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "ts-r2-si-InputString", "Direction": "input", "Side": "left-top", "Label": "InputString" },
+					{ "Hash": "ts-r2-so-ReplacedString", "Direction": "output", "Side": "right-top", "Label": "ReplacedString" }
 				],
 				"Data": { "InputString": "{~D:Record.TaskOutput.ts-strip-tabs.ReplacedString~}", "SearchString": "\r", "ReplaceString": "" }
 			},
@@ -84,12 +92,14 @@
 				"X": 1400,
 				"Y": 180,
 				"Width": 240,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Collapse Double Spaces",
 				"Ports": [
 					{ "Hash": "ts-r3-in", "Direction": "input", "Side": "left-bottom", "Label": "Replace" },
 					{ "Hash": "ts-r3-done", "Direction": "output", "Side": "right-bottom", "Label": "ReplaceComplete" },
-					{ "Hash": "ts-r3-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "ts-r3-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "ts-r3-si-InputString", "Direction": "input", "Side": "left-top", "Label": "InputString" },
+					{ "Hash": "ts-r3-so-ReplacedString", "Direction": "output", "Side": "right-top", "Label": "ReplacedString" }
 				],
 				"Data": { "InputString": "{~D:Record.TaskOutput.ts-strip-cr.ReplacedString~}", "SearchString": "  ", "ReplaceString": " " }
 			},
@@ -99,12 +109,14 @@
 				"X": 1400,
 				"Y": 360,
 				"Width": 200,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Write Sanitized",
 				"Ports": [
 					{ "Hash": "ts-wr-in", "Direction": "input", "Side": "left-bottom", "Label": "BeginWrite" },
 					{ "Hash": "ts-wr-done", "Direction": "output", "Side": "right-bottom", "Label": "WriteComplete" },
-					{ "Hash": "ts-wr-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "ts-wr-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "ts-wr-si-Content", "Direction": "input", "Side": "left-top", "Label": "Content" },
+					{ "Hash": "ts-wr-so-BytesWritten", "Direction": "output", "Side": "right-top", "Label": "BytesWritten" }
 				],
 				"Data": { "FilePath": "{~D:Record.Operation.FilePath~}.sanitized", "Content": "{~D:Record.TaskOutput.ts-strip-double.ReplacedString~}", "Encoding": "utf8" }
 			},
@@ -149,7 +161,12 @@
 			{ "Hash": "ts-c10", "SourceNodeHash": "ts-write", "SourcePortHash": "ts-wr-err", "TargetNodeHash": "ts-end", "TargetPortHash": "ts-end-in", "Data": {} },
 			{ "Hash": "ts-c11", "SourceNodeHash": "ts-strip-tabs", "SourcePortHash": "ts-r1-err", "TargetNodeHash": "ts-end", "TargetPortHash": "ts-end-in", "Data": {} },
 			{ "Hash": "ts-c12", "SourceNodeHash": "ts-strip-cr", "SourcePortHash": "ts-r2-err", "TargetNodeHash": "ts-end", "TargetPortHash": "ts-end-in", "Data": {} },
-			{ "Hash": "ts-c13", "SourceNodeHash": "ts-strip-double", "SourcePortHash": "ts-r3-err", "TargetNodeHash": "ts-end", "TargetPortHash": "ts-end-in", "Data": {} }
+			{ "Hash": "ts-c13", "SourceNodeHash": "ts-strip-double", "SourcePortHash": "ts-r3-err", "TargetNodeHash": "ts-end", "TargetPortHash": "ts-end-in", "Data": {} },
+			{ "Hash": "ts-sc1", "SourceNodeHash": "ts-input", "SourcePortHash": "ts-inp-so-InputValue", "TargetNodeHash": "ts-read", "TargetPortHash": "ts-rd-si-FilePath", "Data": {} },
+			{ "Hash": "ts-sc2", "SourceNodeHash": "ts-read", "SourcePortHash": "ts-rd-so-FileContent", "TargetNodeHash": "ts-strip-tabs", "TargetPortHash": "ts-r1-si-InputString", "Data": {} },
+			{ "Hash": "ts-sc3", "SourceNodeHash": "ts-strip-tabs", "SourcePortHash": "ts-r1-so-ReplacedString", "TargetNodeHash": "ts-strip-cr", "TargetPortHash": "ts-r2-si-InputString", "Data": {} },
+			{ "Hash": "ts-sc4", "SourceNodeHash": "ts-strip-cr", "SourcePortHash": "ts-r2-so-ReplacedString", "TargetNodeHash": "ts-strip-double", "TargetPortHash": "ts-r3-si-InputString", "Data": {} },
+			{ "Hash": "ts-sc5", "SourceNodeHash": "ts-strip-double", "SourcePortHash": "ts-r3-so-ReplacedString", "TargetNodeHash": "ts-write", "TargetPortHash": "ts-wr-si-Content", "Data": {} }
 		],
 		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
 	},

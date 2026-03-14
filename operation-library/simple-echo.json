@@ -39,11 +39,12 @@
 				"X": 530,
 				"Y": 180,
 				"Width": 220,
-				"Height": 80,
+				"Height": 100,
 				"Title": "Format Output",
 				"Ports": [
 					{ "Hash": "se-tpl-in", "Direction": "input", "Side": "left-bottom", "Label": "In" },
-					{ "Hash": "se-tpl-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+					{ "Hash": "se-tpl-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "se-tpl-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
 				],
 				"Data": { "Template": "[{~D:Record.Operation.Timestamp~}] {~D:Record.Operation.Message~}\n", "Destination": "Operation.Output" }
 			},
@@ -53,12 +54,14 @@
 				"X": 820,
 				"Y": 180,
 				"Width": 200,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Write Output",
 				"Ports": [
 					{ "Hash": "se-wr-in", "Direction": "input", "Side": "left-bottom", "Label": "BeginWrite" },
 					{ "Hash": "se-wr-done", "Direction": "output", "Side": "right-bottom", "Label": "WriteComplete" },
-					{ "Hash": "se-wr-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "se-wr-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "se-wr-si-Content", "Direction": "input", "Side": "left-top", "Label": "Content" },
+					{ "Hash": "se-wr-so-BytesWritten", "Direction": "output", "Side": "right-top", "Label": "BytesWritten" }
 				],
 				"Data": { "FilePath": "echo-output.txt", "Content": "{~D:Record.Operation.Output~}", "Encoding": "utf8" }
 			},
@@ -81,7 +84,8 @@
 			{ "Hash": "se-c2", "SourceNodeHash": "se-set", "SourcePortHash": "se-set-done", "TargetNodeHash": "se-template", "TargetPortHash": "se-tpl-in", "Data": {} },
 			{ "Hash": "se-c3", "SourceNodeHash": "se-template", "SourcePortHash": "se-tpl-done", "TargetNodeHash": "se-write", "TargetPortHash": "se-wr-in", "Data": {} },
 			{ "Hash": "se-c4", "SourceNodeHash": "se-write", "SourcePortHash": "se-wr-done", "TargetNodeHash": "se-end", "TargetPortHash": "se-end-in", "Data": {} },
-			{ "Hash": "se-c5", "SourceNodeHash": "se-write", "SourcePortHash": "se-wr-err", "TargetNodeHash": "se-end", "TargetPortHash": "se-end-in", "Data": {} }
+			{ "Hash": "se-c5", "SourceNodeHash": "se-write", "SourcePortHash": "se-wr-err", "TargetNodeHash": "se-end", "TargetPortHash": "se-end-in", "Data": {} },
+			{ "Hash": "se-sc1", "SourceNodeHash": "se-template", "SourcePortHash": "se-tpl-so-Result", "TargetNodeHash": "se-write", "TargetPortHash": "se-wr-si-Content", "Data": {} }
 		],
 		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
 	},

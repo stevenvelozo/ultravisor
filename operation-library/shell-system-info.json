@@ -25,12 +25,14 @@
 				"X": 260,
 				"Y": 180,
 				"Width": 200,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Get Hostname",
 				"Ports": [
 					{ "Hash": "si-hn-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
 					{ "Hash": "si-hn-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
-					{ "Hash": "si-hn-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "si-hn-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "si-hn-so-StdOut", "Direction": "output", "Side": "right-top", "Label": "StdOut" },
+					{ "Hash": "si-hn-so-ExitCode", "Direction": "output", "Side": "right-top", "Label": "ExitCode" }
 				],
 				"Data": { "Command": "hostname", "Description": "Get system hostname" }
 			},
@@ -40,12 +42,14 @@
 				"X": 530,
 				"Y": 180,
 				"Width": 200,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Get Uptime",
 				"Ports": [
 					{ "Hash": "si-up-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
 					{ "Hash": "si-up-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
-					{ "Hash": "si-up-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "si-up-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "si-up-so-StdOut", "Direction": "output", "Side": "right-top", "Label": "StdOut" },
+					{ "Hash": "si-up-so-ExitCode", "Direction": "output", "Side": "right-top", "Label": "ExitCode" }
 				],
 				"Data": { "Command": "uptime", "Description": "Get system uptime" }
 			},
@@ -55,12 +59,14 @@
 				"X": 800,
 				"Y": 180,
 				"Width": 200,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Get Date",
 				"Ports": [
 					{ "Hash": "si-dt-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
 					{ "Hash": "si-dt-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
-					{ "Hash": "si-dt-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "si-dt-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "si-dt-so-StdOut", "Direction": "output", "Side": "right-top", "Label": "StdOut" },
+					{ "Hash": "si-dt-so-ExitCode", "Direction": "output", "Side": "right-top", "Label": "ExitCode" }
 				],
 				"Data": { "Command": "date", "Description": "Get current date and time" }
 			},
@@ -70,11 +76,12 @@
 				"X": 1070,
 				"Y": 180,
 				"Width": 240,
-				"Height": 80,
+				"Height": 100,
 				"Title": "Build Report",
 				"Ports": [
 					{ "Hash": "si-rpt-in", "Direction": "input", "Side": "left-bottom", "Label": "In" },
-					{ "Hash": "si-rpt-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+					{ "Hash": "si-rpt-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "si-rpt-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
 				],
 				"Data": { "Template": "=== System Info Report ===\nHostname: {~D:Record.TaskOutput.si-hostname.StdOut~}\nUptime: {~D:Record.TaskOutput.si-uptime.StdOut~}\nDate: {~D:Record.TaskOutput.si-date.StdOut~}\n", "Destination": "Operation.Report" }
 			},
@@ -84,12 +91,14 @@
 				"X": 1380,
 				"Y": 180,
 				"Width": 200,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Save Report",
 				"Ports": [
 					{ "Hash": "si-wr-in", "Direction": "input", "Side": "left-bottom", "Label": "BeginWrite" },
 					{ "Hash": "si-wr-done", "Direction": "output", "Side": "right-bottom", "Label": "WriteComplete" },
-					{ "Hash": "si-wr-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "si-wr-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "si-wr-si-Content", "Direction": "input", "Side": "left-top", "Label": "Content" },
+					{ "Hash": "si-wr-so-BytesWritten", "Direction": "output", "Side": "right-top", "Label": "BytesWritten" }
 				],
 				"Data": { "FilePath": "system-info-report.txt", "Content": "{~D:Record.Operation.Report~}", "Encoding": "utf8" }
 			},
@@ -117,7 +126,8 @@
 			{ "Hash": "si-c7", "SourceNodeHash": "si-hostname", "SourcePortHash": "si-hn-err", "TargetNodeHash": "si-end", "TargetPortHash": "si-end-in", "Data": {} },
 			{ "Hash": "si-c8", "SourceNodeHash": "si-uptime", "SourcePortHash": "si-up-err", "TargetNodeHash": "si-end", "TargetPortHash": "si-end-in", "Data": {} },
 			{ "Hash": "si-c9", "SourceNodeHash": "si-date", "SourcePortHash": "si-dt-err", "TargetNodeHash": "si-end", "TargetPortHash": "si-end-in", "Data": {} },
-			{ "Hash": "si-c10", "SourceNodeHash": "si-write", "SourcePortHash": "si-wr-err", "TargetNodeHash": "si-end", "TargetPortHash": "si-end-in", "Data": {} }
+			{ "Hash": "si-c10", "SourceNodeHash": "si-write", "SourcePortHash": "si-wr-err", "TargetNodeHash": "si-end", "TargetPortHash": "si-end-in", "Data": {} },
+			{ "Hash": "si-sc1", "SourceNodeHash": "si-report", "SourcePortHash": "si-rpt-so-Result", "TargetNodeHash": "si-write", "TargetPortHash": "si-wr-si-Content", "Data": {} }
 		],
 		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
 	},

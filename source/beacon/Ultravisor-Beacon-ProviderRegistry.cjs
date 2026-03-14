@@ -163,7 +163,8 @@ class UltravisorBeaconProviderRegistry
 		// Built-in providers
 		let tmpBuiltIns = {
 			'Shell': libPath.join(__dirname, 'providers', 'Ultravisor-Beacon-Provider-Shell.cjs'),
-			'FileSystem': libPath.join(__dirname, 'providers', 'Ultravisor-Beacon-Provider-FileSystem.cjs')
+			'FileSystem': libPath.join(__dirname, 'providers', 'Ultravisor-Beacon-Provider-FileSystem.cjs'),
+			'LLM': libPath.join(__dirname, 'providers', 'Ultravisor-Beacon-Provider-LLM.cjs')
 		};
 
 		try

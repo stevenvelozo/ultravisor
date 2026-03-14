@@ -25,12 +25,16 @@
 				"X": 260,
 				"Y": 180,
 				"Width": 240,
-				"Height": 80,
+				"Height": 140,
 				"Title": "Remote System Info",
 				"Ports": [
 					{ "Hash": "brc-disp-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
 					{ "Hash": "brc-disp-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
-					{ "Hash": "brc-disp-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "brc-disp-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "brc-disp-so-StdOut", "Direction": "output", "Side": "right-top", "Label": "StdOut" },
+					{ "Hash": "brc-disp-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" },
+					{ "Hash": "brc-disp-so-ExitCode", "Direction": "output", "Side": "right-top", "Label": "ExitCode" },
+					{ "Hash": "brc-disp-so-BeaconID", "Direction": "output", "Side": "right-top", "Label": "BeaconID" }
 				],
 				"Data": {
 					"RemoteCapability": "Shell",

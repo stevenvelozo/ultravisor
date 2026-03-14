@@ -45,12 +45,14 @@
 				"X": 550,
 				"Y": 200,
 				"Width": 200,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Read Template",
 				"Ports": [
 					{ "Hash": "tpl-read-in", "Direction": "input", "Side": "left", "Label": "BeginRead" },
 					{ "Hash": "tpl-read-done", "Direction": "output", "Side": "right", "Label": "ReadComplete" },
-					{ "Hash": "tpl-read-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "tpl-read-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "tpl-read-so-FileContent", "Direction": "output", "Side": "right-top", "Label": "FileContent" },
+					{ "Hash": "tpl-read-so-BytesRead", "Direction": "output", "Side": "right-top", "Label": "BytesRead" }
 				],
 				"Data": { "FilePath": "readme.template.md", "Encoding": "utf8" }
 			},
@@ -60,12 +62,14 @@
 				"X": 830,
 				"Y": 180,
 				"Width": 220,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Set Project Name",
 				"Ports": [
 					{ "Hash": "tpl-rn-in", "Direction": "input", "Side": "left", "Label": "Replace" },
 					{ "Hash": "tpl-rn-done", "Direction": "output", "Side": "right", "Label": "ReplaceComplete" },
-					{ "Hash": "tpl-rn-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "tpl-rn-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "tpl-rn-si-InputString", "Direction": "input", "Side": "left-top", "Label": "InputString" },
+					{ "Hash": "tpl-rn-so-ReplacedString", "Direction": "output", "Side": "right-top", "Label": "ReplacedString" }
 				],
 				"Data": { "InputString": "{~D:Record.TaskOutput.tpl-read.FileContent~}", "SearchString": "${PROJECT_NAME}", "ReplaceString": "{~D:Record.Operation.ProjectName~}" }
 			},
@@ -75,12 +79,14 @@
 				"X": 1130,
 				"Y": 180,
 				"Width": 220,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Set Version",
 				"Ports": [
 					{ "Hash": "tpl-rv-in", "Direction": "input", "Side": "left", "Label": "Replace" },
 					{ "Hash": "tpl-rv-done", "Direction": "output", "Side": "right", "Label": "ReplaceComplete" },
-					{ "Hash": "tpl-rv-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "tpl-rv-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "tpl-rv-si-InputString", "Direction": "input", "Side": "left-top", "Label": "InputString" },
+					{ "Hash": "tpl-rv-so-ReplacedString", "Direction": "output", "Side": "right-top", "Label": "ReplacedString" }
 				],
 				"Data": { "InputString": "{~D:Record.TaskOutput.tpl-replace-name.ReplacedString~}", "SearchString": "${VERSION}", "ReplaceString": "{~D:Record.Operation.Version~}" }
 			},
@@ -95,7 +101,8 @@
 				"Ports": [
 					{ "Hash": "tpl-val-in", "Direction": "input", "Side": "left", "Label": "Evaluate" },
 					{ "Hash": "tpl-val-true", "Direction": "output", "Side": "bottom", "Label": "True" },
-					{ "Hash": "tpl-val-false", "Direction": "output", "Side": "right", "Label": "False" }
+					{ "Hash": "tpl-val-false", "Direction": "output", "Side": "right", "Label": "False" },
+					{ "Hash": "tpl-val-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
 				],
 				"Data": { "DataAddress": "TaskOutput.tpl-replace-ver.ReplacedString", "CompareValue": "${", "Operator": "contains" }
 			},
@@ -119,11 +126,13 @@
 				"X": 1750,
 				"Y": 160,
 				"Width": 220,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Add Header",
 				"Ports": [
 					{ "Hash": "tpl-hdr-in", "Direction": "input", "Side": "left", "Label": "Append" },
-					{ "Hash": "tpl-hdr-done", "Direction": "output", "Side": "right", "Label": "Completed" }
+					{ "Hash": "tpl-hdr-done", "Direction": "output", "Side": "right", "Label": "Completed" },
+					{ "Hash": "tpl-hdr-si-InputString", "Direction": "input", "Side": "left-top", "Label": "InputString" },
+					{ "Hash": "tpl-hdr-so-AppendedString", "Direction": "output", "Side": "right-top", "Label": "AppendedString" }
 				],
 				"Data": { "InputString": "{~D:Record.TaskOutput.tpl-replace-ver.ReplacedString~}", "OutputAddress": "Operation.FinalContent" }
 			},
@@ -133,12 +142,14 @@
 				"X": 2050,
 				"Y": 160,
 				"Width": 200,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Write Output",
 				"Ports": [
 					{ "Hash": "tpl-write-in", "Direction": "input", "Side": "left", "Label": "BeginWrite" },
 					{ "Hash": "tpl-write-done", "Direction": "output", "Side": "right", "Label": "WriteComplete" },
-					{ "Hash": "tpl-write-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "tpl-write-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "tpl-write-si-Content", "Direction": "input", "Side": "left-top", "Label": "Content" },
+					{ "Hash": "tpl-write-so-BytesWritten", "Direction": "output", "Side": "right-top", "Label": "BytesWritten" }
 				],
 				"Data": { "FilePath": "README.md", "Content": "{~D:Record.Operation.FinalContent~}", "Encoding": "utf8" }
 			},
@@ -268,7 +279,11 @@
 				"TargetNodeHash": "tpl-end",
 				"TargetPortHash": "tpl-end-in",
 				"Data": {}
-			}
+			},
+			{ "Hash": "tpl-sc1", "SourceNodeHash": "tpl-read", "SourcePortHash": "tpl-read-so-FileContent", "TargetNodeHash": "tpl-replace-name", "TargetPortHash": "tpl-rn-si-InputString", "Data": {} },
+			{ "Hash": "tpl-sc2", "SourceNodeHash": "tpl-replace-name", "SourcePortHash": "tpl-rn-so-ReplacedString", "TargetNodeHash": "tpl-replace-ver", "TargetPortHash": "tpl-rv-si-InputString", "Data": {} },
+			{ "Hash": "tpl-sc3", "SourceNodeHash": "tpl-replace-ver", "SourcePortHash": "tpl-rv-so-ReplacedString", "TargetNodeHash": "tpl-header", "TargetPortHash": "tpl-hdr-si-InputString", "Data": {} },
+			{ "Hash": "tpl-sc4", "SourceNodeHash": "tpl-header", "SourcePortHash": "tpl-hdr-so-AppendedString", "TargetNodeHash": "tpl-write", "TargetPortHash": "tpl-write-si-Content", "Data": {} }
 		],
 		"ViewState": {
 			"PanX": 0,

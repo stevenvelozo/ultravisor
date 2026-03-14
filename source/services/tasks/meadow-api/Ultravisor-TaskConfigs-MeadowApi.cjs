@@ -35,6 +35,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'meadow-read',
+			Type: 'meadow-read',
 			Name: 'Meadow Read',
 			Description: 'Reads a single record by ID from a Meadow REST endpoint.',
 			Category: 'meadow',
@@ -105,6 +106,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'meadow-reads',
+			Type: 'meadow-reads',
 			Name: 'Meadow Reads',
 			Description: 'Reads multiple records from a Meadow REST endpoint with optional filter.',
 			Category: 'meadow',
@@ -179,6 +181,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'meadow-create',
+			Type: 'meadow-create',
 			Name: 'Meadow Create',
 			Description: 'Creates a new record via a Meadow REST endpoint.',
 			Category: 'meadow',
@@ -245,6 +248,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'meadow-update',
+			Type: 'meadow-update',
 			Name: 'Meadow Update',
 			Description: 'Updates a record via a Meadow REST endpoint.',
 			Category: 'meadow',
@@ -311,6 +315,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'meadow-delete',
+			Type: 'meadow-delete',
 			Name: 'Meadow Delete',
 			Description: 'Deletes a record by ID via a Meadow REST endpoint.',
 			Category: 'meadow',
@@ -369,6 +374,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'meadow-count',
+			Type: 'meadow-count',
 			Name: 'Meadow Count',
 			Description: 'Counts records for an entity via a Meadow REST endpoint.',
 			Category: 'meadow',

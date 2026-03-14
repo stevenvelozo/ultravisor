@@ -25,11 +25,12 @@
 				"X": 260,
 				"Y": 180,
 				"Width": 240,
-				"Height": 100,
+				"Height": 120,
 				"Title": "Enter Expression",
 				"Ports": [
 					{ "Hash": "ec-inp-req", "Direction": "input", "Side": "left-bottom", "Label": "RequestInput" },
-					{ "Hash": "ec-inp-done", "Direction": "output", "Side": "right-bottom", "Label": "ValueInputComplete" }
+					{ "Hash": "ec-inp-done", "Direction": "output", "Side": "right-bottom", "Label": "ValueInputComplete" },
+					{ "Hash": "ec-inp-so-InputValue", "Direction": "output", "Side": "right-top", "Label": "InputValue" }
 				],
 				"Data": { "PromptMessage": "Enter a math expression (e.g. 2+3*4)", "OutputAddress": "Operation.Expression" }
 			},
@@ -39,11 +40,13 @@
 				"X": 580,
 				"Y": 180,
 				"Width": 220,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Evaluate Expression",
 				"Ports": [
 					{ "Hash": "ec-slv-in", "Direction": "input", "Side": "left-bottom", "Label": "In" },
-					{ "Hash": "ec-slv-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+					{ "Hash": "ec-slv-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "ec-slv-si-Expression", "Direction": "input", "Side": "left-top", "Label": "Expression" },
+					{ "Hash": "ec-slv-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
 				],
 				"Data": { "Expression": "{~D:Record.Operation.Expression~}", "Destination": "Operation.Result" }
 			},
@@ -53,11 +56,12 @@
 				"X": 870,
 				"Y": 180,
 				"Width": 220,
-				"Height": 80,
+				"Height": 100,
 				"Title": "Format Result",
 				"Ports": [
 					{ "Hash": "ec-fmt-in", "Direction": "input", "Side": "left-bottom", "Label": "In" },
-					{ "Hash": "ec-fmt-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+					{ "Hash": "ec-fmt-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "ec-fmt-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
 				],
 				"Data": { "Template": "Expression: {~D:Record.Operation.Expression~}\nResult: {~D:Record.Operation.Result~}\n", "Destination": "Operation.Output" }
 			},
@@ -67,12 +71,14 @@
 				"X": 1160,
 				"Y": 180,
 				"Width": 200,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Save Result",
 				"Ports": [
 					{ "Hash": "ec-wr-in", "Direction": "input", "Side": "left-bottom", "Label": "BeginWrite" },
 					{ "Hash": "ec-wr-done", "Direction": "output", "Side": "right-bottom", "Label": "WriteComplete" },
-					{ "Hash": "ec-wr-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "ec-wr-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "ec-wr-si-Content", "Direction": "input", "Side": "left-top", "Label": "Content" },
+					{ "Hash": "ec-wr-so-BytesWritten", "Direction": "output", "Side": "right-top", "Label": "BytesWritten" }
 				],
 				"Data": { "FilePath": "calc-result.txt", "Content": "{~D:Record.Operation.Output~}", "Encoding": "utf8" }
 			},
@@ -96,7 +102,9 @@
 			{ "Hash": "ec-c3", "SourceNodeHash": "ec-solve", "SourcePortHash": "ec-slv-done", "TargetNodeHash": "ec-format", "TargetPortHash": "ec-fmt-in", "Data": {} },
 			{ "Hash": "ec-c4", "SourceNodeHash": "ec-format", "SourcePortHash": "ec-fmt-done", "TargetNodeHash": "ec-write", "TargetPortHash": "ec-wr-in", "Data": {} },
 			{ "Hash": "ec-c5", "SourceNodeHash": "ec-write", "SourcePortHash": "ec-wr-done", "TargetNodeHash": "ec-end", "TargetPortHash": "ec-end-in", "Data": {} },
-			{ "Hash": "ec-c6", "SourceNodeHash": "ec-write", "SourcePortHash": "ec-wr-err", "TargetNodeHash": "ec-end", "TargetPortHash": "ec-end-in", "Data": {} }
+			{ "Hash": "ec-c6", "SourceNodeHash": "ec-write", "SourcePortHash": "ec-wr-err", "TargetNodeHash": "ec-end", "TargetPortHash": "ec-end-in", "Data": {} },
+			{ "Hash": "ec-sc1", "SourceNodeHash": "ec-input", "SourcePortHash": "ec-inp-so-InputValue", "TargetNodeHash": "ec-solve", "TargetPortHash": "ec-slv-si-Expression", "Data": {} },
+			{ "Hash": "ec-sc2", "SourceNodeHash": "ec-format", "SourcePortHash": "ec-fmt-so-Result", "TargetNodeHash": "ec-write", "TargetPortHash": "ec-wr-si-Content", "Data": {} }
 		],
 		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
 	},

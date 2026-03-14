@@ -39,12 +39,13 @@
 				"X": 530,
 				"Y": 180,
 				"Width": 200,
-				"Height": 80,
+				"Height": 100,
 				"Title": "Fetch API Data",
 				"Ports": [
 					{ "Hash": "ap-ft-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
 					{ "Hash": "ap-ft-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
-					{ "Hash": "ap-ft-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "ap-ft-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "ap-ft-so-Data", "Direction": "output", "Side": "right-top", "Label": "Data" }
 				],
 				"Data": { "URL": "{~D:Record.Operation.APIEndpoint~}", "Destination": "Operation.APIResponse" }
 			},
@@ -59,7 +60,8 @@
 				"Ports": [
 					{ "Hash": "ap-chk-in", "Direction": "input", "Side": "left-bottom", "Label": "Evaluate" },
 					{ "Hash": "ap-chk-true", "Direction": "output", "Side": "right-bottom", "Label": "True" },
-					{ "Hash": "ap-chk-false", "Direction": "output", "Side": "bottom", "Label": "False" }
+					{ "Hash": "ap-chk-false", "Direction": "output", "Side": "bottom", "Label": "False" },
+					{ "Hash": "ap-chk-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
 				],
 				"Data": { "DataAddress": "Operation.APIResponse", "Operator": "truthy" }
 			},
@@ -69,12 +71,13 @@
 				"X": 1090,
 				"Y": 140,
 				"Width": 200,
-				"Height": 80,
+				"Height": 100,
 				"Title": "Save Snapshot",
 				"Ports": [
 					{ "Hash": "ap-sv-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
 					{ "Hash": "ap-sv-done", "Direction": "output", "Side": "right-bottom", "Label": "Done" },
-					{ "Hash": "ap-sv-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "ap-sv-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "ap-sv-so-BytesWritten", "Direction": "output", "Side": "right-top", "Label": "BytesWritten" }
 				],
 				"Data": { "File": "api-snapshot.json", "Address": "Operation.APIResponse" }
 			},

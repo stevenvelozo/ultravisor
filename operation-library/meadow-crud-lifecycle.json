@@ -1,0 +1,264 @@
+{
+	"Name": "Meadow CRUD Lifecycle",
+	"Description": "Complete CRUD lifecycle for a Note entity on a Meadow API. Creates a record, reads it back, updates it, lists all records, counts records, deletes the record, then writes a summary report. Demonstrates all six Meadow task types: meadow-create, meadow-read, meadow-update, meadow-reads, meadow-count, meadow-delete.",
+	"Tags": ["meadow", "crud", "api", "data-lifecycle"],
+	"Author": "Ultravisor",
+	"Version": "1.0.0",
+	"Graph": {
+		"Nodes": [
+			{
+				"Hash": "mc-start",
+				"Type": "start",
+				"X": 50,
+				"Y": 220,
+				"Width": 140,
+				"Height": 80,
+				"Title": "Start",
+				"Ports": [
+					{ "Hash": "mc-start-out", "Direction": "output", "Side": "right-bottom", "Label": "Out" }
+				],
+				"Data": {}
+			},
+			{
+				"Hash": "mc-init",
+				"Type": "set-values",
+				"X": 250,
+				"Y": 200,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Initialize Settings",
+				"Ports": [
+					{ "Hash": "mc-ei-Execute", "Direction": "input", "Side": "left-bottom", "Label": "Execute" },
+					{ "Hash": "mc-eo-Complete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": {
+					"Mappings": [
+						{ "Address": "Operation.Entity", "Value": "Note" },
+						{ "Address": "Operation.Endpoint", "Value": "http://localhost:8080/1.0" },
+						{ "Address": "Operation.NewRecord", "Value": { "Title": "My First Note", "Content": "This is a sample note created by the Meadow CRUD lifecycle flow." } }
+					]
+				}
+			},
+			{
+				"Hash": "mc-create",
+				"Type": "meadow-create",
+				"X": 520,
+				"Y": 200,
+				"Width": 220,
+				"Height": 120,
+				"Title": "Create Note",
+				"Ports": [
+					{ "Hash": "mc-ei-CreateTrigger", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "mc-eo-CreateComplete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "mc-eo-CreateError", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "mc-so-Created", "Direction": "output", "Side": "right-top", "Label": "Created" }
+				],
+				"Data": {
+					"Entity": "{~D:Record.Operation.Entity~}",
+					"Endpoint": "{~D:Record.Operation.Endpoint~}",
+					"DataAddress": "Operation.NewRecord"
+				}
+			},
+			{
+				"Hash": "mc-read",
+				"Type": "meadow-read",
+				"X": 810,
+				"Y": 200,
+				"Width": 220,
+				"Height": 120,
+				"Title": "Read Note",
+				"Ports": [
+					{ "Hash": "mc-ei-ReadTrigger", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "mc-eo-ReadComplete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "mc-eo-ReadError", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "mc-so-Record", "Direction": "output", "Side": "right-top", "Label": "Record" }
+				],
+				"Data": {
+					"Entity": "{~D:Record.Operation.Entity~}",
+					"Endpoint": "{~D:Record.Operation.Endpoint~}",
+					"RecordID": "{~D:Record.TaskOutput.mc-create.Created.IDNote~}",
+					"Destination": "Operation.ReadRecord"
+				}
+			},
+			{
+				"Hash": "mc-update",
+				"Type": "meadow-update",
+				"X": 1100,
+				"Y": 200,
+				"Width": 220,
+				"Height": 120,
+				"Title": "Update Note",
+				"Ports": [
+					{ "Hash": "mc-ei-UpdateTrigger", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "mc-eo-UpdateComplete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "mc-eo-UpdateError", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "mc-so-Updated", "Direction": "output", "Side": "right-top", "Label": "Updated" }
+				],
+				"Data": {
+					"Entity": "{~D:Record.Operation.Entity~}",
+					"Endpoint": "{~D:Record.Operation.Endpoint~}",
+					"DataAddress": "Operation.UpdateData"
+				}
+			},
+			{
+				"Hash": "mc-reads",
+				"Type": "meadow-reads",
+				"X": 1390,
+				"Y": 200,
+				"Width": 220,
+				"Height": 120,
+				"Title": "List All Notes",
+				"Ports": [
+					{ "Hash": "mc-ei-ReadsTrigger", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "mc-eo-ReadsComplete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "mc-eo-ReadsError", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "mc-so-Records", "Direction": "output", "Side": "right-top", "Label": "Records" }
+				],
+				"Data": {
+					"Entity": "{~D:Record.Operation.Entity~}",
+					"Endpoint": "{~D:Record.Operation.Endpoint~}",
+					"Filter": "",
+					"Destination": "Operation.AllRecords"
+				}
+			},
+			{
+				"Hash": "mc-count",
+				"Type": "meadow-count",
+				"X": 1670,
+				"Y": 200,
+				"Width": 220,
+				"Height": 120,
+				"Title": "Count Notes",
+				"Ports": [
+					{ "Hash": "mc-ei-CountTrigger", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "mc-eo-CountComplete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "mc-eo-CountError", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "mc-so-Count", "Direction": "output", "Side": "right-top", "Label": "Count" }
+				],
+				"Data": {
+					"Entity": "{~D:Record.Operation.Entity~}",
+					"Endpoint": "{~D:Record.Operation.Endpoint~}",
+					"Destination": "Operation.TotalCount"
+				}
+			},
+			{
+				"Hash": "mc-delete",
+				"Type": "meadow-delete",
+				"X": 1950,
+				"Y": 200,
+				"Width": 220,
+				"Height": 100,
+				"Title": "Delete Note",
+				"Ports": [
+					{ "Hash": "mc-ei-DeleteTrigger", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "mc-eo-DeleteDone", "Direction": "output", "Side": "right-bottom", "Label": "Done" },
+					{ "Hash": "mc-eo-DeleteError", "Direction": "output", "Side": "bottom", "Label": "Error" }
+				],
+				"Data": {
+					"Entity": "{~D:Record.Operation.Entity~}",
+					"Endpoint": "{~D:Record.Operation.Endpoint~}",
+					"RecordID": "{~D:Record.TaskOutput.mc-create.Created.IDNote~}"
+				}
+			},
+			{
+				"Hash": "mc-format",
+				"Type": "template-string",
+				"X": 2220,
+				"Y": 200,
+				"Width": 260,
+				"Height": 100,
+				"Title": "Format Report",
+				"Ports": [
+					{ "Hash": "mc-ei-FormatIn", "Direction": "input", "Side": "left-bottom", "Label": "In" },
+					{ "Hash": "mc-eo-FormatComplete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "mc-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
+				],
+				"Data": {
+					"Template": "Meadow CRUD Lifecycle Report\n=============================\nEntity: {~D:Record.Operation.Entity~}\nEndpoint: {~D:Record.Operation.Endpoint~}\n\nCreated: {~D:Record.TaskOutput.mc-create.Created~}\nRead Back: {~D:Record.TaskOutput.mc-read.Record~}\nUpdated: {~D:Record.TaskOutput.mc-update.Updated~}\nTotal Records: {~D:Record.TaskOutput.mc-count.Count~}\nAll Records: {~D:Record.TaskOutput.mc-reads.Records~}\nDeleted Record ID: {~D:Record.TaskOutput.mc-create.Created.IDNote~}\n",
+					"Destination": "Operation.Report"
+				}
+			},
+			{
+				"Hash": "mc-write",
+				"Type": "write-file",
+				"X": 2540,
+				"Y": 200,
+				"Width": 200,
+				"Height": 120,
+				"Title": "Write Report",
+				"Ports": [
+					{ "Hash": "mc-ei-WriteBegin", "Direction": "input", "Side": "left-bottom", "Label": "BeginWrite" },
+					{ "Hash": "mc-eo-WriteDone", "Direction": "output", "Side": "right-bottom", "Label": "WriteComplete" },
+					{ "Hash": "mc-eo-WriteError", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "mc-si-Content", "Direction": "input", "Side": "left-top", "Label": "Content" },
+					{ "Hash": "mc-so-BytesWritten", "Direction": "output", "Side": "right-top", "Label": "BytesWritten" }
+				],
+				"Data": {
+					"FilePath": "crud-lifecycle-report.txt",
+					"Content": "{~D:Record.Operation.Report~}",
+					"Encoding": "utf8"
+				}
+			},
+			{
+				"Hash": "mc-err",
+				"Type": "error-message",
+				"X": 1100,
+				"Y": 420,
+				"Width": 220,
+				"Height": 80,
+				"Title": "CRUD Error",
+				"Ports": [
+					{ "Hash": "mc-ei-ErrTrigger", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
+					{ "Hash": "mc-eo-ErrComplete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+				],
+				"Data": {
+					"MessageTemplate": "Meadow CRUD lifecycle encountered an error"
+				}
+			},
+			{
+				"Hash": "mc-end",
+				"Type": "end",
+				"X": 2810,
+				"Y": 260,
+				"Width": 140,
+				"Height": 80,
+				"Title": "End",
+				"Ports": [
+					{ "Hash": "mc-end-in", "Direction": "input", "Side": "left-bottom", "Label": "In" }
+				],
+				"Data": {}
+			}
+		],
+		"Connections": [
+			{ "Hash": "mc-c1", "SourceNodeHash": "mc-start", "SourcePortHash": "mc-start-out", "TargetNodeHash": "mc-init", "TargetPortHash": "mc-ei-Execute", "Data": {} },
+			{ "Hash": "mc-c2", "SourceNodeHash": "mc-init", "SourcePortHash": "mc-eo-Complete", "TargetNodeHash": "mc-create", "TargetPortHash": "mc-ei-CreateTrigger", "Data": {} },
+			{ "Hash": "mc-c3", "SourceNodeHash": "mc-create", "SourcePortHash": "mc-eo-CreateComplete", "TargetNodeHash": "mc-read", "TargetPortHash": "mc-ei-ReadTrigger", "Data": {} },
+			{ "Hash": "mc-c4", "SourceNodeHash": "mc-read", "SourcePortHash": "mc-eo-ReadComplete", "TargetNodeHash": "mc-update", "TargetPortHash": "mc-ei-UpdateTrigger", "Data": {} },
+			{ "Hash": "mc-c5", "SourceNodeHash": "mc-update", "SourcePortHash": "mc-eo-UpdateComplete", "TargetNodeHash": "mc-reads", "TargetPortHash": "mc-ei-ReadsTrigger", "Data": {} },
+			{ "Hash": "mc-c6", "SourceNodeHash": "mc-reads", "SourcePortHash": "mc-eo-ReadsComplete", "TargetNodeHash": "mc-count", "TargetPortHash": "mc-ei-CountTrigger", "Data": {} },
+			{ "Hash": "mc-c7", "SourceNodeHash": "mc-count", "SourcePortHash": "mc-eo-CountComplete", "TargetNodeHash": "mc-delete", "TargetPortHash": "mc-ei-DeleteTrigger", "Data": {} },
+			{ "Hash": "mc-c8", "SourceNodeHash": "mc-delete", "SourcePortHash": "mc-eo-DeleteDone", "TargetNodeHash": "mc-format", "TargetPortHash": "mc-ei-FormatIn", "Data": {} },
+			{ "Hash": "mc-c9", "SourceNodeHash": "mc-format", "SourcePortHash": "mc-eo-FormatComplete", "TargetNodeHash": "mc-write", "TargetPortHash": "mc-ei-WriteBegin", "Data": {} },
+			{ "Hash": "mc-c10", "SourceNodeHash": "mc-write", "SourcePortHash": "mc-eo-WriteDone", "TargetNodeHash": "mc-end", "TargetPortHash": "mc-end-in", "Data": {} },
+			{ "Hash": "mc-c11", "SourceNodeHash": "mc-create", "SourcePortHash": "mc-eo-CreateError", "TargetNodeHash": "mc-err", "TargetPortHash": "mc-ei-ErrTrigger", "Data": {} },
+			{ "Hash": "mc-c12", "SourceNodeHash": "mc-read", "SourcePortHash": "mc-eo-ReadError", "TargetNodeHash": "mc-err", "TargetPortHash": "mc-ei-ErrTrigger", "Data": {} },
+			{ "Hash": "mc-c13", "SourceNodeHash": "mc-update", "SourcePortHash": "mc-eo-UpdateError", "TargetNodeHash": "mc-err", "TargetPortHash": "mc-ei-ErrTrigger", "Data": {} },
+			{ "Hash": "mc-c14", "SourceNodeHash": "mc-reads", "SourcePortHash": "mc-eo-ReadsError", "TargetNodeHash": "mc-err", "TargetPortHash": "mc-ei-ErrTrigger", "Data": {} },
+			{ "Hash": "mc-c15", "SourceNodeHash": "mc-count", "SourcePortHash": "mc-eo-CountError", "TargetNodeHash": "mc-err", "TargetPortHash": "mc-ei-ErrTrigger", "Data": {} },
+			{ "Hash": "mc-c16", "SourceNodeHash": "mc-delete", "SourcePortHash": "mc-eo-DeleteError", "TargetNodeHash": "mc-err", "TargetPortHash": "mc-ei-ErrTrigger", "Data": {} },
+			{ "Hash": "mc-c17", "SourceNodeHash": "mc-err", "SourcePortHash": "mc-eo-ErrComplete", "TargetNodeHash": "mc-end", "TargetPortHash": "mc-end-in", "Data": {} },
+			{ "Hash": "mc-c18", "SourceNodeHash": "mc-write", "SourcePortHash": "mc-eo-WriteError", "TargetNodeHash": "mc-end", "TargetPortHash": "mc-end-in", "Data": {} },
+			{ "Hash": "mc-sc1", "SourceNodeHash": "mc-format", "SourcePortHash": "mc-so-Result", "TargetNodeHash": "mc-write", "TargetPortHash": "mc-si-Content", "Data": {} }
+		],
+		"ViewState": {
+			"PanX": 0,
+			"PanY": 0,
+			"Zoom": 1,
+			"SelectedNodeHash": null,
+			"SelectedConnectionHash": null
+		}
+	},
+	"SavedLayouts": [],
+	"InitialGlobalState": {},
+	"InitialOperationState": {}
+}

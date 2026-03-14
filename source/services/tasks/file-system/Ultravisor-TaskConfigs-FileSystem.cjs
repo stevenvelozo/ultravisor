@@ -24,6 +24,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'read-file',
+			Type: 'read-file',
 			Name: 'Read File',
 			Description: 'Reads a file from disk into state.',
 			Category: 'file-io',
@@ -85,6 +86,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'write-file',
+			Type: 'write-file',
 			Name: 'Write File',
 			Description: 'Writes content to a file on disk.',
 			Category: 'file-io',
@@ -102,17 +104,20 @@ module.exports =
 				{ Name: 'Encoding', DataType: 'String', Required: false, Default: 'utf8', Description: 'File encoding' }
 			],
 			StateOutputs: [
+				{ Name: 'FileLocation', DataType: 'String', Description: 'The path the file was referenced at (may be relative)' },
+				{ Name: 'FileName', DataType: 'String', Description: 'The name of the file only (no directory)' },
+				{ Name: 'FilePath', DataType: 'String', Description: 'The fully resolved absolute path of the file' },
 				{ Name: 'BytesWritten', DataType: 'Number', Description: 'Number of bytes written' }
 			],
 			DefaultSettings: { FilePath: '', Content: '', Encoding: 'utf8' }
 		},
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
-			let tmpFilePath = pResolvedSettings.FilePath || '';
+			let tmpFileLocation = pResolvedSettings.FilePath || '';
 			let tmpContent = pResolvedSettings.Content;
 			let tmpEncoding = pResolvedSettings.Encoding || 'utf8';
 
-			if (!tmpFilePath)
+			if (!tmpFileLocation)
 			{
 				return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: ['WriteFile: no FilePath specified.'] });
 			}
@@ -120,7 +125,7 @@ module.exports =
 			if (tmpContent === undefined || tmpContent === null) { tmpContent = ''; }
 			if (typeof(tmpContent) !== 'string') { tmpContent = JSON.stringify(tmpContent, null, '\t'); }
 
-			tmpFilePath = pTask.resolveFilePath(tmpFilePath, pExecutionContext.StagingPath);
+			let tmpFilePath = pTask.resolveFilePath(tmpFileLocation, pExecutionContext.StagingPath);
 
 			try
 			{
@@ -131,7 +136,12 @@ module.exports =
 
 				return fCallback(null, {
 					EventToFire: 'WriteComplete',
-					Outputs: { BytesWritten: tmpBytesWritten },
+					Outputs: {
+						FileLocation: tmpFileLocation,
+						FileName: libPath.basename(tmpFilePath),
+						FilePath: tmpFilePath,
+						BytesWritten: tmpBytesWritten
+					},
 					Log: [`WriteFile: wrote ${tmpBytesWritten} bytes to ${tmpFilePath}`]
 				});
 			}
@@ -147,6 +157,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'read-json',
+			Type: 'read-json',
 			Name: 'Read JSON',
 			Description: 'Reads a JSON file from disk and parses it into state.',
 			Category: 'file-io',
@@ -208,6 +219,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'write-json',
+			Type: 'write-json',
 			Name: 'Write JSON',
 			Description: 'Writes a JSON object to a file on disk.',
 			Category: 'file-io',
@@ -224,20 +236,23 @@ module.exports =
 				{ Name: 'Address', DataType: 'String', Required: false, Description: 'State address of the data to write' }
 			],
 			StateOutputs: [
-				{ Name: 'BytesWritten', DataType: 'Number' }
+				{ Name: 'FileLocation', DataType: 'String', Description: 'The path the file was referenced at (may be relative)' },
+				{ Name: 'FileName', DataType: 'String', Description: 'The name of the file only (no directory)' },
+				{ Name: 'FilePath', DataType: 'String', Description: 'The fully resolved absolute path of the file' },
+				{ Name: 'BytesWritten', DataType: 'Number', Description: 'Number of bytes written' }
 			],
 			DefaultSettings: { File: '', Address: '' }
 		},
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
-			let tmpFilePath = pResolvedSettings.File || '';
+			let tmpFileLocation = pResolvedSettings.File || '';
 
-			if (!tmpFilePath)
+			if (!tmpFileLocation)
 			{
 				return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: ['WriteJSON: no File specified.'] });
 			}
 
-			tmpFilePath = pTask.resolveFilePath(tmpFilePath, pExecutionContext.StagingPath);
+			let tmpFilePath = pTask.resolveFilePath(tmpFileLocation, pExecutionContext.StagingPath);
 
 			let tmpData = null;
 			if (pResolvedSettings.Address && pExecutionContext.StateManager)
@@ -259,7 +274,12 @@ module.exports =
 
 				return fCallback(null, {
 					EventToFire: 'Done',
-					Outputs: { BytesWritten: Buffer.byteLength(tmpContent) },
+					Outputs: {
+						FileLocation: tmpFileLocation,
+						FileName: libPath.basename(tmpFilePath),
+						FilePath: tmpFilePath,
+						BytesWritten: Buffer.byteLength(tmpContent)
+					},
 					Log: [`WriteJSON: wrote ${Buffer.byteLength(tmpContent)} bytes to ${tmpFilePath}`]
 				});
 			}
@@ -275,6 +295,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'list-files',
+			Type: 'list-files',
 			Name: 'List Files',
 			Description: 'Lists files in a directory with optional glob pattern filtering.',
 			Category: 'file-io',
@@ -344,6 +365,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'copy-file',
+			Type: 'copy-file',
 			Name: 'Copy File',
 			Description: 'Copies a file from source to target path.',
 			Category: 'file-io',
@@ -359,21 +381,25 @@ module.exports =
 				{ Name: 'Source', DataType: 'String', Required: true, Description: 'Source file path' },
 				{ Name: 'TargetFile', DataType: 'String', Required: true, Description: 'Target file path' }
 			],
-			StateOutputs: [],
+			StateOutputs: [
+				{ Name: 'FileLocation', DataType: 'String', Description: 'The target path the file was referenced at (may be relative)' },
+				{ Name: 'FileName', DataType: 'String', Description: 'The name of the target file only (no directory)' },
+				{ Name: 'FilePath', DataType: 'String', Description: 'The fully resolved absolute path of the target file' }
+			],
 			DefaultSettings: { Source: '', TargetFile: '' }
 		},
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpSource = pResolvedSettings.Source || '';
-			let tmpTarget = pResolvedSettings.TargetFile || '';
+			let tmpTargetLocation = pResolvedSettings.TargetFile || '';
 
-			if (!tmpSource || !tmpTarget)
+			if (!tmpSource || !tmpTargetLocation)
 			{
 				return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: ['CopyFile: Source and TargetFile are required.'] });
 			}
 
 			tmpSource = pTask.resolveFilePath(tmpSource, pExecutionContext.StagingPath);
-			tmpTarget = pTask.resolveFilePath(tmpTarget, pExecutionContext.StagingPath);
+			let tmpTarget = pTask.resolveFilePath(tmpTargetLocation, pExecutionContext.StagingPath);
 
 			try
 			{
@@ -383,7 +409,11 @@ module.exports =
 
 				return fCallback(null, {
 					EventToFire: 'Done',
-					Outputs: {},
+					Outputs: {
+						FileLocation: tmpTargetLocation,
+						FileName: libPath.basename(tmpTarget),
+						FilePath: tmpTarget
+					},
 					Log: [`CopyFile: copied ${tmpSource} -> ${tmpTarget}`]
 				});
 			}

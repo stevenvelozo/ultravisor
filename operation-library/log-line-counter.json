@@ -39,12 +39,14 @@
 				"X": 530,
 				"Y": 180,
 				"Width": 200,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Read Log File",
 				"Ports": [
 					{ "Hash": "lc-rd-in", "Direction": "input", "Side": "left-bottom", "Label": "BeginRead" },
 					{ "Hash": "lc-rd-done", "Direction": "output", "Side": "right-bottom", "Label": "ReadComplete" },
-					{ "Hash": "lc-rd-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "lc-rd-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "lc-rd-so-FileContent", "Direction": "output", "Side": "right-top", "Label": "FileContent" },
+					{ "Hash": "lc-rd-so-BytesRead", "Direction": "output", "Side": "right-top", "Label": "BytesRead" }
 				],
 				"Data": { "FilePath": "{~D:Record.Operation.LogFile~}", "Encoding": "utf8" }
 			},
@@ -54,13 +56,17 @@
 				"X": 800,
 				"Y": 160,
 				"Width": 220,
-				"Height": 120,
+				"Height": 140,
 				"Title": "Split Into Lines",
 				"Ports": [
 					{ "Hash": "lc-spl-begin", "Direction": "input", "Side": "left-bottom", "Label": "PerformSplit" },
 					{ "Hash": "lc-spl-step", "Direction": "input", "Side": "left-bottom", "Label": "StepComplete" },
 					{ "Hash": "lc-spl-token", "Direction": "output", "Side": "right-bottom", "Label": "TokenDataSent" },
-					{ "Hash": "lc-spl-alldone", "Direction": "output", "Side": "right-bottom", "Label": "CompletedAllSubtasks" }
+					{ "Hash": "lc-spl-alldone", "Direction": "output", "Side": "right-bottom", "Label": "CompletedAllSubtasks" },
+					{ "Hash": "lc-spl-so-CurrentToken", "Direction": "output", "Side": "right-top", "Label": "CurrentToken" },
+					{ "Hash": "lc-spl-so-TokenIndex", "Direction": "output", "Side": "right-top", "Label": "TokenIndex" },
+					{ "Hash": "lc-spl-so-TokenCount", "Direction": "output", "Side": "right-top", "Label": "TokenCount" },
+					{ "Hash": "lc-spl-so-CompletedCount", "Direction": "output", "Side": "right-top", "Label": "CompletedCount" }
 				],
 				"Data": { "InputString": "{~D:Record.TaskOutput.lc-read.FileContent~}", "SplitDelimiter": "\n" }
 			},
@@ -75,7 +81,8 @@
 				"Ports": [
 					{ "Hash": "lc-chk-in", "Direction": "input", "Side": "left-bottom", "Label": "Evaluate" },
 					{ "Hash": "lc-chk-true", "Direction": "output", "Side": "right-bottom", "Label": "True" },
-					{ "Hash": "lc-chk-false", "Direction": "output", "Side": "bottom", "Label": "False" }
+					{ "Hash": "lc-chk-false", "Direction": "output", "Side": "bottom", "Label": "False" },
+					{ "Hash": "lc-chk-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
 				],
 				"Data": { "DataAddress": "TaskOutput.lc-split.CurrentToken", "CompareValue": "ERROR", "Operator": "contains" }
 			},
@@ -85,11 +92,12 @@
 				"X": 1400,
 				"Y": 120,
 				"Width": 220,
-				"Height": 80,
+				"Height": 100,
 				"Title": "Increment Count",
 				"Ports": [
 					{ "Hash": "lc-inc-in", "Direction": "input", "Side": "left-bottom", "Label": "In" },
-					{ "Hash": "lc-inc-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+					{ "Hash": "lc-inc-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "lc-inc-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
 				],
 				"Data": { "Expression": "{~D:Record.Operation.ErrorCount~}+1", "Destination": "Operation.ErrorCount" }
 			},
@@ -99,11 +107,12 @@
 				"X": 1100,
 				"Y": 380,
 				"Width": 240,
-				"Height": 80,
+				"Height": 100,
 				"Title": "Build Summary",
 				"Ports": [
 					{ "Hash": "lc-sum-in", "Direction": "input", "Side": "left-bottom", "Label": "In" },
-					{ "Hash": "lc-sum-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+					{ "Hash": "lc-sum-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
+					{ "Hash": "lc-sum-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
 				],
 				"Data": { "Template": "Log Analysis Complete\nFile: {~D:Record.Operation.LogFile~}\nError lines found: {~D:Record.Operation.ErrorCount~}\n", "Destination": "Operation.Summary" }
 			},
@@ -113,12 +122,14 @@
 				"X": 1400,
 				"Y": 380,
 				"Width": 200,
-				"Height": 80,
+				"Height": 120,
 				"Title": "Save Summary",
 				"Ports": [
 					{ "Hash": "lc-wr-in", "Direction": "input", "Side": "left-bottom", "Label": "BeginWrite" },
 					{ "Hash": "lc-wr-done", "Direction": "output", "Side": "right-bottom", "Label": "WriteComplete" },
-					{ "Hash": "lc-wr-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{ "Hash": "lc-wr-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "lc-wr-si-Content", "Direction": "input", "Side": "left-top", "Label": "Content" },
+					{ "Hash": "lc-wr-so-BytesWritten", "Direction": "output", "Side": "right-top", "Label": "BytesWritten" }
 				],
 				"Data": { "FilePath": "log-analysis.txt", "Content": "{~D:Record.Operation.Summary~}", "Encoding": "utf8" }
 			},
@@ -163,7 +174,8 @@
 			{ "Hash": "lc-c10", "SourceNodeHash": "lc-write", "SourcePortHash": "lc-wr-done", "TargetNodeHash": "lc-end", "TargetPortHash": "lc-end-in", "Data": {} },
 			{ "Hash": "lc-c11", "SourceNodeHash": "lc-read", "SourcePortHash": "lc-rd-err", "TargetNodeHash": "lc-rderr", "TargetPortHash": "lc-rde-in", "Data": {} },
 			{ "Hash": "lc-c12", "SourceNodeHash": "lc-rderr", "SourcePortHash": "lc-rde-done", "TargetNodeHash": "lc-end", "TargetPortHash": "lc-end-in", "Data": {} },
-			{ "Hash": "lc-c13", "SourceNodeHash": "lc-write", "SourcePortHash": "lc-wr-err", "TargetNodeHash": "lc-end", "TargetPortHash": "lc-end-in", "Data": {} }
+			{ "Hash": "lc-c13", "SourceNodeHash": "lc-write", "SourcePortHash": "lc-wr-err", "TargetNodeHash": "lc-end", "TargetPortHash": "lc-end-in", "Data": {} },
+			{ "Hash": "lc-sc1", "SourceNodeHash": "lc-summary", "SourcePortHash": "lc-sum-so-Result", "TargetNodeHash": "lc-write", "TargetPortHash": "lc-wr-si-Content", "Data": {} }
 		],
 		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
 	},

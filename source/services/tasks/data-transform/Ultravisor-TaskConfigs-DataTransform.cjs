@@ -232,6 +232,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'template-string',
+			Type: 'template-string',
 			Name: 'Template String',
 			Description: 'Processes a Pict template string against the current state.',
 			Category: 'core',
@@ -286,6 +287,7 @@ module.exports =
 		Definition:
 		{
 			Hash: 'expression-solver',
+			Type: 'expression-solver',
 			Name: 'Expression Solver',
 			Description: 'Evaluates an expression using Fable ExpressionParser.',
 			Category: 'core',
@@ -345,9 +347,10 @@ module.exports =
 		Definition:
 		{
 			Hash: 'parse-csv',
+			Type: 'parse-csv',
 			Name: 'Parse CSV',
 			Description: 'Parses CSV text into an array of records.',
-			Category: 'data',
+			Category: 'pipeline',
 			Capability: 'Data Transform',
 			Action: 'ParseCSV',
 			Tier: 'Engine',
@@ -428,9 +431,10 @@ module.exports =
 		Definition:
 		{
 			Hash: 'csv-transform',
+			Type: 'csv-transform',
 			Name: 'CSV Transform',
 			Description: 'Transforms parsed CSV records using a template per row.',
-			Category: 'data',
+			Category: 'pipeline',
 			Capability: 'Data Transform',
 			Action: 'TransformCSV',
 			Tier: 'Engine',
@@ -480,9 +484,10 @@ module.exports =
 		Definition:
 		{
 			Hash: 'comprehension-intersect',
+			Type: 'comprehension-intersect',
 			Name: 'Comprehension Intersect',
 			Description: 'Intersects two arrays by matching a common field.',
-			Category: 'data',
+			Category: 'pipeline',
 			Capability: 'Data Transform',
 			Action: 'Intersect',
 			Tier: 'Engine',
@@ -572,9 +577,10 @@ module.exports =
 		Definition:
 		{
 			Hash: 'histogram',
+			Type: 'histogram',
 			Name: 'Histogram',
 			Description: 'Computes a frequency distribution over a field in a dataset.',
-			Category: 'data',
+			Category: 'pipeline',
 			Capability: 'Data Transform',
 			Action: 'Histogram',
 			Tier: 'Engine',
