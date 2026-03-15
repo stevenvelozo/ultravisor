@@ -9,6 +9,7 @@
  *   --server URL          Ultravisor server URL (default: http://localhost:54321)
  *   --name NAME           Beacon worker name (default: beacon-worker)
  *   --capabilities LIST   Comma-separated capabilities (default: Shell)
+ *   --password PASSWORD    Authentication password for server connection
  *
  * For advanced provider configuration, use a .ultravisor-beacon.json file
  * with a "Providers" array instead of --capabilities.
@@ -31,6 +32,7 @@ let tmpConfig = {
 	PollIntervalMs: 5000,
 	HeartbeatIntervalMs: 30000,
 	StagingPath: process.cwd(),
+	Password: '',
 	Tags: {}
 };
 
@@ -73,6 +75,9 @@ for (let i = 2; i < process.argv.length; i++)
 		case '--staging-path':
 			tmpConfig.StagingPath = process.argv[++i] || process.cwd();
 			break;
+		case '--password':
+			tmpConfig.Password = process.argv[++i] || '';
+			break;
 		case '--help':
 		case '-h':
 			console.log('Ultravisor Beacon Worker');
@@ -86,6 +91,7 @@ for (let i = 2; i < process.argv.length; i++)
 			console.log('  --max-concurrent N    Max concurrent work items (default: 1)');
 			console.log('  --poll-interval MS    Poll interval in ms (default: 5000)');
 			console.log('  --staging-path PATH   Local staging directory (default: cwd)');
+			console.log('  --password PASSWORD   Authentication password for server connection');
 			console.log('  --help, -h            Show this help');
 			console.log('');
 			console.log('Provider Configuration:');

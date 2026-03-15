@@ -4,6 +4,7 @@ const libFS = require('fs');
 const libPath = require('path');
 const libOrator = require('orator');
 const libOratorServiceServerRestify = require(`orator-serviceserver-restify`);
+const libOratorAuthentication = require('orator-authentication');
 
 class UltravisorAPIServer extends libPictService
 {
@@ -17,6 +18,8 @@ class UltravisorAPIServer extends libPictService
 
 		// Add Orator as a service
 		this.fable.addServiceTypeIfNotExists('Orator', libOrator);
+
+		this._OratorAuth = null;
 	}
 
 	/**
@@ -27,6 +30,25 @@ class UltravisorAPIServer extends libPictService
 		return this.fable.servicesMap[pTypeName]
 			? Object.values(this.fable.servicesMap[pTypeName])[0]
 			: null;
+	}
+
+	_requireSession(pRequest, pResponse, fNext)
+	{
+		if (!this._OratorAuth)
+		{
+			return {};
+		}
+
+		let tmpSession = this._OratorAuth.getSessionForRequest(pRequest);
+
+		if (!tmpSession)
+		{
+			pResponse.send(401, { Error: 'Authentication required.', LoggedIn: false });
+			fNext();
+			return null;
+		}
+
+		return tmpSession;
 	}
 
 	wireEndpoints(fCallback)
@@ -770,6 +792,9 @@ class UltravisorAPIServer extends libPictService
 				'/Beacon/Register',
 				function (pRequest, pResponse, fNext)
 				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{
@@ -784,7 +809,7 @@ class UltravisorAPIServer extends libPictService
 						return fNext();
 					}
 
-					let tmpBeacon = tmpCoordinator.registerBeacon(tmpBody);
+					let tmpBeacon = tmpCoordinator.registerBeacon(tmpBody, tmpSession.SessionID);
 					pResponse.send(tmpBeacon);
 					return fNext();
 				}.bind(this)
@@ -796,6 +821,9 @@ class UltravisorAPIServer extends libPictService
 				'/Beacon',
 				function (pRequest, pResponse, fNext)
 				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{
@@ -814,6 +842,9 @@ class UltravisorAPIServer extends libPictService
 				'/Beacon/Work',
 				function (pRequest, pResponse, fNext)
 				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{
@@ -832,6 +863,9 @@ class UltravisorAPIServer extends libPictService
 				'/Beacon/Affinity',
 				function (pRequest, pResponse, fNext)
 				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{
@@ -850,6 +884,9 @@ class UltravisorAPIServer extends libPictService
 				'/Beacon/:BeaconID',
 				function (pRequest, pResponse, fNext)
 				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{
@@ -875,6 +912,9 @@ class UltravisorAPIServer extends libPictService
 				'/Beacon/:BeaconID',
 				function (pRequest, pResponse, fNext)
 				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{
@@ -900,6 +940,9 @@ class UltravisorAPIServer extends libPictService
 				'/Beacon/:BeaconID/Heartbeat',
 				function (pRequest, pResponse, fNext)
 				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{
@@ -925,6 +968,9 @@ class UltravisorAPIServer extends libPictService
 				'/Beacon/Work/Poll',
 				function (pRequest, pResponse, fNext)
 				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{
@@ -951,6 +997,9 @@ class UltravisorAPIServer extends libPictService
 				'/Beacon/Work/:WorkItemHash/Complete',
 				function (pRequest, pResponse, fNext)
 				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{
@@ -981,6 +1030,9 @@ class UltravisorAPIServer extends libPictService
 				'/Beacon/Work/:WorkItemHash/Progress',
 				function (pRequest, pResponse, fNext)
 				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{
@@ -1008,6 +1060,9 @@ class UltravisorAPIServer extends libPictService
 				'/Beacon/Work/Dispatch',
 				function (pRequest, pResponse, fNext)
 				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{
@@ -1065,6 +1120,9 @@ class UltravisorAPIServer extends libPictService
 				'/Beacon/Capabilities',
 				function (pRequest, pResponse, fNext)
 				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{
@@ -1098,6 +1156,9 @@ class UltravisorAPIServer extends libPictService
 				'/Beacon/Work/:WorkItemHash/Error',
 				function (pRequest, pResponse, fNext)
 				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{
@@ -1171,6 +1232,22 @@ class UltravisorAPIServer extends libPictService
 			{
 				// Enable JSON body parsing for POST/PUT requests
 				this._OratorServer.server.use(this._OratorServer.bodyParser());
+				return fNext();
+			}.bind(this));
+
+		tmpAnticipate.anticipate(
+			function (fNext)
+			{
+				this.fable.addServiceTypeIfNotExists('OratorAuthentication', libOratorAuthentication);
+				this._OratorAuth = this.fable.instantiateServiceProvider('OratorAuthentication',
+					{
+						RoutePrefix: '/1.0/',
+						SessionTTL: this.fable.settings.UltravisorBeaconSessionTTLMs || 86400000,
+						CookieHttpOnly: true,
+						CookieSecure: false
+					});
+				this._OratorAuth.connectRoutes();
+				this.log.info('Ultravisor: OratorAuthentication routes registered.');
 				return fNext();
 			}.bind(this));
 

@@ -85,18 +85,50 @@ class UltravisorBeaconCoordinator extends libPictService
 	/**
 	 * Register a new Beacon worker.
 	 *
+	 * If a beacon with the same Name already exists and is Offline,
+	 * reclaim it (session-aware reconnection) instead of creating a
+	 * new record.
+	 *
 	 * @param {object} pBeaconInfo - { Name, Capabilities, MaxConcurrent?, Tags? }
-	 * @returns {object} The created Beacon record
+	 * @param {string} pSessionID - Optional session identifier
+	 * @returns {object} The created or reclaimed Beacon record
 	 */
-	registerBeacon(pBeaconInfo)
+	registerBeacon(pBeaconInfo, pSessionID)
 	{
 		let tmpName = pBeaconInfo.Name || 'unnamed';
+
+		// Check for an existing offline beacon with the same name to reclaim
+		let tmpExistingBeacon = this.findBeaconByName(tmpName);
+		if (tmpExistingBeacon && tmpExistingBeacon.Status === 'Offline')
+		{
+			tmpExistingBeacon.SessionID = pSessionID || null;
+			tmpExistingBeacon.LastHeartbeat = new Date().toISOString();
+			tmpExistingBeacon.Status = 'Online';
+
+			if (Array.isArray(pBeaconInfo.Capabilities))
+			{
+				tmpExistingBeacon.Capabilities = pBeaconInfo.Capabilities;
+			}
+			if (pBeaconInfo.MaxConcurrent)
+			{
+				tmpExistingBeacon.MaxConcurrent = pBeaconInfo.MaxConcurrent;
+			}
+			if (pBeaconInfo.Tags)
+			{
+				tmpExistingBeacon.Tags = pBeaconInfo.Tags;
+			}
+
+			this.log.info(`BeaconCoordinator: reconnected beacon [${tmpExistingBeacon.BeaconID}] "${tmpName}" with session [${tmpExistingBeacon.SessionID}].`);
+			return tmpExistingBeacon;
+		}
+
 		let tmpTimestamp = Date.now();
 		let tmpBeaconID = `bcn-${tmpName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${tmpTimestamp}`;
 
 		let tmpBeacon = {
 			BeaconID: tmpBeaconID,
 			Name: tmpName,
+			SessionID: pSessionID || null,
 			Capabilities: Array.isArray(pBeaconInfo.Capabilities) ? pBeaconInfo.Capabilities : [],
 			Status: 'Online',
 			LastHeartbeat: new Date().toISOString(),
@@ -110,6 +142,46 @@ class UltravisorBeaconCoordinator extends libPictService
 		this.log.info(`BeaconCoordinator: registered beacon [${tmpBeaconID}] "${tmpName}" with capabilities [${tmpBeacon.Capabilities.join(', ')}].`);
 
 		return tmpBeacon;
+	}
+
+	/**
+	 * Find a beacon by its Name property.
+	 *
+	 * @param {string} pName - The beacon name to search for
+	 * @returns {object|null} The first matching Beacon record, or null
+	 */
+	findBeaconByName(pName)
+	{
+		let tmpBeaconIDs = Object.keys(this._Beacons);
+		for (let i = 0; i < tmpBeaconIDs.length; i++)
+		{
+			let tmpBeacon = this._Beacons[tmpBeaconIDs[i]];
+			if (tmpBeacon.Name === pName)
+			{
+				return tmpBeacon;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Find a beacon by its SessionID property.
+	 *
+	 * @param {string} pSessionID - The session identifier to search for
+	 * @returns {object|null} The first matching Beacon record, or null
+	 */
+	findBeaconBySessionID(pSessionID)
+	{
+		let tmpBeaconIDs = Object.keys(this._Beacons);
+		for (let i = 0; i < tmpBeaconIDs.length; i++)
+		{
+			let tmpBeacon = this._Beacons[tmpBeaconIDs[i]];
+			if (tmpBeacon.SessionID === pSessionID)
+			{
+				return tmpBeacon;
+			}
+		}
+		return null;
 	}
 
 	/**

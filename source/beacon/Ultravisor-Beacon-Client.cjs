@@ -24,6 +24,7 @@ class UltravisorBeaconClient
 		this._Config = Object.assign({
 			ServerURL: 'http://localhost:54321',
 			Name: 'beacon-worker',
+			Password: '',
 			Capabilities: ['Shell'],
 			MaxConcurrent: 1,
 			PollIntervalMs: 5000,
@@ -37,6 +38,8 @@ class UltravisorBeaconClient
 		this._HeartbeatInterval = null;
 		this._Running = false;
 		this._ActiveWorkItems = 0;
+		this._SessionCookie = null;
+		this._Authenticating = false;
 
 		this._Executor = new libBeaconExecutor({
 			StagingPath: this._Config.StagingPath
@@ -92,35 +95,47 @@ class UltravisorBeaconClient
 			let tmpCapabilities = this._Executor.providerRegistry.getCapabilities();
 			console.log(`[Beacon] Capabilities: ${tmpCapabilities.join(', ')}`);
 
-			this._register((pError, pBeacon) =>
+			// Authenticate before registering
+			this._authenticate((pAuthError) =>
 			{
-				if (pError)
+				if (pAuthError)
 				{
-					console.error(`[Beacon] Registration failed: ${pError.message}`);
-					return fCallback(pError);
+					console.error(`[Beacon] Authentication failed: ${pAuthError.message}`);
+					return fCallback(pAuthError);
 				}
 
-				this._BeaconID = pBeacon.BeaconID;
-				this._Running = true;
+				console.log(`[Beacon] Authenticated successfully.`);
 
-				console.log(`[Beacon] Registered as ${this._BeaconID}`);
-
-				// Start polling for work
-				this._PollInterval = setInterval(() =>
+				this._register((pError, pBeacon) =>
 				{
+					if (pError)
+					{
+						console.error(`[Beacon] Registration failed: ${pError.message}`);
+						return fCallback(pError);
+					}
+
+					this._BeaconID = pBeacon.BeaconID;
+					this._Running = true;
+
+					console.log(`[Beacon] Registered as ${this._BeaconID}`);
+
+					// Start polling for work
+					this._PollInterval = setInterval(() =>
+					{
+						this._poll();
+					}, this._Config.PollIntervalMs);
+
+					// Start heartbeat
+					this._HeartbeatInterval = setInterval(() =>
+					{
+						this._heartbeat();
+					}, this._Config.HeartbeatIntervalMs);
+
+					// Do an immediate poll
 					this._poll();
-				}, this._Config.PollIntervalMs);
 
-				// Start heartbeat
-				this._HeartbeatInterval = setInterval(() =>
-				{
-					this._heartbeat();
-				}, this._Config.HeartbeatIntervalMs);
-
-				// Do an immediate poll
-				this._poll();
-
-				return fCallback(null, pBeacon);
+					return fCallback(null, pBeacon);
+				});
 			});
 		});
 	}
@@ -173,6 +188,145 @@ class UltravisorBeaconClient
 				console.log(`[Beacon] Stopped.`);
 				if (fCallback) return fCallback(null);
 			}
+		});
+	}
+
+	// ================================================================
+	// Authentication
+	// ================================================================
+
+	_authenticate(fCallback)
+	{
+		let tmpBody = {
+			UserName: this._Config.Name,
+			Password: this._Config.Password || ''
+		};
+
+		let tmpBodyString = JSON.stringify(tmpBody);
+		let tmpParsedURL = new URL(this._Config.ServerURL);
+		let tmpOptions = {
+			hostname: tmpParsedURL.hostname,
+			port: tmpParsedURL.port || 80,
+			path: '/1.0/Authenticate',
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(tmpBodyString)
+			}
+		};
+
+		let tmpReq = libHTTP.request(tmpOptions, (pResponse) =>
+		{
+			let tmpData = '';
+			pResponse.on('data', (pChunk) => { tmpData += pChunk; });
+			pResponse.on('end', () =>
+			{
+				if (pResponse.statusCode >= 400)
+				{
+					return fCallback(new Error(`Authentication failed with HTTP ${pResponse.statusCode}`));
+				}
+
+				// Extract session cookie from Set-Cookie headers
+				let tmpSetCookieHeaders = pResponse.headers['set-cookie'];
+				if (tmpSetCookieHeaders && tmpSetCookieHeaders.length > 0)
+				{
+					// Take the name=value portion (before the first semicolon)
+					let tmpCookieParts = tmpSetCookieHeaders[0].split(';');
+					this._SessionCookie = tmpCookieParts[0].trim();
+					console.log(`[Beacon] Session cookie acquired.`);
+				}
+
+				try
+				{
+					let tmpParsed = JSON.parse(tmpData);
+					return fCallback(null, tmpParsed);
+				}
+				catch (pParseError)
+				{
+					return fCallback(new Error(`Invalid JSON in auth response: ${tmpData.substring(0, 200)}`));
+				}
+			});
+		});
+
+		tmpReq.on('error', (pError) =>
+		{
+			return fCallback(pError);
+		});
+
+		tmpReq.write(tmpBodyString);
+		tmpReq.end();
+	}
+
+	// ================================================================
+	// Reconnection
+	// ================================================================
+
+	_reconnect()
+	{
+		if (this._Authenticating)
+		{
+			return;
+		}
+		this._Authenticating = true;
+
+		// Clear existing intervals
+		if (this._PollInterval)
+		{
+			clearInterval(this._PollInterval);
+			this._PollInterval = null;
+		}
+		if (this._HeartbeatInterval)
+		{
+			clearInterval(this._HeartbeatInterval);
+			this._HeartbeatInterval = null;
+		}
+
+		this._SessionCookie = null;
+
+		console.log(`[Beacon] Reconnecting — re-authenticating...`);
+
+		this._authenticate((pAuthError) =>
+		{
+			if (pAuthError)
+			{
+				console.error(`[Beacon] Re-authentication failed: ${pAuthError.message}`);
+				this._Authenticating = false;
+				setTimeout(() => { this._reconnect(); }, 10000);
+				return;
+			}
+
+			console.log(`[Beacon] Re-authenticated, re-registering...`);
+
+			this._register((pRegError, pBeacon) =>
+			{
+				if (pRegError)
+				{
+					console.error(`[Beacon] Re-registration failed: ${pRegError.message}`);
+					this._Authenticating = false;
+					setTimeout(() => { this._reconnect(); }, 10000);
+					return;
+				}
+
+				this._BeaconID = pBeacon.BeaconID;
+				this._Authenticating = false;
+
+				console.log(`[Beacon] Reconnected as ${this._BeaconID}`);
+
+				// Restart polling
+				this._PollInterval = setInterval(() =>
+				{
+					this._poll();
+				}, this._Config.PollIntervalMs);
+
+				// Restart heartbeat
+				this._HeartbeatInterval = setInterval(() =>
+				{
+					this._heartbeat();
+				}, this._Config.HeartbeatIntervalMs);
+
+				// Immediate poll
+				this._poll();
+			});
 		});
 	}
 
@@ -362,12 +516,25 @@ class UltravisorBeaconClient
 			}
 		};
 
+		// Attach session cookie if available
+		if (this._SessionCookie)
+		{
+			tmpOptions.headers['Cookie'] = this._SessionCookie;
+		}
+
 		let tmpReq = libHTTP.request(tmpOptions, (pResponse) =>
 		{
 			let tmpData = '';
 			pResponse.on('data', (pChunk) => { tmpData += pChunk; });
 			pResponse.on('end', () =>
 			{
+				// Detect 401 and trigger reconnection
+				if (pResponse.statusCode === 401)
+				{
+					this._reconnect();
+					return fCallback(new Error('Unauthorized — reconnecting'));
+				}
+
 				try
 				{
 					let tmpParsed = JSON.parse(tmpData);
