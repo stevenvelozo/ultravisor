@@ -284,14 +284,14 @@ class UltravisorFlowEditorView extends libPictView
 			CSSVariables:
 			{
 				// Canvas — muted turquoise tint, lighter than cards so they stand out
-				'--pf-canvas-bg': '#243030',
-				'--pf-grid-stroke': '#2c3838',
+				'--pf-canvas-bg': '#304040',
+				'--pf-grid-stroke': '#384848',
 
 				// Nodes
 				'--pf-node-body-fill': '#1e1a16',
 				'--pf-node-body-stroke': '#3a3028',
 				'--pf-node-body-stroke-width': '1',
-				'--pf-node-body-radius': '6px',
+				'--pf-node-body-radius': '3px',
 				'--pf-node-shadow': 'drop-shadow(0 1px 3px rgba(0, 0, 0, 0.30))',
 				'--pf-node-shadow-hover': 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.40))',
 				'--pf-node-shadow-selected': 'drop-shadow(0 2px 8px rgba(196, 149, 106, 0.30))',
@@ -325,14 +325,14 @@ class UltravisorFlowEditorView extends libPictView
 				'--pf-connection-value-stroke': '#d4b040',
 				'--pf-connection-error-stroke': '#c44e4e',
 
-				// Panels
-				'--pf-panel-bg': '#252018',
-				'--pf-panel-border': '#3a3028',
+				// Panels — cooler tone to contrast with warm node bodies
+				'--pf-panel-bg': '#1e2228',
+				'--pf-panel-border': '#343c44',
 				'--pf-panel-radius': '6px',
-				'--pf-panel-shadow': '0 4px 12px rgba(0,0,0,0.30), 0 1px 3px rgba(0,0,0,0.20)',
-				'--pf-panel-titlebar-bg': '#302818',
-				'--pf-panel-titlebar-border': '#3a3028',
-				'--pf-panel-title-color': '#d8c8a8'
+				'--pf-panel-shadow': '0 4px 12px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.25)',
+				'--pf-panel-titlebar-bg': '#262e36',
+				'--pf-panel-titlebar-border': '#343c44',
+				'--pf-panel-title-color': '#c8d0d8'
 			},
 			AdditionalCSS: `
 				.pict-flow-container {
@@ -379,40 +379,97 @@ class UltravisorFlowEditorView extends libPictView
 				.pict-flow-node-title-icon {
 					filter: brightness(0.8) sepia(0.3) !important;
 				}
-				/* Info panel styles for dark theme */
+				/* Info panel styles — cooler blue-gray tone */
 				.pict-flow-info-panel {
-					color: #c8b8a0;
+					color: #b8c4cc;
+				}
+				.pict-flow-info-panel-header {
+					color: #c8d0d8;
+				}
+				.pict-flow-info-panel-description {
+					color: #808c94;
 				}
 				.pict-flow-info-panel-section-title {
-					color: #907860;
+					color: #7088a0;
+					border-bottom-color: #343c44;
+				}
+				.pict-flow-info-panel-badge.category {
+					background: #2a3038;
+					color: #8090a0;
+				}
+				.pict-flow-info-panel-badge.code {
+					background: #1e2830;
+					color: #5a9ecb;
 				}
 				.pict-flow-info-panel-port {
-					color: #c8b8a0;
-					background-color: #302818;
-					border-color: #3a3028;
+					color: #b8c4cc;
+					background-color: #242c34;
+					border-color: #343c44;
 				}
 				.pict-flow-info-panel-port-constraint {
-					color: #907860;
+					color: #708090;
 				}
-				/* Form panel styles for dark theme */
+				/* Node properties editor in panels */
+				.pict-flow-panel-node-props {
+					border-top-color: #343c44;
+				}
+				.pict-flow-panel-node-props-header {
+					background: #262e36;
+				}
+				.pict-flow-panel-node-props-header:hover {
+					background: #2e3640;
+				}
+				.pict-flow-panel-node-props-title {
+					color: #7088a0;
+				}
+				.pict-flow-panel-node-props-chevron {
+					color: #607080;
+				}
+				.pict-flow-panel-close-btn {
+					color: #708090;
+				}
+				.pict-flow-panel-close-btn:hover {
+					color: #c44e4e;
+					background-color: rgba(196, 78, 78, 0.12);
+				}
+				/* Form panel styles — force all text in panels to be readable */
+				.pict-flow-panel-body,
+				.pict-flow-panel-body * {
+					color: #b8c4cc;
+				}
+				.pict-flow-panel-body h2,
+				.pict-flow-panel-body h3 {
+					color: #c8d0d8;
+				}
+				.pict-flow-panel-body label,
 				.pict-flow-panel-body .pict-form label {
-					color: #c8b8a0 !important;
+					color: #90a0b0 !important;
 				}
+				.pict-flow-panel-body span,
+				.pict-flow-panel-body .pict-form span {
+					color: #90a0b0;
+				}
+				.pict-flow-panel-body input,
+				.pict-flow-panel-body textarea,
+				.pict-flow-panel-body select,
 				.pict-flow-panel-body .pict-form input,
 				.pict-flow-panel-body .pict-form textarea,
 				.pict-flow-panel-body .pict-form select {
-					background-color: #1a1714 !important;
-					border-color: #3a3028 !important;
-					color: #c8b8a0 !important;
+					background-color: #181c22 !important;
+					border-color: #343c44 !important;
+					color: #b8c4cc !important;
 				}
+				.pict-flow-panel-body input:focus,
+				.pict-flow-panel-body textarea:focus,
+				.pict-flow-panel-body select:focus,
 				.pict-flow-panel-body .pict-form input:focus,
 				.pict-flow-panel-body .pict-form textarea:focus,
 				.pict-flow-panel-body .pict-form select:focus {
-					border-color: #c4956a !important;
+					border-color: #5a9ecb !important;
 				}
 				/* Port summary in panels */
 				.pict-flow-port-summary {
-					border-top-color: #3a3028;
+					border-top-color: #343c44;
 				}
 				/* Override per-card light-mode body fills with dark theme fill.
 				   SVG fill="" is a presentation attribute; CSS overrides it. */
