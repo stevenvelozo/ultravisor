@@ -27,37 +27,38 @@ function _getService(pTask, pTypeName)
 	return null;
 }
 
+/**
+ * Parse headers from a JSON string or return empty object.
+ */
+function _parseHeaders(pHeadersString)
+{
+	if (!pHeadersString || typeof(pHeadersString) !== 'string' || pHeadersString.trim().length === 0)
+	{
+		return {};
+	}
+
+	try
+	{
+		let tmpHeaders = JSON.parse(pHeadersString);
+		if (typeof(tmpHeaders) === 'object' && tmpHeaders !== null)
+		{
+			return tmpHeaders;
+		}
+	}
+	catch (pError)
+	{
+		// Not valid JSON — ignore
+	}
+
+	return {};
+}
+
 
 module.exports =
 [
 	// ── meadow-read ────────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'meadow-read',
-			Type: 'meadow-read',
-			Name: 'Meadow Read',
-			Description: 'Reads a single record by ID from a Meadow REST endpoint.',
-			Category: 'meadow',
-			Capability: 'Meadow API',
-			Action: 'Read',
-			Tier: 'Service',
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [
-				{ Name: 'Complete' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'Entity', DataType: 'String', Required: true, Description: 'Entity/table name' },
-				{ Name: 'Endpoint', DataType: 'String', Required: true, Description: 'Base URL of the Meadow API' },
-				{ Name: 'RecordID', DataType: 'String', Required: true, Description: 'ID of the record to read' },
-				{ Name: 'Destination', DataType: 'String', Required: false, Description: 'State address to store the record' }
-			],
-			StateOutputs: [
-				{ Name: 'Record', DataType: 'Object', Description: 'The retrieved record' }
-			],
-			DefaultSettings: { Entity: '', Endpoint: '', RecordID: '', Destination: '' }
-		},
+		Definition: require('./definitions/meadow-read.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpEntity = pResolvedSettings.Entity || '';
@@ -77,7 +78,7 @@ module.exports =
 
 			let tmpURL = `${tmpEndpoint}/${tmpEntity}/${tmpRecordID}`;
 
-			tmpRestClient.getJSON(tmpURL,
+			tmpRestClient.getJSON({ url: tmpURL, headers: _parseHeaders(pResolvedSettings.Headers) },
 				function (pError, pResponse, pData)
 				{
 					if (pError)
@@ -103,32 +104,7 @@ module.exports =
 
 	// ── meadow-reads ───────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'meadow-reads',
-			Type: 'meadow-reads',
-			Name: 'Meadow Reads',
-			Description: 'Reads multiple records from a Meadow REST endpoint with optional filter.',
-			Category: 'meadow',
-			Capability: 'Meadow API',
-			Action: 'ReadMany',
-			Tier: 'Service',
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [
-				{ Name: 'Complete' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'Entity', DataType: 'String', Required: true, Description: 'Entity/table name' },
-				{ Name: 'Endpoint', DataType: 'String', Required: true, Description: 'Base URL of the Meadow API' },
-				{ Name: 'Filter', DataType: 'String', Required: false, Description: 'Meadow filter expression' },
-				{ Name: 'Destination', DataType: 'String', Required: false, Description: 'State address to store the records' }
-			],
-			StateOutputs: [
-				{ Name: 'Records', DataType: 'Array', Description: 'Retrieved records' }
-			],
-			DefaultSettings: { Entity: '', Endpoint: '', Filter: '', Destination: '' }
-		},
+		Definition: require('./definitions/meadow-reads.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpEntity = pResolvedSettings.Entity || '';
@@ -148,10 +124,10 @@ module.exports =
 			let tmpURL = `${tmpEndpoint}/${tmpEntity}s`;
 			if (pResolvedSettings.Filter)
 			{
-				tmpURL += `/FilteredTo/${pResolvedSettings.Filter}/0/100`;
+				tmpURL += `/FilteredTo/${pResolvedSettings.Filter}/${pResolvedSettings.PageNumber || 0}/${pResolvedSettings.PageSize || 100}`;
 			}
 
-			tmpRestClient.getJSON(tmpURL,
+			tmpRestClient.getJSON({ url: tmpURL, headers: _parseHeaders(pResolvedSettings.Headers) },
 				function (pError, pResponse, pData)
 				{
 					if (pError)
@@ -168,7 +144,7 @@ module.exports =
 
 					return fCallback(null, {
 						EventToFire: 'Complete',
-						Outputs: { Records: tmpRecords },
+						Outputs: { Records: tmpRecords, RecordCount: tmpRecords.length },
 						StateWrites: tmpStateWrites,
 						Log: [`MeadowReads: retrieved ${tmpRecords.length} ${tmpEntity} records`]
 					});
@@ -178,31 +154,7 @@ module.exports =
 
 	// ── meadow-create ──────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'meadow-create',
-			Type: 'meadow-create',
-			Name: 'Meadow Create',
-			Description: 'Creates a new record via a Meadow REST endpoint.',
-			Category: 'meadow',
-			Capability: 'Meadow API',
-			Action: 'Create',
-			Tier: 'Service',
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [
-				{ Name: 'Complete' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'Entity', DataType: 'String', Required: true, Description: 'Entity/table name' },
-				{ Name: 'Endpoint', DataType: 'String', Required: true, Description: 'Base URL of the Meadow API' },
-				{ Name: 'DataAddress', DataType: 'String', Required: false, Description: 'State address of the record data to create' }
-			],
-			StateOutputs: [
-				{ Name: 'Created', DataType: 'Object', Description: 'The created record' }
-			],
-			DefaultSettings: { Entity: '', Endpoint: '', DataAddress: '' }
-		},
+		Definition: require('./definitions/meadow-create.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpEntity = pResolvedSettings.Entity || '';
@@ -226,7 +178,7 @@ module.exports =
 				if (typeof(tmpData) === 'object' && tmpData !== null) { tmpBody = tmpData; }
 			}
 
-			tmpRestClient.postJSON({ url: `${tmpEndpoint}/${tmpEntity}`, body: tmpBody },
+			tmpRestClient.postJSON({ url: `${tmpEndpoint}/${tmpEntity}`, body: tmpBody, headers: _parseHeaders(pResolvedSettings.Headers) },
 				function (pError, pResponse, pData)
 				{
 					if (pError)
@@ -234,9 +186,16 @@ module.exports =
 						return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: [`MeadowCreate: POST failed: ${pError.message}`] });
 					}
 
+					let tmpStateWrites = {};
+					if (pResolvedSettings.Destination)
+					{
+						tmpStateWrites[pResolvedSettings.Destination] = pData;
+					}
+
 					return fCallback(null, {
 						EventToFire: 'Complete',
 						Outputs: { Created: pData },
+						StateWrites: tmpStateWrites,
 						Log: [`MeadowCreate: created ${tmpEntity} record`]
 					});
 				});
@@ -245,31 +204,7 @@ module.exports =
 
 	// ── meadow-update ──────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'meadow-update',
-			Type: 'meadow-update',
-			Name: 'Meadow Update',
-			Description: 'Updates a record via a Meadow REST endpoint.',
-			Category: 'meadow',
-			Capability: 'Meadow API',
-			Action: 'Update',
-			Tier: 'Service',
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [
-				{ Name: 'Complete' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'Entity', DataType: 'String', Required: true, Description: 'Entity/table name' },
-				{ Name: 'Endpoint', DataType: 'String', Required: true, Description: 'Base URL of the Meadow API' },
-				{ Name: 'DataAddress', DataType: 'String', Required: false, Description: 'State address of the record data to update' }
-			],
-			StateOutputs: [
-				{ Name: 'Updated', DataType: 'Object', Description: 'The updated record' }
-			],
-			DefaultSettings: { Entity: '', Endpoint: '', DataAddress: '' }
-		},
+		Definition: require('./definitions/meadow-update.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpEntity = pResolvedSettings.Entity || '';
@@ -293,7 +228,7 @@ module.exports =
 				if (typeof(tmpData) === 'object' && tmpData !== null) { tmpBody = tmpData; }
 			}
 
-			tmpRestClient.putJSON({ url: `${tmpEndpoint}/${tmpEntity}`, body: tmpBody },
+			tmpRestClient.putJSON({ url: `${tmpEndpoint}/${tmpEntity}`, body: tmpBody, headers: _parseHeaders(pResolvedSettings.Headers) },
 				function (pError, pResponse, pData)
 				{
 					if (pError)
@@ -301,9 +236,16 @@ module.exports =
 						return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: [`MeadowUpdate: PUT failed: ${pError.message}`] });
 					}
 
+					let tmpStateWrites = {};
+					if (pResolvedSettings.Destination)
+					{
+						tmpStateWrites[pResolvedSettings.Destination] = pData;
+					}
+
 					return fCallback(null, {
 						EventToFire: 'Complete',
 						Outputs: { Updated: pData },
+						StateWrites: tmpStateWrites,
 						Log: [`MeadowUpdate: updated ${tmpEntity} record`]
 					});
 				});
@@ -312,29 +254,7 @@ module.exports =
 
 	// ── meadow-delete ──────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'meadow-delete',
-			Type: 'meadow-delete',
-			Name: 'Meadow Delete',
-			Description: 'Deletes a record by ID via a Meadow REST endpoint.',
-			Category: 'meadow',
-			Capability: 'Meadow API',
-			Action: 'Delete',
-			Tier: 'Service',
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [
-				{ Name: 'Done' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'Entity', DataType: 'String', Required: true, Description: 'Entity/table name' },
-				{ Name: 'Endpoint', DataType: 'String', Required: true, Description: 'Base URL of the Meadow API' },
-				{ Name: 'RecordID', DataType: 'String', Required: true, Description: 'ID of the record to delete' }
-			],
-			StateOutputs: [],
-			DefaultSettings: { Entity: '', Endpoint: '', RecordID: '' }
-		},
+		Definition: require('./definitions/meadow-delete.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpEntity = pResolvedSettings.Entity || '';
@@ -352,7 +272,7 @@ module.exports =
 				return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: ['MeadowDelete: RestClient service not found.'] });
 			}
 
-			tmpRestClient.delJSON({ url: `${tmpEndpoint}/${tmpEntity}/${tmpRecordID}` },
+			tmpRestClient.delJSON({ url: `${tmpEndpoint}/${tmpEntity}/${tmpRecordID}`, headers: _parseHeaders(pResolvedSettings.Headers) },
 				function (pError, pResponse, pData)
 				{
 					if (pError)
@@ -371,31 +291,7 @@ module.exports =
 
 	// ── meadow-count ───────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'meadow-count',
-			Type: 'meadow-count',
-			Name: 'Meadow Count',
-			Description: 'Counts records for an entity via a Meadow REST endpoint.',
-			Category: 'meadow',
-			Capability: 'Meadow API',
-			Action: 'Count',
-			Tier: 'Service',
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [
-				{ Name: 'Complete' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'Entity', DataType: 'String', Required: true, Description: 'Entity/table name' },
-				{ Name: 'Endpoint', DataType: 'String', Required: true, Description: 'Base URL of the Meadow API' },
-				{ Name: 'Destination', DataType: 'String', Required: false, Description: 'State address to store the count' }
-			],
-			StateOutputs: [
-				{ Name: 'Count', DataType: 'Number', Description: 'Number of records' }
-			],
-			DefaultSettings: { Entity: '', Endpoint: '', Destination: '' }
-		},
+		Definition: require('./definitions/meadow-count.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpEntity = pResolvedSettings.Entity || '';
@@ -412,7 +308,13 @@ module.exports =
 				return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: ['MeadowCount: RestClient service not found.'] });
 			}
 
-			tmpRestClient.getJSON(`${tmpEndpoint}/${tmpEntity}s/Count`,
+			let tmpURL = `${tmpEndpoint}/${tmpEntity}s/Count`;
+			if (pResolvedSettings.Filter)
+			{
+				tmpURL += '/FilteredTo/' + pResolvedSettings.Filter;
+			}
+
+			tmpRestClient.getJSON({ url: tmpURL, headers: _parseHeaders(pResolvedSettings.Headers) },
 				function (pError, pResponse, pData)
 				{
 					if (pError)

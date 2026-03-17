@@ -1,0 +1,32 @@
+{
+	"Hash": "split-execute",
+	"Type": "split-execute",
+	"Name": "Split Execute",
+	"Description": "Splits a string by delimiter and processes each token through a sub-graph.",
+	"Category": "control",
+	"Capability": "Flow Control",
+	"Action": "Iterate",
+	"Tier": "Engine",
+	"EventInputs": [
+		{ "Name": "PerformSplit" },
+		{ "Name": "StepComplete" }
+	],
+	"EventOutputs": [
+		{ "Name": "TokenDataSent" },
+		{ "Name": "CompletedAllSubtasks" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "InputString", "DataType": "String", "Required": true },
+		{ "Name": "SplitDelimiter", "DataType": "String", "Required": true },
+		{ "Name": "SkipEmpty", "DataType": "Boolean", "Required": false, "Description": "Skip empty tokens after splitting" },
+		{ "Name": "TrimTokens", "DataType": "Boolean", "Required": false, "Description": "Trim whitespace from each token" }
+	],
+	"StateOutputs": [
+		{ "Name": "CurrentToken", "DataType": "String" },
+		{ "Name": "TokenIndex", "DataType": "Number" },
+		{ "Name": "TokenCount", "DataType": "Number" },
+		{ "Name": "CompletedCount", "DataType": "Number" }
+	],
+	"DefaultSettings": { "InputString": "", "SplitDelimiter": "\n", "SkipEmpty": false, "TrimTokens": false }
+}

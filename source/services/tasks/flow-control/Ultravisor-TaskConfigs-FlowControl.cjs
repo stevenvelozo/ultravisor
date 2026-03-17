@@ -85,6 +85,14 @@ function _handlePerformSplit(pSettings, pContext, fCallback)
 	}
 
 	let tmpTokens = tmpInputString.split(tmpDelimiter);
+	if (pSettings.TrimTokens)
+	{
+		tmpTokens = tmpTokens.map(function (pT) { return pT.trim(); });
+	}
+	if (pSettings.SkipEmpty)
+	{
+		tmpTokens = tmpTokens.filter(function (pT) { return pT.length > 0; });
+	}
 	let tmpTokenCount = tmpTokens.length;
 	let tmpLog = [`Splitting input (${tmpInputString.length} chars) by "${tmpDelimiter}" into ${tmpTokenCount} tokens.`];
 
@@ -174,32 +182,7 @@ module.exports =
 [
 	// ── if-conditional ─────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'if-conditional',
-			Type: 'if-conditional',
-			Name: 'If Conditional',
-			Description: 'Evaluates a condition and branches execution to True or False.',
-			Category: 'control',
-			Capability: 'Flow Control',
-			Action: 'Branch',
-			Tier: 'Engine',
-			EventInputs: [{ Name: 'Evaluate' }],
-			EventOutputs: [
-				{ Name: 'True' },
-				{ Name: 'False' }
-			],
-			SettingsInputs: [
-				{ Name: 'DataAddress', DataType: 'String', Required: false },
-				{ Name: 'CompareValue', DataType: 'String', Required: false },
-				{ Name: 'Operator', DataType: 'String', Required: false },
-				{ Name: 'Expression', DataType: 'String', Required: false }
-			],
-			StateOutputs: [
-				{ Name: 'Result', DataType: 'Boolean' }
-			],
-			DefaultSettings: { DataAddress: '', CompareValue: '', Operator: '==', Expression: '' }
-		},
+		Definition: require('./definitions/if-conditional.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpResult = false;
@@ -249,37 +232,7 @@ module.exports =
 
 	// ── split-execute ──────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'split-execute',
-			Type: 'split-execute',
-			Name: 'Split Execute',
-			Description: 'Splits a string by delimiter and processes each token through a sub-graph.',
-			Category: 'control',
-			Capability: 'Flow Control',
-			Action: 'Iterate',
-			Tier: 'Engine',
-			EventInputs: [
-				{ Name: 'PerformSplit' },
-				{ Name: 'StepComplete' }
-			],
-			EventOutputs: [
-				{ Name: 'TokenDataSent' },
-				{ Name: 'CompletedAllSubtasks' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'InputString', DataType: 'String', Required: true },
-				{ Name: 'SplitDelimiter', DataType: 'String', Required: true }
-			],
-			StateOutputs: [
-				{ Name: 'CurrentToken', DataType: 'String' },
-				{ Name: 'TokenIndex', DataType: 'Number' },
-				{ Name: 'TokenCount', DataType: 'Number' },
-				{ Name: 'CompletedCount', DataType: 'Number' }
-			],
-			DefaultSettings: { InputString: '', SplitDelimiter: '\n' }
-		},
+		Definition: require('./definitions/split-execute.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			if (pExecutionContext.TriggeringEventName === 'StepComplete')
@@ -293,32 +246,7 @@ module.exports =
 
 	// ── launch-operation ───────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'launch-operation',
-			Type: 'launch-operation',
-			Name: 'Launch Operation',
-			Description: 'Executes a child operation by hash, with isolated operation state.',
-			Category: 'control',
-			Capability: 'Flow Control',
-			Action: 'LaunchOperation',
-			Tier: 'Engine',
-			EventInputs: [{ Name: 'Launch' }],
-			EventOutputs: [
-				{ Name: 'Completed' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'OperationHash', DataType: 'String', Required: true },
-				{ Name: 'InputData', DataType: 'String' }
-			],
-			StateOutputs: [
-				{ Name: 'Result', DataType: 'String' },
-				{ Name: 'Status', DataType: 'String' },
-				{ Name: 'ElapsedMs', DataType: 'Number' }
-			],
-			DefaultSettings: { OperationHash: '', InputData: '' }
-		},
+		Definition: require('./definitions/launch-operation.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpOperationHash = pResolvedSettings.OperationHash;
@@ -349,7 +277,7 @@ module.exports =
 					}
 
 					let tmpInitialState = {
-						GlobalState: JSON.parse(JSON.stringify(pExecutionContext.GlobalState || {})),
+						GlobalState: (pResolvedSettings.InheritGlobalState === false) ? {} : JSON.parse(JSON.stringify(pExecutionContext.GlobalState || {})),
 						OperationState: {},
 						RunMode: pExecutionContext.RunMode || 'standard'
 					};
@@ -371,10 +299,34 @@ module.exports =
 					}
 
 					let tmpStartTime = Date.now();
+					let tmpTimeoutMs = parseInt(pResolvedSettings.TimeoutMs, 10) || 0;
+					let tmpCompleted = false;
+					let tmpTimeoutHandle = null;
+
+					if (tmpTimeoutMs > 0)
+					{
+						tmpTimeoutHandle = setTimeout(function()
+						{
+							if (!tmpCompleted)
+							{
+								tmpCompleted = true;
+								let tmpElapsedMs = Date.now() - tmpStartTime;
+								return fCallback(null, {
+									EventToFire: 'Error',
+									Outputs: { Result: 'Operation timed out', Status: 'Timeout', ElapsedMs: tmpElapsedMs },
+									Log: [`Child operation [${tmpOperationHash}] timed out after ${tmpTimeoutMs}ms`]
+								});
+							}
+						}, tmpTimeoutMs);
+					}
 
 					tmpEngine.executeOperation(pOperation, tmpInitialState,
 						function (pExecError, pContext)
 						{
+							if (tmpCompleted) { return; }
+							tmpCompleted = true;
+							if (tmpTimeoutHandle) { clearTimeout(tmpTimeoutHandle); }
+
 							let tmpElapsedMs = Date.now() - tmpStartTime;
 
 							if (pExecError)

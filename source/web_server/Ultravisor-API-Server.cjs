@@ -815,15 +815,12 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
-		// --- List Beacons ---
+		// --- List Beacons (no auth – management UI) ---
 		this._OratorServer.get
 			(
 				'/Beacon',
 				function (pRequest, pResponse, fNext)
 				{
-					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
-					if (!tmpSession) { return; }
-
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{
@@ -836,15 +833,12 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
-		// --- Get Beacon ---
+		// --- List Work Items (no auth – management UI) ---
 		this._OratorServer.get
 			(
 				'/Beacon/Work',
 				function (pRequest, pResponse, fNext)
 				{
-					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
-					if (!tmpSession) { return; }
-
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{
@@ -857,15 +851,12 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
-		// --- List Affinity Bindings ---
+		// --- List Affinity Bindings (no auth – management UI) ---
 		this._OratorServer.get
 			(
 				'/Beacon/Affinity',
 				function (pRequest, pResponse, fNext)
 				{
-					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
-					if (!tmpSession) { return; }
-
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{
@@ -878,15 +869,12 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
-		// --- Get Specific Beacon ---
+		// --- Get Specific Beacon (no auth – management UI) ---
 		this._OratorServer.get
 			(
 				'/Beacon/:BeaconID',
 				function (pRequest, pResponse, fNext)
 				{
-					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
-					if (!tmpSession) { return; }
-
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{
@@ -906,15 +894,12 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
-		// --- Deregister Beacon ---
+		// --- Deregister Beacon (no auth – management UI) ---
 		this._OratorServer.del
 			(
 				'/Beacon/:BeaconID',
 				function (pRequest, pResponse, fNext)
 				{
-					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
-					if (!tmpSession) { return; }
-
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{
@@ -1114,15 +1099,12 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
-		// --- Beacon Capabilities ---
+		// --- Beacon Capabilities (no auth – management UI) ---
 		this._OratorServer.get
 			(
 				'/Beacon/Capabilities',
 				function (pRequest, pResponse, fNext)
 				{
-					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
-					if (!tmpSession) { return; }
-
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
 					{

@@ -31,8 +31,16 @@
 			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-PendingInput`)~}"
 		},
 		{
+			"path": "/Beacons",
+			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-BeaconList`)~}"
+		},
+		{
 			"path": "/Timing",
 			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-TimingView`)~}"
+		},
+		{
+			"path": "/FlowEditor/:hash",
+			"template": "{~LV:Pict.PictApplication.editOperationFromRoute(Record.data.hash)~}"
 		},
 		{
 			"path": "/FlowEditor",

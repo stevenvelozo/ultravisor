@@ -1,0 +1,23 @@
+{
+	"Hash": "meadow-delete",
+	"Type": "meadow-delete",
+	"Name": "Meadow Delete",
+	"Description": "Deletes a record by ID via a Meadow REST endpoint.",
+	"Category": "meadow",
+	"Capability": "Meadow API",
+	"Action": "Delete",
+	"Tier": "Service",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Done" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "Entity", "DataType": "String", "Required": true, "Description": "Entity/table name" },
+		{ "Name": "Endpoint", "DataType": "String", "Required": true, "Description": "Base URL of the Meadow API" },
+		{ "Name": "RecordID", "DataType": "String", "Required": true, "Description": "ID of the record to delete" },
+		{ "Name": "Headers", "DataType": "String", "Required": false, "Description": "JSON string of request headers" }
+	],
+	"StateOutputs": [],
+	"DefaultSettings": { "Entity": "", "Endpoint": "", "RecordID": "", "Headers": "" }
+}

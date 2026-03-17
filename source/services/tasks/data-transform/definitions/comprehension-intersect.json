@@ -1,0 +1,24 @@
+{
+	"Hash": "comprehension-intersect",
+	"Type": "comprehension-intersect",
+	"Name": "Comprehension Intersect",
+	"Description": "Intersects two arrays by matching a common field.",
+	"Category": "pipeline",
+	"Capability": "Data Transform",
+	"Action": "Intersect",
+	"Tier": "Engine",
+	"EventInputs": [{ "Name": "Execute" }],
+	"EventOutputs": [{ "Name": "Complete" }],
+	"SettingsInputs": [
+		{ "Name": "SourceAddressA", "DataType": "String", "Required": true, "Description": "State address of the first array" },
+		{ "Name": "SourceAddressB", "DataType": "String", "Required": true, "Description": "State address of the second array" },
+		{ "Name": "MatchField", "DataType": "String", "Required": false, "Description": "Field name to match records on" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to store the result" },
+		{ "Name": "JoinType", "DataType": "String", "Required": false, "Description": "Join type: inner (default)" }
+	],
+	"StateOutputs": [
+		{ "Name": "Result", "DataType": "Array", "Description": "Intersected records" },
+		{ "Name": "MatchCount", "DataType": "Number", "Description": "Number of matched records" }
+	],
+	"DefaultSettings": { "SourceAddressA": "", "SourceAddressB": "", "MatchField": "", "Destination": "", "JoinType": "inner" }
+}

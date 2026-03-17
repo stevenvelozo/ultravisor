@@ -1,0 +1,26 @@
+{
+	"Hash": "content-read-file",
+	"Type": "content-read-file",
+	"Name": "Content Read File",
+	"Description": "Read a markdown or content file from a Content System beacon.",
+	"Category": "content-system",
+	"Capability": "ContentSystem",
+	"Action": "ReadFile",
+	"Tier": "Service",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "FilePath", "DataType": "String", "Required": true, "Description": "Relative path within the content directory" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to store the file content" },
+		{ "Name": "AffinityKey", "DataType": "String", "Required": false, "Description": "Worker affinity key" },
+		{ "Name": "TimeoutMs", "DataType": "Number", "Required": false, "Description": "Timeout in milliseconds (default: 300000)" }
+	],
+	"StateOutputs": [
+		{ "Name": "Content", "DataType": "String", "Description": "File content" },
+		{ "Name": "StdOut", "DataType": "String", "Description": "Status message" }
+	],
+	"DefaultSettings": { "FilePath": "", "Destination": "", "AffinityKey": "", "TimeoutMs": 300000 }
+}

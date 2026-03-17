@@ -56,31 +56,7 @@ module.exports =
 [
 	// ── get-json ───────────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'get-json',
-			Type: 'get-json',
-			Name: 'Get JSON',
-			Description: 'Performs an HTTP GET request and parses the response as JSON.',
-			Category: 'rest',
-			Capability: 'HTTP Client',
-			Action: 'GetJSON',
-			Tier: 'Platform',
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [
-				{ Name: 'Complete' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'URL', DataType: 'String', Required: true, Description: 'URL to GET' },
-				{ Name: 'Headers', DataType: 'String', Required: false, Description: 'JSON string of request headers' },
-				{ Name: 'Destination', DataType: 'String', Required: false, Description: 'State address to store response data' }
-			],
-			StateOutputs: [
-				{ Name: 'Data', DataType: 'Object', Description: 'Parsed JSON response' }
-			],
-			DefaultSettings: { URL: '', Headers: '', Destination: '' }
-		},
+		Definition: require('./definitions/get-json.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpURL = pResolvedSettings.URL || '';
@@ -95,7 +71,7 @@ module.exports =
 				return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: ['GetJSON: RestClient service not found.'] });
 			}
 
-			let tmpRequestOptions = { url: tmpURL, headers: _parseHeaders(pResolvedSettings.Headers) };
+			let tmpRequestOptions = { url: tmpURL, headers: _parseHeaders(pResolvedSettings.Headers), timeout: pResolvedSettings.TimeoutMs || 30000 };
 
 			tmpRestClient.getJSON(tmpRequestOptions,
 				function (pError, pResponse, pData)
@@ -113,7 +89,7 @@ module.exports =
 
 					return fCallback(null, {
 						EventToFire: 'Complete',
-						Outputs: { Data: pData },
+						Outputs: { Data: pData, StatusCode: (pResponse && pResponse.statusCode) ? pResponse.statusCode : 0 },
 						StateWrites: tmpStateWrites,
 						Log: [`GetJSON: received response from ${tmpURL}`]
 					});
@@ -123,30 +99,7 @@ module.exports =
 
 	// ── get-text ───────────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'get-text',
-			Type: 'get-text',
-			Name: 'Get Text',
-			Description: 'Performs an HTTP GET request and returns the response as text.',
-			Category: 'rest',
-			Capability: 'HTTP Client',
-			Action: 'GetText',
-			Tier: 'Platform',
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [
-				{ Name: 'Complete' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'URL', DataType: 'String', Required: true, Description: 'URL to GET' },
-				{ Name: 'Destination', DataType: 'String', Required: false, Description: 'State address to store response text' }
-			],
-			StateOutputs: [
-				{ Name: 'Data', DataType: 'String', Description: 'Response text' }
-			],
-			DefaultSettings: { URL: '', Destination: '' }
-		},
+		Definition: require('./definitions/get-text.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpURL = pResolvedSettings.URL || '';
@@ -161,7 +114,9 @@ module.exports =
 				return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: ['GetText: RestClient service not found.'] });
 			}
 
-			tmpRestClient.getRawText(tmpURL,
+			let tmpRequestOptions = { url: tmpURL, headers: _parseHeaders(pResolvedSettings.Headers), timeout: pResolvedSettings.TimeoutMs || 30000 };
+
+			tmpRestClient.getRawText(tmpRequestOptions,
 				function (pError, pResponse, pData)
 				{
 					if (pError)
@@ -177,7 +132,7 @@ module.exports =
 
 					return fCallback(null, {
 						EventToFire: 'Complete',
-						Outputs: { Data: pData },
+						Outputs: { Data: pData, StatusCode: (pResponse && pResponse.statusCode) ? pResponse.statusCode : 0 },
 						StateWrites: tmpStateWrites,
 						Log: [`GetText: received ${(pData || '').length} chars from ${tmpURL}`]
 					});
@@ -187,33 +142,7 @@ module.exports =
 
 	// ── send-json ──────────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'send-json',
-			Type: 'send-json',
-			Name: 'Send JSON',
-			Description: 'Sends JSON data via HTTP POST or PUT.',
-			Category: 'rest',
-			Capability: 'HTTP Client',
-			Action: 'SendJSON',
-			Tier: 'Platform',
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [
-				{ Name: 'Complete' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'URL', DataType: 'String', Required: true, Description: 'URL to send data to' },
-				{ Name: 'Method', DataType: 'String', Required: false, Description: 'HTTP method (POST or PUT)' },
-				{ Name: 'Address', DataType: 'String', Required: false, Description: 'State address of the data to send' },
-				{ Name: 'Headers', DataType: 'String', Required: false, Description: 'JSON string of request headers' },
-				{ Name: 'Destination', DataType: 'String', Required: false, Description: 'State address to store response' }
-			],
-			StateOutputs: [
-				{ Name: 'Response', DataType: 'Object', Description: 'Response data' }
-			],
-			DefaultSettings: { URL: '', Method: 'POST', Address: '', Headers: '', Destination: '' }
-		},
+		Definition: require('./definitions/send-json.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpURL = pResolvedSettings.URL || '';
@@ -228,15 +157,16 @@ module.exports =
 				return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: ['SendJSON: RestClient service not found.'] });
 			}
 
+			let tmpDataAddress = pResolvedSettings.DataAddress || '';
 			let tmpBody = {};
-			if (pResolvedSettings.Address && pExecutionContext.StateManager)
+			if (tmpDataAddress && pExecutionContext.StateManager)
 			{
-				tmpBody = pExecutionContext.StateManager.resolveAddress(pResolvedSettings.Address, pExecutionContext, pExecutionContext.NodeHash);
+				tmpBody = pExecutionContext.StateManager.resolveAddress(tmpDataAddress, pExecutionContext, pExecutionContext.NodeHash);
 				if (typeof(tmpBody) !== 'object') { tmpBody = { value: tmpBody }; }
 			}
 
 			let tmpMethod = (pResolvedSettings.Method || 'POST').toUpperCase();
-			let tmpOptions = { url: tmpURL, body: tmpBody, headers: _parseHeaders(pResolvedSettings.Headers) };
+			let tmpOptions = { url: tmpURL, body: tmpBody, headers: _parseHeaders(pResolvedSettings.Headers), timeout: pResolvedSettings.TimeoutMs || 30000 };
 
 			let tmpDoRequest = (tmpMethod === 'PUT') ? tmpRestClient.putJSON.bind(tmpRestClient) : tmpRestClient.postJSON.bind(tmpRestClient);
 
@@ -256,7 +186,7 @@ module.exports =
 
 					return fCallback(null, {
 						EventToFire: 'Complete',
-						Outputs: { Response: pData },
+						Outputs: { Response: pData, StatusCode: (pResponse && pResponse.statusCode) ? pResponse.statusCode : 0 },
 						StateWrites: tmpStateWrites,
 						Log: [`SendJSON: ${tmpMethod} to ${tmpURL} complete`]
 					});
@@ -266,35 +196,7 @@ module.exports =
 
 	// ── rest-request ───────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'rest-request',
-			Type: 'rest-request',
-			Name: 'REST Request',
-			Description: 'Performs a fully configurable HTTP REST request.',
-			Category: 'rest',
-			Capability: 'HTTP Client',
-			Action: 'Request',
-			Tier: 'Platform',
-			EventInputs: [{ Name: 'In' }],
-			EventOutputs: [
-				{ Name: 'Complete' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'URL', DataType: 'String', Required: true, Description: 'URL to request' },
-				{ Name: 'Method', DataType: 'String', Required: false, Description: 'HTTP method (GET, POST, PUT, DELETE, etc.)' },
-				{ Name: 'ContentType', DataType: 'String', Required: false, Description: 'Content-Type header' },
-				{ Name: 'Headers', DataType: 'String', Required: false, Description: 'JSON string of request headers' },
-				{ Name: 'Body', DataType: 'String', Required: false, Description: 'Request body (JSON string or raw text)' },
-				{ Name: 'Destination', DataType: 'String', Required: false, Description: 'State address to store response' },
-				{ Name: 'Retries', DataType: 'Number', Required: false, Description: 'Number of retries on failure' }
-			],
-			StateOutputs: [
-				{ Name: 'Response', DataType: 'Object', Description: 'Response data' }
-			],
-			DefaultSettings: { URL: '', Method: 'GET', ContentType: 'application/json', Headers: '', Body: '', Destination: '', Retries: 0 }
-		},
+		Definition: require('./definitions/rest-request.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpURL = pResolvedSettings.URL || '';
@@ -316,7 +218,7 @@ module.exports =
 				tmpHeaders['Content-Type'] = pResolvedSettings.ContentType;
 			}
 
-			let tmpRequestOptions = { url: tmpURL, method: tmpMethod, headers: tmpHeaders };
+			let tmpRequestOptions = { url: tmpURL, method: tmpMethod, headers: tmpHeaders, timeout: pResolvedSettings.TimeoutMs || 30000 };
 
 			// Parse body for non-GET methods
 			if (tmpMethod !== 'GET' && pResolvedSettings.Body)
@@ -331,38 +233,49 @@ module.exports =
 				}
 			}
 
-			tmpRestClient.executeChunkedRequest(tmpRequestOptions,
-				function (pError, pResponse, pData)
-				{
-					if (pError)
-					{
-						return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: [`RestRequest: ${tmpMethod} ${tmpURL} failed: ${pError.message}`] });
-					}
+			let tmpRetryDelayMs = pResolvedSettings.RetryDelayMs || 1000;
 
-					// Try to parse as JSON, fall back to raw string
-					let tmpParsedData = pData;
-					try
+			function _doRequest(pRetriesLeft)
+			{
+				tmpRestClient.executeChunkedRequest(tmpRequestOptions,
+					function (pError, pResponse, pData)
 					{
-						tmpParsedData = JSON.parse(pData);
-					}
-					catch (pParseError)
-					{
-						// keep raw string
-					}
+						if (pError)
+						{
+							if (pRetriesLeft > 0)
+							{
+								return setTimeout(function () { _doRequest(pRetriesLeft - 1); }, tmpRetryDelayMs);
+							}
+							return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: [`RestRequest: ${tmpMethod} ${tmpURL} failed: ${pError.message}`] });
+						}
 
-					let tmpStateWrites = {};
-					if (pResolvedSettings.Destination)
-					{
-						tmpStateWrites[pResolvedSettings.Destination] = tmpParsedData;
-					}
+						// Try to parse as JSON, fall back to raw string
+						let tmpParsedData = pData;
+						try
+						{
+							tmpParsedData = JSON.parse(pData);
+						}
+						catch (pParseError)
+						{
+							// keep raw string
+						}
 
-					return fCallback(null, {
-						EventToFire: 'Complete',
-						Outputs: { Response: tmpParsedData },
-						StateWrites: tmpStateWrites,
-						Log: [`RestRequest: ${tmpMethod} ${tmpURL} -> ${pResponse ? pResponse.statusCode : '?'}`]
+						let tmpStateWrites = {};
+						if (pResolvedSettings.Destination)
+						{
+							tmpStateWrites[pResolvedSettings.Destination] = tmpParsedData;
+						}
+
+						return fCallback(null, {
+							EventToFire: 'Complete',
+							Outputs: { Response: tmpParsedData, StatusCode: (pResponse && pResponse.statusCode) ? pResponse.statusCode : 0, ResponseHeaders: (pResponse && pResponse.headers) ? JSON.stringify(pResponse.headers) : '{}' },
+							StateWrites: tmpStateWrites,
+							Log: [`RestRequest: ${tmpMethod} ${tmpURL} -> ${pResponse ? pResponse.statusCode : '?'}`]
+						});
 					});
-				});
+			}
+
+			_doRequest(pResolvedSettings.Retries || 0);
 		}
 	}
 ];

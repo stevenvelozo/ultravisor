@@ -1,0 +1,27 @@
+{
+	"Hash": "copy-file",
+	"Type": "copy-file",
+	"Name": "Copy File",
+	"Description": "Copies a file from source to target path.",
+	"Category": "file-io",
+	"Capability": "File System",
+	"Action": "Copy",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Done" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "Source", "DataType": "String", "Required": true, "Description": "Source file path" },
+		{ "Name": "TargetFile", "DataType": "String", "Required": true, "Description": "Target file path" },
+		{ "Name": "Overwrite", "DataType": "Boolean", "Required": false, "Description": "Allow overwriting existing target file (default true)" }
+	],
+	"StateOutputs": [
+		{ "Name": "FileLocation", "DataType": "String", "Description": "The target path the file was referenced at (may be relative)" },
+		{ "Name": "FileName", "DataType": "String", "Description": "The name of the target file only (no directory)" },
+		{ "Name": "FilePath", "DataType": "String", "Description": "The fully resolved absolute path of the target file" },
+		{ "Name": "BytesCopied", "DataType": "Number", "Description": "Size of the copied file in bytes" }
+	],
+	"DefaultSettings": { "Source": "", "TargetFile": "", "Overwrite": true }
+}

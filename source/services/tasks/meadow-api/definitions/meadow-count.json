@@ -1,0 +1,26 @@
+{
+	"Hash": "meadow-count",
+	"Type": "meadow-count",
+	"Name": "Meadow Count",
+	"Description": "Counts records for an entity via a Meadow REST endpoint.",
+	"Category": "meadow",
+	"Capability": "Meadow API",
+	"Action": "Count",
+	"Tier": "Service",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "Entity", "DataType": "String", "Required": true, "Description": "Entity/table name" },
+		{ "Name": "Endpoint", "DataType": "String", "Required": true, "Description": "Base URL of the Meadow API" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to store the count" },
+		{ "Name": "Headers", "DataType": "String", "Required": false, "Description": "JSON string of request headers" },
+		{ "Name": "Filter", "DataType": "String", "Required": false, "Description": "Meadow filter expression" }
+	],
+	"StateOutputs": [
+		{ "Name": "Count", "DataType": "Number", "Description": "Number of records" }
+	],
+	"DefaultSettings": { "Entity": "", "Endpoint": "", "Destination": "", "Headers": "", "Filter": "" }
+}

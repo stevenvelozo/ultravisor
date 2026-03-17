@@ -27,7 +27,8 @@ const _CategoryColors =
 	'meadow':       { TitleBarColor: '#2e7d32', BodyStyle: { fill: '#e8f5e9', stroke: '#2e7d32' } },
 	'pipeline':     { TitleBarColor: '#ad1457', BodyStyle: { fill: '#fce4ec', stroke: '#ad1457' } },
 	'llm':          { TitleBarColor: '#00838f', BodyStyle: { fill: '#e0f7fa', stroke: '#00838f' } },
-	'extension':    { TitleBarColor: '#7c3aed', BodyStyle: { fill: '#ede9fe', stroke: '#7c3aed' } }
+	'extension':    { TitleBarColor: '#7c3aed', BodyStyle: { fill: '#ede9fe', stroke: '#7c3aed' } },
+	'content-system': { TitleBarColor: '#1565c0', BodyStyle: { fill: '#e3f2fd', stroke: '#1565c0' } }
 };
 
 // ── Capability color palette ─────────────────────────────────────────
@@ -43,7 +44,8 @@ const _CapabilityColors =
 	'meadow api':        { TitleBarColor: '#2e7d32', BodyStyle: { fill: '#e8f5e9', stroke: '#2e7d32' } },
 	'user interaction':  { TitleBarColor: '#c62828', BodyStyle: { fill: '#ffebee', stroke: '#c62828' } },
 	'llm':               { TitleBarColor: '#00838f', BodyStyle: { fill: '#e0f7fa', stroke: '#00838f' } },
-	'extension':         { TitleBarColor: '#7c3aed', BodyStyle: { fill: '#ede9fe', stroke: '#7c3aed' } }
+	'extension':         { TitleBarColor: '#7c3aed', BodyStyle: { fill: '#ede9fe', stroke: '#7c3aed' } },
+	'contentsystem':     { TitleBarColor: '#1565c0', BodyStyle: { fill: '#e3f2fd', stroke: '#1565c0' } }
 };
 
 // Default colors for unknown categories
@@ -107,20 +109,13 @@ const _SideToEdge =
 	'bottom-left': 'bottom', 'bottom': 'bottom', 'bottom-right': 'bottom'
 };
 
-const _SideToZoneStart =
-{
-	'left-top': 0.0, 'left': 0.333, 'left-bottom': 0.667,
-	'right-top': 0.0, 'right': 0.333, 'right-bottom': 0.667,
-	'top-left': 0.0, 'top': 0.333, 'top-right': 0.667,
-	'bottom-left': 0.0, 'bottom': 0.333, 'bottom-right': 0.667
-};
-
 /**
- * Calculate card dimensions from port arrays (zone-aware).
+ * Calculate card dimensions from port arrays.
  *
- * Instead of just counting total ports per side, this examines which
- * zone each port falls into and ensures the node is tall enough for
- * ports in bottom-third zones (where overflow is most likely).
+ * Uses the same adaptive zone sizing as PictProvider-Flow-Geometry:
+ * sums the space needed by all occupied zones on each left/right edge.
+ * This produces compact cards whose height scales linearly with total
+ * port count rather than being inflated by fixed 1/3 zone fractions.
  *
  * @param {Array} pInputs - Input port objects with Side, Direction
  * @param {Array} pOutputs - Output port objects with Side, Direction
@@ -130,7 +125,6 @@ function _calculateDimensions(pInputs, pOutputs)
 {
 	let tmpTitleBarHeight = 22;
 	let tmpMinSpacing = 16;
-	let tmpBadgeHalfH = 6;
 	let tmpBottomPad = 16;
 	let tmpWidth = 180;
 	let tmpHeight = 80;
@@ -149,7 +143,9 @@ function _calculateDimensions(pInputs, pOutputs)
 		tmpCountBySide[tmpSide]++;
 	}
 
-	// Compute minimum height from left/right zone port counts
+	// Sum space needed per edge across all zones.
+	// Each zone needs minSpacing * (count + 1) pixels.
+	let tmpSpacePerEdge = {};
 	for (let tmpSide in tmpCountBySide)
 	{
 		let tmpCount = tmpCountBySide[tmpSide];
@@ -160,15 +156,19 @@ function _calculateDimensions(pInputs, pOutputs)
 			continue;
 		}
 
-		let tmpZoneStart = _SideToZoneStart[tmpSide];
-		if (tmpZoneStart === undefined)
-		{
-			tmpZoneStart = 0;
-		}
+		let tmpZoneSpace = tmpMinSpacing * (tmpCount + 1);
 
-		// With bottomPad reserving space at the bottom of the body:
-		// H >= titleBar + bottomPad + (minSpacing * count + badgeHalfH) / (1 - zoneStart)
-		let tmpRequired = tmpTitleBarHeight + tmpBottomPad + (tmpMinSpacing * tmpCount + tmpBadgeHalfH) / (1 - tmpZoneStart);
+		if (!tmpSpacePerEdge[tmpEdge])
+		{
+			tmpSpacePerEdge[tmpEdge] = 0;
+		}
+		tmpSpacePerEdge[tmpEdge] += tmpZoneSpace;
+	}
+
+	// Height = titleBar + bottomPad + max edge space
+	for (let tmpEdge in tmpSpacePerEdge)
+	{
+		let tmpRequired = tmpTitleBarHeight + tmpBottomPad + tmpSpacePerEdge[tmpEdge];
 		tmpHeight = Math.max(tmpHeight, Math.ceil(tmpRequired));
 	}
 

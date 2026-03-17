@@ -305,61 +305,7 @@ module.exports =
 [
 	// ── llm-chat-completion ───────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'llm-chat-completion',
-			Type: 'llm-chat-completion',
-			Name: 'LLM Chat Completion',
-			Description: 'Sends messages to an LLM and returns the completion. Supports multi-turn conversation history with persistence across operation runs.',
-			Category: 'llm',
-			Capability: 'LLM',
-			Action: 'ChatCompletion',
-			Tier: 'Extension',
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [
-				{ Name: 'Complete' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				// Prompt settings
-				{ Name: 'SystemPrompt', DataType: 'String', Required: false, Description: 'System prompt text' },
-				{ Name: 'UserPrompt', DataType: 'String', Required: false, Description: 'User prompt text' },
-				{ Name: 'Messages', DataType: 'String', Required: false, Description: 'JSON array of messages [{role, content}] for direct control' },
-
-				// Model parameters
-				{ Name: 'Model', DataType: 'String', Required: false, Description: 'Override model name' },
-				{ Name: 'Temperature', DataType: 'Number', Required: false, Description: 'Sampling temperature (0-2)' },
-				{ Name: 'MaxTokens', DataType: 'Number', Required: false, Description: 'Maximum tokens to generate' },
-				{ Name: 'TopP', DataType: 'Number', Required: false, Description: 'Nucleus sampling parameter' },
-				{ Name: 'StopSequences', DataType: 'String', Required: false, Description: 'JSON array of stop sequences' },
-				{ Name: 'ResponseFormat', DataType: 'String', Required: false, Description: '"text" or "json_object"' },
-
-				// Conversation management
-				{ Name: 'ConversationAddress', DataType: 'String', Required: false, Description: 'State address for message history (e.g. Operation.ChatHistory or Global.ChatSession.MyBot)' },
-				{ Name: 'AppendToConversation', DataType: 'String', Required: false, Description: 'Append this exchange to history (default true if ConversationAddress set)' },
-				{ Name: 'ConversationMaxMessages', DataType: 'Number', Required: false, Description: 'Sliding window: max non-system messages to keep' },
-				{ Name: 'ConversationMaxTokens', DataType: 'Number', Required: false, Description: 'Token budget for history (approximate, trims oldest)' },
-				{ Name: 'PersistConversation', DataType: 'String', Required: false, Description: 'Copy conversation history to ConversationPersistAddress on completion' },
-				{ Name: 'ConversationPersistAddress', DataType: 'String', Required: false, Description: 'GlobalState address for cross-operation persistence' },
-
-				// I/O
-				{ Name: 'InputAddress', DataType: 'String', Required: false, Description: 'State address to read context data from (appended to UserPrompt)' },
-				{ Name: 'Destination', DataType: 'String', Required: false, Description: 'State address to write the completion content to' },
-
-				// Routing
-				{ Name: 'AffinityKey', DataType: 'String', Required: false, Description: 'Route to a specific Beacon worker' },
-				{ Name: 'TimeoutMs', DataType: 'Number', Required: false, Description: 'Work item timeout in milliseconds' }
-			],
-			StateOutputs: [
-				{ Name: 'Content', DataType: 'String', Description: 'The LLM completion text' },
-				{ Name: 'Model', DataType: 'String', Description: 'Model that generated the response' },
-				{ Name: 'PromptTokens', DataType: 'Number', Description: 'Tokens in the prompt' },
-				{ Name: 'CompletionTokens', DataType: 'Number', Description: 'Tokens in the completion' },
-				{ Name: 'FinishReason', DataType: 'String', Description: 'Why the completion ended' },
-				{ Name: 'BeaconID', DataType: 'String', Description: 'ID of the Beacon that executed the work' }
-			],
-			DefaultSettings: { Temperature: 0.7, MaxTokens: 4096, TimeoutMs: 120000 }
-		},
+		Definition: require('./definitions/llm-chat-completion.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpCoordinator = _getService(pTask, 'UltravisorBeaconCoordinator');
@@ -470,37 +416,7 @@ module.exports =
 
 	// ── llm-embedding ─────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'llm-embedding',
-			Type: 'llm-embedding',
-			Name: 'LLM Embedding',
-			Description: 'Generates embeddings for text input using an LLM provider. Dispatches to a Beacon with LLM capability.',
-			Category: 'llm',
-			Capability: 'LLM',
-			Action: 'Embedding',
-			Tier: 'Extension',
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [
-				{ Name: 'Complete' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'Text', DataType: 'String', Required: false, Description: 'Text to embed' },
-				{ Name: 'Model', DataType: 'String', Required: false, Description: 'Override embedding model' },
-				{ Name: 'InputAddress', DataType: 'String', Required: false, Description: 'State address to read text from' },
-				{ Name: 'Destination', DataType: 'String', Required: false, Description: 'State address to write embedding to' },
-				{ Name: 'AffinityKey', DataType: 'String', Required: false, Description: 'Route to a specific Beacon worker' },
-				{ Name: 'TimeoutMs', DataType: 'Number', Required: false, Description: 'Work item timeout in milliseconds' }
-			],
-			StateOutputs: [
-				{ Name: 'Embedding', DataType: 'String', Description: 'JSON array of embedding floats' },
-				{ Name: 'Dimensions', DataType: 'Number', Description: 'Number of dimensions in the embedding' },
-				{ Name: 'Model', DataType: 'String', Description: 'Model used for embedding' },
-				{ Name: 'BeaconID', DataType: 'String', Description: 'ID of the Beacon that executed the work' }
-			],
-			DefaultSettings: { TimeoutMs: 60000 }
-		},
+		Definition: require('./definitions/llm-embedding.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpCoordinator = _getService(pTask, 'UltravisorBeaconCoordinator');
@@ -559,7 +475,8 @@ module.exports =
 				Action: 'Embedding',
 				Settings: {
 					Text: tmpText,
-					Model: pResolvedSettings.Model || ''
+					Model: pResolvedSettings.Model || '',
+					Dimensions: pResolvedSettings.Dimensions || 0
 				},
 				AffinityKey: pResolvedSettings.AffinityKey || '',
 				TimeoutMs: pResolvedSettings.TimeoutMs || 60000
@@ -591,58 +508,7 @@ module.exports =
 
 	// ── llm-tool-use ──────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'llm-tool-use',
-			Type: 'llm-tool-use',
-			Name: 'LLM Tool Use',
-			Description: 'Sends messages to an LLM with tool/function definitions. Returns both content and tool call results. Supports conversation history.',
-			Category: 'llm',
-			Capability: 'LLM',
-			Action: 'ToolUse',
-			Tier: 'Extension',
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [
-				{ Name: 'Complete' },
-				{ Name: 'ToolCall' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				// Prompt settings
-				{ Name: 'SystemPrompt', DataType: 'String', Required: false, Description: 'System prompt text' },
-				{ Name: 'UserPrompt', DataType: 'String', Required: false, Description: 'User prompt text' },
-				{ Name: 'Messages', DataType: 'String', Required: false, Description: 'JSON array of messages for direct control' },
-				{ Name: 'Tools', DataType: 'String', Required: true, Description: 'JSON array of tool definitions' },
-
-				// Model parameters
-				{ Name: 'Model', DataType: 'String', Required: false, Description: 'Override model name' },
-				{ Name: 'ToolChoice', DataType: 'String', Required: false, Description: '"auto", "none", or specific tool name' },
-				{ Name: 'Temperature', DataType: 'Number', Required: false, Description: 'Sampling temperature' },
-				{ Name: 'MaxTokens', DataType: 'Number', Required: false, Description: 'Maximum tokens to generate' },
-
-				// Conversation management
-				{ Name: 'ConversationAddress', DataType: 'String', Required: false, Description: 'State address for message history' },
-				{ Name: 'AppendToConversation', DataType: 'String', Required: false, Description: 'Append this exchange to history' },
-
-				// I/O
-				{ Name: 'InputAddress', DataType: 'String', Required: false, Description: 'State address to read context data from' },
-				{ Name: 'Destination', DataType: 'String', Required: false, Description: 'State address to write completion content to' },
-
-				// Routing
-				{ Name: 'AffinityKey', DataType: 'String', Required: false, Description: 'Route to a specific Beacon worker' },
-				{ Name: 'TimeoutMs', DataType: 'Number', Required: false, Description: 'Work item timeout in milliseconds' }
-			],
-			StateOutputs: [
-				{ Name: 'Content', DataType: 'String', Description: 'The LLM text response (may be empty if tool calls)' },
-				{ Name: 'ToolCalls', DataType: 'String', Description: 'JSON array of tool call objects' },
-				{ Name: 'Model', DataType: 'String', Description: 'Model that generated the response' },
-				{ Name: 'FinishReason', DataType: 'String', Description: 'Why the completion ended (stop, tool_calls, etc.)' },
-				{ Name: 'PromptTokens', DataType: 'Number', Description: 'Tokens in the prompt' },
-				{ Name: 'CompletionTokens', DataType: 'Number', Description: 'Tokens in the completion' },
-				{ Name: 'BeaconID', DataType: 'String', Description: 'ID of the Beacon that executed the work' }
-			],
-			DefaultSettings: { Temperature: 0.7, MaxTokens: 4096, TimeoutMs: 120000, ToolChoice: 'auto' }
-		},
+		Definition: require('./definitions/llm-tool-use.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpCoordinator = _getService(pTask, 'UltravisorBeaconCoordinator');

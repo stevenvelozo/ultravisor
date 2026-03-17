@@ -1,0 +1,26 @@
+{
+	"Hash": "content-save-file",
+	"Type": "content-save-file",
+	"Name": "Content Save File",
+	"Description": "Save content to a file on a Content System beacon.",
+	"Category": "content-system",
+	"Capability": "ContentSystem",
+	"Action": "SaveFile",
+	"Tier": "Service",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "FilePath", "DataType": "String", "Required": true, "Description": "Relative path within the content directory" },
+		{ "Name": "Content", "DataType": "String", "Required": true, "Description": "File content to write" },
+		{ "Name": "AffinityKey", "DataType": "String", "Required": false, "Description": "Worker affinity key" },
+		{ "Name": "TimeoutMs", "DataType": "Number", "Required": false, "Description": "Timeout in milliseconds (default: 300000)" }
+	],
+	"StateOutputs": [
+		{ "Name": "FilePath", "DataType": "String", "Description": "Path of the saved file" },
+		{ "Name": "StdOut", "DataType": "String", "Description": "Status message" }
+	],
+	"DefaultSettings": { "FilePath": "", "Content": "", "AffinityKey": "", "TimeoutMs": 300000 }
+}

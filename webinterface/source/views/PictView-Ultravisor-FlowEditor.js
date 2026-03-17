@@ -2,7 +2,7 @@ const libPictView = require('pict-view');
 const libPictSectionFlow = require('pict-section-flow');
 const libPictFlowCard = require('pict-section-flow').PictFlowCard;
 
-// Built-in card configs (33 cards: 31 task-matched + 2 flow markers)
+// Card config generator — converts task definitions into PictFlowCard configs
 const libBuiltInCardConfigs = require('../cards/Ultravisor-BuiltIn-CardConfigs.js');
 
 const _ViewConfiguration =
@@ -133,10 +133,13 @@ class UltravisorFlowEditorView extends libPictView
 	{
 		let tmpNodeTypes = {};
 
-		// Register all built-in cards from the config array
-		for (let i = 0; i < libBuiltInCardConfigs.length; i++)
+		// Generate card configs from API-fetched task type definitions
+		let tmpDefinitions = this.pict.AppData.Ultravisor.TaskTypes || [];
+		let tmpCardConfigs = libBuiltInCardConfigs.generateCardConfigs(tmpDefinitions);
+
+		for (let i = 0; i < tmpCardConfigs.length; i++)
 		{
-			let tmpCard = new libPictFlowCard(this.fable, libBuiltInCardConfigs[i], `FlowCard-${i}`);
+			let tmpCard = new libPictFlowCard(this.fable, tmpCardConfigs[i], `FlowCard-${i}`);
 			let tmpConfig = tmpCard.getNodeTypeConfiguration();
 			// Ultravisor flow cards render port labels outside the node
 			// boundary to avoid overlapping body content
@@ -157,6 +160,91 @@ class UltravisorFlowEditorView extends libPictView
 		}
 
 		return tmpNodeTypes;
+	}
+
+	/**
+	 * Reconcile node ports with current node type definitions.
+	 *
+	 * Saved operations store each node's Ports array at save time.  When a
+	 * task definition gains new ports (e.g. setting ports added after the
+	 * definitions moved to JSON), existing saved nodes lack those ports.
+	 *
+	 * This method compares each node's Ports to its node type's DefaultPorts
+	 * and appends any missing ports so they appear in the editor.
+	 *
+	 * @param {Array} pNodes - The Nodes array from the flow data.
+	 */
+	_reconcileNodePorts(pNodes)
+	{
+		if (!Array.isArray(pNodes) || !this._FlowView)
+		{
+			return;
+		}
+
+		let tmpNodeTypes = this._FlowView.options.NodeTypes;
+
+		for (let i = 0; i < pNodes.length; i++)
+		{
+			let tmpNode = pNodes[i];
+			let tmpNodeType = tmpNodeTypes[tmpNode.Type];
+
+			if (!tmpNodeType || !Array.isArray(tmpNodeType.DefaultPorts) || !Array.isArray(tmpNode.Ports))
+			{
+				continue;
+			}
+
+			for (let j = 0; j < tmpNodeType.DefaultPorts.length; j++)
+			{
+				let tmpDefaultPort = tmpNodeType.DefaultPorts[j];
+
+				// Check if the node already has a port with the same label and direction
+				let tmpExists = false;
+				for (let k = 0; k < tmpNode.Ports.length; k++)
+				{
+					if (tmpNode.Ports[k].Label === tmpDefaultPort.Label && tmpNode.Ports[k].Direction === tmpDefaultPort.Direction)
+					{
+						tmpExists = true;
+						break;
+					}
+				}
+
+				if (!tmpExists)
+				{
+					// Generate a hash for the new port: {nodeHash}-{portLabel}
+					let tmpPortHash = `${tmpNode.Hash}-${tmpDefaultPort.Label}`;
+					tmpNode.Ports.push(
+					{
+						Hash: tmpPortHash,
+						Direction: tmpDefaultPort.Direction,
+						Side: tmpDefaultPort.Side,
+						Label: tmpDefaultPort.Label,
+						PortType: tmpDefaultPort.PortType,
+						MinimumInputCount: tmpDefaultPort.MinimumInputCount || 0,
+						MaximumInputCount: tmpDefaultPort.MaximumInputCount || 1
+					});
+				}
+			}
+
+			// Flag orphaned ports — saved ports whose Label+Direction
+			// no longer match any DefaultPort in the current server definition.
+			for (let k = 0; k < tmpNode.Ports.length; k++)
+			{
+				let tmpPort = tmpNode.Ports[k];
+				let tmpMatchFound = false;
+				for (let j = 0; j < tmpNodeType.DefaultPorts.length; j++)
+				{
+					if (tmpNodeType.DefaultPorts[j].Label === tmpPort.Label && tmpNodeType.DefaultPorts[j].Direction === tmpPort.Direction)
+					{
+						tmpMatchFound = true;
+						break;
+					}
+				}
+				if (!tmpMatchFound)
+				{
+					tmpPort.Orphaned = true;
+				}
+			}
+		}
 	}
 
 	onAfterRender(pRenderable, pRenderDestinationAddress, pRecord, pContent)
@@ -250,6 +338,11 @@ class UltravisorFlowEditorView extends libPictView
 				ViewState: { PanX: 0, PanY: 0, Zoom: 1, SelectedNodeHash: null, SelectedConnectionHash: null }
 			};
 		}
+
+		// Reconcile node ports with current node type definitions.
+		// Saved operations may lack ports that were added after the operation
+		// was created (e.g. setting ports added when definitions moved to JSON).
+		this._reconcileNodePorts(this.pict.AppData.Ultravisor.Flows.Current.Nodes);
 
 		// Reset the flow view's render state so it re-initializes SVG elements
 		// when re-rendered (e.g. after navigating away and back)

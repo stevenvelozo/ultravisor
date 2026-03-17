@@ -21,38 +21,7 @@ module.exports =
 [
 	// ── beacon-dispatch ────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'beacon-dispatch',
-			Type: 'beacon-dispatch',
-			Name: 'Beacon Dispatch',
-			Description: 'Dispatches work to a remote Beacon worker node. The task pauses until the Beacon completes execution and reports results.',
-			Category: 'extension',
-			Capability: 'Extension',
-			Action: 'Dispatch',
-			Tier: 'Extension',
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [
-				{ Name: 'Complete' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'RemoteCapability', DataType: 'String', Required: true, Description: 'Required capability on the Beacon (e.g. Shell, FileSystem)' },
-				{ Name: 'RemoteAction', DataType: 'String', Required: false, Description: 'Specific action within the capability (e.g. Execute, Read)' },
-				{ Name: 'Command', DataType: 'String', Required: false, Description: 'Shell command to execute on the Beacon' },
-				{ Name: 'Parameters', DataType: 'String', Required: false, Description: 'Command-line parameters' },
-				{ Name: 'AffinityKey', DataType: 'String', Required: false, Description: 'Key for worker affinity routing (same key → same Beacon)' },
-				{ Name: 'TimeoutMs', DataType: 'Number', Required: false, Description: 'Work item timeout in milliseconds (default: 300000)' },
-				{ Name: 'InputData', DataType: 'String', Required: false, Description: 'JSON data to pass to the Beacon worker' }
-			],
-			StateOutputs: [
-				{ Name: 'StdOut', DataType: 'String', Description: 'Standard output from the Beacon execution' },
-				{ Name: 'Result', DataType: 'String', Description: 'Result data from the Beacon' },
-				{ Name: 'ExitCode', DataType: 'Number', Description: 'Exit code of the remote command' },
-				{ Name: 'BeaconID', DataType: 'String', Description: 'ID of the Beacon that executed the work' }
-			],
-			DefaultSettings: { RemoteCapability: 'Shell', RemoteAction: 'Execute', TimeoutMs: 300000 }
-		},
+		Definition: require('./definitions/beacon-dispatch.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpCoordinator = _getService(pTask, 'UltravisorBeaconCoordinator');

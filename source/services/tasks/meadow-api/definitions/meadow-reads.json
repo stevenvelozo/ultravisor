@@ -1,0 +1,29 @@
+{
+	"Hash": "meadow-reads",
+	"Type": "meadow-reads",
+	"Name": "Meadow Reads",
+	"Description": "Reads multiple records from a Meadow REST endpoint with optional filter.",
+	"Category": "meadow",
+	"Capability": "Meadow API",
+	"Action": "ReadMany",
+	"Tier": "Service",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "Entity", "DataType": "String", "Required": true, "Description": "Entity/table name" },
+		{ "Name": "Endpoint", "DataType": "String", "Required": true, "Description": "Base URL of the Meadow API" },
+		{ "Name": "Filter", "DataType": "String", "Required": false, "Description": "Meadow filter expression" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to store the records" },
+		{ "Name": "Headers", "DataType": "String", "Required": false, "Description": "JSON string of request headers" },
+		{ "Name": "PageSize", "DataType": "Number", "Required": false, "Description": "Number of records per page" },
+		{ "Name": "PageNumber", "DataType": "Number", "Required": false, "Description": "Page number (0-indexed)" }
+	],
+	"StateOutputs": [
+		{ "Name": "Records", "DataType": "Array", "Description": "Retrieved records" },
+		{ "Name": "RecordCount", "DataType": "Number", "Description": "Number of records returned" }
+	],
+	"DefaultSettings": { "Entity": "", "Endpoint": "", "Filter": "", "Destination": "", "Headers": "", "PageSize": 100, "PageNumber": 0 }
+}

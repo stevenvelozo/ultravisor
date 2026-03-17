@@ -1,0 +1,24 @@
+{
+	"Hash": "content-create-folder",
+	"Type": "content-create-folder",
+	"Name": "Content Create Folder",
+	"Description": "Create a folder in the content directory on a Content System beacon.",
+	"Category": "content-system",
+	"Capability": "ContentSystem",
+	"Action": "CreateFolder",
+	"Tier": "Service",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "Path", "DataType": "String", "Required": true, "Description": "Relative folder path to create" },
+		{ "Name": "AffinityKey", "DataType": "String", "Required": false, "Description": "Worker affinity key" },
+		{ "Name": "TimeoutMs", "DataType": "Number", "Required": false, "Description": "Timeout in milliseconds (default: 300000)" }
+	],
+	"StateOutputs": [
+		{ "Name": "StdOut", "DataType": "String", "Description": "Status message" }
+	],
+	"DefaultSettings": { "Path": "", "AffinityKey": "", "TimeoutMs": 300000 }
+}

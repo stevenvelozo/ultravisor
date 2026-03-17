@@ -1,0 +1,26 @@
+{
+	"Hash": "read-file",
+	"Type": "read-file",
+	"Name": "Read File",
+	"Description": "Reads a file from disk into state.",
+	"Category": "file-io",
+	"Capability": "File System",
+	"Action": "Read",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "BeginRead", "Description": "Triggers the file read" }],
+	"EventOutputs": [
+		{ "Name": "ReadComplete", "Description": "Fires when file is read successfully" },
+		{ "Name": "Error", "Description": "Fires on read failure", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "FilePath", "DataType": "String", "Required": true, "Description": "Path to the file to read" },
+		{ "Name": "Encoding", "DataType": "String", "Required": false, "Default": "utf8", "Description": "File encoding" },
+		{ "Name": "MaxBytes", "DataType": "Number", "Required": false, "Description": "Maximum bytes to read (0 = unlimited)" }
+	],
+	"StateOutputs": [
+		{ "Name": "FileContent", "DataType": "String", "Description": "Contents of the file" },
+		{ "Name": "BytesRead", "DataType": "Number", "Description": "Number of bytes read" },
+		{ "Name": "FileName", "DataType": "String", "Description": "Base name of the file" }
+	],
+	"DefaultSettings": { "FilePath": "", "Encoding": "utf8", "MaxBytes": 0 }
+}

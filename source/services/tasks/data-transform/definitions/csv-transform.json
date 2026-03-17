@@ -1,0 +1,24 @@
+{
+	"Hash": "csv-transform",
+	"Type": "csv-transform",
+	"Name": "CSV Transform",
+	"Description": "Transforms parsed CSV records using a template per row.",
+	"Category": "pipeline",
+	"Capability": "Data Transform",
+	"Action": "TransformCSV",
+	"Tier": "Engine",
+	"EventInputs": [{ "Name": "Execute" }],
+	"EventOutputs": [{ "Name": "Complete" }],
+	"SettingsInputs": [
+		{ "Name": "SourceAddress", "DataType": "String", "Required": false, "Description": "State address of the records array" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to store transformed records" },
+		{ "Name": "Delimiter", "DataType": "String", "Required": false, "Description": "Delimiter for re-serialization" },
+		{ "Name": "FieldMapping", "DataType": "String", "Required": false, "Description": "JSON array of field mappings [{From, To, Template}]" },
+		{ "Name": "FilterExpression", "DataType": "String", "Required": false, "Description": "Expression to filter rows" },
+		{ "Name": "OutputFields", "DataType": "String", "Required": false, "Description": "JSON array of field names to include in output" }
+	],
+	"StateOutputs": [
+		{ "Name": "Records", "DataType": "Array", "Description": "Transformed records" }
+	],
+	"DefaultSettings": { "SourceAddress": "", "Destination": "", "Delimiter": ",", "FieldMapping": "", "FilterExpression": "", "OutputFields": "" }
+}

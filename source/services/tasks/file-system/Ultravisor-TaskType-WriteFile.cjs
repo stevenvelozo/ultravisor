@@ -17,51 +17,16 @@ class UltravisorTaskTypeWriteFile extends libUltravisorTaskType
 
 	get definition()
 	{
-		return {
-			Hash: 'write-file',
-			Name: 'Write File',
-			Description: 'Writes content to a file on disk.',
-			Category: 'file-io',
-			Capability: 'File System',
-			Action: 'Write',
-			Tier: 'Platform',
-
-			EventInputs:
-			[
-				{ Name: 'BeginWrite', Description: 'Triggers the file write' }
-			],
-			EventOutputs:
-			[
-				{ Name: 'WriteComplete', Description: 'Fires when file is written successfully' },
-				{ Name: 'Error', Description: 'Fires on write failure', IsError: true }
-			],
-			SettingsInputs:
-			[
-				{ Name: 'FilePath', DataType: 'String', Required: true, Description: 'Path to the output file' },
-				{ Name: 'Content', DataType: 'String', Required: true, Description: 'Content to write' },
-				{ Name: 'Encoding', DataType: 'String', Required: false, Default: 'utf8', Description: 'File encoding' }
-			],
-			StateOutputs:
-			[
-				{ Name: 'BytesWritten', DataType: 'Number', Description: 'Number of bytes written' }
-			],
-
-			DefaultSettings:
-			{
-				FilePath: '',
-				Content: '',
-				Encoding: 'utf8'
-			}
-		};
+		return require('./definitions/write-file.json');
 	}
 
 	execute(pResolvedSettings, pExecutionContext, fCallback, fFireIntermediateEvent)
 	{
-		let tmpFilePath = pResolvedSettings.FilePath || '';
+		let tmpFileLocation = pResolvedSettings.FilePath || '';
 		let tmpContent = pResolvedSettings.Content;
 		let tmpEncoding = pResolvedSettings.Encoding || 'utf8';
 
-		if (!tmpFilePath)
+		if (!tmpFileLocation)
 		{
 			return fCallback(null, {
 				EventToFire: 'Error',
@@ -81,8 +46,19 @@ class UltravisorTaskTypeWriteFile extends libUltravisorTaskType
 			tmpContent = JSON.stringify(tmpContent, null, '\t');
 		}
 
+		// Apply line ending conversion
+		let tmpLineEnding = pResolvedSettings.LineEnding || '';
+		if (tmpLineEnding === 'crlf')
+		{
+			tmpContent = tmpContent.replace(/(?<!\r)\n/g, '\r\n');
+		}
+		else if (tmpLineEnding === 'lf')
+		{
+			tmpContent = tmpContent.replace(/\r\n/g, '\n');
+		}
+
 		// Resolve relative paths against the staging folder
-		tmpFilePath = this.resolveFilePath(tmpFilePath, pExecutionContext.StagingPath);
+		let tmpFilePath = this.resolveFilePath(tmpFileLocation, pExecutionContext.StagingPath);
 
 		try
 		{
@@ -93,7 +69,14 @@ class UltravisorTaskTypeWriteFile extends libUltravisorTaskType
 				libFS.mkdirSync(tmpDir, { recursive: true });
 			}
 
-			libFS.writeFileSync(tmpFilePath, tmpContent, tmpEncoding);
+			if (pResolvedSettings.Append)
+			{
+				libFS.appendFileSync(tmpFilePath, tmpContent, tmpEncoding);
+			}
+			else
+			{
+				libFS.writeFileSync(tmpFilePath, tmpContent, tmpEncoding);
+			}
 
 			let tmpBytesWritten = Buffer.byteLength(tmpContent, tmpEncoding);
 
@@ -101,6 +84,9 @@ class UltravisorTaskTypeWriteFile extends libUltravisorTaskType
 				EventToFire: 'WriteComplete',
 				Outputs:
 				{
+					FileLocation: tmpFileLocation,
+					FileName: libPath.basename(tmpFilePath),
+					FilePath: tmpFilePath,
 					BytesWritten: tmpBytesWritten
 				},
 				Log: [`WriteFile: wrote ${tmpBytesWritten} bytes to ${tmpFilePath}`]

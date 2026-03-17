@@ -1,0 +1,27 @@
+{
+	"Hash": "replace-string",
+	"Type": "replace-string",
+	"Name": "Replace String",
+	"Description": "Replaces all occurrences of a search string within the input.",
+	"Category": "data",
+	"Capability": "Data Transform",
+	"Action": "ReplaceString",
+	"Tier": "Engine",
+	"EventInputs": [{ "Name": "Replace" }],
+	"EventOutputs": [
+		{ "Name": "ReplaceComplete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "InputString", "DataType": "String", "Required": true },
+		{ "Name": "SearchString", "DataType": "String", "Required": true },
+		{ "Name": "ReplaceString", "DataType": "String", "Required": false },
+		{ "Name": "UseRegex", "DataType": "Boolean", "Required": false, "Description": "Treat SearchString as a regular expression" },
+		{ "Name": "CaseSensitive", "DataType": "Boolean", "Required": false, "Description": "Case-sensitive matching (default true)" }
+	],
+	"StateOutputs": [
+		{ "Name": "ReplacedString", "DataType": "String" },
+		{ "Name": "ReplacementCount", "DataType": "Number", "Description": "Number of replacements made" }
+	],
+	"DefaultSettings": { "InputString": "", "SearchString": "", "ReplaceString": "", "UseRegex": false, "CaseSensitive": true }
+}

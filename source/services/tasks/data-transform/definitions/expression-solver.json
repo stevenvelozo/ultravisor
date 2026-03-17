@@ -1,0 +1,20 @@
+{
+	"Hash": "expression-solver",
+	"Type": "expression-solver",
+	"Name": "Expression Solver",
+	"Description": "Evaluates an expression using Fable ExpressionParser.",
+	"Category": "core",
+	"Capability": "Data Transform",
+	"Action": "EvaluateExpression",
+	"Tier": "Engine",
+	"EventInputs": [{ "Name": "In" }],
+	"EventOutputs": [{ "Name": "Complete" }, { "Name": "Error", "IsError": true }],
+	"SettingsInputs": [
+		{ "Name": "Expression", "DataType": "String", "Required": true, "Description": "Expression to evaluate" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to store the result" }
+	],
+	"StateOutputs": [
+		{ "Name": "Result", "DataType": "String", "Description": "Evaluation result" }
+	],
+	"DefaultSettings": { "Expression": "", "Destination": "" }
+}

@@ -26,6 +26,7 @@ const libViewTimingView = require('./views/PictView-Ultravisor-TimingView.js');
 const libViewFlowEditor = require('./views/PictView-Ultravisor-FlowEditor.js');
 const libViewPendingInput = require('./views/PictView-Ultravisor-PendingInput.js');
 const libViewDocumentation = require('./views/PictView-Ultravisor-Documentation.js');
+const libViewBeaconList = require('./views/PictView-Ultravisor-BeaconList.js');
 
 class UltravisorApplication extends libPictApplication
 {
@@ -57,6 +58,7 @@ class UltravisorApplication extends libPictApplication
 		this.pict.addView('Ultravisor-FlowEditor', libViewFlowEditor.default_configuration, libViewFlowEditor);
 		this.pict.addView('Ultravisor-PendingInput', libViewPendingInput.default_configuration, libViewPendingInput);
 		this.pict.addView('Ultravisor-Documentation', libViewDocumentation.default_configuration, libViewDocumentation);
+		this.pict.addView('Ultravisor-BeaconList', libViewBeaconList.default_configuration, libViewBeaconList);
 
 		// Register pict-section-form service types so Form panels can use them
 		this.pict.addServiceType('PictFormMetacontroller', libPictSectionForm.PictFormMetacontroller);
@@ -84,14 +86,33 @@ class UltravisorApplication extends libPictApplication
 			Manifests: [],
 			PendingInputs: [],
 			OperationLibrary: [],
+			Beacons: [],
+			WorkItems: [],
+			BeaconCapabilities: {},
+			AffinityBindings: [],
 			CurrentEditOperation: null,
 			Flows: {}
 		};
 
-		// Render the layout shell first, then the initial content
-		this.pict.views['Ultravisor-Layout'].render();
+		// Load task type definitions from the server BEFORE rendering the layout.
+		// The layout render triggers route resolution (via PictRouter.resolve()),
+		// and route handlers like editOperationFromRoute need TaskTypes to be
+		// populated so the FlowEditor can generate card configs with all ports.
+		let tmpSuper = super.onAfterInitializeAsync.bind(this);
+		this.loadTaskTypes(
+			function (pError)
+			{
+				if (pError)
+				{
+					this.pict.log.warn('Failed to load task types during init; flow editor will have no cards.');
+				}
 
-		return super.onAfterInitializeAsync(fCallback);
+				// Now render the layout shell — this resolves the current route,
+				// which may immediately render the FlowEditor if the URL matches.
+				this.pict.views['Ultravisor-Layout'].render();
+
+				return tmpSuper(fCallback);
+			}.bind(this));
 	}
 
 	navigateTo(pRoute)
@@ -439,6 +460,95 @@ class UltravisorApplication extends libPictApplication
 			}.bind(this));
 	}
 
+	// --- Beacons ---
+	loadBeacons(fCallback)
+	{
+		this.apiCall('GET', '/Beacon', null,
+			function (pError, pData)
+			{
+				if (!pError && pData)
+				{
+					this.pict.AppData.Ultravisor.Beacons = Array.isArray(pData) ? pData : [];
+				}
+				if (typeof fCallback === 'function')
+				{
+					fCallback(pError, pData);
+				}
+			}.bind(this));
+	}
+
+	loadBeacon(pBeaconID, fCallback)
+	{
+		this.apiCall('GET', `/Beacon/${encodeURIComponent(pBeaconID)}`, null,
+			function (pError, pData)
+			{
+				if (typeof fCallback === 'function')
+				{
+					fCallback(pError, pData);
+				}
+			}.bind(this));
+	}
+
+	deregisterBeacon(pBeaconID, fCallback)
+	{
+		this.apiCall('DELETE', `/Beacon/${encodeURIComponent(pBeaconID)}`, null,
+			function (pError, pData)
+			{
+				if (typeof fCallback === 'function')
+				{
+					fCallback(pError, pData);
+				}
+			}.bind(this));
+	}
+
+	loadWorkItems(fCallback)
+	{
+		this.apiCall('GET', '/Beacon/Work', null,
+			function (pError, pData)
+			{
+				if (!pError && pData)
+				{
+					this.pict.AppData.Ultravisor.WorkItems = Array.isArray(pData) ? pData : [];
+				}
+				if (typeof fCallback === 'function')
+				{
+					fCallback(pError, pData);
+				}
+			}.bind(this));
+	}
+
+	loadBeaconCapabilities(fCallback)
+	{
+		this.apiCall('GET', '/Beacon/Capabilities', null,
+			function (pError, pData)
+			{
+				if (!pError && pData)
+				{
+					this.pict.AppData.Ultravisor.BeaconCapabilities = pData || {};
+				}
+				if (typeof fCallback === 'function')
+				{
+					fCallback(pError, pData);
+				}
+			}.bind(this));
+	}
+
+	loadAffinityBindings(fCallback)
+	{
+		this.apiCall('GET', '/Beacon/Affinity', null,
+			function (pError, pData)
+			{
+				if (!pError && pData)
+				{
+					this.pict.AppData.Ultravisor.AffinityBindings = Array.isArray(pData) ? pData : [];
+				}
+				if (typeof fCallback === 'function')
+				{
+					fCallback(pError, pData);
+				}
+			}.bind(this));
+	}
+
 	// --- Operation Library ---
 	loadOperationLibrary(fCallback)
 	{
@@ -494,6 +604,42 @@ class UltravisorApplication extends libPictApplication
 				// Save as a new operation (no Hash => auto-generated)
 				this.saveOperation(tmpOperationData, fCallback);
 			}.bind(this));
+	}
+
+	importOperationFromJSON(pOperationJSON, fCallback)
+	{
+		if (typeof (pOperationJSON) !== 'object' || pOperationJSON === null)
+		{
+			if (typeof fCallback === 'function')
+			{
+				fCallback(new Error('Invalid operation JSON.'));
+			}
+			return;
+		}
+
+		// Strip identifiers so a fresh hash is auto-generated on import
+		let tmpOperationData =
+		{
+			Name: pOperationJSON.Name || 'Imported Operation',
+			Description: pOperationJSON.Description || '',
+			Graph: pOperationJSON.Graph || { Nodes: [], Connections: [], ViewState: {} }
+		};
+
+		if (pOperationJSON.SavedLayouts)
+		{
+			tmpOperationData.SavedLayouts = pOperationJSON.SavedLayouts;
+		}
+		if (pOperationJSON.InitialGlobalState)
+		{
+			tmpOperationData.InitialGlobalState = pOperationJSON.InitialGlobalState;
+		}
+		if (pOperationJSON.InitialOperationState)
+		{
+			tmpOperationData.InitialOperationState = pOperationJSON.InitialOperationState;
+		}
+
+		// Save as a new operation (no Hash => auto-generated)
+		this.saveOperation(tmpOperationData, fCallback);
 	}
 
 	exportOperation(pHash, fCallback)
@@ -560,7 +706,12 @@ class UltravisorApplication extends libPictApplication
 	}
 
 	// --- Edit helpers ---
-	editOperation(pHash)
+
+	/**
+	 * Populate CurrentEditOperation and Flows.Current from a loaded operation.
+	 * Does not navigate — caller decides whether to navigate or render directly.
+	 */
+	_setCurrentEditOperation(pHash)
 	{
 		if (pHash && this.pict.AppData.Ultravisor.Operations[pHash])
 		{
@@ -589,7 +740,89 @@ class UltravisorApplication extends libPictApplication
 				ViewState: { PanX: 0, PanY: 0, Zoom: 1, SelectedNodeHash: null, SelectedConnectionHash: null }
 			};
 		}
-		this.navigateTo('/FlowEditor');
+	}
+
+	/**
+	 * Called from the Operations list UI to edit an operation.  Navigates to the
+	 * parameterized FlowEditor route so the URL reflects the operation hash.
+	 */
+	editOperation(pHash)
+	{
+		this._setCurrentEditOperation(pHash);
+
+		if (pHash)
+		{
+			this.navigateTo(`/FlowEditor/${encodeURIComponent(pHash)}`);
+		}
+		else
+		{
+			this.navigateTo('/FlowEditor');
+		}
+	}
+
+	/**
+	 * Route handler for `/FlowEditor/:hash`.  On a cold page load both the
+	 * Operations map and TaskTypes may be empty, so we load them first.
+	 * TaskTypes must be available before the FlowEditor renders so that
+	 * _buildFlowCardNodeTypes() can generate card configs with all ports.
+	 */
+	editOperationFromRoute(pHash)
+	{
+		let tmpHash = decodeURIComponent(pHash);
+
+		let tmpNeedOperations = (this.pict.AppData.Ultravisor.OperationList.length < 1);
+		let tmpNeedTaskTypes = (this.pict.AppData.Ultravisor.TaskTypes.length < 1);
+
+		// Hot navigation — everything already loaded
+		if (!tmpNeedOperations && !tmpNeedTaskTypes)
+		{
+			this._setCurrentEditOperation(tmpHash);
+			this.pict.views['Ultravisor-FlowEditor'].render();
+			return;
+		}
+
+		// Cold reload — load whatever is missing, then render
+		let tmpPending = 0;
+		let tmpSelf = this;
+
+		function onLoaded()
+		{
+			tmpPending--;
+			if (tmpPending > 0)
+			{
+				return;
+			}
+			tmpSelf._setCurrentEditOperation(tmpHash);
+			tmpSelf.pict.views['Ultravisor-FlowEditor'].render();
+		}
+
+		if (tmpNeedOperations)
+		{
+			tmpPending++;
+			this.loadOperations(
+				function (pError)
+				{
+					if (pError)
+					{
+						this.pict.log.warn(`Failed to load operations for route /FlowEditor/${tmpHash}`);
+					}
+					onLoaded();
+				}.bind(this));
+		}
+
+		if (tmpNeedTaskTypes)
+		{
+			tmpPending++;
+			this.loadTaskTypes(
+				function (pError)
+				{
+					if (pError)
+					{
+						this.pict.log.warn('Failed to load task types for FlowEditor route.');
+					}
+					onLoaded();
+				}.bind(this));
+		}
 	}
 }
 

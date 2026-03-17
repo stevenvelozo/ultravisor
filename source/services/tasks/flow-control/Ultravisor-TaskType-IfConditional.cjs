@@ -22,33 +22,7 @@ class UltravisorTaskTypeIfConditional extends libTaskTypeBase
 
 	get definition()
 	{
-		return {
-			Hash: 'if-conditional',
-			Type: 'if-conditional',
-			Name: 'If Conditional',
-			Description: 'Evaluates a condition and branches execution to True or False.',
-			Category: 'control',
-			Capability: 'Flow Control',
-			Action: 'Branch',
-			Tier: 'Engine',
-
-			EventInputs: [{ Name: 'Evaluate' }],
-			EventOutputs: [
-				{ Name: 'True' },
-				{ Name: 'False' }
-			],
-			SettingsInputs: [
-				{ Name: 'DataAddress', DataType: 'String', Required: false },
-				{ Name: 'CompareValue', DataType: 'String', Required: false },
-				{ Name: 'Operator', DataType: 'String', Required: false },
-				{ Name: 'Expression', DataType: 'String', Required: false }
-			],
-			StateOutputs: [
-				{ Name: 'Result', DataType: 'Boolean' }
-			],
-
-			DefaultSettings: { DataAddress: '', CompareValue: '', Operator: '==', Expression: '' }
-		};
+		return require('./definitions/if-conditional.json');
 	}
 
 	execute(pResolvedSettings, pExecutionContext, fCallback, fFireIntermediateEvent)

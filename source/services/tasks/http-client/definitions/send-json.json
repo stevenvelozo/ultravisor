@@ -1,0 +1,28 @@
+{
+	"Hash": "send-json",
+	"Type": "send-json",
+	"Name": "Send JSON",
+	"Description": "Sends JSON data via HTTP POST or PUT.",
+	"Category": "rest",
+	"Capability": "HTTP Client",
+	"Action": "SendJSON",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "URL", "DataType": "String", "Required": true, "Description": "URL to send data to" },
+		{ "Name": "Method", "DataType": "String", "Required": false, "Description": "HTTP method (POST or PUT)" },
+		{ "Name": "DataAddress", "DataType": "String", "Required": false, "Description": "State address of the data to send" },
+		{ "Name": "Headers", "DataType": "String", "Required": false, "Description": "JSON string of request headers" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to store response" },
+		{ "Name": "TimeoutMs", "DataType": "Number", "Required": false, "Description": "Request timeout in milliseconds" }
+	],
+	"StateOutputs": [
+		{ "Name": "Response", "DataType": "Object", "Description": "Response data" },
+		{ "Name": "StatusCode", "DataType": "Number", "Description": "HTTP response status code" }
+	],
+	"DefaultSettings": { "URL": "", "Method": "POST", "DataAddress": "", "Headers": "", "Destination": "", "TimeoutMs": 30000 }
+}

@@ -1,0 +1,20 @@
+{
+	"Hash": "template-string",
+	"Type": "template-string",
+	"Name": "Template String",
+	"Description": "Processes a Pict template string against the current state.",
+	"Category": "core",
+	"Capability": "Data Transform",
+	"Action": "Template",
+	"Tier": "Engine",
+	"EventInputs": [{ "Name": "In" }],
+	"EventOutputs": [{ "Name": "Complete" }, { "Name": "Error", "IsError": true }],
+	"SettingsInputs": [
+		{ "Name": "Template", "DataType": "String", "Required": true, "Description": "Pict template string with {~D:...~} expressions" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to store the result" }
+	],
+	"StateOutputs": [
+		{ "Name": "Result", "DataType": "String", "Description": "Rendered template output" }
+	],
+	"DefaultSettings": { "Template": "", "Destination": "" }
+}

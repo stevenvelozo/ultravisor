@@ -1,0 +1,32 @@
+{
+	"Hash": "rest-request",
+	"Type": "rest-request",
+	"Name": "REST Request",
+	"Description": "Performs a fully configurable HTTP REST request.",
+	"Category": "rest",
+	"Capability": "HTTP Client",
+	"Action": "Request",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "In" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "URL", "DataType": "String", "Required": true, "Description": "URL to request" },
+		{ "Name": "Method", "DataType": "String", "Required": false, "Description": "HTTP method (GET, POST, PUT, DELETE, etc.)" },
+		{ "Name": "ContentType", "DataType": "String", "Required": false, "Description": "Content-Type header" },
+		{ "Name": "Headers", "DataType": "String", "Required": false, "Description": "JSON string of request headers" },
+		{ "Name": "Body", "DataType": "String", "Required": false, "Description": "Request body (JSON string or raw text)" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to store response" },
+		{ "Name": "Retries", "DataType": "Number", "Required": false, "Description": "Number of retries on failure" },
+		{ "Name": "TimeoutMs", "DataType": "Number", "Required": false, "Description": "Request timeout in milliseconds" },
+		{ "Name": "RetryDelayMs", "DataType": "Number", "Required": false, "Description": "Delay between retry attempts in milliseconds" }
+	],
+	"StateOutputs": [
+		{ "Name": "Response", "DataType": "Object", "Description": "Response data" },
+		{ "Name": "StatusCode", "DataType": "Number", "Description": "HTTP response status code" },
+		{ "Name": "ResponseHeaders", "DataType": "String", "Description": "JSON string of response headers" }
+	],
+	"DefaultSettings": { "URL": "", "Method": "GET", "ContentType": "application/json", "Headers": "", "Body": "", "Destination": "", "Retries": 0, "TimeoutMs": 30000, "RetryDelayMs": 1000 }
+}

@@ -17,32 +17,7 @@ class UltravisorTaskTypeReplaceString extends libTaskTypeBase
 
 	get definition()
 	{
-		return {
-			Hash: 'replace-string',
-			Type: 'replace-string',
-			Name: 'Replace String',
-			Description: 'Replaces all occurrences of a search string within the input.',
-			Category: 'data',
-			Capability: 'Data Transform',
-			Action: 'ReplaceString',
-			Tier: 'Engine',
-
-			EventInputs: [{ Name: 'Replace' }],
-			EventOutputs: [
-				{ Name: 'ReplaceComplete' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'InputString', DataType: 'String', Required: true },
-				{ Name: 'SearchString', DataType: 'String', Required: true },
-				{ Name: 'ReplaceString', DataType: 'String', Required: false }
-			],
-			StateOutputs: [
-				{ Name: 'ReplacedString', DataType: 'String' }
-			],
-
-			DefaultSettings: { InputString: '', SearchString: '', ReplaceString: '' }
-		};
+		return require('./definitions/replace-string.json');
 	}
 
 	execute(pResolvedSettings, pExecutionContext, fCallback, fFireIntermediateEvent)
@@ -69,15 +44,35 @@ class UltravisorTaskTypeReplaceString extends libTaskTypeBase
 			});
 		}
 
-		// Replace all occurrences
-		let tmpResult = tmpInputString.split(tmpSearchString).join(tmpReplaceString);
+		let tmpUseRegex = pResolvedSettings.UseRegex;
+		let tmpCaseSensitive = pResolvedSettings.CaseSensitive !== false;
+		let tmpResult;
+		let tmpReplacementCount = 0;
+
+		if (tmpUseRegex)
+		{
+			let tmpFlags = 'g' + (tmpCaseSensitive ? '' : 'i');
+			let tmpRegex = new RegExp(tmpSearchString, tmpFlags);
+			tmpReplacementCount = (tmpInputString.match(tmpRegex) || []).length;
+			tmpResult = tmpInputString.replace(tmpRegex, tmpReplaceString);
+		}
+		else if (!tmpCaseSensitive)
+		{
+			let tmpEscaped = tmpSearchString.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			let tmpRegex = new RegExp(tmpEscaped, 'gi');
+			tmpReplacementCount = (tmpInputString.match(tmpRegex) || []).length;
+			tmpResult = tmpInputString.replace(tmpRegex, tmpReplaceString);
+		}
+		else
+		{
+			tmpReplacementCount = tmpInputString.split(tmpSearchString).length - 1;
+			tmpResult = tmpInputString.split(tmpSearchString).join(tmpReplaceString);
+		}
 
 		return fCallback(null, {
 			EventToFire: 'ReplaceComplete',
-			Outputs: {
-				ReplacedString: tmpResult
-			},
-			Log: [`Replaced "${tmpSearchString}" with "${tmpReplaceString}" (${tmpInputString.split(tmpSearchString).length - 1} occurrences).`]
+			Outputs: { ReplacedString: tmpResult, ReplacementCount: tmpReplacementCount },
+			Log: [`Replaced "${tmpSearchString}" with "${tmpReplaceString}" (${tmpReplacementCount} occurrences).`]
 		});
 	}
 }

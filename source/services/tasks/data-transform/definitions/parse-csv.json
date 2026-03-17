@@ -1,0 +1,27 @@
+{
+	"Hash": "parse-csv",
+	"Type": "parse-csv",
+	"Name": "Parse CSV",
+	"Description": "Parses CSV text into an array of records.",
+	"Category": "pipeline",
+	"Capability": "Data Transform",
+	"Action": "ParseCSV",
+	"Tier": "Engine",
+	"EventInputs": [{ "Name": "Execute" }],
+	"EventOutputs": [{ "Name": "Complete" }],
+	"SettingsInputs": [
+		{ "Name": "SourceAddress", "DataType": "String", "Required": false, "Description": "State address of the CSV text to parse" },
+		{ "Name": "Delimiter", "DataType": "String", "Required": false, "Description": "Column delimiter" },
+		{ "Name": "HasHeaders", "DataType": "Boolean", "Required": false, "Description": "When true, first row is used as field names" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to store parsed records" },
+		{ "Name": "QuoteCharacter", "DataType": "String", "Required": false, "Description": "Character used to quote fields containing the delimiter" },
+		{ "Name": "TrimFields", "DataType": "Boolean", "Required": false, "Description": "Trim whitespace from field values" },
+		{ "Name": "SkipEmptyLines", "DataType": "Boolean", "Required": false, "Description": "Skip empty lines in the input" }
+	],
+	"StateOutputs": [
+		{ "Name": "Records", "DataType": "Array", "Description": "Parsed rows" },
+		{ "Name": "ColumnCount", "DataType": "Number", "Description": "Number of columns found" },
+		{ "Name": "Headers", "DataType": "Array", "Description": "Parsed header names" }
+	],
+	"DefaultSettings": { "SourceAddress": "", "Delimiter": ",", "HasHeaders": true, "Destination": "", "QuoteCharacter": "\"", "TrimFields": true, "SkipEmptyLines": true }
+}

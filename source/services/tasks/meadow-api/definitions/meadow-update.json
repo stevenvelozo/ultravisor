@@ -1,0 +1,26 @@
+{
+	"Hash": "meadow-update",
+	"Type": "meadow-update",
+	"Name": "Meadow Update",
+	"Description": "Updates a record via a Meadow REST endpoint.",
+	"Category": "meadow",
+	"Capability": "Meadow API",
+	"Action": "Update",
+	"Tier": "Service",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "Entity", "DataType": "String", "Required": true, "Description": "Entity/table name" },
+		{ "Name": "Endpoint", "DataType": "String", "Required": true, "Description": "Base URL of the Meadow API" },
+		{ "Name": "DataAddress", "DataType": "String", "Required": false, "Description": "State address of the record data to update" },
+		{ "Name": "Headers", "DataType": "String", "Required": false, "Description": "JSON string of request headers" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to store the updated record" }
+	],
+	"StateOutputs": [
+		{ "Name": "Updated", "DataType": "Object", "Description": "The updated record" }
+	],
+	"DefaultSettings": { "Entity": "", "Endpoint": "", "DataAddress": "", "Headers": "", "Destination": "" }
+}

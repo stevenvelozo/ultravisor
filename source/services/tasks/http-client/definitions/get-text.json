@@ -1,0 +1,26 @@
+{
+	"Hash": "get-text",
+	"Type": "get-text",
+	"Name": "Get Text",
+	"Description": "Performs an HTTP GET request and returns the response as text.",
+	"Category": "rest",
+	"Capability": "HTTP Client",
+	"Action": "GetText",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "URL", "DataType": "String", "Required": true, "Description": "URL to GET" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to store response text" },
+		{ "Name": "Headers", "DataType": "String", "Required": false, "Description": "JSON string of request headers" },
+		{ "Name": "TimeoutMs", "DataType": "Number", "Required": false, "Description": "Request timeout in milliseconds" }
+	],
+	"StateOutputs": [
+		{ "Name": "Data", "DataType": "String", "Description": "Response text" },
+		{ "Name": "StatusCode", "DataType": "Number", "Description": "HTTP response status code" }
+	],
+	"DefaultSettings": { "URL": "", "Destination": "", "Headers": "", "TimeoutMs": 30000 }
+}

@@ -37,6 +37,7 @@ const libTaskTypeIfConditional = require('../source/services/tasks/flow-control/
 const libTaskTypeSplitExecute = require('../source/services/tasks/flow-control/Ultravisor-TaskType-SplitExecute.cjs');
 const libTaskTypeValueInput = require('../source/services/tasks/user-interaction/Ultravisor-TaskType-ValueInput.cjs');
 const libTaskTypeErrorMessage = require('../source/services/tasks/user-interaction/Ultravisor-TaskType-ErrorMessage.cjs');
+const libTaskTypeReadFileBuffered = require('../source/services/tasks/file-system/Ultravisor-TaskType-ReadFileBuffered.cjs');
 
 var Chai = require("chai");
 var Expect = Chai.expect;
@@ -98,6 +99,7 @@ function createTestFable()
 	tmpRegistry.registerTaskType(libTaskTypeSplitExecute);
 	tmpRegistry.registerTaskType(libTaskTypeValueInput);
 	tmpRegistry.registerTaskType(libTaskTypeErrorMessage);
+	tmpRegistry.registerTaskType(libTaskTypeReadFileBuffered);
 
 	return tmpFable;
 }
@@ -185,7 +187,7 @@ suite
 						Expect(tmpInstance.definition.Hash).to.equal('read-file');
 
 						let tmpDefs = tmpRegistry.listDefinitions();
-						Expect(tmpDefs.length).to.equal(9);
+						Expect(tmpDefs.length).to.equal(10);
 
 						// Verify all registered definitions have Capability, Action, and Tier
 						for (let i = 0; i < tmpDefs.length; i++)
@@ -1650,7 +1652,7 @@ suite
 
 				test
 				(
-					'Registry should register all 31 built-in task types from config array.',
+					'Registry should register all 32 built-in task types from config array.',
 					function()
 					{
 						let tmpFable = createTestFable();
@@ -1659,7 +1661,7 @@ suite
 						let tmpBuiltInConfigs = require('../source/services/tasks/Ultravisor-BuiltIn-TaskConfigs.cjs');
 						let tmpCount = tmpRegistry.registerTaskTypesFromConfigArray(tmpBuiltInConfigs);
 
-						Expect(tmpCount).to.equal(35);
+						Expect(tmpCount).to.equal(40);
 
 						// Spot-check a few
 						Expect(tmpRegistry.hasTaskType('error-message')).to.equal(true);
@@ -1674,12 +1676,13 @@ suite
 						Expect(tmpRegistry.hasTaskType('launch-operation')).to.equal(true);
 						Expect(tmpRegistry.hasTaskType('template-string')).to.equal(true);
 						Expect(tmpRegistry.hasTaskType('expression-solver')).to.equal(true);
+						Expect(tmpRegistry.hasTaskType('read-file-buffered')).to.equal(true);
 
 						// List all definitions
 						let tmpDefs = tmpRegistry.listDefinitions();
-						// 31 from config + 9 from class-based in createTestFable
+						// 32 from config + 10 from class-based in createTestFable
 						// But some overlap (same hash), so count unique
-						Expect(tmpDefs.length).to.be.at.least(31);
+						Expect(tmpDefs.length).to.be.at.least(36);
 					}
 				);
 
@@ -1853,7 +1856,7 @@ suite
 						tmpRegistry.registerBuiltInTaskTypes();
 
 						let tmpDefs = tmpRegistry.listDefinitions();
-						Expect(tmpDefs.length).to.equal(35);
+						Expect(tmpDefs.length).to.equal(40);
 					}
 				);
 			}
@@ -3684,7 +3687,7 @@ suite
 							Expect(tmpDef.EventOutputs[0].Name).to.equal('Complete');
 							Expect(tmpDef.EventOutputs[1].Name).to.equal('Error');
 							Expect(tmpDef.EventOutputs[1].IsError).to.equal(true);
-							Expect(tmpDef.SettingsInputs.length).to.equal(7);
+							Expect(tmpDef.SettingsInputs.length).to.equal(8);
 							Expect(tmpDef.StateOutputs.length).to.equal(4);
 						}
 					);
@@ -5671,5 +5674,215 @@ suite
 							Expect(tmpSettingNames).to.include('Destination');
 						}
 					);
+			}
+		);
+
+		suite
+		(
+			'ReadFileBuffered TaskType',
+			function()
+			{
+				setup ( () => { ensureTestFixtures(); } );
+				teardown ( () => { cleanupTestStaging(); } );
+
+				test
+				(
+					'Should read a file in a single chunk when file is smaller than buffer.',
+					function(fDone)
+					{
+						let tmpFable = createTestFable();
+						let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
+						let tmpInstance = tmpRegistry.instantiateTaskType('read-file-buffered');
+
+						let tmpSettings = {
+							FilePath: TEST_INPUT_FILE,
+							Encoding: 'utf8',
+							MaxBufferSize: 65536,
+							SplitCharacter: '\n',
+							ByteOffset: 0
+						};
+
+						tmpInstance.execute(tmpSettings, { GlobalState: {}, OperationState: {}, TaskOutputs: {}, StagingPath: TEST_STAGING_ROOT, NodeHash: 'test' },
+							(pError, pResult) =>
+							{
+								Expect(pError).to.equal(null);
+								Expect(pResult.EventToFire).to.equal('ReadComplete');
+								Expect(pResult.Outputs.IsComplete).to.equal(true);
+								Expect(pResult.Outputs.FileContent).to.contain('Hello');
+								Expect(pResult.Outputs.BytesRead).to.be.greaterThan(0);
+								Expect(pResult.Outputs.FileName).to.equal('test_input.txt');
+								Expect(pResult.Outputs.TotalFileSize).to.be.greaterThan(0);
+								fDone();
+							});
+					}
+				);
+
+				test
+				(
+					'Should read a file in chunks with continuation via ByteOffset.',
+					function(fDone)
+					{
+						let tmpFable = createTestFable();
+						let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
+						let tmpInstance = tmpRegistry.instantiateTaskType('read-file-buffered');
+
+						// Use a very small buffer to force chunking
+						let tmpSettings = {
+							FilePath: TEST_INPUT_FILE,
+							Encoding: 'utf8',
+							MaxBufferSize: 20,
+							SplitCharacter: '\n',
+							ByteOffset: 0
+						};
+
+						tmpInstance.execute(tmpSettings, { GlobalState: {}, OperationState: {}, TaskOutputs: {}, StagingPath: TEST_STAGING_ROOT, NodeHash: 'test' },
+							(pError, pResult) =>
+							{
+								Expect(pError).to.equal(null);
+								Expect(pResult.EventToFire).to.equal('ReadComplete');
+								Expect(pResult.Outputs.IsComplete).to.equal(false);
+								Expect(pResult.Outputs.ByteOffset).to.be.greaterThan(0);
+								Expect(pResult.Outputs.ByteOffset).to.be.lessThan(pResult.Outputs.TotalFileSize);
+
+								// Continue reading from the new offset
+								let tmpSettings2 = {
+									FilePath: TEST_INPUT_FILE,
+									Encoding: 'utf8',
+									MaxBufferSize: 65536,
+									SplitCharacter: '\n',
+									ByteOffset: pResult.Outputs.ByteOffset
+								};
+
+								tmpInstance.execute(tmpSettings2, { GlobalState: {}, OperationState: {}, TaskOutputs: {}, StagingPath: TEST_STAGING_ROOT, NodeHash: 'test' },
+									(pError2, pResult2) =>
+									{
+										Expect(pError2).to.equal(null);
+										Expect(pResult2.EventToFire).to.equal('ReadComplete');
+										Expect(pResult2.Outputs.IsComplete).to.equal(true);
+										Expect(pResult2.Outputs.BytesRead).to.be.greaterThan(0);
+										fDone();
+									});
+							});
+					}
+				);
+
+				test
+				(
+					'Should return error when no FilePath specified.',
+					function(fDone)
+					{
+						let tmpFable = createTestFable();
+						let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
+						let tmpInstance = tmpRegistry.instantiateTaskType('read-file-buffered');
+
+						tmpInstance.execute({ FilePath: '' }, { GlobalState: {}, OperationState: {}, TaskOutputs: {}, StagingPath: '', NodeHash: 'test' },
+							(pError, pResult) =>
+							{
+								Expect(pError).to.equal(null);
+								Expect(pResult.EventToFire).to.equal('Error');
+								fDone();
+							});
+					}
+				);
+			}
+		);
+
+		suite
+		(
+			'ReadFile MaxBytes',
+			function()
+			{
+				setup ( () => { ensureTestFixtures(); } );
+				teardown ( () => { cleanupTestStaging(); } );
+
+				test
+				(
+					'Should limit bytes read when MaxBytes is set.',
+					function(fDone)
+					{
+						let tmpFable = createTestFable();
+						let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
+						let tmpInstance = tmpRegistry.instantiateTaskType('read-file');
+
+						let tmpSettings = {
+							FilePath: TEST_INPUT_FILE,
+							Encoding: 'utf8',
+							MaxBytes: 5
+						};
+
+						tmpInstance.execute(tmpSettings, { GlobalState: {}, OperationState: {}, TaskOutputs: {}, StagingPath: TEST_STAGING_ROOT, NodeHash: 'test' },
+							(pError, pResult) =>
+							{
+								Expect(pError).to.equal(null);
+								Expect(pResult.EventToFire).to.equal('ReadComplete');
+								Expect(pResult.Outputs.FileContent).to.equal('Hello');
+								Expect(pResult.Outputs.FileName).to.equal('test_input.txt');
+								fDone();
+							});
+					}
+				);
+			}
+		);
+
+		suite
+		(
+			'ReplaceString UseRegex',
+			function()
+			{
+				test
+				(
+					'Should support regex replacement.',
+					function(fDone)
+					{
+						let tmpFable = createTestFable();
+						let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
+						let tmpInstance = tmpRegistry.instantiateTaskType('replace-string');
+
+						let tmpSettings = {
+							InputString: 'Hello 123 World 456',
+							SearchString: '\\d+',
+							ReplaceString: '#',
+							UseRegex: true
+						};
+
+						tmpInstance.execute(tmpSettings, { GlobalState: {}, OperationState: {}, TaskOutputs: {}, StagingPath: '', NodeHash: 'test' },
+							(pError, pResult) =>
+							{
+								Expect(pError).to.equal(null);
+								Expect(pResult.EventToFire).to.equal('ReplaceComplete');
+								Expect(pResult.Outputs.ReplacedString).to.equal('Hello # World #');
+								Expect(pResult.Outputs.ReplacementCount).to.equal(2);
+								fDone();
+							});
+					}
+				);
+
+				test
+				(
+					'Should support case-insensitive replacement.',
+					function(fDone)
+					{
+						let tmpFable = createTestFable();
+						let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
+						let tmpInstance = tmpRegistry.instantiateTaskType('replace-string');
+
+						let tmpSettings = {
+							InputString: 'Hello hello HELLO',
+							SearchString: 'hello',
+							ReplaceString: 'hi',
+							CaseSensitive: false
+						};
+
+						tmpInstance.execute(tmpSettings, { GlobalState: {}, OperationState: {}, TaskOutputs: {}, StagingPath: '', NodeHash: 'test' },
+							(pError, pResult) =>
+							{
+								Expect(pError).to.equal(null);
+								Expect(pResult.EventToFire).to.equal('ReplaceComplete');
+								Expect(pResult.Outputs.ReplacedString).to.equal('hi hi hi');
+								Expect(pResult.Outputs.ReplacementCount).to.equal(3);
+								fDone();
+							});
+					}
+				);
 			}
 		);

@@ -1,0 +1,159 @@
+{
+	"Name": "Test: Content Full Pipeline",
+	"Description": "Full beacon test — creates a folder, saves a file, lists the folder, and reads the file back via Content System beacon.",
+	"Graph": {
+		"Nodes": [
+			{
+				"Hash": "tfp-start",
+				"Type": "start",
+				"X": 50,
+				"Y": 200,
+				"Width": 140,
+				"Height": 80,
+				"Title": "Start",
+				"Ports": [
+					{ "Hash": "tfp-start-eo-Out", "Direction": "output", "Side": "right", "Label": "Out" }
+				],
+				"Data": {}
+			},
+			{
+				"Hash": "tfp-mkdir",
+				"Type": "content-create-folder",
+				"X": 280,
+				"Y": 180,
+				"Width": 220,
+				"Height": 100,
+				"Title": "Create Folder",
+				"Ports": [
+					{ "Hash": "tfp-mkdir-ei-Trigger", "Direction": "input", "Side": "left", "Label": "Trigger" },
+					{ "Hash": "tfp-mkdir-eo-Complete", "Direction": "output", "Side": "right", "Label": "Complete" },
+					{ "Hash": "tfp-mkdir-eo-Error", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "tfp-mkdir-so-StdOut", "Direction": "output", "Side": "right-top", "Label": "StdOut" }
+				],
+				"Data": {
+					"Path": "beacon-test"
+				}
+			},
+			{
+				"Hash": "tfp-save",
+				"Type": "content-save-file",
+				"X": 590,
+				"Y": 180,
+				"Width": 220,
+				"Height": 100,
+				"Title": "Save File",
+				"Ports": [
+					{ "Hash": "tfp-save-ei-Trigger", "Direction": "input", "Side": "left", "Label": "Trigger" },
+					{ "Hash": "tfp-save-eo-Complete", "Direction": "output", "Side": "right", "Label": "Complete" },
+					{ "Hash": "tfp-save-eo-Error", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "tfp-save-so-FilePath", "Direction": "output", "Side": "right-top", "Label": "FilePath" },
+					{ "Hash": "tfp-save-so-StdOut", "Direction": "output", "Side": "right-bottom", "Label": "StdOut" }
+				],
+				"Data": {
+					"FilePath": "beacon-test/notes.md",
+					"Content": "# Notes\n\nThis file was created by the full pipeline beacon test.\n\nTimestamp: test run\n"
+				}
+			},
+			{
+				"Hash": "tfp-list",
+				"Type": "content-list-files",
+				"X": 900,
+				"Y": 180,
+				"Width": 220,
+				"Height": 100,
+				"Title": "List Folder",
+				"Ports": [
+					{ "Hash": "tfp-list-ei-Trigger", "Direction": "input", "Side": "left", "Label": "Trigger" },
+					{ "Hash": "tfp-list-eo-Complete", "Direction": "output", "Side": "right", "Label": "Complete" },
+					{ "Hash": "tfp-list-eo-Error", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "tfp-list-so-Files", "Direction": "output", "Side": "right-top", "Label": "Files" },
+					{ "Hash": "tfp-list-so-StdOut", "Direction": "output", "Side": "right-bottom", "Label": "StdOut" }
+				],
+				"Data": {
+					"Path": "beacon-test"
+				}
+			},
+			{
+				"Hash": "tfp-read",
+				"Type": "content-read-file",
+				"X": 1210,
+				"Y": 180,
+				"Width": 220,
+				"Height": 100,
+				"Title": "Read File",
+				"Ports": [
+					{ "Hash": "tfp-read-ei-Trigger", "Direction": "input", "Side": "left", "Label": "Trigger" },
+					{ "Hash": "tfp-read-eo-Complete", "Direction": "output", "Side": "right", "Label": "Complete" },
+					{ "Hash": "tfp-read-eo-Error", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "tfp-read-so-Content", "Direction": "output", "Side": "right-top", "Label": "Content" },
+					{ "Hash": "tfp-read-so-StdOut", "Direction": "output", "Side": "right-bottom", "Label": "StdOut" }
+				],
+				"Data": {
+					"FilePath": "beacon-test/notes.md"
+				}
+			},
+			{
+				"Hash": "tfp-end",
+				"Type": "end",
+				"X": 1520,
+				"Y": 200,
+				"Width": 140,
+				"Height": 80,
+				"Title": "End",
+				"Ports": [
+					{ "Hash": "tfp-end-ei-In", "Direction": "input", "Side": "left", "Label": "In" }
+				],
+				"Data": {}
+			}
+		],
+		"Connections": [
+			{
+				"Hash": "tfp-ev1",
+				"SourceNodeHash": "tfp-start",
+				"SourcePortHash": "tfp-start-eo-Out",
+				"TargetNodeHash": "tfp-mkdir",
+				"TargetPortHash": "tfp-mkdir-ei-Trigger",
+				"Data": {}
+			},
+			{
+				"Hash": "tfp-ev2",
+				"SourceNodeHash": "tfp-mkdir",
+				"SourcePortHash": "tfp-mkdir-eo-Complete",
+				"TargetNodeHash": "tfp-save",
+				"TargetPortHash": "tfp-save-ei-Trigger",
+				"Data": {}
+			},
+			{
+				"Hash": "tfp-ev3",
+				"SourceNodeHash": "tfp-save",
+				"SourcePortHash": "tfp-save-eo-Complete",
+				"TargetNodeHash": "tfp-list",
+				"TargetPortHash": "tfp-list-ei-Trigger",
+				"Data": {}
+			},
+			{
+				"Hash": "tfp-ev4",
+				"SourceNodeHash": "tfp-list",
+				"SourcePortHash": "tfp-list-eo-Complete",
+				"TargetNodeHash": "tfp-read",
+				"TargetPortHash": "tfp-read-ei-Trigger",
+				"Data": {}
+			},
+			{
+				"Hash": "tfp-ev5",
+				"SourceNodeHash": "tfp-read",
+				"SourcePortHash": "tfp-read-eo-Complete",
+				"TargetNodeHash": "tfp-end",
+				"TargetPortHash": "tfp-end-ei-In",
+				"Data": {}
+			}
+		],
+		"ViewState": {
+			"PanX": 0,
+			"PanY": 0,
+			"Zoom": 1,
+			"SelectedNodeHash": null,
+			"SelectedConnectionHash": null
+		}
+	}
+}

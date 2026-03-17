@@ -1,0 +1,106 @@
+{
+	"Name": "Test: Content Save and Read",
+	"Description": "Beacon test — saves a file via Content System beacon, then reads it back.",
+	"Graph": {
+		"Nodes": [
+			{
+				"Hash": "tsr-start",
+				"Type": "start",
+				"X": 50,
+				"Y": 200,
+				"Width": 140,
+				"Height": 80,
+				"Title": "Start",
+				"Ports": [
+					{ "Hash": "tsr-start-eo-Out", "Direction": "output", "Side": "right", "Label": "Out" }
+				],
+				"Data": {}
+			},
+			{
+				"Hash": "tsr-save",
+				"Type": "content-save-file",
+				"X": 300,
+				"Y": 170,
+				"Width": 240,
+				"Height": 120,
+				"Title": "Save Test File",
+				"Ports": [
+					{ "Hash": "tsr-save-ei-Trigger", "Direction": "input", "Side": "left", "Label": "Trigger" },
+					{ "Hash": "tsr-save-eo-Complete", "Direction": "output", "Side": "right", "Label": "Complete" },
+					{ "Hash": "tsr-save-eo-Error", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "tsr-save-so-FilePath", "Direction": "output", "Side": "right-top", "Label": "FilePath" },
+					{ "Hash": "tsr-save-so-StdOut", "Direction": "output", "Side": "right-bottom", "Label": "StdOut" }
+				],
+				"Data": {
+					"FilePath": "beacon-test.md",
+					"Content": "# Beacon Test\n\nHello from Ultravisor!\n\nThis file was created by a Content System beacon workflow.\n"
+				}
+			},
+			{
+				"Hash": "tsr-read",
+				"Type": "content-read-file",
+				"X": 650,
+				"Y": 170,
+				"Width": 240,
+				"Height": 120,
+				"Title": "Read Test File",
+				"Ports": [
+					{ "Hash": "tsr-read-ei-Trigger", "Direction": "input", "Side": "left", "Label": "Trigger" },
+					{ "Hash": "tsr-read-eo-Complete", "Direction": "output", "Side": "right", "Label": "Complete" },
+					{ "Hash": "tsr-read-eo-Error", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "tsr-read-so-Content", "Direction": "output", "Side": "right-top", "Label": "Content" },
+					{ "Hash": "tsr-read-so-StdOut", "Direction": "output", "Side": "right-bottom", "Label": "StdOut" }
+				],
+				"Data": {
+					"FilePath": "beacon-test.md"
+				}
+			},
+			{
+				"Hash": "tsr-end",
+				"Type": "end",
+				"X": 1000,
+				"Y": 200,
+				"Width": 140,
+				"Height": 80,
+				"Title": "End",
+				"Ports": [
+					{ "Hash": "tsr-end-ei-In", "Direction": "input", "Side": "left", "Label": "In" }
+				],
+				"Data": {}
+			}
+		],
+		"Connections": [
+			{
+				"Hash": "tsr-ev1",
+				"SourceNodeHash": "tsr-start",
+				"SourcePortHash": "tsr-start-eo-Out",
+				"TargetNodeHash": "tsr-save",
+				"TargetPortHash": "tsr-save-ei-Trigger",
+				"Data": {}
+			},
+			{
+				"Hash": "tsr-ev2",
+				"SourceNodeHash": "tsr-save",
+				"SourcePortHash": "tsr-save-eo-Complete",
+				"TargetNodeHash": "tsr-read",
+				"TargetPortHash": "tsr-read-ei-Trigger",
+				"Data": {}
+			},
+			{
+				"Hash": "tsr-ev3",
+				"SourceNodeHash": "tsr-read",
+				"SourcePortHash": "tsr-read-eo-Complete",
+				"TargetNodeHash": "tsr-end",
+				"TargetPortHash": "tsr-end-ei-In",
+				"Data": {}
+			}
+		],
+		"ViewState": {
+			"PanX": 0,
+			"PanY": 0,
+			"Zoom": 1,
+			"SelectedNodeHash": null,
+			"SelectedConnectionHash": null
+		}
+	}
+}

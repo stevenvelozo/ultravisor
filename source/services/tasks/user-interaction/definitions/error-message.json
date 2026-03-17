@@ -1,0 +1,18 @@
+{
+	"Hash": "error-message",
+	"Type": "error-message",
+	"Name": "Error Message",
+	"Description": "Logs an error or warning message to the execution log.",
+	"Category": "interaction",
+	"Capability": "User Interaction",
+	"Action": "ShowError",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [{ "Name": "Complete" }],
+	"SettingsInputs": [
+		{ "Name": "MessageTemplate", "DataType": "String", "Required": true },
+		{ "Name": "Level", "DataType": "String", "Required": false, "Description": "Log level: \"error\", \"warning\", \"info\", or \"debug\"" }
+	],
+	"StateOutputs": [],
+	"DefaultSettings": { "MessageTemplate": "An error occurred.", "Level": "error" }
+}

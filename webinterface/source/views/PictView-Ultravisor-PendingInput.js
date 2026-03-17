@@ -131,7 +131,7 @@ const _ViewConfiguration =
 			Template: /*html*/`
 <div class="ultravisor-pendinginput">
 	<div class="ultravisor-pendinginput-header">
-		<h1>Pending Input</h1>
+		<h1>Awaiting</h1>
 		<button class="ultravisor-btn ultravisor-btn-secondary" onclick="{~P~}.PictApplication.showView('Ultravisor-PendingInput')">Refresh</button>
 	</div>
 	<div id="Ultravisor-PendingInput-Body"></div>

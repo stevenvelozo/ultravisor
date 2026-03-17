@@ -1,0 +1,23 @@
+{
+	"Hash": "read-json",
+	"Type": "read-json",
+	"Name": "Read JSON",
+	"Description": "Reads a JSON file from disk and parses it into state.",
+	"Category": "file-io",
+	"Capability": "File System",
+	"Action": "ReadJSON",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "FilePath", "DataType": "String", "Required": true, "Description": "Path to the JSON file" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to store the parsed data" }
+	],
+	"StateOutputs": [
+		{ "Name": "Data", "DataType": "Object", "Description": "Parsed JSON data" }
+	],
+	"DefaultSettings": { "FilePath": "", "Destination": "" }
+}

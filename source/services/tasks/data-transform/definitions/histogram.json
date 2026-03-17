@@ -1,0 +1,23 @@
+{
+	"Hash": "histogram",
+	"Type": "histogram",
+	"Name": "Histogram",
+	"Description": "Computes a frequency distribution over a field in a dataset.",
+	"Category": "pipeline",
+	"Capability": "Data Transform",
+	"Action": "Histogram",
+	"Tier": "Engine",
+	"EventInputs": [{ "Name": "Execute" }],
+	"EventOutputs": [{ "Name": "Complete" }],
+	"SettingsInputs": [
+		{ "Name": "SourceAddress", "DataType": "String", "Required": false, "Description": "State address of the data array" },
+		{ "Name": "Field", "DataType": "String", "Required": false, "Description": "Field name to analyze" },
+		{ "Name": "Bins", "DataType": "Number", "Required": false, "Description": "Number of bins for numeric data" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to store stats" },
+		{ "Name": "SortBy", "DataType": "String", "Required": false, "Description": "Sort frequency results by \"count\" or \"key\"" }
+	],
+	"StateOutputs": [
+		{ "Name": "Stats", "DataType": "Object", "Description": "Histogram / frequency distribution" }
+	],
+	"DefaultSettings": { "SourceAddress": "", "Field": "score", "Bins": 5, "Destination": "", "SortBy": "" }
+}

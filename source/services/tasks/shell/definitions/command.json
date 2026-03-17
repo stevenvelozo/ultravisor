@@ -1,0 +1,29 @@
+{
+	"Hash": "command",
+	"Type": "command",
+	"Name": "Command",
+	"Description": "Executes a shell command on the server.",
+	"Category": "control",
+	"Capability": "Shell",
+	"Action": "Execute",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "Command", "DataType": "String", "Required": true, "Description": "Shell command to execute" },
+		{ "Name": "Parameters", "DataType": "String", "Required": false, "Description": "Command-line parameters" },
+		{ "Name": "Description", "DataType": "String", "Required": false, "Description": "Human-readable description of this command" },
+		{ "Name": "WorkingDirectory", "DataType": "String", "Required": false, "Description": "Working directory for the command" },
+		{ "Name": "TimeoutMs", "DataType": "Number", "Required": false, "Description": "Command timeout in milliseconds (default 300000)" },
+		{ "Name": "Environment", "DataType": "String", "Required": false, "Description": "JSON object of environment variables to set" }
+	],
+	"StateOutputs": [
+		{ "Name": "StdOut", "DataType": "String", "Description": "Standard output from the command" },
+		{ "Name": "StdErr", "DataType": "String", "Description": "Standard error from the command" },
+		{ "Name": "ExitCode", "DataType": "Number", "Description": "Exit code of the command" }
+	],
+	"DefaultSettings": { "Command": "", "Parameters": "", "Description": "", "WorkingDirectory": "", "TimeoutMs": 300000, "Environment": "" }
+}

@@ -75,6 +75,39 @@ const _ViewConfiguration =
 			font-size: 0.9em;
 			padding: 0.5em 0;
 		}
+		.ultravisor-dropzone {
+			border: 2px dashed var(--uv-border-subtle);
+			border-radius: 6px;
+			padding: 1.5em 2em;
+			text-align: center;
+			color: var(--uv-text-secondary);
+			cursor: pointer;
+			transition: border-color 0.2s, background-color 0.2s;
+			margin-bottom: 1.5em;
+		}
+		.ultravisor-dropzone:hover {
+			border-color: var(--uv-brand);
+		}
+		.ultravisor-dropzone-active {
+			border-color: var(--uv-brand);
+			background-color: rgba(99, 102, 241, 0.08);
+			color: var(--uv-text);
+		}
+		.ultravisor-dropzone-label {
+			font-size: 0.95em;
+		}
+		.ultravisor-dropzone-options {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 0.5em;
+			margin-top: 0.75em;
+			font-size: 0.85em;
+		}
+		.ultravisor-dropzone-options label {
+			cursor: pointer;
+			color: var(--uv-text-secondary);
+		}
 	`,
 
 	Templates:
@@ -91,6 +124,14 @@ const _ViewConfiguration =
 			</select>
 			<button id="Ultravisor-LibraryAddBtn" class="ultravisor-btn ultravisor-btn-primary" onclick="{~P~}.views['Ultravisor-OperationList'].importSelectedLibraryOp()" style="display:none">Add</button>
 			<button class="ultravisor-btn ultravisor-btn-primary" onclick="{~P~}.PictApplication.editOperation()">New Operation</button>
+		</div>
+	</div>
+	<div id="Ultravisor-OperationList-Dropzone" class="ultravisor-dropzone">
+		<div class="ultravisor-dropzone-label">Drop workflow JSON here or click to browse</div>
+		<input type="file" id="Ultravisor-OperationList-FileInput" accept=".json" style="display:none" />
+		<div class="ultravisor-dropzone-options">
+			<input type="checkbox" id="Ultravisor-ImportRunImmediately" />
+			<label for="Ultravisor-ImportRunImmediately">Run immediately after import</label>
 		</div>
 	</div>
 	<div id="Ultravisor-OperationList-Body"></div>
@@ -132,7 +173,156 @@ class UltravisorOperationListView extends libPictView
 				this.populateLibraryDropdown();
 			}.bind(this));
 
+		this.wireDropZone();
+
 		return super.onAfterRender(pRenderable, pRenderDestinationAddress, pRecord, pContent);
+	}
+
+	wireDropZone()
+	{
+		let tmpDropZone = document.getElementById('Ultravisor-OperationList-Dropzone');
+		let tmpFileInput = document.getElementById('Ultravisor-OperationList-FileInput');
+
+		if (!tmpDropZone || !tmpFileInput)
+		{
+			return;
+		}
+
+		tmpDropZone.addEventListener('dragover', function (pEvent)
+		{
+			pEvent.preventDefault();
+			pEvent.stopPropagation();
+			tmpDropZone.classList.add('ultravisor-dropzone-active');
+		});
+
+		tmpDropZone.addEventListener('dragleave', function (pEvent)
+		{
+			pEvent.preventDefault();
+			pEvent.stopPropagation();
+			tmpDropZone.classList.remove('ultravisor-dropzone-active');
+		});
+
+		tmpDropZone.addEventListener('drop', function (pEvent)
+		{
+			pEvent.preventDefault();
+			pEvent.stopPropagation();
+			tmpDropZone.classList.remove('ultravisor-dropzone-active');
+
+			if (pEvent.dataTransfer && pEvent.dataTransfer.files && pEvent.dataTransfer.files.length > 0)
+			{
+				this.handleImportFile(pEvent.dataTransfer.files[0]);
+			}
+		}.bind(this));
+
+		tmpDropZone.addEventListener('click', function (pEvent)
+		{
+			if (pEvent.target.tagName !== 'INPUT')
+			{
+				tmpFileInput.click();
+			}
+		});
+
+		tmpFileInput.addEventListener('change', function (pEvent)
+		{
+			if (pEvent.target.files && pEvent.target.files.length > 0)
+			{
+				this.handleImportFile(pEvent.target.files[0]);
+				pEvent.target.value = '';
+			}
+		}.bind(this));
+	}
+
+	handleImportFile(pFile)
+	{
+		if (!pFile || !pFile.name.endsWith('.json'))
+		{
+			this.pict.ContentAssignment.assignContent('#Ultravisor-OperationList-Result',
+				'<div class="ultravisor-task-result-panel"><p style="color:var(--uv-error);">Please drop a .json file.</p></div>');
+			return;
+		}
+
+		let tmpReader = new FileReader();
+		let tmpSelf = this;
+
+		tmpReader.onload = function (pEvent)
+		{
+			let tmpParsed;
+			try
+			{
+				tmpParsed = JSON.parse(pEvent.target.result);
+			}
+			catch (pParseError)
+			{
+				tmpSelf.pict.ContentAssignment.assignContent('#Ultravisor-OperationList-Result',
+					'<div class="ultravisor-task-result-panel"><p style="color:var(--uv-error);">Invalid JSON: ' + tmpSelf.escapeHTML(pParseError.message) + '</p></div>');
+				return;
+			}
+
+			if (!tmpParsed.Graph && !tmpParsed.Nodes)
+			{
+				tmpSelf.pict.ContentAssignment.assignContent('#Ultravisor-OperationList-Result',
+					'<div class="ultravisor-task-result-panel"><p style="color:var(--uv-error);">JSON does not appear to be a valid operation (no Graph or Nodes found).</p></div>');
+				return;
+			}
+
+			// If the JSON has Nodes/Connections at the top level (like example flows), wrap in Graph
+			if (!tmpParsed.Graph && tmpParsed.Nodes)
+			{
+				tmpParsed = {
+					Name: tmpParsed.Name || pFile.name.replace(/\.json$/, ''),
+					Description: tmpParsed.Description || '',
+					Graph: {
+						Nodes: tmpParsed.Nodes,
+						Connections: tmpParsed.Connections || [],
+						ViewState: tmpParsed.ViewState || {}
+					}
+				};
+			}
+
+			tmpSelf.processImportedOperation(tmpParsed, pFile.name);
+		};
+
+		tmpReader.readAsText(pFile);
+	}
+
+	processImportedOperation(pOperationJSON, pFileName)
+	{
+		this.pict.ContentAssignment.assignContent('#Ultravisor-OperationList-Result',
+			'<div class="ultravisor-import-success">Importing ' + this.escapeHTML(pFileName) + '...</div>');
+
+		this.pict.PictApplication.importOperationFromJSON(pOperationJSON,
+			function (pError, pData)
+			{
+				if (pError)
+				{
+					this.pict.ContentAssignment.assignContent('#Ultravisor-OperationList-Result',
+						'<div class="ultravisor-task-result-panel"><p style="color:var(--uv-error);">Import error: ' + this.escapeHTML(pError.message) + '</p></div>');
+					return;
+				}
+
+				let tmpHash = pData.Hash || '';
+				let tmpRunCheckbox = document.getElementById('Ultravisor-ImportRunImmediately');
+				let tmpRunImmediately = tmpRunCheckbox && tmpRunCheckbox.checked;
+
+				// Reload the table
+				this.pict.PictApplication.loadOperations(
+					function ()
+					{
+						this.renderOperationTable();
+
+						if (tmpRunImmediately)
+						{
+							this.pict.ContentAssignment.assignContent('#Ultravisor-OperationList-Result',
+								'<div class="ultravisor-import-success">Imported as ' + this.escapeHTML(tmpHash) + ' — running...</div>');
+							this.runOperation(tmpHash);
+						}
+						else
+						{
+							this.pict.ContentAssignment.assignContent('#Ultravisor-OperationList-Result',
+								'<div class="ultravisor-import-success">Imported as ' + this.escapeHTML(tmpHash) + '</div>');
+						}
+					}.bind(this));
+			}.bind(this));
 	}
 
 	renderOperationTable()

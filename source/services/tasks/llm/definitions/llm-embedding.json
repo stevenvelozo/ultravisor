@@ -1,0 +1,31 @@
+{
+	"Hash": "llm-embedding",
+	"Type": "llm-embedding",
+	"Name": "LLM Embedding",
+	"Description": "Generates embeddings for text input using an LLM provider. Dispatches to a Beacon with LLM capability.",
+	"Category": "llm",
+	"Capability": "LLM",
+	"Action": "Embedding",
+	"Tier": "Extension",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "Text", "DataType": "String", "Required": false, "Description": "Text to embed" },
+		{ "Name": "Model", "DataType": "String", "Required": false, "Description": "Override embedding model" },
+		{ "Name": "Dimensions", "DataType": "Number", "Required": false, "Description": "Requested embedding dimensions (model-dependent)" },
+		{ "Name": "InputAddress", "DataType": "String", "Required": false, "Description": "State address to read text from" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to write embedding to" },
+		{ "Name": "AffinityKey", "DataType": "String", "Required": false, "Description": "Route to a specific Beacon worker" },
+		{ "Name": "TimeoutMs", "DataType": "Number", "Required": false, "Description": "Work item timeout in milliseconds" }
+	],
+	"StateOutputs": [
+		{ "Name": "Embedding", "DataType": "String", "Description": "JSON array of embedding floats" },
+		{ "Name": "Dimensions", "DataType": "Number", "Description": "Number of dimensions in the embedding" },
+		{ "Name": "Model", "DataType": "String", "Description": "Model used for embedding" },
+		{ "Name": "BeaconID", "DataType": "String", "Description": "ID of the Beacon that executed the work" }
+	],
+	"DefaultSettings": { "TimeoutMs": 60000 }
+}

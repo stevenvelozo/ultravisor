@@ -19,32 +19,30 @@ class UltravisorTaskTypeErrorMessage extends libTaskTypeBase
 
 	get definition()
 	{
-		return {
-			Hash: 'error-message',
-			Type: 'error-message',
-			Name: 'Error Message',
-			Description: 'Logs an error or warning message to the execution log.',
-			Category: 'interaction',
-			Capability: 'User Interaction',
-			Action: 'ShowError',
-			Tier: 'Platform',
-
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [{ Name: 'Complete' }],
-			SettingsInputs: [
-				{ Name: 'MessageTemplate', DataType: 'String', Required: true }
-			],
-			StateOutputs: [],
-
-			DefaultSettings: { MessageTemplate: 'An error occurred.' }
-		};
+		return require('./definitions/error-message.json');
 	}
 
 	execute(pResolvedSettings, pExecutionContext, fCallback, fFireIntermediateEvent)
 	{
 		let tmpMessage = pResolvedSettings.MessageTemplate || 'An error occurred.';
+		let tmpLevel = (pResolvedSettings.Level || 'error').toLowerCase();
 
-		this.log.error(`ErrorMessage task [${pExecutionContext.NodeHash}]: ${tmpMessage}`);
+		if (tmpLevel === 'warning')
+		{
+			this.log.warn(`ErrorMessage task [${pExecutionContext.NodeHash}]: ${tmpMessage}`);
+		}
+		else if (tmpLevel === 'info')
+		{
+			this.log.info(`ErrorMessage task [${pExecutionContext.NodeHash}]: ${tmpMessage}`);
+		}
+		else if (tmpLevel === 'debug')
+		{
+			this.log.debug(`ErrorMessage task [${pExecutionContext.NodeHash}]: ${tmpMessage}`);
+		}
+		else
+		{
+			this.log.error(`ErrorMessage task [${pExecutionContext.NodeHash}]: ${tmpMessage}`);
+		}
 
 		return fCallback(null, {
 			EventToFire: 'Complete',

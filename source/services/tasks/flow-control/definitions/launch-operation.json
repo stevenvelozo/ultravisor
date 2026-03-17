@@ -1,0 +1,27 @@
+{
+	"Hash": "launch-operation",
+	"Type": "launch-operation",
+	"Name": "Launch Operation",
+	"Description": "Executes a child operation by hash, with isolated operation state.",
+	"Category": "control",
+	"Capability": "Flow Control",
+	"Action": "LaunchOperation",
+	"Tier": "Engine",
+	"EventInputs": [{ "Name": "Launch" }],
+	"EventOutputs": [
+		{ "Name": "Completed" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "OperationHash", "DataType": "String", "Required": true },
+		{ "Name": "InputData", "DataType": "String" },
+		{ "Name": "TimeoutMs", "DataType": "Number", "Required": false, "Description": "Maximum execution time for the child operation in milliseconds (0 = unlimited)" },
+		{ "Name": "InheritGlobalState", "DataType": "Boolean", "Required": false, "Description": "Copy parent GlobalState into child operation (default true)" }
+	],
+	"StateOutputs": [
+		{ "Name": "Result", "DataType": "String" },
+		{ "Name": "Status", "DataType": "String" },
+		{ "Name": "ElapsedMs", "DataType": "Number" }
+	],
+	"DefaultSettings": { "OperationHash": "", "InputData": "", "TimeoutMs": 0, "InheritGlobalState": true }
+}

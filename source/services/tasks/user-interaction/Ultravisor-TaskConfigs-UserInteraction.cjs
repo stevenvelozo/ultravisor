@@ -10,28 +10,28 @@ module.exports =
 [
 	// ── error-message ──────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'error-message',
-			Type: 'error-message',
-			Name: 'Error Message',
-			Description: 'Logs an error or warning message to the execution log.',
-			Category: 'interaction',
-			Capability: 'User Interaction',
-			Action: 'ShowError',
-			Tier: 'Platform',
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [{ Name: 'Complete' }],
-			SettingsInputs: [
-				{ Name: 'MessageTemplate', DataType: 'String', Required: true }
-			],
-			StateOutputs: [],
-			DefaultSettings: { MessageTemplate: 'An error occurred.' }
-		},
+		Definition: require('./definitions/error-message.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpMessage = pResolvedSettings.MessageTemplate || 'An error occurred.';
-			pTask.log.error(`ErrorMessage task [${pExecutionContext.NodeHash}]: ${tmpMessage}`);
+			let tmpLevel = (pResolvedSettings.Level || 'error').toLowerCase();
+
+			if (tmpLevel === 'warning')
+			{
+				pTask.log.warn(`ErrorMessage task [${pExecutionContext.NodeHash}]: ${tmpMessage}`);
+			}
+			else if (tmpLevel === 'info')
+			{
+				pTask.log.info(`ErrorMessage task [${pExecutionContext.NodeHash}]: ${tmpMessage}`);
+			}
+			else if (tmpLevel === 'debug')
+			{
+				pTask.log.debug(`ErrorMessage task [${pExecutionContext.NodeHash}]: ${tmpMessage}`);
+			}
+			else
+			{
+				pTask.log.error(`ErrorMessage task [${pExecutionContext.NodeHash}]: ${tmpMessage}`);
+			}
 
 			return fCallback(null, {
 				EventToFire: 'Complete',
@@ -43,27 +43,7 @@ module.exports =
 
 	// ── value-input ────────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'value-input',
-			Type: 'value-input',
-			Name: 'Value Input',
-			Description: 'Pauses execution and waits for user-provided input.',
-			Category: 'interaction',
-			Capability: 'User Interaction',
-			Action: 'RequestInput',
-			Tier: 'Platform',
-			EventInputs: [{ Name: 'RequestInput' }],
-			EventOutputs: [{ Name: 'ValueInputComplete' }],
-			SettingsInputs: [
-				{ Name: 'PromptMessage', DataType: 'String', Required: false },
-				{ Name: 'OutputAddress', DataType: 'String', Required: true }
-			],
-			StateOutputs: [
-				{ Name: 'InputValue', DataType: 'String' }
-			],
-			DefaultSettings: { PromptMessage: 'Please provide a value:', OutputAddress: '' }
-		},
+		Definition: require('./definitions/value-input.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpPromptMessage = pResolvedSettings.PromptMessage || 'Please provide a value:';
@@ -73,6 +53,9 @@ module.exports =
 				WaitingForInput: true,
 				PromptMessage: tmpPromptMessage,
 				OutputAddress: tmpOutputAddress,
+				InputType: pResolvedSettings.InputType || 'text',
+				DefaultValue: pResolvedSettings.DefaultValue || '',
+				Options: pResolvedSettings.Options || '',
 				Outputs: {},
 				Log: [`Waiting for input: "${tmpPromptMessage}" (-> ${tmpOutputAddress})`]
 			});

@@ -1,0 +1,30 @@
+{
+	"Hash": "write-json",
+	"Type": "write-json",
+	"Name": "Write JSON",
+	"Description": "Writes a JSON object to a file on disk.",
+	"Category": "file-io",
+	"Capability": "File System",
+	"Action": "WriteJSON",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Done" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "FilePath", "DataType": "String", "Required": true, "Description": "Path to the output JSON file" },
+		{ "Name": "DataAddress", "DataType": "String", "Required": false, "Description": "State address of the data to write" },
+		{ "Name": "PrettyFormat", "DataType": "Boolean", "Required": false, "Description": "Pretty-print with indentation (default true)" },
+		{ "Name": "IndentType", "DataType": "String", "Required": false, "Description": "Indent character: \"tab\" or \"space\" (default \"tab\")" },
+		{ "Name": "IndentCount", "DataType": "Number", "Required": false, "Description": "Number of indent characters per level (default 1)" },
+		{ "Name": "SortKeys", "DataType": "Boolean", "Required": false, "Description": "Alphabetically sort object keys" }
+	],
+	"StateOutputs": [
+		{ "Name": "FileLocation", "DataType": "String", "Description": "The path the file was referenced at (may be relative)" },
+		{ "Name": "FileName", "DataType": "String", "Description": "The name of the file only (no directory)" },
+		{ "Name": "FilePath", "DataType": "String", "Description": "The fully resolved absolute path of the file" },
+		{ "Name": "BytesWritten", "DataType": "Number", "Description": "Number of bytes written" }
+	],
+	"DefaultSettings": { "FilePath": "", "DataAddress": "", "PrettyFormat": true, "IndentType": "tab", "IndentCount": 1, "SortKeys": false }
+}

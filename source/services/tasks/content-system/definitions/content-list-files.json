@@ -1,0 +1,27 @@
+{
+	"Hash": "content-list-files",
+	"Type": "content-list-files",
+	"Name": "Content List Files",
+	"Description": "List files in a directory on a Content System beacon.",
+	"Category": "content-system",
+	"Capability": "ContentSystem",
+	"Action": "ListFiles",
+	"Tier": "Service",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "Path", "DataType": "String", "Required": false, "Description": "Relative directory path (empty for root)" },
+		{ "Name": "Pattern", "DataType": "String", "Required": false, "Description": "Glob-style pattern filter" },
+		{ "Name": "Recursive", "DataType": "Boolean", "Required": false, "Description": "Recursively list files in subdirectories" },
+		{ "Name": "AffinityKey", "DataType": "String", "Required": false, "Description": "Worker affinity key" },
+		{ "Name": "TimeoutMs", "DataType": "Number", "Required": false, "Description": "Timeout in milliseconds (default: 300000)" }
+	],
+	"StateOutputs": [
+		{ "Name": "Files", "DataType": "String", "Description": "JSON array of file entries" },
+		{ "Name": "StdOut", "DataType": "String", "Description": "Status message" }
+	],
+	"DefaultSettings": { "Path": "", "Pattern": "", "Recursive": false, "AffinityKey": "", "TimeoutMs": 300000 }
+}

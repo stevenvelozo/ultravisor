@@ -1,0 +1,1545 @@
+{
+	"AuditDate": "2026-03-16",
+	"TotalCards": 39,
+	"FlowMarkers": ["start", "end"],
+
+	"Cards": [
+		{
+			"Hash": "set-values",
+			"Name": "Set Values",
+			"Category": "data",
+			"Capability": "Data Transform",
+			"Tier": "Engine",
+			"EventInputs": [
+				{ "Name": "Execute" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" }
+			],
+			"SettingsInputs": [
+				{ "Name": "Mappings", "DataType": "Array", "Required": true }
+			],
+			"StateOutputs": [],
+			"Recommendations": [
+				{
+					"Type": "MissingPort",
+					"Port": "EventOutput",
+					"Name": "Error",
+					"Rationale": "If Mappings contains invalid entries (non-object, missing Address), the task silently skips them. An Error event output would let flows handle bad data explicitly."
+				}
+			]
+		},
+		{
+			"Hash": "replace-string",
+			"Name": "Replace String",
+			"Category": "data",
+			"Capability": "Data Transform",
+			"Tier": "Engine",
+			"EventInputs": [
+				{ "Name": "Replace" }
+			],
+			"EventOutputs": [
+				{ "Name": "ReplaceComplete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "InputString", "DataType": "String", "Required": true },
+				{ "Name": "SearchString", "DataType": "String", "Required": true },
+				{ "Name": "ReplaceString", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "ReplacedString", "DataType": "String" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "UseRegex",
+					"DataType": "Boolean",
+					"Rationale": "Currently uses string split/join. A UseRegex flag would enable regex-based search/replace, vastly increasing utility."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "CaseSensitive",
+					"DataType": "Boolean",
+					"Rationale": "No way to do case-insensitive replacements without regex."
+				},
+				{
+					"Type": "MissingOutput",
+					"Name": "ReplacementCount",
+					"DataType": "Number",
+					"Rationale": "The count is already computed internally but discarded. Exposing it as an output enables conditional branching (e.g., 'if no replacements were made')."
+				}
+			]
+		},
+		{
+			"Hash": "string-appender",
+			"Name": "String Appender",
+			"Category": "data",
+			"Capability": "Data Transform",
+			"Tier": "Engine",
+			"EventInputs": [
+				{ "Name": "Append" }
+			],
+			"EventOutputs": [
+				{ "Name": "Completed" }
+			],
+			"SettingsInputs": [
+				{ "Name": "InputString", "DataType": "String", "Required": true },
+				{ "Name": "OutputAddress", "DataType": "String", "Required": true },
+				{ "Name": "AppendNewline", "DataType": "Boolean", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "AppendedString", "DataType": "String" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "Separator",
+					"DataType": "String",
+					"Rationale": "AppendNewline is a special case. A general Separator setting (default: empty) would let you join with commas, semicolons, custom delimiters, etc. AppendNewline becomes Separator='\\n'."
+				}
+			]
+		},
+		{
+			"Hash": "template-string",
+			"Name": "Template String",
+			"Category": "core",
+			"Capability": "Data Transform",
+			"Tier": "Engine",
+			"EventInputs": [
+				{ "Name": "In" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" }
+			],
+			"SettingsInputs": [
+				{ "Name": "Template", "DataType": "String", "Required": true },
+				{ "Name": "Destination", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Result", "DataType": "String" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingPort",
+					"Port": "EventOutput",
+					"Name": "Error",
+					"IsError": true,
+					"Rationale": "Template parsing failures are caught silently and fall back to the raw template. An Error output would let flows detect bad templates."
+				}
+			]
+		},
+		{
+			"Hash": "expression-solver",
+			"Name": "Expression Solver",
+			"Category": "core",
+			"Capability": "Data Transform",
+			"Tier": "Engine",
+			"EventInputs": [
+				{ "Name": "In" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" }
+			],
+			"SettingsInputs": [
+				{ "Name": "Expression", "DataType": "String", "Required": true },
+				{ "Name": "Destination", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Result", "DataType": "String" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingPort",
+					"Port": "EventOutput",
+					"Name": "Error",
+					"IsError": true,
+					"Rationale": "Expression errors currently fire Complete with an empty string. An Error event would let flows branch on bad expressions rather than silently propagating empty values."
+				}
+			]
+		},
+		{
+			"Hash": "parse-csv",
+			"Name": "Parse CSV",
+			"Category": "pipeline",
+			"Capability": "Data Transform",
+			"Tier": "Engine",
+			"EventInputs": [
+				{ "Name": "Execute" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" }
+			],
+			"SettingsInputs": [
+				{ "Name": "SourceAddress", "DataType": "String", "Required": false },
+				{ "Name": "Delimiter", "DataType": "String", "Required": false },
+				{ "Name": "HasHeaders", "DataType": "Boolean", "Required": false },
+				{ "Name": "Destination", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Records", "DataType": "Array" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "QuoteCharacter",
+					"DataType": "String",
+					"Rationale": "CSV fields containing the delimiter must be quoted. The parser currently has no quote handling, so fields like '\"Smith, John\"' would be split incorrectly."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "TrimFields",
+					"DataType": "Boolean",
+					"Rationale": "Fields are trimmed implicitly. A setting to control this is useful for whitespace-sensitive data."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "SkipEmptyLines",
+					"DataType": "Boolean",
+					"Rationale": "Empty lines are already filtered, but this should be an explicit setting."
+				},
+				{
+					"Type": "MissingOutput",
+					"Name": "ColumnCount",
+					"DataType": "Number",
+					"Rationale": "Useful for validation — knowing how many columns were found."
+				},
+				{
+					"Type": "MissingOutput",
+					"Name": "Headers",
+					"DataType": "Array",
+					"Rationale": "Expose the parsed header names so downstream tasks can reference them."
+				}
+			]
+		},
+		{
+			"Hash": "csv-transform",
+			"Name": "CSV Transform",
+			"Category": "pipeline",
+			"Capability": "Data Transform",
+			"Tier": "Engine",
+			"EventInputs": [
+				{ "Name": "Execute" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" }
+			],
+			"SettingsInputs": [
+				{ "Name": "SourceAddress", "DataType": "String", "Required": false },
+				{ "Name": "Destination", "DataType": "String", "Required": false },
+				{ "Name": "Delimiter", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Records", "DataType": "Array" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "FieldMapping",
+					"DataType": "String",
+					"Rationale": "Currently a pass-through with no transformation logic. A FieldMapping (JSON: [{From, To, Template}]) would make this card actually do something."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "FilterExpression",
+					"DataType": "String",
+					"Rationale": "Filter rows by an expression, e.g. 'Amount > 100'."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "OutputFields",
+					"DataType": "String",
+					"Rationale": "JSON array of field names to include in output (column projection)."
+				},
+				{
+					"Type": "Observation",
+					"Rationale": "This card is currently a no-op stub. The Execute function just passes records through unchanged. Needs actual transformation logic."
+				}
+			]
+		},
+		{
+			"Hash": "comprehension-intersect",
+			"Name": "Comprehension Intersect",
+			"Category": "pipeline",
+			"Capability": "Data Transform",
+			"Tier": "Engine",
+			"EventInputs": [
+				{ "Name": "Execute" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" }
+			],
+			"SettingsInputs": [
+				{ "Name": "SourceAddressA", "DataType": "String", "Required": true },
+				{ "Name": "SourceAddressB", "DataType": "String", "Required": true },
+				{ "Name": "MatchField", "DataType": "String", "Required": false },
+				{ "Name": "Destination", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Result", "DataType": "Array" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "JoinType",
+					"DataType": "String",
+					"Rationale": "Currently only does inner intersection. A JoinType setting ('inner', 'left', 'right', 'full') would add SQL-style join semantics."
+				},
+				{
+					"Type": "MissingOutput",
+					"Name": "MatchCount",
+					"DataType": "Number",
+					"Rationale": "How many matches were found — useful for validation."
+				}
+			]
+		},
+		{
+			"Hash": "histogram",
+			"Name": "Histogram",
+			"Category": "pipeline",
+			"Capability": "Data Transform",
+			"Tier": "Engine",
+			"EventInputs": [
+				{ "Name": "Execute" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" }
+			],
+			"SettingsInputs": [
+				{ "Name": "SourceAddress", "DataType": "String", "Required": false },
+				{ "Name": "Field", "DataType": "String", "Required": false },
+				{ "Name": "Bins", "DataType": "Number", "Required": false },
+				{ "Name": "Destination", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Stats", "DataType": "Object" }
+			],
+			"Recommendations": [
+				{
+					"Type": "Observation",
+					"Rationale": "The Bins setting is defined but never used in the execution logic. Currently just counts unique values — does not create numeric bin ranges."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "SortBy",
+					"DataType": "String",
+					"Rationale": "Sort frequency results by 'count' (descending) or 'key' (alphabetical)."
+				}
+			]
+		},
+		{
+			"Hash": "if-conditional",
+			"Name": "If Conditional",
+			"Category": "control",
+			"Capability": "Flow Control",
+			"Tier": "Engine",
+			"EventInputs": [
+				{ "Name": "Evaluate" }
+			],
+			"EventOutputs": [
+				{ "Name": "True" },
+				{ "Name": "False" }
+			],
+			"SettingsInputs": [
+				{ "Name": "DataAddress", "DataType": "String", "Required": false },
+				{ "Name": "CompareValue", "DataType": "String", "Required": false },
+				{ "Name": "Operator", "DataType": "String", "Required": false },
+				{ "Name": "Expression", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Result", "DataType": "Boolean" }
+			],
+			"Recommendations": []
+		},
+		{
+			"Hash": "split-execute",
+			"Name": "Split Execute",
+			"Category": "control",
+			"Capability": "Flow Control",
+			"Tier": "Engine",
+			"EventInputs": [
+				{ "Name": "PerformSplit" },
+				{ "Name": "StepComplete" }
+			],
+			"EventOutputs": [
+				{ "Name": "TokenDataSent" },
+				{ "Name": "CompletedAllSubtasks" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "InputString", "DataType": "String", "Required": true },
+				{ "Name": "SplitDelimiter", "DataType": "String", "Required": true }
+			],
+			"StateOutputs": [
+				{ "Name": "CurrentToken", "DataType": "String" },
+				{ "Name": "TokenIndex", "DataType": "Number" },
+				{ "Name": "TokenCount", "DataType": "Number" },
+				{ "Name": "CompletedCount", "DataType": "Number" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "SkipEmpty",
+					"DataType": "Boolean",
+					"Rationale": "When splitting by newline, trailing newlines produce empty tokens that trigger needless iterations. A SkipEmpty flag would filter them out."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "TrimTokens",
+					"DataType": "Boolean",
+					"Rationale": "Whitespace around tokens (especially from CSV or multiline text) causes subtle bugs. A TrimTokens option would strip leading/trailing whitespace from each token."
+				}
+			]
+		},
+		{
+			"Hash": "launch-operation",
+			"Name": "Launch Operation",
+			"Category": "control",
+			"Capability": "Flow Control",
+			"Tier": "Engine",
+			"EventInputs": [
+				{ "Name": "Launch" }
+			],
+			"EventOutputs": [
+				{ "Name": "Completed" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "OperationHash", "DataType": "String", "Required": true },
+				{ "Name": "InputData", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Result", "DataType": "String" },
+				{ "Name": "Status", "DataType": "String" },
+				{ "Name": "ElapsedMs", "DataType": "Number" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "TimeoutMs",
+					"DataType": "Number",
+					"Rationale": "Child operations can run indefinitely. A timeout prevents runaway sub-flows from hanging the parent."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "InheritGlobalState",
+					"DataType": "Boolean",
+					"Rationale": "Currently always copies GlobalState into the child. A flag to disable this would enable fully isolated sub-operations."
+				}
+			]
+		},
+		{
+			"Hash": "read-file",
+			"Name": "Read File",
+			"Category": "file-io",
+			"Capability": "File System",
+			"Tier": "Platform",
+			"EventInputs": [
+				{ "Name": "BeginRead" }
+			],
+			"EventOutputs": [
+				{ "Name": "ReadComplete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "FilePath", "DataType": "String", "Required": true },
+				{ "Name": "Encoding", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "FileContent", "DataType": "String" },
+				{ "Name": "BytesRead", "DataType": "Number" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "MaxBytes",
+					"DataType": "Number",
+					"Rationale": "No size guard. Reading a multi-GB file will crash the process. A MaxBytes limit (default: 50MB) would prevent accidental OOM."
+				},
+				{
+					"Type": "MissingOutput",
+					"Name": "FileName",
+					"DataType": "String",
+					"Rationale": "write-file outputs FileName, FileLocation, and FilePath. read-file should too, for symmetry and downstream use."
+				}
+			]
+		},
+		{
+			"Hash": "write-file",
+			"Name": "Write File",
+			"Category": "file-io",
+			"Capability": "File System",
+			"Tier": "Platform",
+			"EventInputs": [
+				{ "Name": "BeginWrite" }
+			],
+			"EventOutputs": [
+				{ "Name": "WriteComplete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "FilePath", "DataType": "String", "Required": true },
+				{ "Name": "Content", "DataType": "String", "Required": true },
+				{ "Name": "Encoding", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "FileLocation", "DataType": "String" },
+				{ "Name": "FileName", "DataType": "String" },
+				{ "Name": "FilePath", "DataType": "String" },
+				{ "Name": "BytesWritten", "DataType": "Number" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "Append",
+					"DataType": "Boolean",
+					"Rationale": "Currently always overwrites. An Append mode would enable log-file-style accumulation without needing string-appender + write-file chains."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "LineEnding",
+					"DataType": "String",
+					"Rationale": "No control over line endings (lf vs crlf). Important for cross-platform file generation."
+				}
+			]
+		},
+		{
+			"Hash": "read-json",
+			"Name": "Read JSON",
+			"Category": "file-io",
+			"Capability": "File System",
+			"Tier": "Platform",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "File", "DataType": "String", "Required": true },
+				{ "Name": "Destination", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Data", "DataType": "Object" }
+			],
+			"Recommendations": [
+				{
+					"Type": "Inconsistency",
+					"Rationale": "Setting is named 'File' but read-file and write-file use 'FilePath'. Should be consistent across the file-io category."
+				}
+			]
+		},
+		{
+			"Hash": "write-json",
+			"Name": "Write JSON",
+			"Category": "file-io",
+			"Capability": "File System",
+			"Tier": "Platform",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Done" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "File", "DataType": "String", "Required": true },
+				{ "Name": "Address", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "FileLocation", "DataType": "String" },
+				{ "Name": "FileName", "DataType": "String" },
+				{ "Name": "FilePath", "DataType": "String" },
+				{ "Name": "BytesWritten", "DataType": "Number" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "PrettyFormat",
+					"DataType": "Boolean",
+					"Rationale": "Currently always pretty-prints with tabs. A PrettyFormat=false option would output minified JSON for smaller files."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "IndentType",
+					"DataType": "String",
+					"Rationale": "Hardcoded to tab indentation. Should support 'tab' or 'spaces' to match project conventions."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "IndentCount",
+					"DataType": "Number",
+					"Rationale": "When IndentType is 'spaces', how many? Common values: 2 or 4."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "SortKeys",
+					"DataType": "Boolean",
+					"Rationale": "Alphabetically sort object keys in output. Useful for deterministic/diff-friendly JSON."
+				},
+				{
+					"Type": "Inconsistency",
+					"Rationale": "Setting is named 'File' (not 'FilePath') and 'Address' (not 'DataAddress'). Inconsistent with other file-io and meadow cards."
+				},
+				{
+					"Type": "Inconsistency",
+					"Rationale": "Event output is 'Done' but most cards use 'Complete' or 'WriteComplete'. Inconsistent."
+				}
+			]
+		},
+		{
+			"Hash": "list-files",
+			"Name": "List Files",
+			"Category": "file-io",
+			"Capability": "File System",
+			"Tier": "Platform",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "Folder", "DataType": "String", "Required": true },
+				{ "Name": "Pattern", "DataType": "String", "Required": false },
+				{ "Name": "Destination", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Files", "DataType": "Array" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "Recursive",
+					"DataType": "Boolean",
+					"Rationale": "Currently only lists the immediate directory. Recursive listing is a common need for tree-walking workflows."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "IncludeDirectories",
+					"DataType": "Boolean",
+					"Rationale": "readdirSync returns both files and directories. A flag to control whether dirs appear in the output."
+				},
+				{
+					"Type": "MissingOutput",
+					"Name": "FileCount",
+					"DataType": "Number",
+					"Rationale": "Expose the count as a typed output for easy conditional branching."
+				}
+			]
+		},
+		{
+			"Hash": "copy-file",
+			"Name": "Copy File",
+			"Category": "file-io",
+			"Capability": "File System",
+			"Tier": "Platform",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Done" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "Source", "DataType": "String", "Required": true },
+				{ "Name": "TargetFile", "DataType": "String", "Required": true }
+			],
+			"StateOutputs": [
+				{ "Name": "FileLocation", "DataType": "String" },
+				{ "Name": "FileName", "DataType": "String" },
+				{ "Name": "FilePath", "DataType": "String" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "Overwrite",
+					"DataType": "Boolean",
+					"Rationale": "Currently always overwrites. A guard against accidental overwrites of important files."
+				},
+				{
+					"Type": "MissingOutput",
+					"Name": "BytesCopied",
+					"DataType": "Number",
+					"Rationale": "write-file and read-file report byte counts. copy-file should too."
+				},
+				{
+					"Type": "Inconsistency",
+					"Rationale": "Event output is 'Done' — inconsistent with write-file's 'WriteComplete'."
+				}
+			]
+		},
+		{
+			"Hash": "get-json",
+			"Name": "Get JSON",
+			"Category": "rest",
+			"Capability": "HTTP Client",
+			"Tier": "Platform",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "URL", "DataType": "String", "Required": true },
+				{ "Name": "Headers", "DataType": "String", "Required": false },
+				{ "Name": "Destination", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Data", "DataType": "Object" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "TimeoutMs",
+					"DataType": "Number",
+					"Rationale": "No request timeout. A hung remote server blocks the flow indefinitely."
+				},
+				{
+					"Type": "MissingOutput",
+					"Name": "StatusCode",
+					"DataType": "Number",
+					"Rationale": "The HTTP status code is available but not exposed. Needed for conditional logic on 404s, 401s, etc."
+				}
+			]
+		},
+		{
+			"Hash": "get-text",
+			"Name": "Get Text",
+			"Category": "rest",
+			"Capability": "HTTP Client",
+			"Tier": "Platform",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "URL", "DataType": "String", "Required": true },
+				{ "Name": "Destination", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Data", "DataType": "String" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "Headers",
+					"DataType": "String",
+					"Priority": "HIGH",
+					"Rationale": "get-json has Headers but get-text does not. This is a clear omission — many text endpoints require auth headers or Accept headers."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "TimeoutMs",
+					"DataType": "Number",
+					"Rationale": "Same as get-json — no timeout guard."
+				},
+				{
+					"Type": "MissingOutput",
+					"Name": "StatusCode",
+					"DataType": "Number",
+					"Rationale": "Same as get-json."
+				}
+			]
+		},
+		{
+			"Hash": "send-json",
+			"Name": "Send JSON",
+			"Category": "rest",
+			"Capability": "HTTP Client",
+			"Tier": "Platform",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "URL", "DataType": "String", "Required": true },
+				{ "Name": "Method", "DataType": "String", "Required": false },
+				{ "Name": "Address", "DataType": "String", "Required": false },
+				{ "Name": "Headers", "DataType": "String", "Required": false },
+				{ "Name": "Destination", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Response", "DataType": "Object" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "TimeoutMs",
+					"DataType": "Number",
+					"Rationale": "No request timeout."
+				},
+				{
+					"Type": "MissingOutput",
+					"Name": "StatusCode",
+					"DataType": "Number",
+					"Rationale": "HTTP status code not exposed."
+				},
+				{
+					"Type": "Inconsistency",
+					"Rationale": "Uses 'Address' for the data source but meadow cards use 'DataAddress'. Should be consistent."
+				}
+			]
+		},
+		{
+			"Hash": "rest-request",
+			"Name": "REST Request",
+			"Category": "rest",
+			"Capability": "HTTP Client",
+			"Tier": "Platform",
+			"EventInputs": [
+				{ "Name": "In" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "URL", "DataType": "String", "Required": true },
+				{ "Name": "Method", "DataType": "String", "Required": false },
+				{ "Name": "ContentType", "DataType": "String", "Required": false },
+				{ "Name": "Headers", "DataType": "String", "Required": false },
+				{ "Name": "Body", "DataType": "String", "Required": false },
+				{ "Name": "Destination", "DataType": "String", "Required": false },
+				{ "Name": "Retries", "DataType": "Number", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Response", "DataType": "Object" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "TimeoutMs",
+					"DataType": "Number",
+					"Rationale": "The most configurable HTTP card and it still has no timeout setting."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "RetryDelayMs",
+					"DataType": "Number",
+					"Rationale": "Retries setting exists but no delay between retries. Without delay, retries against rate-limited APIs will all fail."
+				},
+				{
+					"Type": "MissingOutput",
+					"Name": "StatusCode",
+					"DataType": "Number",
+					"Rationale": "The response object is available but the status code isn't broken out as a discrete output."
+				},
+				{
+					"Type": "MissingOutput",
+					"Name": "ResponseHeaders",
+					"DataType": "String",
+					"Rationale": "Response headers (especially pagination, rate-limit, location) are not exposed."
+				},
+				{
+					"Type": "Observation",
+					"Rationale": "Retries setting is defined but the Execute function never implements retry logic. It makes a single request."
+				}
+			]
+		},
+		{
+			"Hash": "command",
+			"Name": "Command",
+			"Category": "control",
+			"Capability": "Shell",
+			"Tier": "Platform",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "Command", "DataType": "String", "Required": true },
+				{ "Name": "Parameters", "DataType": "String", "Required": false },
+				{ "Name": "Description", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "StdOut", "DataType": "String" },
+				{ "Name": "ExitCode", "DataType": "Number" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "WorkingDirectory",
+					"DataType": "String",
+					"Rationale": "Currently uses StagingPath or cwd. A WorkingDirectory override would let commands run in arbitrary locations."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "TimeoutMs",
+					"DataType": "Number",
+					"Rationale": "Hardcoded to 300000ms (5 min). Should be configurable per command — some are quick, some are long."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "Environment",
+					"DataType": "String",
+					"Rationale": "JSON object of environment variables to set. Needed for passing API keys, config paths, etc."
+				},
+				{
+					"Type": "MissingOutput",
+					"Name": "StdErr",
+					"DataType": "String",
+					"Rationale": "StdErr is currently concatenated into StdOut on error. It should be a separate output for proper error handling."
+				}
+			]
+		},
+		{
+			"Hash": "error-message",
+			"Name": "Error Message",
+			"Category": "interaction",
+			"Capability": "User Interaction",
+			"Tier": "Platform",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" }
+			],
+			"SettingsInputs": [
+				{ "Name": "MessageTemplate", "DataType": "String", "Required": true }
+			],
+			"StateOutputs": [],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "Level",
+					"DataType": "String",
+					"Rationale": "Always logs as error. A Level setting ('error', 'warning', 'info', 'debug') would make this a general-purpose logging card."
+				}
+			]
+		},
+		{
+			"Hash": "value-input",
+			"Name": "Value Input",
+			"Category": "interaction",
+			"Capability": "User Interaction",
+			"Tier": "Platform",
+			"EventInputs": [
+				{ "Name": "RequestInput" }
+			],
+			"EventOutputs": [
+				{ "Name": "ValueInputComplete" }
+			],
+			"SettingsInputs": [
+				{ "Name": "PromptMessage", "DataType": "String", "Required": false },
+				{ "Name": "OutputAddress", "DataType": "String", "Required": true }
+			],
+			"StateOutputs": [
+				{ "Name": "InputValue", "DataType": "String" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "InputType",
+					"DataType": "String",
+					"Rationale": "Support 'text', 'number', 'boolean', 'select' to provide appropriate UI input controls."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "DefaultValue",
+					"DataType": "String",
+					"Rationale": "Pre-fill the input field so users can just confirm common values."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "Options",
+					"DataType": "String",
+					"Rationale": "JSON array of allowed values when InputType is 'select'. Renders as a dropdown."
+				},
+				{
+					"Type": "MissingPort",
+					"Port": "EventOutput",
+					"Name": "Cancelled",
+					"Rationale": "No way for the user to cancel/abort the input. A Cancel event output would let flows handle user abandonment."
+				}
+			]
+		},
+		{
+			"Hash": "meadow-read",
+			"Name": "Meadow Read",
+			"Category": "meadow",
+			"Capability": "Meadow API",
+			"Tier": "Service",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "Entity", "DataType": "String", "Required": true },
+				{ "Name": "Endpoint", "DataType": "String", "Required": true },
+				{ "Name": "RecordID", "DataType": "String", "Required": true },
+				{ "Name": "Destination", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Record", "DataType": "Object" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "Headers",
+					"DataType": "String",
+					"Rationale": "No way to send auth tokens or custom headers to the Meadow API."
+				}
+			]
+		},
+		{
+			"Hash": "meadow-reads",
+			"Name": "Meadow Reads",
+			"Category": "meadow",
+			"Capability": "Meadow API",
+			"Tier": "Service",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "Entity", "DataType": "String", "Required": true },
+				{ "Name": "Endpoint", "DataType": "String", "Required": true },
+				{ "Name": "Filter", "DataType": "String", "Required": false },
+				{ "Name": "Destination", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Records", "DataType": "Array" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "Headers",
+					"DataType": "String",
+					"Rationale": "No auth header support."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "PageSize",
+					"DataType": "Number",
+					"Rationale": "Hardcoded to 100 records. Should be configurable."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "PageNumber",
+					"DataType": "Number",
+					"Rationale": "Always fetches page 0. Can't paginate through large datasets."
+				},
+				{
+					"Type": "MissingOutput",
+					"Name": "RecordCount",
+					"DataType": "Number",
+					"Rationale": "Expose the count for downstream branching (e.g., 'if no records found')."
+				}
+			]
+		},
+		{
+			"Hash": "meadow-create",
+			"Name": "Meadow Create",
+			"Category": "meadow",
+			"Capability": "Meadow API",
+			"Tier": "Service",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "Entity", "DataType": "String", "Required": true },
+				{ "Name": "Endpoint", "DataType": "String", "Required": true },
+				{ "Name": "DataAddress", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Created", "DataType": "Object" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "Destination",
+					"DataType": "String",
+					"Priority": "HIGH",
+					"Rationale": "No way to write the created record to a state address. Every other card that returns data has a Destination setting. This is a clear omission."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "Headers",
+					"DataType": "String",
+					"Rationale": "No auth header support."
+				}
+			]
+		},
+		{
+			"Hash": "meadow-update",
+			"Name": "Meadow Update",
+			"Category": "meadow",
+			"Capability": "Meadow API",
+			"Tier": "Service",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "Entity", "DataType": "String", "Required": true },
+				{ "Name": "Endpoint", "DataType": "String", "Required": true },
+				{ "Name": "DataAddress", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Updated", "DataType": "Object" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "Destination",
+					"DataType": "String",
+					"Priority": "HIGH",
+					"Rationale": "Same as meadow-create: no way to store the updated record to a state address."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "Headers",
+					"DataType": "String",
+					"Rationale": "No auth header support."
+				}
+			]
+		},
+		{
+			"Hash": "meadow-delete",
+			"Name": "Meadow Delete",
+			"Category": "meadow",
+			"Capability": "Meadow API",
+			"Tier": "Service",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Done" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "Entity", "DataType": "String", "Required": true },
+				{ "Name": "Endpoint", "DataType": "String", "Required": true },
+				{ "Name": "RecordID", "DataType": "String", "Required": true }
+			],
+			"StateOutputs": [],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "Headers",
+					"DataType": "String",
+					"Rationale": "No auth header support."
+				},
+				{
+					"Type": "Inconsistency",
+					"Rationale": "Event output is 'Done' while most meadow cards use 'Complete'."
+				}
+			]
+		},
+		{
+			"Hash": "meadow-count",
+			"Name": "Meadow Count",
+			"Category": "meadow",
+			"Capability": "Meadow API",
+			"Tier": "Service",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "Entity", "DataType": "String", "Required": true },
+				{ "Name": "Endpoint", "DataType": "String", "Required": true },
+				{ "Name": "Destination", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Count", "DataType": "Number" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "Filter",
+					"DataType": "String",
+					"Priority": "HIGH",
+					"Rationale": "meadow-reads has a Filter setting but meadow-count does not. You can't count a filtered subset, only the total. This defeats the purpose for most use cases."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "Headers",
+					"DataType": "String",
+					"Rationale": "No auth header support."
+				}
+			]
+		},
+		{
+			"Hash": "llm-chat-completion",
+			"Name": "LLM Chat Completion",
+			"Category": "llm",
+			"Capability": "LLM",
+			"Tier": "Extension",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "SystemPrompt", "DataType": "String", "Required": false },
+				{ "Name": "UserPrompt", "DataType": "String", "Required": false },
+				{ "Name": "Messages", "DataType": "String", "Required": false },
+				{ "Name": "Model", "DataType": "String", "Required": false },
+				{ "Name": "Temperature", "DataType": "Number", "Required": false },
+				{ "Name": "MaxTokens", "DataType": "Number", "Required": false },
+				{ "Name": "TopP", "DataType": "Number", "Required": false },
+				{ "Name": "StopSequences", "DataType": "String", "Required": false },
+				{ "Name": "ResponseFormat", "DataType": "String", "Required": false },
+				{ "Name": "ConversationAddress", "DataType": "String", "Required": false },
+				{ "Name": "AppendToConversation", "DataType": "String", "Required": false },
+				{ "Name": "ConversationMaxMessages", "DataType": "Number", "Required": false },
+				{ "Name": "ConversationMaxTokens", "DataType": "Number", "Required": false },
+				{ "Name": "PersistConversation", "DataType": "String", "Required": false },
+				{ "Name": "ConversationPersistAddress", "DataType": "String", "Required": false },
+				{ "Name": "InputAddress", "DataType": "String", "Required": false },
+				{ "Name": "Destination", "DataType": "String", "Required": false },
+				{ "Name": "AffinityKey", "DataType": "String", "Required": false },
+				{ "Name": "TimeoutMs", "DataType": "Number", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Content", "DataType": "String" },
+				{ "Name": "Model", "DataType": "String" },
+				{ "Name": "PromptTokens", "DataType": "Number" },
+				{ "Name": "CompletionTokens", "DataType": "Number" },
+				{ "Name": "FinishReason", "DataType": "String" },
+				{ "Name": "BeaconID", "DataType": "String" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingOutput",
+					"Name": "TotalTokens",
+					"DataType": "Number",
+					"Rationale": "Convenience output: PromptTokens + CompletionTokens. Useful for cost tracking without needing an expression-solver."
+				}
+			]
+		},
+		{
+			"Hash": "llm-embedding",
+			"Name": "LLM Embedding",
+			"Category": "llm",
+			"Capability": "LLM",
+			"Tier": "Extension",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "Text", "DataType": "String", "Required": false },
+				{ "Name": "Model", "DataType": "String", "Required": false },
+				{ "Name": "InputAddress", "DataType": "String", "Required": false },
+				{ "Name": "Destination", "DataType": "String", "Required": false },
+				{ "Name": "AffinityKey", "DataType": "String", "Required": false },
+				{ "Name": "TimeoutMs", "DataType": "Number", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Embedding", "DataType": "String" },
+				{ "Name": "Dimensions", "DataType": "Number" },
+				{ "Name": "Model", "DataType": "String" },
+				{ "Name": "BeaconID", "DataType": "String" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "Dimensions",
+					"DataType": "Number",
+					"Rationale": "Some embedding models (e.g., text-embedding-3-small) support dimension reduction. A Dimensions setting lets users choose the vector size."
+				}
+			]
+		},
+		{
+			"Hash": "llm-tool-use",
+			"Name": "LLM Tool Use",
+			"Category": "llm",
+			"Capability": "LLM",
+			"Tier": "Extension",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "ToolCall" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "SystemPrompt", "DataType": "String", "Required": false },
+				{ "Name": "UserPrompt", "DataType": "String", "Required": false },
+				{ "Name": "Messages", "DataType": "String", "Required": false },
+				{ "Name": "Tools", "DataType": "String", "Required": true },
+				{ "Name": "Model", "DataType": "String", "Required": false },
+				{ "Name": "ToolChoice", "DataType": "String", "Required": false },
+				{ "Name": "Temperature", "DataType": "Number", "Required": false },
+				{ "Name": "MaxTokens", "DataType": "Number", "Required": false },
+				{ "Name": "ConversationAddress", "DataType": "String", "Required": false },
+				{ "Name": "AppendToConversation", "DataType": "String", "Required": false },
+				{ "Name": "InputAddress", "DataType": "String", "Required": false },
+				{ "Name": "Destination", "DataType": "String", "Required": false },
+				{ "Name": "AffinityKey", "DataType": "String", "Required": false },
+				{ "Name": "TimeoutMs", "DataType": "Number", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Content", "DataType": "String" },
+				{ "Name": "ToolCalls", "DataType": "String" },
+				{ "Name": "Model", "DataType": "String" },
+				{ "Name": "FinishReason", "DataType": "String" },
+				{ "Name": "PromptTokens", "DataType": "Number" },
+				{ "Name": "CompletionTokens", "DataType": "Number" },
+				{ "Name": "BeaconID", "DataType": "String" }
+			],
+			"Recommendations": []
+		},
+		{
+			"Hash": "beacon-dispatch",
+			"Name": "Beacon Dispatch",
+			"Category": "extension",
+			"Capability": "Extension",
+			"Tier": "Extension",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "RemoteCapability", "DataType": "String", "Required": true },
+				{ "Name": "RemoteAction", "DataType": "String", "Required": false },
+				{ "Name": "Command", "DataType": "String", "Required": false },
+				{ "Name": "Parameters", "DataType": "String", "Required": false },
+				{ "Name": "AffinityKey", "DataType": "String", "Required": false },
+				{ "Name": "TimeoutMs", "DataType": "Number", "Required": false },
+				{ "Name": "InputData", "DataType": "String", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "StdOut", "DataType": "String" },
+				{ "Name": "Result", "DataType": "String" },
+				{ "Name": "ExitCode", "DataType": "Number" },
+				{ "Name": "BeaconID", "DataType": "String" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "Destination",
+					"DataType": "String",
+					"Rationale": "No way to write results to a state address. Every other I/O card has this."
+				}
+			]
+		},
+		{
+			"Hash": "content-read-file",
+			"Name": "Content Read File",
+			"Category": "content-system",
+			"Capability": "ContentSystem",
+			"Tier": "Service",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "FilePath", "DataType": "String", "Required": true },
+				{ "Name": "AffinityKey", "DataType": "String", "Required": false },
+				{ "Name": "TimeoutMs", "DataType": "Number", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Content", "DataType": "String" },
+				{ "Name": "StdOut", "DataType": "String" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "Destination",
+					"DataType": "String",
+					"Rationale": "No Destination setting to write content to a state address. Must use the Content output port and wire it manually."
+				}
+			]
+		},
+		{
+			"Hash": "content-save-file",
+			"Name": "Content Save File",
+			"Category": "content-system",
+			"Capability": "ContentSystem",
+			"Tier": "Service",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "FilePath", "DataType": "String", "Required": true },
+				{ "Name": "Content", "DataType": "String", "Required": true },
+				{ "Name": "AffinityKey", "DataType": "String", "Required": false },
+				{ "Name": "TimeoutMs", "DataType": "Number", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "FilePath", "DataType": "String" },
+				{ "Name": "StdOut", "DataType": "String" }
+			],
+			"Recommendations": []
+		},
+		{
+			"Hash": "content-list-files",
+			"Name": "Content List Files",
+			"Category": "content-system",
+			"Capability": "ContentSystem",
+			"Tier": "Service",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "Path", "DataType": "String", "Required": false },
+				{ "Name": "AffinityKey", "DataType": "String", "Required": false },
+				{ "Name": "TimeoutMs", "DataType": "Number", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "Files", "DataType": "String" },
+				{ "Name": "StdOut", "DataType": "String" }
+			],
+			"Recommendations": [
+				{
+					"Type": "MissingSetting",
+					"Name": "Pattern",
+					"DataType": "String",
+					"Rationale": "Local list-files has a Pattern setting for glob filtering. The content-system equivalent should too."
+				},
+				{
+					"Type": "MissingSetting",
+					"Name": "Recursive",
+					"DataType": "Boolean",
+					"Rationale": "No way to list files recursively through subdirectories."
+				}
+			]
+		},
+		{
+			"Hash": "content-create-folder",
+			"Name": "Content Create Folder",
+			"Category": "content-system",
+			"Capability": "ContentSystem",
+			"Tier": "Service",
+			"EventInputs": [
+				{ "Name": "Trigger" }
+			],
+			"EventOutputs": [
+				{ "Name": "Complete" },
+				{ "Name": "Error", "IsError": true }
+			],
+			"SettingsInputs": [
+				{ "Name": "Path", "DataType": "String", "Required": true },
+				{ "Name": "AffinityKey", "DataType": "String", "Required": false },
+				{ "Name": "TimeoutMs", "DataType": "Number", "Required": false }
+			],
+			"StateOutputs": [
+				{ "Name": "StdOut", "DataType": "String" }
+			],
+			"Recommendations": []
+		}
+	],
+
+	"CrossCuttingIssues": [
+		{
+			"Issue": "Inconsistent Event Naming",
+			"Severity": "Medium",
+			"Details": "Success events vary wildly: 'Complete', 'Done', 'ReadComplete', 'WriteComplete', 'ReplaceComplete', 'ValueInputComplete', 'Completed'. Input events vary too: 'Trigger', 'In', 'Execute', 'BeginRead', 'BeginWrite', 'Replace', 'Append', 'RequestInput', 'Evaluate', 'Launch'. Consider standardizing on 'Trigger'/'Complete'/'Error' for consistency, or at least within each category."
+		},
+		{
+			"Issue": "Inconsistent Setting Names for Same Concept",
+			"Severity": "Medium",
+			"Details": "File path setting is named 'FilePath' (read-file, write-file, content-*), 'File' (read-json, write-json), 'Folder' (list-files), or 'Source'/'TargetFile' (copy-file). Data source is 'Address' (send-json, write-json), 'DataAddress' (meadow-create/update, if-conditional), 'SourceAddress' (parse-csv, csv-transform, histogram), or 'InputAddress' (llm-*). These should converge."
+		},
+		{
+			"Issue": "Missing Destination Setting on Several Cards",
+			"Severity": "High",
+			"Details": "meadow-create, meadow-update, beacon-dispatch, and all content-system cards lack a 'Destination' setting to write outputs to a state address. This forces downstream tasks to use template expressions to read from TaskOutput, rather than having a clean state-address write."
+		},
+		{
+			"Issue": "No HTTP Status Code Outputs",
+			"Severity": "Medium",
+			"Details": "None of the 4 HTTP client cards expose the response status code. This makes it impossible to branch on 404 vs 500 vs 200 without inspecting the response body."
+		},
+		{
+			"Issue": "No Timeout Settings on HTTP Cards",
+			"Severity": "Medium",
+			"Details": "get-json, get-text, send-json, and rest-request have no TimeoutMs setting. A hung remote server blocks the entire flow."
+		},
+		{
+			"Issue": "All Meadow Cards Missing Headers",
+			"Severity": "Medium",
+			"Details": "None of the 6 meadow cards accept a Headers setting. Authenticated Meadow APIs are unusable from flows."
+		},
+		{
+			"Issue": "rest-request Retries Not Implemented",
+			"Severity": "Low",
+			"Details": "The Retries setting is defined and accepted but the Execute function makes exactly one request. Dead code."
+		},
+		{
+			"Issue": "csv-transform Is a No-Op Stub",
+			"Severity": "Low",
+			"Details": "The Execute function passes records through unchanged. The card exists in the palette but does nothing."
+		},
+		{
+			"Issue": "histogram Bins Setting Unused",
+			"Severity": "Low",
+			"Details": "The Bins setting is defined but the Execute function ignores it. It only does frequency counting, not binned histograms."
+		}
+	],
+
+	"RecommendationSummary": {
+		"TotalRecommendations": 62,
+		"ByType": {
+			"MissingSetting": 35,
+			"MissingOutput": 10,
+			"MissingPort": 4,
+			"Inconsistency": 7,
+			"Observation": 4,
+			"BugOrStub": 2
+		},
+		"HighPriority": [
+			"write-json: Add PrettyFormat, IndentType, IndentCount settings (hardcoded to tab, no config)",
+			"get-text: Add Headers setting (get-json has it, get-text doesn't)",
+			"meadow-create: Add Destination setting (can't store created record to state)",
+			"meadow-update: Add Destination setting (can't store updated record to state)",
+			"meadow-count: Add Filter setting (can only count ALL records, not filtered subsets)",
+			"All HTTP cards: Add TimeoutMs setting (hung servers block flows)",
+			"All HTTP cards: Add StatusCode output (can't branch on HTTP status)",
+			"All Meadow cards: Add Headers setting (can't auth to Meadow APIs)"
+		]
+	}
+}

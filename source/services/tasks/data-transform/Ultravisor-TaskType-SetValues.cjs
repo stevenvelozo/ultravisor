@@ -21,25 +21,7 @@ class UltravisorTaskTypeSetValues extends libTaskTypeBase
 
 	get definition()
 	{
-		return {
-			Hash: 'set-values',
-			Type: 'set-values',
-			Name: 'Set Values',
-			Description: 'Sets one or more values in state at specified addresses.',
-			Category: 'data',
-			Capability: 'Data Transform',
-			Action: 'SetValues',
-			Tier: 'Engine',
-
-			EventInputs: [{ Name: 'Execute' }],
-			EventOutputs: [{ Name: 'Complete' }],
-			SettingsInputs: [
-				{ Name: 'Mappings', DataType: 'Array', Required: true }
-			],
-			StateOutputs: [],
-
-			DefaultSettings: { Mappings: [] }
-		};
+		return require('./definitions/set-values.json');
 	}
 
 	execute(pResolvedSettings, pExecutionContext, fCallback, fFireIntermediateEvent)
@@ -48,10 +30,18 @@ class UltravisorTaskTypeSetValues extends libTaskTypeBase
 
 		if (!Array.isArray(tmpMappings))
 		{
+			if (tmpMappings !== undefined && tmpMappings !== null)
+			{
+				return fCallback(null, {
+					EventToFire: 'Error',
+					Outputs: {},
+					Log: ['Mappings is not an array.']
+				});
+			}
 			return fCallback(null, {
 				EventToFire: 'Complete',
 				Outputs: {},
-				Log: ['No mappings provided or Mappings is not an array.']
+				Log: ['No mappings provided.']
 			});
 		}
 

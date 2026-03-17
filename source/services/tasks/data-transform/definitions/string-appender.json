@@ -1,0 +1,22 @@
+{
+	"Hash": "string-appender",
+	"Type": "string-appender",
+	"Name": "String Appender",
+	"Description": "Appends a string to a value at a specified state address.",
+	"Category": "data",
+	"Capability": "Data Transform",
+	"Action": "AppendString",
+	"Tier": "Engine",
+	"EventInputs": [{ "Name": "Append" }],
+	"EventOutputs": [{ "Name": "Completed" }],
+	"SettingsInputs": [
+		{ "Name": "InputString", "DataType": "String", "Required": true },
+		{ "Name": "OutputAddress", "DataType": "String", "Required": true },
+		{ "Name": "AppendNewline", "DataType": "Boolean", "Required": false, "Description": "When true, append a newline after each InputString." },
+		{ "Name": "Separator", "DataType": "String", "Required": false, "Description": "String to insert between existing and new content. Overrides AppendNewline when set." }
+	],
+	"StateOutputs": [
+		{ "Name": "AppendedString", "DataType": "String" }
+	],
+	"DefaultSettings": { "InputString": "", "OutputAddress": "", "AppendNewline": false, "Separator": "" }
+}

@@ -1,0 +1,76 @@
+{
+	"Name": "Test: Content List Files",
+	"Description": "Simple beacon test — lists files in the content root directory via a Content System beacon.",
+	"Graph": {
+		"Nodes": [
+			{
+				"Hash": "tcl-start",
+				"Type": "start",
+				"X": 50,
+				"Y": 200,
+				"Width": 140,
+				"Height": 80,
+				"Title": "Start",
+				"Ports": [
+					{ "Hash": "tcl-start-eo-Out", "Direction": "output", "Side": "right", "Label": "Out" }
+				],
+				"Data": {}
+			},
+			{
+				"Hash": "tcl-list",
+				"Type": "content-list-files",
+				"X": 300,
+				"Y": 180,
+				"Width": 220,
+				"Height": 100,
+				"Title": "List Content Files",
+				"Ports": [
+					{ "Hash": "tcl-list-ei-Trigger", "Direction": "input", "Side": "left", "Label": "Trigger" },
+					{ "Hash": "tcl-list-eo-Complete", "Direction": "output", "Side": "right", "Label": "Complete" },
+					{ "Hash": "tcl-list-eo-Error", "Direction": "output", "Side": "bottom", "Label": "Error" },
+					{ "Hash": "tcl-list-so-Files", "Direction": "output", "Side": "right-top", "Label": "Files" },
+					{ "Hash": "tcl-list-so-StdOut", "Direction": "output", "Side": "right-bottom", "Label": "StdOut" }
+				],
+				"Data": { "Path": "" }
+			},
+			{
+				"Hash": "tcl-end",
+				"Type": "end",
+				"X": 620,
+				"Y": 200,
+				"Width": 140,
+				"Height": 80,
+				"Title": "End",
+				"Ports": [
+					{ "Hash": "tcl-end-ei-In", "Direction": "input", "Side": "left", "Label": "In" }
+				],
+				"Data": {}
+			}
+		],
+		"Connections": [
+			{
+				"Hash": "tcl-ev1",
+				"SourceNodeHash": "tcl-start",
+				"SourcePortHash": "tcl-start-eo-Out",
+				"TargetNodeHash": "tcl-list",
+				"TargetPortHash": "tcl-list-ei-Trigger",
+				"Data": {}
+			},
+			{
+				"Hash": "tcl-ev2",
+				"SourceNodeHash": "tcl-list",
+				"SourcePortHash": "tcl-list-eo-Complete",
+				"TargetNodeHash": "tcl-end",
+				"TargetPortHash": "tcl-end-ei-In",
+				"Data": {}
+			}
+		],
+		"ViewState": {
+			"PanX": 0,
+			"PanY": 0,
+			"Zoom": 1,
+			"SelectedNodeHash": null,
+			"SelectedConnectionHash": null
+		}
+	}
+}

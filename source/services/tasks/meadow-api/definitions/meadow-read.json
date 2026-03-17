@@ -1,0 +1,26 @@
+{
+	"Hash": "meadow-read",
+	"Type": "meadow-read",
+	"Name": "Meadow Read",
+	"Description": "Reads a single record by ID from a Meadow REST endpoint.",
+	"Category": "meadow",
+	"Capability": "Meadow API",
+	"Action": "Read",
+	"Tier": "Service",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "Entity", "DataType": "String", "Required": true, "Description": "Entity/table name" },
+		{ "Name": "Endpoint", "DataType": "String", "Required": true, "Description": "Base URL of the Meadow API" },
+		{ "Name": "RecordID", "DataType": "String", "Required": true, "Description": "ID of the record to read" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to store the record" },
+		{ "Name": "Headers", "DataType": "String", "Required": false, "Description": "JSON string of request headers" }
+	],
+	"StateOutputs": [
+		{ "Name": "Record", "DataType": "Object", "Description": "The retrieved record" }
+	],
+	"DefaultSettings": { "Entity": "", "Endpoint": "", "RecordID": "", "Destination": "", "Headers": "" }
+}

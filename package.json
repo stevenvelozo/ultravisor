@@ -27,16 +27,17 @@
     "homepage": "https://github.com/stevenvelozo/ultravisor#readme",
     "dependencies": {
         "cron": "^4.4.0",
+        "ultravisor-beacon": "^0.0.1",
         "orator": "^6.0.4",
         "orator-authentication": "^1.0.0",
         "orator-serviceserver-restify": "^2.0.9",
-        "pict": "^1.0.357",
+        "pict": "^1.0.359",
         "pict-service-commandlineutility": "^1.0.19",
         "pict-serviceproviderbase": "^1.0.4"
     },
     "devDependencies": {
-        "puppeteer": "^24.38.0",
-        "quackage": "^1.0.64"
+        "puppeteer": "^24.39.1",
+        "quackage": "^1.0.65"
     },
     "mocha": {
         "diff": true,

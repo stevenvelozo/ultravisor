@@ -1,0 +1,23 @@
+{
+	"Hash": "value-input",
+	"Type": "value-input",
+	"Name": "Value Input",
+	"Description": "Pauses execution and waits for user-provided input.",
+	"Category": "interaction",
+	"Capability": "User Interaction",
+	"Action": "RequestInput",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "RequestInput" }],
+	"EventOutputs": [{ "Name": "ValueInputComplete" }, { "Name": "Cancelled", "Description": "Fires if user cancels input" }],
+	"SettingsInputs": [
+		{ "Name": "PromptMessage", "DataType": "String", "Required": false },
+		{ "Name": "OutputAddress", "DataType": "String", "Required": true },
+		{ "Name": "InputType", "DataType": "String", "Required": false, "Description": "Input control type: \"text\", \"number\", \"boolean\", \"select\"" },
+		{ "Name": "DefaultValue", "DataType": "String", "Required": false, "Description": "Default/pre-filled value" },
+		{ "Name": "Options", "DataType": "String", "Required": false, "Description": "JSON array of allowed values when InputType is \"select\"" }
+	],
+	"StateOutputs": [
+		{ "Name": "InputValue", "DataType": "String" }
+	],
+	"DefaultSettings": { "PromptMessage": "Please provide a value:", "OutputAddress": "", "InputType": "text", "DefaultValue": "", "Options": "" }
+}

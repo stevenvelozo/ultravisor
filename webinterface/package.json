@@ -12,11 +12,11 @@
 	"dependencies": {
 		"pict": "^1.0.343",
 		"pict-application": "^1.0.28",
+		"pict-docuserve": "^0.0.32",
 		"pict-provider": "^1.0.3",
 		"pict-router": "^1.0.7",
 		"pict-section-content": "^0.0.6",
-		"pict-docuserve": "^0.0.32",
-		"pict-section-flow": "^0.0.6",
+		"pict-section-flow": "file:../../../pict/pict-section-flow",
 		"pict-section-form": "^1.0.194",
 		"pict-view": "^1.0.64"
 	},

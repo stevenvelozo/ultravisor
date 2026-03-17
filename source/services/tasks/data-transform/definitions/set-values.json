@@ -1,0 +1,17 @@
+{
+	"Hash": "set-values",
+	"Type": "set-values",
+	"Name": "Set Values",
+	"Description": "Sets one or more values in state at specified addresses.",
+	"Category": "data",
+	"Capability": "Data Transform",
+	"Action": "SetValues",
+	"Tier": "Engine",
+	"EventInputs": [{ "Name": "Execute" }],
+	"EventOutputs": [{ "Name": "Complete" }, { "Name": "Error", "IsError": true }],
+	"SettingsInputs": [
+		{ "Name": "Mappings", "DataType": "Array", "Required": true }
+	],
+	"StateOutputs": [],
+	"DefaultSettings": { "Mappings": [] }
+}

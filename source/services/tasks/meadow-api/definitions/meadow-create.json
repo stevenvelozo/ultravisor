@@ -1,0 +1,26 @@
+{
+	"Hash": "meadow-create",
+	"Type": "meadow-create",
+	"Name": "Meadow Create",
+	"Description": "Creates a new record via a Meadow REST endpoint.",
+	"Category": "meadow",
+	"Capability": "Meadow API",
+	"Action": "Create",
+	"Tier": "Service",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "Entity", "DataType": "String", "Required": true, "Description": "Entity/table name" },
+		{ "Name": "Endpoint", "DataType": "String", "Required": true, "Description": "Base URL of the Meadow API" },
+		{ "Name": "DataAddress", "DataType": "String", "Required": false, "Description": "State address of the record data to create" },
+		{ "Name": "Headers", "DataType": "String", "Required": false, "Description": "JSON string of request headers" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to store the created record" }
+	],
+	"StateOutputs": [
+		{ "Name": "Created", "DataType": "Object", "Description": "The created record" }
+	],
+	"DefaultSettings": { "Entity": "", "Endpoint": "", "DataAddress": "", "Headers": "", "Destination": "" }
+}

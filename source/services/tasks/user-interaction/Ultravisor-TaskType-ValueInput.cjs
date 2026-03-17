@@ -21,28 +21,7 @@ class UltravisorTaskTypeValueInput extends libTaskTypeBase
 
 	get definition()
 	{
-		return {
-			Hash: 'value-input',
-			Type: 'value-input',
-			Name: 'Value Input',
-			Description: 'Pauses execution and waits for user-provided input.',
-			Category: 'interaction',
-			Capability: 'User Interaction',
-			Action: 'RequestInput',
-			Tier: 'Platform',
-
-			EventInputs: [{ Name: 'RequestInput' }],
-			EventOutputs: [{ Name: 'ValueInputComplete' }],
-			SettingsInputs: [
-				{ Name: 'PromptMessage', DataType: 'String', Required: false },
-				{ Name: 'OutputAddress', DataType: 'String', Required: true }
-			],
-			StateOutputs: [
-				{ Name: 'InputValue', DataType: 'String' }
-			],
-
-			DefaultSettings: { PromptMessage: 'Please provide a value:', OutputAddress: '' }
-		};
+		return require('./definitions/value-input.json');
 	}
 
 	execute(pResolvedSettings, pExecutionContext, fCallback, fFireIntermediateEvent)
@@ -56,6 +35,9 @@ class UltravisorTaskTypeValueInput extends libTaskTypeBase
 			WaitingForInput: true,
 			PromptMessage: tmpPromptMessage,
 			OutputAddress: tmpOutputAddress,
+			InputType: pResolvedSettings.InputType || 'text',
+			DefaultValue: pResolvedSettings.DefaultValue || '',
+			Options: pResolvedSettings.Options || '',
 			Outputs: {},
 			Log: [`Waiting for input: "${tmpPromptMessage}" (-> ${tmpOutputAddress})`]
 		});

@@ -32,38 +32,7 @@ class UltravisorTaskTypeSplitExecute extends libTaskTypeBase
 
 	get definition()
 	{
-		return {
-			Hash: 'split-execute',
-			Type: 'split-execute',
-			Name: 'Split Execute',
-			Description: 'Splits a string by delimiter and processes each token through a sub-graph.',
-			Category: 'control',
-			Capability: 'Flow Control',
-			Action: 'Iterate',
-			Tier: 'Engine',
-
-			EventInputs: [
-				{ Name: 'PerformSplit' },
-				{ Name: 'StepComplete' }
-			],
-			EventOutputs: [
-				{ Name: 'TokenDataSent' },
-				{ Name: 'CompletedAllSubtasks' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'InputString', DataType: 'String', Required: true },
-				{ Name: 'SplitDelimiter', DataType: 'String', Required: true }
-			],
-			StateOutputs: [
-				{ Name: 'CurrentToken', DataType: 'String' },
-				{ Name: 'TokenIndex', DataType: 'Number' },
-				{ Name: 'TokenCount', DataType: 'Number' },
-				{ Name: 'CompletedCount', DataType: 'Number' }
-			],
-
-			DefaultSettings: { InputString: '', SplitDelimiter: '\n' }
-		};
+		return require('./definitions/split-execute.json');
 	}
 
 	execute(pResolvedSettings, pExecutionContext, fCallback, fFireIntermediateEvent)
@@ -102,6 +71,14 @@ class UltravisorTaskTypeSplitExecute extends libTaskTypeBase
 		}
 
 		let tmpTokens = tmpInputString.split(tmpDelimiter);
+		if (pResolvedSettings.TrimTokens)
+		{
+			tmpTokens = tmpTokens.map(function (pT) { return pT.trim(); });
+		}
+		if (pResolvedSettings.SkipEmpty)
+		{
+			tmpTokens = tmpTokens.filter(function (pT) { return pT.length > 0; });
+		}
 		let tmpTokenCount = tmpTokens.length;
 		let tmpLog = [`Splitting input (${tmpInputString.length} chars) by "${tmpDelimiter}" into ${tmpTokenCount} tokens.`];
 

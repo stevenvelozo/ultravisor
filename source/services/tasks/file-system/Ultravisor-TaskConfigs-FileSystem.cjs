@@ -2,7 +2,7 @@
  * File System task configurations for Ultravisor.
  *
  * Contains task types for reading, writing, listing, and copying files:
- *   read-file, write-file, read-json, write-json, list-files, copy-file
+ *   read-file, write-file, read-json, write-json, list-files, copy-file, read-file-buffered
  *
  * Each entry defines a task type as a config object with:
  *   Definition  {object}   - Port schema, metadata, default settings
@@ -11,6 +11,21 @@
 
 const libFS = require('fs');
 const libPath = require('path');
+
+/**
+ * Recursively sort all object keys alphabetically (deep).
+ */
+function _sortObjectKeys(pObj)
+{
+	if (Array.isArray(pObj)) { return pObj.map(_sortObjectKeys); }
+	if (pObj !== null && typeof(pObj) === 'object')
+	{
+		let tmpSorted = {};
+		Object.keys(pObj).sort().forEach(function(pKey) { tmpSorted[pKey] = _sortObjectKeys(pObj[pKey]); });
+		return tmpSorted;
+	}
+	return pObj;
+}
 
 
 // ═══════════════════════════════════════════════════════════════════
@@ -21,35 +36,12 @@ module.exports =
 [
 	// ── read-file ──────────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'read-file',
-			Type: 'read-file',
-			Name: 'Read File',
-			Description: 'Reads a file from disk into state.',
-			Category: 'file-io',
-			Capability: 'File System',
-			Action: 'Read',
-			Tier: 'Platform',
-			EventInputs: [{ Name: 'BeginRead', Description: 'Triggers the file read' }],
-			EventOutputs: [
-				{ Name: 'ReadComplete', Description: 'Fires when file is read successfully' },
-				{ Name: 'Error', Description: 'Fires on read failure', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'FilePath', DataType: 'String', Required: true, Description: 'Path to the file to read' },
-				{ Name: 'Encoding', DataType: 'String', Required: false, Default: 'utf8', Description: 'File encoding' }
-			],
-			StateOutputs: [
-				{ Name: 'FileContent', DataType: 'String', Description: 'Contents of the file' },
-				{ Name: 'BytesRead', DataType: 'Number', Description: 'Number of bytes read' }
-			],
-			DefaultSettings: { FilePath: '', Encoding: 'utf8' }
-		},
+		Definition: require('./definitions/read-file.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpFilePath = pResolvedSettings.FilePath || '';
 			let tmpEncoding = pResolvedSettings.Encoding || 'utf8';
+			let tmpMaxBytes = parseInt(pResolvedSettings.MaxBytes, 10) || 0;
 
 			if (!tmpFilePath)
 			{
@@ -60,7 +52,29 @@ module.exports =
 
 			try
 			{
-				let tmpContent = libFS.readFileSync(tmpFilePath, tmpEncoding);
+				let tmpContent;
+
+				if (tmpMaxBytes > 0)
+				{
+					let tmpStat = libFS.statSync(tmpFilePath);
+					if (tmpStat.size > tmpMaxBytes)
+					{
+						let tmpFd = libFS.openSync(tmpFilePath, 'r');
+						let tmpBuffer = Buffer.alloc(tmpMaxBytes);
+						libFS.readSync(tmpFd, tmpBuffer, 0, tmpMaxBytes, 0);
+						libFS.closeSync(tmpFd);
+						tmpContent = tmpBuffer.toString(tmpEncoding);
+					}
+					else
+					{
+						tmpContent = libFS.readFileSync(tmpFilePath, tmpEncoding);
+					}
+				}
+				else
+				{
+					tmpContent = libFS.readFileSync(tmpFilePath, tmpEncoding);
+				}
+
 				let tmpStateWrites = {};
 				if (pResolvedSettings.OutputAddress)
 				{
@@ -69,7 +83,7 @@ module.exports =
 
 				return fCallback(null, {
 					EventToFire: 'ReadComplete',
-					Outputs: { FileContent: tmpContent, BytesRead: Buffer.byteLength(tmpContent, tmpEncoding) },
+					Outputs: { FileContent: tmpContent, BytesRead: Buffer.byteLength(tmpContent, tmpEncoding), FileName: libPath.basename(tmpFilePath) },
 					StateWrites: tmpStateWrites,
 					Log: [`ReadFile: read ${Buffer.byteLength(tmpContent, tmpEncoding)} bytes from ${tmpFilePath}`]
 				});
@@ -83,34 +97,7 @@ module.exports =
 
 	// ── write-file ─────────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'write-file',
-			Type: 'write-file',
-			Name: 'Write File',
-			Description: 'Writes content to a file on disk.',
-			Category: 'file-io',
-			Capability: 'File System',
-			Action: 'Write',
-			Tier: 'Platform',
-			EventInputs: [{ Name: 'BeginWrite', Description: 'Triggers the file write' }],
-			EventOutputs: [
-				{ Name: 'WriteComplete', Description: 'Fires when file is written successfully' },
-				{ Name: 'Error', Description: 'Fires on write failure', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'FilePath', DataType: 'String', Required: true, Description: 'Path to the output file' },
-				{ Name: 'Content', DataType: 'String', Required: true, Description: 'Content to write' },
-				{ Name: 'Encoding', DataType: 'String', Required: false, Default: 'utf8', Description: 'File encoding' }
-			],
-			StateOutputs: [
-				{ Name: 'FileLocation', DataType: 'String', Description: 'The path the file was referenced at (may be relative)' },
-				{ Name: 'FileName', DataType: 'String', Description: 'The name of the file only (no directory)' },
-				{ Name: 'FilePath', DataType: 'String', Description: 'The fully resolved absolute path of the file' },
-				{ Name: 'BytesWritten', DataType: 'Number', Description: 'Number of bytes written' }
-			],
-			DefaultSettings: { FilePath: '', Content: '', Encoding: 'utf8' }
-		},
+		Definition: require('./definitions/write-file.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpFileLocation = pResolvedSettings.FilePath || '';
@@ -125,13 +112,33 @@ module.exports =
 			if (tmpContent === undefined || tmpContent === null) { tmpContent = ''; }
 			if (typeof(tmpContent) !== 'string') { tmpContent = JSON.stringify(tmpContent, null, '\t'); }
 
+			// Apply line ending conversion
+			let tmpLineEnding = pResolvedSettings.LineEnding || '';
+			if (tmpLineEnding === 'crlf')
+			{
+				tmpContent = tmpContent.replace(/(?<!\r)\n/g, '\r\n');
+			}
+			else if (tmpLineEnding === 'lf')
+			{
+				tmpContent = tmpContent.replace(/\r\n/g, '\n');
+			}
+
 			let tmpFilePath = pTask.resolveFilePath(tmpFileLocation, pExecutionContext.StagingPath);
 
 			try
 			{
 				let tmpDir = libPath.dirname(tmpFilePath);
 				if (!libFS.existsSync(tmpDir)) { libFS.mkdirSync(tmpDir, { recursive: true }); }
-				libFS.writeFileSync(tmpFilePath, tmpContent, tmpEncoding);
+
+				if (pResolvedSettings.Append)
+				{
+					libFS.appendFileSync(tmpFilePath, tmpContent, tmpEncoding);
+				}
+				else
+				{
+					libFS.writeFileSync(tmpFilePath, tmpContent, tmpEncoding);
+				}
+
 				let tmpBytesWritten = Buffer.byteLength(tmpContent, tmpEncoding);
 
 				return fCallback(null, {
@@ -154,37 +161,14 @@ module.exports =
 
 	// ── read-json ──────────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'read-json',
-			Type: 'read-json',
-			Name: 'Read JSON',
-			Description: 'Reads a JSON file from disk and parses it into state.',
-			Category: 'file-io',
-			Capability: 'File System',
-			Action: 'ReadJSON',
-			Tier: 'Platform',
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [
-				{ Name: 'Complete' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'File', DataType: 'String', Required: true, Description: 'Path to the JSON file' },
-				{ Name: 'Destination', DataType: 'String', Required: false, Description: 'State address to store the parsed data' }
-			],
-			StateOutputs: [
-				{ Name: 'Data', DataType: 'Object', Description: 'Parsed JSON data' }
-			],
-			DefaultSettings: { File: '', Destination: '' }
-		},
+		Definition: require('./definitions/read-json.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
-			let tmpFilePath = pResolvedSettings.File || '';
+			let tmpFilePath = pResolvedSettings.FilePath || '';
 
 			if (!tmpFilePath)
 			{
-				return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: ['ReadJSON: no File specified.'] });
+				return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: ['ReadJSON: no FilePath specified.'] });
 			}
 
 			tmpFilePath = pTask.resolveFilePath(tmpFilePath, pExecutionContext.StagingPath);
@@ -216,48 +200,23 @@ module.exports =
 
 	// ── write-json ─────────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'write-json',
-			Type: 'write-json',
-			Name: 'Write JSON',
-			Description: 'Writes a JSON object to a file on disk.',
-			Category: 'file-io',
-			Capability: 'File System',
-			Action: 'WriteJSON',
-			Tier: 'Platform',
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [
-				{ Name: 'Done' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'File', DataType: 'String', Required: true, Description: 'Path to the output JSON file' },
-				{ Name: 'Address', DataType: 'String', Required: false, Description: 'State address of the data to write' }
-			],
-			StateOutputs: [
-				{ Name: 'FileLocation', DataType: 'String', Description: 'The path the file was referenced at (may be relative)' },
-				{ Name: 'FileName', DataType: 'String', Description: 'The name of the file only (no directory)' },
-				{ Name: 'FilePath', DataType: 'String', Description: 'The fully resolved absolute path of the file' },
-				{ Name: 'BytesWritten', DataType: 'Number', Description: 'Number of bytes written' }
-			],
-			DefaultSettings: { File: '', Address: '' }
-		},
+		Definition: require('./definitions/write-json.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
-			let tmpFileLocation = pResolvedSettings.File || '';
+			let tmpFileLocation = pResolvedSettings.FilePath || '';
 
 			if (!tmpFileLocation)
 			{
-				return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: ['WriteJSON: no File specified.'] });
+				return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: ['WriteJSON: no FilePath specified.'] });
 			}
 
 			let tmpFilePath = pTask.resolveFilePath(tmpFileLocation, pExecutionContext.StagingPath);
 
+			let tmpDataAddress = pResolvedSettings.DataAddress || '';
 			let tmpData = null;
-			if (pResolvedSettings.Address && pExecutionContext.StateManager)
+			if (tmpDataAddress && pExecutionContext.StateManager)
 			{
-				tmpData = pExecutionContext.StateManager.resolveAddress(pResolvedSettings.Address, pExecutionContext, pExecutionContext.NodeHash);
+				tmpData = pExecutionContext.StateManager.resolveAddress(tmpDataAddress, pExecutionContext, pExecutionContext.NodeHash);
 			}
 
 			if (tmpData === undefined || tmpData === null)
@@ -267,7 +226,30 @@ module.exports =
 
 			try
 			{
-				let tmpContent = JSON.stringify(tmpData, null, '\t');
+				if (pResolvedSettings.SortKeys)
+				{
+					tmpData = _sortObjectKeys(tmpData);
+				}
+
+				let tmpContent;
+				if (pResolvedSettings.PrettyFormat === false)
+				{
+					tmpContent = JSON.stringify(tmpData);
+				}
+				else
+				{
+					let tmpIndent;
+					if (pResolvedSettings.IndentType === 'space')
+					{
+						tmpIndent = ' '.repeat(pResolvedSettings.IndentCount || 2);
+					}
+					else
+					{
+						tmpIndent = '\t'.repeat(pResolvedSettings.IndentCount || 1);
+					}
+					tmpContent = JSON.stringify(tmpData, null, tmpIndent);
+				}
+
 				let tmpDir = libPath.dirname(tmpFilePath);
 				if (!libFS.existsSync(tmpDir)) { libFS.mkdirSync(tmpDir, { recursive: true }); }
 				libFS.writeFileSync(tmpFilePath, tmpContent, 'utf8');
@@ -292,31 +274,7 @@ module.exports =
 
 	// ── list-files ─────────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'list-files',
-			Type: 'list-files',
-			Name: 'List Files',
-			Description: 'Lists files in a directory with optional glob pattern filtering.',
-			Category: 'file-io',
-			Capability: 'File System',
-			Action: 'List',
-			Tier: 'Platform',
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [
-				{ Name: 'Complete' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'Folder', DataType: 'String', Required: true, Description: 'Directory path to list' },
-				{ Name: 'Pattern', DataType: 'String', Required: false, Description: 'Glob-style pattern filter (e.g. *.txt)' },
-				{ Name: 'Destination', DataType: 'String', Required: false, Description: 'State address to store file list' }
-			],
-			StateOutputs: [
-				{ Name: 'Files', DataType: 'Array', Description: 'Array of file names' }
-			],
-			DefaultSettings: { Folder: '', Pattern: '*', Destination: '' }
-		},
+		Definition: require('./definitions/list-files.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpFolder = pResolvedSettings.Folder || '';
@@ -328,16 +286,75 @@ module.exports =
 
 			tmpFolder = pTask.resolveFilePath(tmpFolder, pExecutionContext.StagingPath);
 
+			function _listFilesRecursive(pDir, pPattern)
+			{
+				let tmpResults = [];
+				let tmpEntries = libFS.readdirSync(pDir);
+
+				for (let i = 0; i < tmpEntries.length; i++)
+				{
+					let tmpFullPath = libPath.join(pDir, tmpEntries[i]);
+					let tmpStat = libFS.statSync(tmpFullPath);
+
+					if (tmpStat.isDirectory())
+					{
+						let tmpSubFiles = _listFilesRecursive(tmpFullPath, pPattern);
+						tmpResults = tmpResults.concat(tmpSubFiles);
+						// Include the directory entry itself as a relative path
+						let tmpRelative = libPath.relative(tmpFolder, tmpFullPath);
+						tmpResults.push(tmpRelative);
+					}
+					else
+					{
+						let tmpRelative = libPath.relative(tmpFolder, tmpFullPath);
+						tmpResults.push(tmpRelative);
+					}
+				}
+
+				return tmpResults;
+			}
+
 			try
 			{
-				let tmpFiles = libFS.readdirSync(tmpFolder);
+				let tmpFiles;
+
+				if (pResolvedSettings.Recursive)
+				{
+					tmpFiles = _listFilesRecursive(tmpFolder);
+				}
+				else
+				{
+					tmpFiles = libFS.readdirSync(tmpFolder);
+				}
+
 				let tmpPattern = pResolvedSettings.Pattern || '*';
 
 				// Simple glob: convert * to regex
 				if (tmpPattern && tmpPattern !== '*')
 				{
 					let tmpRegex = new RegExp('^' + tmpPattern.replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
-					tmpFiles = tmpFiles.filter(function (pFile) { return tmpRegex.test(pFile); });
+					tmpFiles = tmpFiles.filter(function (pFile)
+					{
+						// For recursive results, match against the basename
+						let tmpBaseName = libPath.basename(pFile);
+						return tmpRegex.test(tmpBaseName);
+					});
+				}
+
+				if (!pResolvedSettings.IncludeDirectories)
+				{
+					tmpFiles = tmpFiles.filter(function (pFile)
+					{
+						let tmpFullPath = libPath.join(tmpFolder, pFile);
+						try
+						{
+							return libFS.statSync(tmpFullPath).isFile();
+						}
+						catch (pErr)
+						{
+							return false;
+						}
+					});
 				}
 
 				let tmpStateWrites = {};
@@ -348,7 +365,7 @@ module.exports =
 
 				return fCallback(null, {
 					EventToFire: 'Complete',
-					Outputs: { Files: tmpFiles },
+					Outputs: { Files: tmpFiles, FileCount: tmpFiles.length },
 					StateWrites: tmpStateWrites,
 					Log: [`ListFiles: found ${tmpFiles.length} files in ${tmpFolder}`]
 				});
@@ -362,32 +379,7 @@ module.exports =
 
 	// ── copy-file ──────────────────────────────────────────────
 	{
-		Definition:
-		{
-			Hash: 'copy-file',
-			Type: 'copy-file',
-			Name: 'Copy File',
-			Description: 'Copies a file from source to target path.',
-			Category: 'file-io',
-			Capability: 'File System',
-			Action: 'Copy',
-			Tier: 'Platform',
-			EventInputs: [{ Name: 'Trigger' }],
-			EventOutputs: [
-				{ Name: 'Done' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'Source', DataType: 'String', Required: true, Description: 'Source file path' },
-				{ Name: 'TargetFile', DataType: 'String', Required: true, Description: 'Target file path' }
-			],
-			StateOutputs: [
-				{ Name: 'FileLocation', DataType: 'String', Description: 'The target path the file was referenced at (may be relative)' },
-				{ Name: 'FileName', DataType: 'String', Description: 'The name of the target file only (no directory)' },
-				{ Name: 'FilePath', DataType: 'String', Description: 'The fully resolved absolute path of the target file' }
-			],
-			DefaultSettings: { Source: '', TargetFile: '' }
-		},
+		Definition: require('./definitions/copy-file.json'),
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpSource = pResolvedSettings.Source || '';
@@ -403,16 +395,24 @@ module.exports =
 
 			try
 			{
+				if (pResolvedSettings.Overwrite === false && libFS.existsSync(tmpTarget))
+				{
+					return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: [`CopyFile: target file already exists and Overwrite is false: ${tmpTarget}`] });
+				}
+
 				let tmpDir = libPath.dirname(tmpTarget);
 				if (!libFS.existsSync(tmpDir)) { libFS.mkdirSync(tmpDir, { recursive: true }); }
 				libFS.copyFileSync(tmpSource, tmpTarget);
+
+				let tmpStat = libFS.statSync(tmpTarget);
 
 				return fCallback(null, {
 					EventToFire: 'Done',
 					Outputs: {
 						FileLocation: tmpTargetLocation,
 						FileName: libPath.basename(tmpTarget),
-						FilePath: tmpTarget
+						FilePath: tmpTarget,
+						BytesCopied: tmpStat.size
 					},
 					Log: [`CopyFile: copied ${tmpSource} -> ${tmpTarget}`]
 				});
@@ -420,6 +420,89 @@ module.exports =
 			catch (pError)
 			{
 				return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: [`CopyFile: failed: ${pError.message}`] });
+			}
+		}
+	},
+
+	// ── read-file-buffered ────────────────────────────────────
+	{
+		Definition: require('./definitions/read-file-buffered.json'),
+		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
+		{
+			let tmpFilePath = pResolvedSettings.FilePath || '';
+			let tmpEncoding = pResolvedSettings.Encoding || 'utf8';
+			let tmpMaxBufferSize = parseInt(pResolvedSettings.MaxBufferSize, 10) || 65536;
+			let tmpSplitChar = pResolvedSettings.SplitCharacter;
+			let tmpByteOffset = parseInt(pResolvedSettings.ByteOffset, 10) || 0;
+
+			if (tmpSplitChar === undefined || tmpSplitChar === null)
+			{
+				tmpSplitChar = '\n';
+			}
+
+			if (!tmpFilePath)
+			{
+				return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: ['ReadFileBuffered: no FilePath specified.'] });
+			}
+
+			tmpFilePath = pTask.resolveFilePath(tmpFilePath, pExecutionContext.StagingPath);
+
+			try
+			{
+				let tmpStat = libFS.statSync(tmpFilePath);
+				let tmpTotalSize = tmpStat.size;
+				let tmpRemainingBytes = tmpTotalSize - tmpByteOffset;
+
+				if (tmpRemainingBytes <= 0)
+				{
+					return fCallback(null, {
+						EventToFire: 'ReadComplete',
+						Outputs: { FileContent: '', BytesRead: 0, ByteOffset: tmpByteOffset, IsComplete: true, FileName: libPath.basename(tmpFilePath), TotalFileSize: tmpTotalSize },
+						Log: ['ReadFileBuffered: already at end of file.']
+					});
+				}
+
+				let tmpReadSize = Math.min(tmpMaxBufferSize, tmpRemainingBytes);
+				let tmpBuffer = Buffer.alloc(tmpReadSize);
+				let tmpFd = libFS.openSync(tmpFilePath, 'r');
+				let tmpActualBytesRead = libFS.readSync(tmpFd, tmpBuffer, 0, tmpReadSize, tmpByteOffset);
+				libFS.closeSync(tmpFd);
+
+				let tmpContent = tmpBuffer.slice(0, tmpActualBytesRead).toString(tmpEncoding);
+				let tmpIsComplete = (tmpByteOffset + tmpActualBytesRead) >= tmpTotalSize;
+				let tmpNewOffset = tmpByteOffset + tmpActualBytesRead;
+
+				// If not at EOF and we have a split character, find the last occurrence
+				if (!tmpIsComplete && tmpSplitChar && tmpSplitChar.length > 0)
+				{
+					let tmpLastSplitIndex = tmpContent.lastIndexOf(tmpSplitChar);
+
+					if (tmpLastSplitIndex > 0)
+					{
+						// Keep content up to and including the split character
+						tmpContent = tmpContent.substring(0, tmpLastSplitIndex + tmpSplitChar.length);
+						tmpNewOffset = tmpByteOffset + Buffer.byteLength(tmpContent, tmpEncoding);
+					}
+				}
+
+				let tmpBytesRead = Buffer.byteLength(tmpContent, tmpEncoding);
+
+				return fCallback(null, {
+					EventToFire: 'ReadComplete',
+					Outputs: {
+						FileContent: tmpContent,
+						BytesRead: tmpBytesRead,
+						ByteOffset: tmpNewOffset,
+						IsComplete: tmpIsComplete,
+						FileName: libPath.basename(tmpFilePath),
+						TotalFileSize: tmpTotalSize
+					},
+					Log: [`ReadFileBuffered: read ${tmpBytesRead} bytes from offset ${tmpByteOffset} (${tmpIsComplete ? 'complete' : 'more data available'})`]
+				});
+			}
+			catch (pError)
+			{
+				return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: [`ReadFileBuffered: failed: ${pError.message}`] });
 			}
 		}
 	}

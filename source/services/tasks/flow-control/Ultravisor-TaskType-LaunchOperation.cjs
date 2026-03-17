@@ -25,35 +25,7 @@ class UltravisorTaskTypeLaunchOperation extends libTaskTypeBase
 
 	get definition()
 	{
-		return {
-			Hash: 'launch-operation',
-			Type: 'launch-operation',
-			Name: 'Launch Operation',
-			Description: 'Executes a child operation by hash, with isolated operation state.',
-			Category: 'control',
-			Capability: 'Flow Control',
-			Action: 'LaunchOperation',
-			Tier: 'Engine',
-
-			EventInputs: [
-				{ Name: 'Launch' }
-			],
-			EventOutputs: [
-				{ Name: 'Completed' },
-				{ Name: 'Error', IsError: true }
-			],
-			SettingsInputs: [
-				{ Name: 'OperationHash', DataType: 'String', Required: true },
-				{ Name: 'InputData', DataType: 'String' }
-			],
-			StateOutputs: [
-				{ Name: 'Result', DataType: 'String' },
-				{ Name: 'Status', DataType: 'String' },
-				{ Name: 'ElapsedMs', DataType: 'Number' }
-			],
-
-			DefaultSettings: { OperationHash: '', InputData: '' }
-		};
+		return require('./definitions/launch-operation.json');
 	}
 
 	execute(pResolvedSettings, pExecutionContext, fCallback, fFireIntermediateEvent)
@@ -108,8 +80,8 @@ class UltravisorTaskTypeLaunchOperation extends libTaskTypeBase
 
 				// Build initial state for the child operation
 				let tmpInitialState = {
-					// Share a copy of the parent's global state
-					GlobalState: JSON.parse(JSON.stringify(pExecutionContext.GlobalState || {})),
+					// Share a copy of the parent's global state (unless InheritGlobalState is false)
+					GlobalState: (pResolvedSettings.InheritGlobalState === false) ? {} : JSON.parse(JSON.stringify(pExecutionContext.GlobalState || {})),
 					// Isolated operation state, optionally seeded from InputData
 					OperationState: {},
 					RunMode: pExecutionContext.RunMode || 'standard'
@@ -134,11 +106,35 @@ class UltravisorTaskTypeLaunchOperation extends libTaskTypeBase
 				}
 
 				let tmpStartTime = Date.now();
+				let tmpTimeoutMs = parseInt(pResolvedSettings.TimeoutMs, 10) || 0;
+				let tmpCompleted = false;
+				let tmpTimeoutHandle = null;
+
+				if (tmpTimeoutMs > 0)
+				{
+					tmpTimeoutHandle = setTimeout(function()
+					{
+						if (!tmpCompleted)
+						{
+							tmpCompleted = true;
+							let tmpElapsedMs = Date.now() - tmpStartTime;
+							return fCallback(null, {
+								EventToFire: 'Error',
+								Outputs: { Result: 'Operation timed out', Status: 'Timeout', ElapsedMs: tmpElapsedMs },
+								Log: [`Child operation [${tmpOperationHash}] timed out after ${tmpTimeoutMs}ms`]
+							});
+						}
+					}, tmpTimeoutMs);
+				}
 
 				// Execute the child operation
 				tmpEngine.executeOperation(pOperation, tmpInitialState,
 					(pExecError, pContext) =>
 					{
+						if (tmpCompleted) { return; }
+						tmpCompleted = true;
+						if (tmpTimeoutHandle) { clearTimeout(tmpTimeoutHandle); }
+
 						let tmpElapsedMs = Date.now() - tmpStartTime;
 
 						if (pExecError)

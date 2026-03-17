@@ -1,0 +1,29 @@
+{
+	"Hash": "write-file",
+	"Type": "write-file",
+	"Name": "Write File",
+	"Description": "Writes content to a file on disk.",
+	"Category": "file-io",
+	"Capability": "File System",
+	"Action": "Write",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "BeginWrite", "Description": "Triggers the file write" }],
+	"EventOutputs": [
+		{ "Name": "WriteComplete", "Description": "Fires when file is written successfully" },
+		{ "Name": "Error", "Description": "Fires on write failure", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "FilePath", "DataType": "String", "Required": true, "Description": "Path to the output file" },
+		{ "Name": "Content", "DataType": "String", "Required": true, "Description": "Content to write" },
+		{ "Name": "Encoding", "DataType": "String", "Required": false, "Default": "utf8", "Description": "File encoding" },
+		{ "Name": "Append", "DataType": "Boolean", "Required": false, "Description": "Append to existing file instead of overwriting" },
+		{ "Name": "LineEnding", "DataType": "String", "Required": false, "Description": "Force line ending style: \"lf\", \"crlf\", or empty for no conversion" }
+	],
+	"StateOutputs": [
+		{ "Name": "FileLocation", "DataType": "String", "Description": "The path the file was referenced at (may be relative)" },
+		{ "Name": "FileName", "DataType": "String", "Description": "The name of the file only (no directory)" },
+		{ "Name": "FilePath", "DataType": "String", "Description": "The fully resolved absolute path of the file" },
+		{ "Name": "BytesWritten", "DataType": "Number", "Description": "Number of bytes written" }
+	],
+	"DefaultSettings": { "FilePath": "", "Content": "", "Encoding": "utf8", "Append": false, "LineEnding": "" }
+}

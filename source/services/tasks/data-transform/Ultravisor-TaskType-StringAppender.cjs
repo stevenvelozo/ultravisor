@@ -18,29 +18,7 @@ class UltravisorTaskTypeStringAppender extends libTaskTypeBase
 
 	get definition()
 	{
-		return {
-			Hash: 'string-appender',
-			Type: 'string-appender',
-			Name: 'String Appender',
-			Description: 'Appends a string to a value at a specified state address.',
-			Category: 'data',
-			Capability: 'Data Transform',
-			Action: 'AppendString',
-			Tier: 'Engine',
-
-			EventInputs: [{ Name: 'Append' }],
-			EventOutputs: [{ Name: 'Completed' }],
-			SettingsInputs: [
-				{ Name: 'InputString', DataType: 'String', Required: true },
-				{ Name: 'OutputAddress', DataType: 'String', Required: true },
-				{ Name: 'AppendNewline', DataType: 'Boolean', Required: false, Description: 'When true, append a newline after each InputString.' }
-			],
-			StateOutputs: [
-				{ Name: 'AppendedString', DataType: 'String' }
-			],
-
-			DefaultSettings: { InputString: '', OutputAddress: '', AppendNewline: false }
-		};
+		return require('./definitions/string-appender.json');
 	}
 
 	execute(pResolvedSettings, pExecutionContext, fCallback, fFireIntermediateEvent)
@@ -79,13 +57,21 @@ class UltravisorTaskTypeStringAppender extends libTaskTypeBase
 			}
 		}
 
-		// Optionally add a newline after the input string
-		if (pResolvedSettings.AppendNewline)
-		{
-			tmpInputString = tmpInputString + '\n';
-		}
+		let tmpAppendedValue;
 
-		let tmpAppendedValue = tmpExistingValue + tmpInputString;
+		if (pResolvedSettings.Separator)
+		{
+			tmpAppendedValue = tmpExistingValue + (tmpExistingValue.length > 0 ? pResolvedSettings.Separator : '') + tmpInputString;
+		}
+		else
+		{
+			if (pResolvedSettings.AppendNewline)
+			{
+				tmpInputString = tmpInputString + '\n';
+			}
+
+			tmpAppendedValue = tmpExistingValue + tmpInputString;
+		}
 
 		let tmpStateWrites = {};
 		tmpStateWrites[tmpOutputAddress] = tmpAppendedValue;

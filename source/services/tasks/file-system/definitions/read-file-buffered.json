@@ -1,0 +1,31 @@
+{
+	"Hash": "read-file-buffered",
+	"Type": "read-file-buffered",
+	"Name": "Read File Buffered",
+	"Description": "Reads a file in chunks up to a maximum buffer size, splitting on a preferred character boundary.",
+	"Category": "file-io",
+	"Capability": "File System",
+	"Action": "ReadBuffered",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "BeginRead", "Description": "Triggers the buffered file read" }],
+	"EventOutputs": [
+		{ "Name": "ReadComplete", "Description": "Fires when chunk is read successfully" },
+		{ "Name": "Error", "Description": "Fires on read failure", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "FilePath", "DataType": "String", "Required": true, "Description": "Path to the file to read" },
+		{ "Name": "Encoding", "DataType": "String", "Required": false, "Description": "File encoding" },
+		{ "Name": "MaxBufferSize", "DataType": "Number", "Required": false, "Description": "Maximum bytes per chunk" },
+		{ "Name": "SplitCharacter", "DataType": "String", "Required": false, "Description": "Preferred character to split on (reads up to last occurrence within buffer)" },
+		{ "Name": "ByteOffset", "DataType": "Number", "Required": false, "Description": "Byte offset to start reading from (for continuation)" }
+	],
+	"StateOutputs": [
+		{ "Name": "FileContent", "DataType": "String", "Description": "Content of this chunk" },
+		{ "Name": "BytesRead", "DataType": "Number", "Description": "Bytes in this chunk" },
+		{ "Name": "ByteOffset", "DataType": "Number", "Description": "Updated byte offset for the next read" },
+		{ "Name": "IsComplete", "DataType": "Boolean", "Description": "True when entire file has been read" },
+		{ "Name": "FileName", "DataType": "String", "Description": "Base name of the file" },
+		{ "Name": "TotalFileSize", "DataType": "Number", "Description": "Total size of the file in bytes" }
+	],
+	"DefaultSettings": { "FilePath": "", "Encoding": "utf8", "MaxBufferSize": 65536, "SplitCharacter": "\n", "ByteOffset": 0 }
+}

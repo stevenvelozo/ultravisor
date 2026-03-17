@@ -1,0 +1,27 @@
+{
+	"Hash": "list-files",
+	"Type": "list-files",
+	"Name": "List Files",
+	"Description": "Lists files in a directory with optional glob pattern filtering.",
+	"Category": "file-io",
+	"Capability": "File System",
+	"Action": "List",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "Folder", "DataType": "String", "Required": true, "Description": "Directory path to list" },
+		{ "Name": "Pattern", "DataType": "String", "Required": false, "Description": "Glob-style pattern filter (e.g. *.txt)" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to store file list" },
+		{ "Name": "Recursive", "DataType": "Boolean", "Required": false, "Description": "Recursively list files in subdirectories" },
+		{ "Name": "IncludeDirectories", "DataType": "Boolean", "Required": false, "Description": "Include directory entries in results" }
+	],
+	"StateOutputs": [
+		{ "Name": "Files", "DataType": "Array", "Description": "Array of file names" },
+		{ "Name": "FileCount", "DataType": "Number", "Description": "Number of entries found" }
+	],
+	"DefaultSettings": { "Folder": "", "Pattern": "*", "Destination": "", "Recursive": false, "IncludeDirectories": false }
+}

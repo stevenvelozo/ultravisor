@@ -1,5 +1,6 @@
 const libUltravisorTaskType = require('../Ultravisor-TaskType-Base.cjs');
 const libFS = require('fs');
+const libPath = require('path');
 
 /**
  * Read File task type.
@@ -16,47 +17,14 @@ class UltravisorTaskTypeReadFile extends libUltravisorTaskType
 
 	get definition()
 	{
-		return {
-			Hash: 'read-file',
-			Name: 'Read File',
-			Description: 'Reads a file from disk into state.',
-			Category: 'file-io',
-			Capability: 'File System',
-			Action: 'Read',
-			Tier: 'Platform',
-
-			EventInputs:
-			[
-				{ Name: 'BeginRead', Description: 'Triggers the file read' }
-			],
-			EventOutputs:
-			[
-				{ Name: 'ReadComplete', Description: 'Fires when file is read successfully' },
-				{ Name: 'Error', Description: 'Fires on read failure', IsError: true }
-			],
-			SettingsInputs:
-			[
-				{ Name: 'FilePath', DataType: 'String', Required: true, Description: 'Path to the file to read' },
-				{ Name: 'Encoding', DataType: 'String', Required: false, Default: 'utf8', Description: 'File encoding' }
-			],
-			StateOutputs:
-			[
-				{ Name: 'FileContent', DataType: 'String', Description: 'Contents of the file' },
-				{ Name: 'BytesRead', DataType: 'Number', Description: 'Number of bytes read' }
-			],
-
-			DefaultSettings:
-			{
-				FilePath: '',
-				Encoding: 'utf8'
-			}
-		};
+		return require('./definitions/read-file.json');
 	}
 
 	execute(pResolvedSettings, pExecutionContext, fCallback, fFireIntermediateEvent)
 	{
 		let tmpFilePath = pResolvedSettings.FilePath || '';
 		let tmpEncoding = pResolvedSettings.Encoding || 'utf8';
+		let tmpMaxBytes = parseInt(pResolvedSettings.MaxBytes, 10) || 0;
 
 		if (!tmpFilePath)
 		{
@@ -72,7 +40,28 @@ class UltravisorTaskTypeReadFile extends libUltravisorTaskType
 
 		try
 		{
-			let tmpContent = libFS.readFileSync(tmpFilePath, tmpEncoding);
+			let tmpContent;
+
+			if (tmpMaxBytes > 0)
+			{
+				let tmpStat = libFS.statSync(tmpFilePath);
+				if (tmpStat.size > tmpMaxBytes)
+				{
+					let tmpFd = libFS.openSync(tmpFilePath, 'r');
+					let tmpBuffer = Buffer.alloc(tmpMaxBytes);
+					libFS.readSync(tmpFd, tmpBuffer, 0, tmpMaxBytes, 0);
+					libFS.closeSync(tmpFd);
+					tmpContent = tmpBuffer.toString(tmpEncoding);
+				}
+				else
+				{
+					tmpContent = libFS.readFileSync(tmpFilePath, tmpEncoding);
+				}
+			}
+			else
+			{
+				tmpContent = libFS.readFileSync(tmpFilePath, tmpEncoding);
+			}
 
 			// Write output to the configured address if specified
 			let tmpStateWrites = {};
@@ -86,7 +75,8 @@ class UltravisorTaskTypeReadFile extends libUltravisorTaskType
 				Outputs:
 				{
 					FileContent: tmpContent,
-					BytesRead: Buffer.byteLength(tmpContent, tmpEncoding)
+					BytesRead: Buffer.byteLength(tmpContent, tmpEncoding),
+					FileName: libPath.basename(tmpFilePath)
 				},
 				StateWrites: tmpStateWrites,
 				Log: [`ReadFile: read ${Buffer.byteLength(tmpContent, tmpEncoding)} bytes from ${tmpFilePath}`]
