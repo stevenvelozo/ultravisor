@@ -22,6 +22,62 @@ class UltravisorExecutionManifest extends libPictService
 
 		// In-memory store of recent run contexts keyed by RunHash
 		this._Runs = {};
+
+		// Execution event listeners (for WebSocket broadcast, etc.)
+		this._ExecutionEventListeners = [];
+	}
+
+	/**
+	 * Register a listener that will be called on execution events.
+	 *
+	 * The listener receives (pEventType, pRunHash, pEventData) where
+	 * pEventType is one of: 'TaskStart', 'TaskComplete', 'TaskError',
+	 * 'ExecutionComplete'.
+	 *
+	 * @param {function} fListener - The listener function.
+	 */
+	addExecutionEventListener(fListener)
+	{
+		if (typeof fListener === 'function')
+		{
+			this._ExecutionEventListeners.push(fListener);
+		}
+	}
+
+	/**
+	 * Remove a previously registered execution event listener.
+	 *
+	 * @param {function} fListener - The listener to remove.
+	 */
+	removeExecutionEventListener(fListener)
+	{
+		let tmpIndex = this._ExecutionEventListeners.indexOf(fListener);
+		if (tmpIndex >= 0)
+		{
+			this._ExecutionEventListeners.splice(tmpIndex, 1);
+		}
+	}
+
+	/**
+	 * Emit an execution event to all registered listeners.
+	 *
+	 * @param {string} pEventType - The event type.
+	 * @param {string} pRunHash - The execution run hash.
+	 * @param {object} pEventData - Event-specific data.
+	 */
+	_emitExecutionEvent(pEventType, pRunHash, pEventData)
+	{
+		for (let i = 0; i < this._ExecutionEventListeners.length; i++)
+		{
+			try
+			{
+				this._ExecutionEventListeners[i](pEventType, pRunHash, pEventData);
+			}
+			catch (pError)
+			{
+				this.log.error(`UltravisorExecutionManifest: execution event listener error: ${pError.message}`);
+			}
+		}
 	}
 
 	/**
@@ -181,6 +237,14 @@ class UltravisorExecutionManifest extends libPictService
 			Status: 'Running',
 			Log: []
 		});
+
+		this._emitExecutionEvent('TaskStart', pExecutionContext.Hash,
+		{
+			NodeHash: pNodeHash,
+			DefinitionHash: tmpMeta.DefinitionHash || '',
+			TaskTypeName: tmpMeta.TaskTypeName || '',
+			Status: 'Running'
+		});
 	}
 
 	/**
@@ -209,6 +273,14 @@ class UltravisorExecutionManifest extends libPictService
 		{
 			tmpExecution.Log = tmpExecution.Log.concat(pResult.Log);
 		}
+
+		this._emitExecutionEvent('TaskComplete', pExecutionContext.Hash,
+		{
+			NodeHash: pNodeHash,
+			Status: 'Complete',
+			ElapsedMs: tmpExecution.ElapsedMs,
+			EventFired: tmpExecution.EventFired
+		});
 	}
 
 	/**
@@ -237,6 +309,13 @@ class UltravisorExecutionManifest extends libPictService
 			NodeHash: pNodeHash,
 			Message: pError.message,
 			Timestamp: tmpExecution.StopTime
+		});
+
+		this._emitExecutionEvent('TaskError', pExecutionContext.Hash,
+		{
+			NodeHash: pNodeHash,
+			Status: 'Error',
+			Message: pError.message
 		});
 	}
 
@@ -308,6 +387,13 @@ class UltravisorExecutionManifest extends libPictService
 		}
 
 		this.log.info(`UltravisorExecutionManifest: operation [${pExecutionContext.OperationHash}] run [${pExecutionContext.Hash}] ${pExecutionContext.Status} in ${pExecutionContext.ElapsedMs}ms`);
+
+		this._emitExecutionEvent('ExecutionComplete', pExecutionContext.Hash,
+		{
+			Status: pExecutionContext.Status,
+			ElapsedMs: pExecutionContext.ElapsedMs,
+			ErrorCount: pExecutionContext.Errors.length
+		});
 	}
 
 	/**

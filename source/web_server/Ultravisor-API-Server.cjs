@@ -5,6 +5,7 @@ const libPath = require('path');
 const libOrator = require('orator');
 const libOratorServiceServerRestify = require(`orator-serviceserver-restify`);
 const libOratorAuthentication = require('orator-authentication');
+const libWebSocket = require('ws');
 
 class UltravisorAPIServer extends libPictService
 {
@@ -20,6 +21,13 @@ class UltravisorAPIServer extends libPictService
 		this.fable.addServiceTypeIfNotExists('Orator', libOrator);
 
 		this._OratorAuth = null;
+
+		// WebSocket server for real-time execution events
+		this._WebSocketServer = null;
+		// Map of RunHash -> Set of WebSocket clients subscribed to that run
+		this._WebSocketSubscriptions = {};
+		// Map of BeaconID -> WebSocket for beacon worker connections
+		this._BeaconWebSockets = {};
 	}
 
 	/**
@@ -359,6 +367,47 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
+		// --- Async Operation Execution (returns immediately, client polls for progress) ---
+		this._OratorServer.post
+			(
+				'/Operation/:Hash/Execute/Async',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpState = this._getService('UltravisorHypervisorState');
+					let tmpEngine = this._getService('UltravisorExecutionEngine');
+
+					tmpState.getOperation(pRequest.params.Hash,
+						function (pError, pOperation)
+						{
+							if (pError)
+							{
+								pResponse.send(404, { Error: pError.message });
+								return fNext();
+							}
+
+							let tmpBody = pRequest.body || {};
+							let tmpRunMode = tmpBody.RunMode || (pRequest.query && pRequest.query.RunMode) || undefined;
+							let tmpInitialState = tmpRunMode ? { RunMode: tmpRunMode } : {};
+
+							tmpEngine.startOperationAsync(pOperation, tmpInitialState,
+								function (pExecError, pContext)
+								{
+									if (pExecError)
+									{
+										pResponse.send(500, { Error: pExecError.message });
+										return fNext();
+									}
+									pResponse.send({
+										RunHash: pContext.Hash,
+										Status: pContext.Status,
+										OperationHash: pContext.OperationHash
+									});
+									return fNext();
+								});
+						});
+				}.bind(this)
+			);
+
 		// --- Task Types ---
 		this._OratorServer.get
 			(
@@ -602,6 +651,42 @@ class UltravisorAPIServer extends libPictService
 								Log: pContext.Log,
 								Errors: pContext.Errors,
 								WaitingTasks: pContext.WaitingTasks
+							});
+							return fNext();
+						});
+				}.bind(this)
+			);
+
+		// --- Force Error on a waiting task ---
+		this._OratorServer.post
+			(
+				'/PendingInput/:RunHash/ForceError',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpBody = pRequest.body || {};
+					let tmpEngine = this._getService('UltravisorExecutionEngine');
+					let tmpRunHash = pRequest.params.RunHash;
+
+					if (!tmpBody.NodeHash)
+					{
+						pResponse.send(400, { Error: 'NodeHash is required.' });
+						return fNext();
+					}
+
+					tmpEngine.forceErrorOnWaitingTask(tmpRunHash, tmpBody.NodeHash,
+						function (pError, pContext)
+						{
+							if (pError)
+							{
+								pResponse.send(400, { Error: pError.message });
+								return fNext();
+							}
+							pResponse.send({
+								Status: pContext.Status,
+								Hash: pContext.Hash,
+								TaskOutputs: pContext.TaskOutputs,
+								Log: pContext.Log,
+								Errors: pContext.Errors
 							});
 							return fNext();
 						});
@@ -1296,8 +1381,371 @@ class UltravisorAPIServer extends libPictService
 					return fCallback(pError);
 				}
 				this.log.info(`Ultravisor Orator API Server started successfully.`);
+
+				// Attach WebSocket server for real-time execution events
+				this._initializeWebSocket();
+
 				return fCallback();
 			}.bind(this));
+	}
+
+	// ====================================================================
+	// WebSocket Server for Execution Events
+	// ====================================================================
+
+	/**
+	 * Initialize a WebSocket server on the same HTTP server used by Restify.
+	 * Clients connect and subscribe to a RunHash to receive real-time
+	 * execution events (TaskStart, TaskComplete, TaskError, ExecutionComplete).
+	 */
+	_initializeWebSocket()
+	{
+		// The Restify server exposes the underlying Node.js http.Server
+		let tmpHTTPServer = this._OratorServer.server.server;
+
+		if (!tmpHTTPServer)
+		{
+			this.log.warn('Ultravisor WebSocket: could not access underlying HTTP server; WebSocket disabled.');
+			return;
+		}
+
+		this._WebSocketServer = new libWebSocket.Server({ noServer: true });
+
+		// Handle HTTP upgrade requests for WebSocket
+		tmpHTTPServer.on('upgrade',
+			function (pRequest, pSocket, pHead)
+			{
+				this._WebSocketServer.handleUpgrade(pRequest, pSocket, pHead,
+					function (pWebSocket)
+					{
+						this._WebSocketServer.emit('connection', pWebSocket, pRequest);
+					}.bind(this));
+			}.bind(this));
+
+		// Handle new WebSocket connections
+		this._WebSocketServer.on('connection',
+			function (pWebSocket)
+			{
+				pWebSocket._SubscribedRunHash = null;
+
+				pWebSocket.on('message',
+					function (pMessage)
+					{
+						let tmpData;
+						try
+						{
+							tmpData = JSON.parse(pMessage);
+						}
+						catch (pError)
+						{
+							return;
+						}
+
+						if (tmpData.Action === 'Subscribe' && tmpData.RunHash)
+						{
+							// --- Execution event subscription (web UI) ---
+							this._unsubscribeClient(pWebSocket);
+							pWebSocket._SubscribedRunHash = tmpData.RunHash;
+
+							if (!this._WebSocketSubscriptions[tmpData.RunHash])
+							{
+								this._WebSocketSubscriptions[tmpData.RunHash] = new Set();
+							}
+							this._WebSocketSubscriptions[tmpData.RunHash].add(pWebSocket);
+						}
+						else if (tmpData.Action === 'Unsubscribe')
+						{
+							this._unsubscribeClient(pWebSocket);
+						}
+						else if (tmpData.Action === 'BeaconRegister')
+						{
+							// --- Beacon registration over WebSocket ---
+							this._handleBeaconWSRegister(pWebSocket, tmpData);
+						}
+						else if (tmpData.Action === 'BeaconHeartbeat')
+						{
+							this._handleBeaconWSHeartbeat(tmpData);
+						}
+						else if (tmpData.Action === 'WorkComplete')
+						{
+							this._handleBeaconWSWorkComplete(tmpData);
+						}
+						else if (tmpData.Action === 'WorkError')
+						{
+							this._handleBeaconWSWorkError(tmpData);
+						}
+						else if (tmpData.Action === 'WorkProgress')
+						{
+							this._handleBeaconWSWorkProgress(tmpData);
+						}
+						else if (tmpData.Action === 'Deregister')
+						{
+							this._handleBeaconWSDeregister(pWebSocket, tmpData);
+						}
+					}.bind(this));
+
+				pWebSocket.on('close',
+					function ()
+					{
+						this._unsubscribeClient(pWebSocket);
+						this._cleanupBeaconWS(pWebSocket);
+					}.bind(this));
+			}.bind(this));
+
+		// Register an execution event listener on the manifest service
+		let tmpManifestService = this._getService('UltravisorExecutionManifest');
+		if (tmpManifestService)
+		{
+			tmpManifestService.addExecutionEventListener(
+				this._onExecutionEvent.bind(this));
+		}
+
+		// Register the push handler on the beacon coordinator so it can
+		// push work items directly to WebSocket-connected beacons
+		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+		if (tmpCoordinator)
+		{
+			tmpCoordinator.setWorkItemPushHandler(
+				this.pushWorkItemToBeacon.bind(this));
+		}
+
+		this.log.info('Ultravisor WebSocket: execution event WebSocket server initialized.');
+	}
+
+	/**
+	 * Handle an execution event from the manifest service and broadcast
+	 * it to all WebSocket clients subscribed to that RunHash.
+	 *
+	 * @param {string} pEventType - The event type (TaskStart, TaskComplete, etc.).
+	 * @param {string} pRunHash - The execution run hash.
+	 * @param {object} pEventData - The event data.
+	 */
+	_onExecutionEvent(pEventType, pRunHash, pEventData)
+	{
+		let tmpSubscribers = this._WebSocketSubscriptions[pRunHash];
+
+		if (!tmpSubscribers || tmpSubscribers.size === 0)
+		{
+			return;
+		}
+
+		let tmpMessage = JSON.stringify({
+			EventType: pEventType,
+			RunHash: pRunHash,
+			Data: pEventData
+		});
+
+		tmpSubscribers.forEach(
+			function (pClient)
+			{
+				if (pClient.readyState === libWebSocket.OPEN)
+				{
+					pClient.send(tmpMessage);
+				}
+			});
+
+		// Clean up subscription set when execution completes
+		if (pEventType === 'ExecutionComplete')
+		{
+			delete this._WebSocketSubscriptions[pRunHash];
+		}
+	}
+
+	/**
+	 * Unsubscribe a WebSocket client from its current run.
+	 *
+	 * @param {WebSocket} pWebSocket - The client to unsubscribe.
+	 */
+	_unsubscribeClient(pWebSocket)
+	{
+		let tmpRunHash = pWebSocket._SubscribedRunHash;
+
+		if (tmpRunHash && this._WebSocketSubscriptions[tmpRunHash])
+		{
+			this._WebSocketSubscriptions[tmpRunHash].delete(pWebSocket);
+
+			if (this._WebSocketSubscriptions[tmpRunHash].size === 0)
+			{
+				delete this._WebSocketSubscriptions[tmpRunHash];
+			}
+		}
+
+		pWebSocket._SubscribedRunHash = null;
+	}
+
+	// ====================================================================
+	// WebSocket Beacon Handlers
+	// ====================================================================
+
+	/**
+	 * Handle a beacon registration over WebSocket.
+	 * Registers the beacon via the coordinator and maps its WebSocket.
+	 */
+	_handleBeaconWSRegister(pWebSocket, pData)
+	{
+		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+		if (!tmpCoordinator)
+		{
+			return;
+		}
+
+		let tmpBeacon = tmpCoordinator.registerBeacon({
+			Name: pData.Name,
+			Capabilities: pData.Capabilities,
+			MaxConcurrent: pData.MaxConcurrent,
+			Tags: pData.Tags
+		});
+
+		pWebSocket._BeaconID = tmpBeacon.BeaconID;
+		this._BeaconWebSockets[tmpBeacon.BeaconID] = pWebSocket;
+
+		this.log.info(`Ultravisor WebSocket: beacon [${tmpBeacon.BeaconID}] "${pData.Name}" registered via WebSocket.`);
+
+		// Send registration confirmation back
+		if (pWebSocket.readyState === libWebSocket.OPEN)
+		{
+			pWebSocket.send(JSON.stringify({
+				EventType: 'BeaconRegistered',
+				BeaconID: tmpBeacon.BeaconID
+			}));
+		}
+	}
+
+	/**
+	 * Handle a beacon heartbeat over WebSocket.
+	 */
+	_handleBeaconWSHeartbeat(pData)
+	{
+		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+		if (tmpCoordinator && pData.BeaconID)
+		{
+			tmpCoordinator.heartbeat(pData.BeaconID);
+		}
+	}
+
+	/**
+	 * Handle work item completion reported over WebSocket.
+	 */
+	_handleBeaconWSWorkComplete(pData)
+	{
+		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+		if (!tmpCoordinator || !pData.WorkItemHash)
+		{
+			return;
+		}
+
+		tmpCoordinator.completeWorkItem(pData.WorkItemHash,
+			{ Outputs: pData.Outputs || {}, Log: pData.Log || [] },
+			function (pError)
+			{
+				if (pError)
+				{
+					this.log.warn(`Ultravisor WebSocket: error completing work item [${pData.WorkItemHash}]: ${pError.message}`);
+				}
+			}.bind(this));
+	}
+
+	/**
+	 * Handle work item error reported over WebSocket.
+	 */
+	_handleBeaconWSWorkError(pData)
+	{
+		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+		if (!tmpCoordinator || !pData.WorkItemHash)
+		{
+			return;
+		}
+
+		tmpCoordinator.failWorkItem(pData.WorkItemHash,
+			{ ErrorMessage: pData.ErrorMessage || 'Unknown error', Log: pData.Log || [] },
+			function (pError)
+			{
+				if (pError)
+				{
+					this.log.warn(`Ultravisor WebSocket: error failing work item [${pData.WorkItemHash}]: ${pError.message}`);
+				}
+			}.bind(this));
+	}
+
+	/**
+	 * Handle work progress reported over WebSocket.
+	 */
+	_handleBeaconWSWorkProgress(pData)
+	{
+		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+		if (!tmpCoordinator || !pData.WorkItemHash)
+		{
+			return;
+		}
+
+		tmpCoordinator.updateProgress(pData.WorkItemHash, pData.ProgressData || {});
+	}
+
+	/**
+	 * Handle beacon deregistration over WebSocket.
+	 */
+	_handleBeaconWSDeregister(pWebSocket, pData)
+	{
+		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+		if (tmpCoordinator && pData.BeaconID)
+		{
+			tmpCoordinator.deregisterBeacon(pData.BeaconID);
+			this.log.info(`Ultravisor WebSocket: beacon [${pData.BeaconID}] deregistered.`);
+		}
+
+		delete this._BeaconWebSockets[pData.BeaconID];
+		pWebSocket._BeaconID = null;
+
+		if (pWebSocket.readyState === libWebSocket.OPEN)
+		{
+			pWebSocket.send(JSON.stringify({ EventType: 'Deregistered' }));
+		}
+	}
+
+	/**
+	 * Clean up beacon WebSocket state when a connection closes.
+	 */
+	_cleanupBeaconWS(pWebSocket)
+	{
+		let tmpBeaconID = pWebSocket._BeaconID;
+		if (!tmpBeaconID)
+		{
+			return;
+		}
+
+		delete this._BeaconWebSockets[tmpBeaconID];
+		pWebSocket._BeaconID = null;
+
+		// Deregister the beacon from the coordinator
+		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+		if (tmpCoordinator)
+		{
+			tmpCoordinator.deregisterBeacon(tmpBeaconID);
+			this.log.info(`Ultravisor WebSocket: beacon [${tmpBeaconID}] disconnected and deregistered.`);
+		}
+	}
+
+	/**
+	 * Push a work item to a beacon connected via WebSocket.
+	 *
+	 * @param {string} pBeaconID - The target beacon ID.
+	 * @param {object} pWorkItem - The work item to push.
+	 * @returns {boolean} True if the work item was sent.
+	 */
+	pushWorkItemToBeacon(pBeaconID, pWorkItem)
+	{
+		let tmpWS = this._BeaconWebSockets[pBeaconID];
+		if (!tmpWS || tmpWS.readyState !== libWebSocket.OPEN)
+		{
+			return false;
+		}
+
+		tmpWS.send(JSON.stringify({
+			EventType: 'WorkItem',
+			WorkItem: pWorkItem
+		}));
+
+		return true;
 	}
 }
 

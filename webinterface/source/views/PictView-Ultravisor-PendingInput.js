@@ -29,12 +29,17 @@ const _ViewConfiguration =
 			font-weight: 300;
 			color: var(--uv-text);
 		}
+
+		/* --- Card: shared base --- */
 		.ultravisor-pendinginput-card {
 			background: var(--uv-bg-surface);
 			border: 1px solid var(--uv-warning);
 			border-radius: 8px;
 			padding: 1.5em;
 			margin-bottom: 1em;
+		}
+		.ultravisor-pendinginput-card.beacon {
+			border-color: #5a9ecb;
 		}
 		.ultravisor-pendinginput-card-header {
 			display: flex;
@@ -72,6 +77,8 @@ const _ViewConfiguration =
 			font-size: 0.8em;
 			margin-bottom: 0.75em;
 		}
+
+		/* --- Value-input form --- */
 		.ultravisor-pendinginput-form {
 			display: flex;
 			gap: 0.75em;
@@ -108,6 +115,61 @@ const _ViewConfiguration =
 			opacity: 0.5;
 			cursor: not-allowed;
 		}
+
+		/* --- Beacon waiting state --- */
+		.ultravisor-pendinginput-beacon-status {
+			display: flex;
+			align-items: center;
+			gap: 0.75em;
+			margin-bottom: 0.75em;
+		}
+		.ultravisor-pendinginput-beacon-prompt {
+			color: #90caf9;
+			font-size: 1.1em;
+		}
+		.ultravisor-pendinginput-waiting-indicator {
+			display: inline-block;
+			width: 10px;
+			height: 10px;
+			border-radius: 50%;
+			background: #5a9ecb;
+			animation: uv-pending-pulse 1.5s ease-in-out infinite;
+			flex-shrink: 0;
+		}
+		@keyframes uv-pending-pulse {
+			0%, 100% { opacity: 0.4; transform: scale(0.8); }
+			50% { opacity: 1; transform: scale(1.2); }
+		}
+		.ultravisor-pendinginput-elapsed {
+			color: var(--uv-text-tertiary);
+			font-size: 0.8em;
+		}
+		.ultravisor-pendinginput-beacon-actions {
+			display: flex;
+			align-items: center;
+			gap: 0.75em;
+			margin-top: 0.5em;
+		}
+		.ultravisor-pendinginput-force-error {
+			padding: 0.4em 1em;
+			background-color: #3a1a1a;
+			color: #c44e4e;
+			border: 1px solid #5a2020;
+			border-radius: 4px;
+			font-size: 0.85em;
+			cursor: pointer;
+			font-weight: 500;
+		}
+		.ultravisor-pendinginput-force-error:hover {
+			background-color: #4a2020;
+			border-color: #7a3030;
+		}
+		.ultravisor-pendinginput-force-error:disabled {
+			opacity: 0.5;
+			cursor: not-allowed;
+		}
+
+		/* --- Result feedback --- */
 		.ultravisor-pendinginput-result {
 			margin-top: 0.75em;
 			padding: 0.5em 0.75em;
@@ -121,6 +183,17 @@ const _ViewConfiguration =
 		.ultravisor-pendinginput-result.error {
 			background: #b71c1c;
 			color: #ffcdd2;
+		}
+
+		/* --- Status badge variants --- */
+		.ultravisor-manifest-status.beacon-waiting {
+			background-color: #1a2a3a;
+			color: #5a9ecb;
+			border: 1px solid #2a4a6a;
+			padding: 0.2em 0.6em;
+			border-radius: 4px;
+			font-size: 0.8em;
+			font-weight: 600;
 		}
 	`,
 
@@ -169,6 +242,36 @@ class UltravisorPendingInputView extends libPictView
 		return super.onAfterRender(pRenderable, pRenderDestinationAddress, pRecord, pContent);
 	}
 
+	/**
+	 * Determine if a waiting task is a beacon-dispatch task
+	 * (as opposed to a value-input task).
+	 */
+	_isBeaconTask(pTask)
+	{
+		// Beacon-dispatch tasks set ResumeEventName to 'Complete'
+		// and have an empty OutputAddress.
+		if (pTask.ResumeEventName && pTask.ResumeEventName !== 'ValueInputComplete')
+		{
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Format elapsed time since a timestamp.
+	 */
+	_formatElapsed(pTimestamp)
+	{
+		if (!pTimestamp) return '';
+		let tmpStart = new Date(pTimestamp).getTime();
+		let tmpElapsedMs = Date.now() - tmpStart;
+
+		if (tmpElapsedMs < 1000) return 'just now';
+		if (tmpElapsedMs < 60000) return Math.floor(tmpElapsedMs / 1000) + 's ago';
+		if (tmpElapsedMs < 3600000) return Math.floor(tmpElapsedMs / 60000) + 'm ' + Math.floor((tmpElapsedMs % 60000) / 1000) + 's ago';
+		return Math.floor(tmpElapsedMs / 3600000) + 'h ' + Math.floor((tmpElapsedMs % 3600000) / 60000) + 'm ago';
+	}
+
 	renderPendingInputs()
 	{
 		let tmpPendingInputs = this.pict.AppData.Ultravisor.PendingInputs;
@@ -178,7 +281,7 @@ class UltravisorPendingInputView extends libPictView
 		if (!tmpPendingInputs || tmpPendingInputs.length === 0)
 		{
 			this.pict.ContentAssignment.assignContent('#Ultravisor-PendingInput-Body',
-				'<div class="ultravisor-empty-message">No operations waiting for input.</div>');
+				'<div class="ultravisor-empty-message">No operations awaiting input or beacon completion.</div>');
 			return;
 		}
 
@@ -190,10 +293,50 @@ class UltravisorPendingInputView extends libPictView
 			let tmpRunHash = tmpPending.RunHash || '';
 			let tmpEscRunHash = tmpRunHash.replace(/'/g, "\\'");
 
-			tmpHTML += '<div class="ultravisor-pendinginput-card">';
+			// Check if this operation has any beacon tasks
+			let tmpWaitingTasks = tmpPending.WaitingTasks || {};
+			let tmpNodeHashes = Object.keys(tmpWaitingTasks);
+			let tmpHasBeaconTask = false;
+			for (let k = 0; k < tmpNodeHashes.length; k++)
+			{
+				if (this._isBeaconTask(tmpWaitingTasks[tmpNodeHashes[k]]))
+				{
+					tmpHasBeaconTask = true;
+					break;
+				}
+			}
+
+			tmpHTML += '<div class="ultravisor-pendinginput-card' + (tmpHasBeaconTask ? ' beacon' : '') + '">';
 			tmpHTML += '<div class="ultravisor-pendinginput-card-header">';
 			tmpHTML += '<h3>' + this.escapeHTML(tmpPending.OperationName || tmpPending.OperationHash || 'Unknown') + '</h3>';
-			tmpHTML += '<span class="ultravisor-manifest-status waiting">Waiting for Input</span>';
+
+			// Determine the status badge
+			let tmpAllBeacon = true;
+			let tmpAllInput = true;
+			for (let k = 0; k < tmpNodeHashes.length; k++)
+			{
+				if (this._isBeaconTask(tmpWaitingTasks[tmpNodeHashes[k]]))
+				{
+					tmpAllInput = false;
+				}
+				else
+				{
+					tmpAllBeacon = false;
+				}
+			}
+			if (tmpAllBeacon)
+			{
+				tmpHTML += '<span class="ultravisor-manifest-status beacon-waiting">Waiting for Beacon</span>';
+			}
+			else if (tmpAllInput)
+			{
+				tmpHTML += '<span class="ultravisor-manifest-status waiting">Waiting for Input</span>';
+			}
+			else
+			{
+				tmpHTML += '<span class="ultravisor-manifest-status waiting">Waiting</span>';
+			}
+
 			tmpHTML += '</div>';
 			tmpHTML += '<div class="ultravisor-pendinginput-meta">';
 			tmpHTML += 'Operation: <code>' + this.escapeHTML(tmpPending.OperationHash || '') + '</code>';
@@ -205,29 +348,49 @@ class UltravisorPendingInputView extends libPictView
 			tmpHTML += '</div>';
 
 			// Render each waiting task
-			let tmpWaitingTasks = tmpPending.WaitingTasks || {};
-			let tmpNodeHashes = Object.keys(tmpWaitingTasks);
-
 			for (let j = 0; j < tmpNodeHashes.length; j++)
 			{
 				let tmpNodeHash = tmpNodeHashes[j];
 				let tmpEscNodeHash = tmpNodeHash.replace(/'/g, "\\'");
 				let tmpTask = tmpWaitingTasks[tmpNodeHash];
-				let tmpInputId = 'pending-input-' + tmpRunHash + '-' + tmpNodeHash;
 				let tmpResultId = 'pending-result-' + tmpRunHash + '-' + tmpNodeHash;
 
-				tmpHTML += '<div class="ultravisor-pendinginput-task">';
-				tmpHTML += '<div class="ultravisor-pendinginput-prompt">' + this.escapeHTML(tmpTask.PromptMessage || 'Enter a value') + '</div>';
-				if (tmpTask.OutputAddress)
+				if (this._isBeaconTask(tmpTask))
 				{
-					tmpHTML += '<div class="ultravisor-pendinginput-address">Target: <code>' + this.escapeHTML(tmpTask.OutputAddress) + '</code></div>';
+					// ── Beacon task: show waiting indicator + force error button ──
+					tmpHTML += '<div class="ultravisor-pendinginput-task">';
+					tmpHTML += '<div class="ultravisor-pendinginput-beacon-status">';
+					tmpHTML += '<span class="ultravisor-pendinginput-waiting-indicator"></span>';
+					tmpHTML += '<span class="ultravisor-pendinginput-beacon-prompt">' + this.escapeHTML(tmpTask.PromptMessage || 'Waiting for beacon to complete') + '</span>';
+					tmpHTML += '</div>';
+					if (tmpTask.Timestamp)
+					{
+						tmpHTML += '<div class="ultravisor-pendinginput-elapsed">Dispatched ' + this.escapeHTML(this._formatElapsed(tmpTask.Timestamp)) + '</div>';
+					}
+					tmpHTML += '<div class="ultravisor-pendinginput-beacon-actions">';
+					tmpHTML += '<button class="ultravisor-pendinginput-force-error" onclick="' + tmpViewRef + '.forceError(\'' + tmpEscRunHash + '\', \'' + tmpEscNodeHash + '\', \'' + tmpResultId + '\')">Force Error</button>';
+					tmpHTML += '</div>';
+					tmpHTML += '<div id="' + tmpResultId + '"></div>';
+					tmpHTML += '</div>';
 				}
-				tmpHTML += '<div class="ultravisor-pendinginput-form">';
-				tmpHTML += '<input type="text" id="' + tmpInputId + '" placeholder="Enter value..." onkeydown="if(event.key===\'Enter\'){' + tmpViewRef + '.submitInput(\'' + tmpEscRunHash + '\', \'' + tmpEscNodeHash + '\', \'' + tmpInputId + '\', \'' + tmpResultId + '\');}" />';
-				tmpHTML += '<button class="ultravisor-pendinginput-submit" onclick="' + tmpViewRef + '.submitInput(\'' + tmpEscRunHash + '\', \'' + tmpEscNodeHash + '\', \'' + tmpInputId + '\', \'' + tmpResultId + '\')">Submit</button>';
-				tmpHTML += '</div>';
-				tmpHTML += '<div id="' + tmpResultId + '"></div>';
-				tmpHTML += '</div>';
+				else
+				{
+					// ── Value-input task: show text input + submit button ──
+					let tmpInputId = 'pending-input-' + tmpRunHash + '-' + tmpNodeHash;
+
+					tmpHTML += '<div class="ultravisor-pendinginput-task">';
+					tmpHTML += '<div class="ultravisor-pendinginput-prompt">' + this.escapeHTML(tmpTask.PromptMessage || 'Enter a value') + '</div>';
+					if (tmpTask.OutputAddress)
+					{
+						tmpHTML += '<div class="ultravisor-pendinginput-address">Target: <code>' + this.escapeHTML(tmpTask.OutputAddress) + '</code></div>';
+					}
+					tmpHTML += '<div class="ultravisor-pendinginput-form">';
+					tmpHTML += '<input type="text" id="' + tmpInputId + '" placeholder="Enter value..." onkeydown="if(event.key===\'Enter\'){' + tmpViewRef + '.submitInput(\'' + tmpEscRunHash + '\', \'' + tmpEscNodeHash + '\', \'' + tmpInputId + '\', \'' + tmpResultId + '\');}" />';
+					tmpHTML += '<button class="ultravisor-pendinginput-submit" onclick="' + tmpViewRef + '.submitInput(\'' + tmpEscRunHash + '\', \'' + tmpEscNodeHash + '\', \'' + tmpInputId + '\', \'' + tmpResultId + '\')">Submit</button>';
+					tmpHTML += '</div>';
+					tmpHTML += '<div id="' + tmpResultId + '"></div>';
+					tmpHTML += '</div>';
+				}
 			}
 
 			tmpHTML += '</div>';
@@ -290,6 +453,66 @@ class UltravisorPendingInputView extends libPictView
 					'<div class="ultravisor-pendinginput-result success">Input submitted — operation status: ' + this.escapeHTML(tmpStatus) + '</div>');
 
 				// Refresh the list after a brief delay so the user sees the success message
+				setTimeout(
+					function ()
+					{
+						this.pict.PictApplication.loadPendingInputs(
+							function ()
+							{
+								this.renderPendingInputs();
+							}.bind(this));
+					}.bind(this), 1500);
+			}.bind(this));
+	}
+
+	forceError(pRunHash, pNodeHash, pResultId)
+	{
+		if (!confirm('Force this task to error?\nThe operation will continue on the Error path.'))
+		{
+			return;
+		}
+
+		// Disable the button while processing
+		let tmpResultEl = document.getElementById(pResultId);
+		let tmpButtonEl = tmpResultEl ? tmpResultEl.previousElementSibling.querySelector('.ultravisor-pendinginput-force-error') : null;
+		if (tmpButtonEl)
+		{
+			tmpButtonEl.disabled = true;
+			tmpButtonEl.textContent = 'Forcing error...';
+		}
+
+		this.pict.PictApplication.forceErrorPendingInput(pRunHash, pNodeHash,
+			function (pError, pData)
+			{
+				if (pError)
+				{
+					this.pict.ContentAssignment.assignContent('#' + pResultId,
+						'<div class="ultravisor-pendinginput-result error">Error: ' + this.escapeHTML(pError.message || 'Request failed') + '</div>');
+					if (tmpButtonEl)
+					{
+						tmpButtonEl.disabled = false;
+						tmpButtonEl.textContent = 'Force Error';
+					}
+					return;
+				}
+
+				if (pData && pData.Error)
+				{
+					this.pict.ContentAssignment.assignContent('#' + pResultId,
+						'<div class="ultravisor-pendinginput-result error">Error: ' + this.escapeHTML(pData.Error) + '</div>');
+					if (tmpButtonEl)
+					{
+						tmpButtonEl.disabled = false;
+						tmpButtonEl.textContent = 'Force Error';
+					}
+					return;
+				}
+
+				let tmpStatus = (pData && pData.Status) || 'Errored';
+				this.pict.ContentAssignment.assignContent('#' + pResultId,
+					'<div class="ultravisor-pendinginput-result error">Task force-errored — operation status: ' + this.escapeHTML(tmpStatus) + '</div>');
+
+				// Refresh the list after a brief delay
 				setTimeout(
 					function ()
 					{

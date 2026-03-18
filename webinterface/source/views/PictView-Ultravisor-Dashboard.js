@@ -101,6 +101,24 @@ const _ViewConfiguration =
 		.ultravisor-btn-secondary:hover {
 			background-color: var(--uv-btn-secondary-bg);
 		}
+		.ultravisor-btn-execute {
+			background-color: #1a3a2a;
+			color: #5ab88a;
+			border: 1px solid #2a5040;
+			font-weight: 600;
+		}
+		.ultravisor-btn-execute:hover {
+			background-color: #204530;
+			border-color: #3a6050;
+		}
+		.ultravisor-btn-sm.ultravisor-btn-execute {
+			background-color: #1a3a2a;
+			color: #5ab88a;
+			border: 1px solid #2a5040;
+		}
+		.ultravisor-btn-sm.ultravisor-btn-execute:hover {
+			background-color: #204530;
+		}
 		.ultravisor-dashboard-section-title {
 			font-size: 1.1em;
 			font-weight: 600;

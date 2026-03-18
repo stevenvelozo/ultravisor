@@ -49,24 +49,38 @@ const _ViewConfiguration =
 			flex-shrink: 0;
 			display: flex;
 			gap: 0.75em;
-			align-items: center;
+			align-items: flex-start;
 			margin-bottom: 0.5em;
 			padding-bottom: 0.5em;
 			border-bottom: 1px solid var(--uv-bg-base);
+		}
+		.ultravisor-flow-meta-field {
+			display: flex;
+			align-items: center;
+			gap: 0.35em;
+		}
+		.ultravisor-flow-meta-field-desc {
+			display: flex;
+			align-items: flex-start;
+			gap: 0.35em;
+			flex: 2;
+		}
+		.ultravisor-flow-meta-field-desc label {
+			padding-top: 0.4em;
 		}
 		.ultravisor-flow-meta label {
 			font-size: 0.8em;
 			font-weight: 600;
 			color: var(--uv-text-secondary);
 			text-transform: uppercase;
-			margin-right: 0.25em;
+			white-space: nowrap;
 		}
 		.ultravisor-flow-meta input {
 			flex: 1;
 			min-width: 120px;
 		}
 		.ultravisor-flow-meta textarea {
-			flex: 2;
+			flex: 1;
 			min-width: 200px;
 			resize: none;
 			overflow-y: hidden;
@@ -78,10 +92,103 @@ const _ViewConfiguration =
 			font-size: 0.8em;
 			color: var(--uv-text-tertiary);
 			font-family: monospace;
+			padding-top: 0.4em;
+		}
+		.ultravisor-btn-execute {
+			background-color: #1a3a2a;
+			color: #5ab88a;
+			border: 1px solid #2a5040;
+		}
+		.ultravisor-btn-execute:hover {
+			background-color: #204530;
+			border-color: #3a6050;
+		}
+		.ultravisor-btn-sm.ultravisor-btn-execute {
+			background-color: #1a3a2a;
+			color: #5ab88a;
+			border: 1px solid #2a5040;
+		}
+		.ultravisor-btn-sm.ultravisor-btn-execute:hover {
+			background-color: #204530;
 		}
 		#Ultravisor-FlowEditor-Container {
 			flex: 1;
 			min-height: 0;
+		}
+
+		/* Visual Execution Mode — Node States */
+		.uv-exec-idle .pict-flow-node-body {
+			opacity: 0.5;
+		}
+		.uv-exec-executing .pict-flow-node-body {
+			stroke: #5a9ecb !important;
+			stroke-width: 2.5 !important;
+		}
+		.uv-exec-executing {
+			animation: uv-exec-pulse 1.2s ease-in-out infinite;
+		}
+		@keyframes uv-exec-pulse {
+			0%, 100% { filter: drop-shadow(0 0 3px rgba(90, 158, 203, 0.6)); }
+			50% { filter: drop-shadow(0 0 12px rgba(90, 158, 203, 0.9)); }
+		}
+		.uv-exec-complete .pict-flow-node-body {
+			stroke: #5ab88a !important;
+			stroke-width: 2 !important;
+		}
+		.uv-exec-complete .pict-flow-node-title-bar,
+		.uv-exec-complete .pict-flow-node-title-bar-bottom {
+			fill: #2a5040 !important;
+		}
+		.uv-exec-error .pict-flow-node-body {
+			stroke: #c44e4e !important;
+			stroke-width: 2.5 !important;
+		}
+		.uv-exec-error .pict-flow-node-title-bar,
+		.uv-exec-error .pict-flow-node-title-bar-bottom {
+			fill: #4a2020 !important;
+		}
+		.uv-exec-waiting .pict-flow-node-body {
+			stroke: #d4884a !important;
+			stroke-width: 2 !important;
+			stroke-dasharray: 4 2;
+		}
+
+		/* Execution status bar */
+		.ultravisor-floweditor-execution-status {
+			flex-shrink: 0;
+			display: flex;
+			align-items: center;
+			gap: 1em;
+			padding: 0.5em 0.75em;
+			background: var(--uv-bg-surface);
+			border: 1px solid var(--uv-border-subtle);
+			border-radius: 4px;
+			margin-bottom: 0.5em;
+			font-size: 0.85em;
+			color: var(--uv-text-secondary);
+		}
+		.uv-exec-status-badge {
+			display: inline-block;
+			padding: 0.15em 0.5em;
+			border-radius: 3px;
+			font-size: 0.85em;
+			font-weight: 600;
+		}
+		.uv-exec-status-badge.running {
+			background-color: #1a3a5a;
+			color: #5a9ecb;
+		}
+		.uv-exec-status-badge.complete {
+			background-color: #1a3a2a;
+			color: #5ab88a;
+		}
+		.uv-exec-status-badge.error {
+			background-color: #3a1a1a;
+			color: #c44e4e;
+		}
+		.uv-exec-status-badge.waitingforinput {
+			background-color: #3a2a1a;
+			color: #d4884a;
 		}
 	`,
 
@@ -95,14 +202,21 @@ const _ViewConfiguration =
 		<h1 id="Ultravisor-FlowEditor-Title">Flow Editor</h1>
 		<div class="ultravisor-flow-actions">
 			<button class="ultravisor-btn ultravisor-btn-primary" onclick="{~P~}.views['Ultravisor-FlowEditor'].saveOperation()">Save Operation</button>
+			<button class="ultravisor-btn ultravisor-btn-execute" id="Ultravisor-FlowEditor-ExecuteBtn" onclick="{~P~}.views['Ultravisor-FlowEditor'].startVisualExecution()">Execute</button>
+			<button class="ultravisor-btn ultravisor-btn-delete" id="Ultravisor-FlowEditor-StopBtn" onclick="{~P~}.views['Ultravisor-FlowEditor'].stopVisualExecution()" style="display:none">Stop</button>
 		</div>
 	</div>
+	<div id="Ultravisor-FlowEditor-ExecStatus" class="ultravisor-floweditor-execution-status" style="display:none"></div>
 	<div class="ultravisor-flow-meta">
 		<span id="Ultravisor-FlowEditor-HashDisplay" class="ultravisor-flow-meta-hash"></span>
-		<label>Name</label>
-		<input type="text" id="Ultravisor-FlowEditor-Name" placeholder="Operation name...">
-		<label>Description</label>
-		<textarea id="Ultravisor-FlowEditor-Description" rows="1" placeholder="Description..."></textarea>
+		<div class="ultravisor-flow-meta-field">
+			<label>Name</label>
+			<input type="text" id="Ultravisor-FlowEditor-Name" placeholder="Operation name...">
+		</div>
+		<div class="ultravisor-flow-meta-field-desc">
+			<label>Description</label>
+			<textarea id="Ultravisor-FlowEditor-Description" rows="1" placeholder="Description..."></textarea>
+		</div>
 	</div>
 	<div id="Ultravisor-FlowEditor-Container"></div>
 </div>
@@ -128,6 +242,15 @@ class UltravisorFlowEditorView extends libPictView
 		super(pFable, pOptions, pServiceHash);
 
 		this._FlowView = null;
+
+		// Visual execution mode state
+		this._ExecutionRunHash = null;
+		this._ExecutionWebSocket = null;
+		this._ExecutionPollingTimer = null;
+		this._ExecutionNodeStates = {};
+		this._ExecutionCompletedCount = 0;
+		this._ExecutionErrorCount = 0;
+		this._IsExecuting = false;
 	}
 
 	/**
@@ -769,6 +892,410 @@ class UltravisorFlowEditorView extends libPictView
 
 				alert('Operation saved successfully.');
 			}.bind(this));
+	}
+
+	// ====================================================================
+	// Visual Execution Mode
+	// ====================================================================
+
+	/**
+	 * Start visual execution of the current operation.
+	 * Triggers async execution on the server and opens a WebSocket
+	 * connection to receive real-time execution events.
+	 */
+	startVisualExecution()
+	{
+		let tmpOp = this.pict.AppData.Ultravisor.CurrentEditOperation;
+
+		if (!tmpOp || !tmpOp.Hash)
+		{
+			alert('Please save the operation before executing.');
+			return;
+		}
+
+		if (this._IsExecuting)
+		{
+			return;
+		}
+
+		this._IsExecuting = true;
+		this._ExecutionNodeStates = {};
+		this._ExecutionStartTime = Date.now();
+		this._ExecutionCompletedCount = 0;
+		this._ExecutionErrorCount = 0;
+
+		// Update button visibility
+		let tmpExecBtn = document.getElementById('Ultravisor-FlowEditor-ExecuteBtn');
+		let tmpStopBtn = document.getElementById('Ultravisor-FlowEditor-StopBtn');
+		if (tmpExecBtn) { tmpExecBtn.style.display = 'none'; }
+		if (tmpStopBtn) { tmpStopBtn.style.display = 'inline-block'; }
+
+		// Initialize all nodes to idle visual state
+		if (this._FlowView && this._FlowView._NodesLayer)
+		{
+			let tmpNodes = this.pict.AppData.Ultravisor.Flows.Current.Nodes || [];
+			for (let i = 0; i < tmpNodes.length; i++)
+			{
+				this._applyNodeVisualState(tmpNodes[i].Hash, 'idle');
+			}
+		}
+
+		// Show execution status bar
+		this._updateExecutionStatusBar('Running', 0, 0, 0);
+
+		// Start async execution
+		let tmpRunMode = this.pict.AppData.Ultravisor.DebugMode ? 'debug' : 'standard';
+		this.pict.PictApplication.executeOperationAsync(tmpOp.Hash, tmpRunMode,
+			function (pError, pData)
+			{
+				if (pError)
+				{
+					this._finishExecution('Error', 'Failed to start execution: ' + pError.message);
+					return;
+				}
+
+				this._ExecutionRunHash = pData.RunHash;
+
+				// Connect WebSocket for real-time events
+				this._connectExecutionWebSocket(pData.RunHash);
+			}.bind(this));
+	}
+
+	/**
+	 * Open a WebSocket connection and subscribe to execution events
+	 * for the given RunHash.
+	 *
+	 * @param {string} pRunHash - The execution run hash to subscribe to.
+	 */
+	_connectExecutionWebSocket(pRunHash)
+	{
+		// Build WebSocket URL from the current page location
+		let tmpProtocol = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
+		let tmpHost = window.location.host;
+		let tmpBaseURL = this.pict.AppData.Ultravisor.APIBaseURL;
+
+		// If APIBaseURL is set (e.g. "http://localhost:54321"), extract host from it
+		if (tmpBaseURL)
+		{
+			try
+			{
+				let tmpURL = new URL(tmpBaseURL);
+				tmpHost = tmpURL.host;
+				tmpProtocol = (tmpURL.protocol === 'https:') ? 'wss:' : 'ws:';
+			}
+			catch (pError)
+			{
+				// Fall back to page location
+			}
+		}
+
+		let tmpWSURL = tmpProtocol + '//' + tmpHost;
+
+		try
+		{
+			this._ExecutionWebSocket = new WebSocket(tmpWSURL);
+		}
+		catch (pError)
+		{
+			this.pict.log.warn('FlowEditor: WebSocket connection failed, falling back to polling.');
+			this._fallbackToPolling();
+			return;
+		}
+
+		this._ExecutionWebSocket.onopen = function ()
+		{
+			// Subscribe to execution events for this run
+			this._ExecutionWebSocket.send(JSON.stringify({
+				Action: 'Subscribe',
+				RunHash: pRunHash
+			}));
+		}.bind(this);
+
+		this._ExecutionWebSocket.onmessage = function (pEvent)
+		{
+			this._handleExecutionEvent(pEvent.data);
+		}.bind(this);
+
+		this._ExecutionWebSocket.onerror = function ()
+		{
+			this.pict.log.warn('FlowEditor: WebSocket error, falling back to polling.');
+			this._ExecutionWebSocket = null;
+			this._fallbackToPolling();
+		}.bind(this);
+
+		this._ExecutionWebSocket.onclose = function ()
+		{
+			this._ExecutionWebSocket = null;
+		}.bind(this);
+	}
+
+	/**
+	 * Handle an incoming WebSocket execution event message.
+	 *
+	 * @param {string} pMessageData - The raw message string.
+	 */
+	_handleExecutionEvent(pMessageData)
+	{
+		let tmpMessage;
+		try
+		{
+			tmpMessage = JSON.parse(pMessageData);
+		}
+		catch (pError)
+		{
+			return;
+		}
+
+		let tmpEventType = tmpMessage.EventType;
+		let tmpData = tmpMessage.Data || {};
+
+		if (tmpEventType === 'TaskStart')
+		{
+			this._applyNodeVisualState(tmpData.NodeHash, 'executing');
+		}
+		else if (tmpEventType === 'TaskComplete')
+		{
+			this._applyNodeVisualState(tmpData.NodeHash, 'complete');
+			this._ExecutionCompletedCount++;
+		}
+		else if (tmpEventType === 'TaskError')
+		{
+			this._applyNodeVisualState(tmpData.NodeHash, 'error');
+			this._ExecutionErrorCount++;
+		}
+		else if (tmpEventType === 'ExecutionComplete')
+		{
+			this._finishExecution(tmpData.Status);
+		}
+
+		// Update status bar with current elapsed time
+		let tmpElapsedMs = tmpData.ElapsedMs || (Date.now() - this._ExecutionStartTime);
+		let tmpStatus = (tmpEventType === 'ExecutionComplete') ? tmpData.Status : 'Running';
+		this._updateExecutionStatusBar(tmpStatus, this._ExecutionCompletedCount, this._ExecutionErrorCount, tmpElapsedMs);
+	}
+
+	/**
+	 * Fall back to polling if WebSocket connection fails.
+	 */
+	_fallbackToPolling()
+	{
+		if (!this._ExecutionRunHash || !this._IsExecuting)
+		{
+			return;
+		}
+
+		this._ExecutionPollingTimer = setInterval(
+			this._pollExecutionStatus.bind(this), 500);
+	}
+
+	/**
+	 * Poll the manifest endpoint for execution progress (fallback mode).
+	 */
+	_pollExecutionStatus()
+	{
+		if (!this._ExecutionRunHash)
+		{
+			return;
+		}
+
+		this.pict.PictApplication.loadManifest(this._ExecutionRunHash,
+			function (pError, pData)
+			{
+				if (pError)
+				{
+					this._finishExecution('Error', 'Lost connection to server.');
+					return;
+				}
+
+				if (!pData)
+				{
+					return;
+				}
+
+				let tmpCompletedCount = 0;
+				let tmpErrorCount = 0;
+				let tmpTaskManifests = pData.TaskManifests || {};
+				let tmpNodeHashes = Object.keys(tmpTaskManifests);
+
+				for (let i = 0; i < tmpNodeHashes.length; i++)
+				{
+					let tmpNodeHash = tmpNodeHashes[i];
+					let tmpManifest = tmpTaskManifests[tmpNodeHash];
+					let tmpExecState = 'idle';
+
+					if (tmpManifest.Executions && tmpManifest.Executions.length > 0)
+					{
+						let tmpLatest = tmpManifest.Executions[tmpManifest.Executions.length - 1];
+
+						if (tmpLatest.Status === 'Running')
+						{
+							tmpExecState = 'executing';
+						}
+						else if (tmpLatest.Status === 'Complete')
+						{
+							tmpExecState = 'complete';
+							tmpCompletedCount++;
+						}
+						else if (tmpLatest.Status === 'Error')
+						{
+							tmpExecState = 'error';
+							tmpErrorCount++;
+						}
+					}
+
+					if (pData.WaitingTasks && pData.WaitingTasks[tmpNodeHash])
+					{
+						tmpExecState = 'waiting';
+					}
+
+					if (this._ExecutionNodeStates[tmpNodeHash] !== tmpExecState)
+					{
+						this._applyNodeVisualState(tmpNodeHash, tmpExecState);
+					}
+				}
+
+				let tmpElapsedMs = pData.ElapsedMs || (Date.now() - this._ExecutionStartTime);
+				this._updateExecutionStatusBar(pData.Status, tmpCompletedCount, tmpErrorCount, tmpElapsedMs);
+
+				if (pData.Status === 'Complete' || pData.Status === 'Error' || pData.Status === 'WaitingForInput')
+				{
+					this._finishExecution(pData.Status);
+				}
+			}.bind(this));
+	}
+
+	/**
+	 * Apply a visual execution state to a node's SVG group element.
+	 *
+	 * @param {string} pNodeHash - The node hash.
+	 * @param {string} pState - One of: 'idle', 'executing', 'complete', 'error', 'waiting'.
+	 */
+	_applyNodeVisualState(pNodeHash, pState)
+	{
+		this._ExecutionNodeStates[pNodeHash] = pState;
+
+		if (!this._FlowView || !this._FlowView._NodesLayer)
+		{
+			return;
+		}
+
+		let tmpNodeGroup = this._FlowView._NodesLayer.querySelector('[data-node-hash="' + pNodeHash + '"]');
+
+		if (!tmpNodeGroup)
+		{
+			return;
+		}
+
+		// Remove all execution state classes
+		tmpNodeGroup.classList.remove('uv-exec-idle', 'uv-exec-executing', 'uv-exec-complete', 'uv-exec-error', 'uv-exec-waiting');
+
+		// Add the new state class
+		tmpNodeGroup.classList.add('uv-exec-' + pState);
+	}
+
+	/**
+	 * Update the execution status bar with current progress.
+	 */
+	_updateExecutionStatusBar(pStatus, pCompletedCount, pErrorCount, pElapsedMs)
+	{
+		let tmpStatusEl = document.getElementById('Ultravisor-FlowEditor-ExecStatus');
+		if (!tmpStatusEl)
+		{
+			return;
+		}
+
+		tmpStatusEl.style.display = 'flex';
+
+		let tmpStatusClass = (pStatus || 'running').toLowerCase().replace(/\s/g, '');
+		let tmpElapsedSec = ((pElapsedMs || 0) / 1000).toFixed(1);
+		let tmpHTML = '<span class="uv-exec-status-badge ' + tmpStatusClass + '">' + (pStatus || 'Running') + '</span>';
+		tmpHTML += '<span>' + tmpElapsedSec + 's elapsed</span>';
+
+		if (pCompletedCount > 0)
+		{
+			tmpHTML += '<span>' + pCompletedCount + ' completed</span>';
+		}
+		if (pErrorCount > 0)
+		{
+			tmpHTML += '<span style="color:#c44e4e">' + pErrorCount + ' error' + (pErrorCount !== 1 ? 's' : '') + '</span>';
+		}
+
+		tmpStatusEl.innerHTML = tmpHTML;
+	}
+
+	/**
+	 * Finish execution — close WebSocket/polling and update UI.
+	 *
+	 * @param {string} pFinalStatus - The final status ('Complete', 'Error', 'WaitingForInput').
+	 * @param {string} [pMessage] - Optional message to append to status bar.
+	 */
+	_finishExecution(pFinalStatus, pMessage)
+	{
+		// Close WebSocket if open
+		if (this._ExecutionWebSocket)
+		{
+			this._ExecutionWebSocket.onclose = null;
+			this._ExecutionWebSocket.close();
+			this._ExecutionWebSocket = null;
+		}
+
+		// Clear polling timer if in fallback mode
+		if (this._ExecutionPollingTimer)
+		{
+			clearInterval(this._ExecutionPollingTimer);
+			this._ExecutionPollingTimer = null;
+		}
+
+		this._IsExecuting = false;
+		this._ExecutionRunHash = null;
+
+		// Restore button visibility
+		let tmpExecBtn = document.getElementById('Ultravisor-FlowEditor-ExecuteBtn');
+		let tmpStopBtn = document.getElementById('Ultravisor-FlowEditor-StopBtn');
+		if (tmpExecBtn) { tmpExecBtn.style.display = 'inline-block'; }
+		if (tmpStopBtn) { tmpStopBtn.style.display = 'none'; }
+
+		// Update status bar with final state
+		if (pMessage)
+		{
+			let tmpStatusEl = document.getElementById('Ultravisor-FlowEditor-ExecStatus');
+			if (tmpStatusEl)
+			{
+				tmpStatusEl.innerHTML += '<span style="color:#c44e4e">' + pMessage + '</span>';
+			}
+		}
+	}
+
+	/**
+	 * Stop visual execution and clear all execution visuals.
+	 */
+	stopVisualExecution()
+	{
+		this._finishExecution('Stopped');
+		this._clearExecutionVisuals();
+	}
+
+	/**
+	 * Clear all execution visual indicators from nodes.
+	 */
+	_clearExecutionVisuals()
+	{
+		if (this._FlowView && this._FlowView._NodesLayer)
+		{
+			let tmpNodeGroups = this._FlowView._NodesLayer.querySelectorAll('[data-node-hash]');
+			for (let i = 0; i < tmpNodeGroups.length; i++)
+			{
+				tmpNodeGroups[i].classList.remove('uv-exec-idle', 'uv-exec-executing', 'uv-exec-complete', 'uv-exec-error', 'uv-exec-waiting');
+			}
+		}
+
+		this._ExecutionNodeStates = {};
+
+		let tmpStatusEl = document.getElementById('Ultravisor-FlowEditor-ExecStatus');
+		if (tmpStatusEl)
+		{
+			tmpStatusEl.style.display = 'none';
+		}
 	}
 }
 

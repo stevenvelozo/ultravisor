@@ -150,6 +150,129 @@ class UltravisorExecutionEngine extends libPictService
 	}
 
 	/**
+	 * Start an operation asynchronously and return the execution context
+	 * immediately (before any tasks execute).
+	 *
+	 * The caller receives the context with Status='Running' and a Hash that
+	 * can be used to poll the manifest for progress updates. The event queue
+	 * is processed on the next tick of the event loop.
+	 *
+	 * @param {object} pOperationDefinition - The operation definition with Graph.
+	 * @param {object} [pInitialState] - Optional initial state overrides.
+	 * @param {function} fCallback - function(pError, pExecutionContext) called immediately.
+	 */
+	startOperationAsync(pOperationDefinition, pInitialState, fCallback)
+	{
+		if (typeof(pInitialState) === 'function')
+		{
+			fCallback = pInitialState;
+			pInitialState = {};
+		}
+
+		if (!pOperationDefinition || !pOperationDefinition.Graph)
+		{
+			return fCallback(new Error('ExecutionEngine: operation definition must have a Graph.'));
+		}
+
+		let tmpInitialState = pInitialState || {};
+
+		// Get services
+		let tmpManifestService = this.fable.servicesMap['UltravisorExecutionManifest']
+			? Object.values(this.fable.servicesMap['UltravisorExecutionManifest'])[0]
+			: null;
+
+		if (!tmpManifestService)
+		{
+			return fCallback(new Error('ExecutionEngine: UltravisorExecutionManifest service not found.'));
+		}
+
+		// Create execution context with staging folder
+		let tmpContext = tmpManifestService.createExecutionContext(
+			pOperationDefinition, tmpInitialState.RunMode);
+
+		// Seed initial state
+		if (tmpInitialState.GlobalState && typeof(tmpInitialState.GlobalState) === 'object')
+		{
+			Object.assign(tmpContext.GlobalState, tmpInitialState.GlobalState);
+		}
+		if (tmpInitialState.OperationState && typeof(tmpInitialState.OperationState) === 'object')
+		{
+			Object.assign(tmpContext.OperationState, tmpInitialState.OperationState);
+		}
+		if (pOperationDefinition.InitialGlobalState && typeof(pOperationDefinition.InitialGlobalState) === 'object')
+		{
+			let tmpKeys = Object.keys(pOperationDefinition.InitialGlobalState);
+			for (let i = 0; i < tmpKeys.length; i++)
+			{
+				if (!tmpContext.GlobalState.hasOwnProperty(tmpKeys[i]))
+				{
+					tmpContext.GlobalState[tmpKeys[i]] = pOperationDefinition.InitialGlobalState[tmpKeys[i]];
+				}
+			}
+		}
+		if (pOperationDefinition.InitialOperationState && typeof(pOperationDefinition.InitialOperationState) === 'object')
+		{
+			let tmpKeys = Object.keys(pOperationDefinition.InitialOperationState);
+			for (let i = 0; i < tmpKeys.length; i++)
+			{
+				if (!tmpContext.OperationState.hasOwnProperty(tmpKeys[i]))
+				{
+					tmpContext.OperationState[tmpKeys[i]] = pOperationDefinition.InitialOperationState[tmpKeys[i]];
+				}
+			}
+		}
+
+		// Store the graph for lookup
+		tmpContext._Graph = pOperationDefinition.Graph;
+		tmpContext._NodeMap = this._buildNodeMap(pOperationDefinition.Graph);
+		tmpContext._PortLabelMap = this._buildPortLabelMap(pOperationDefinition.Graph);
+		tmpContext._ConnectionMap = this._buildConnectionMap(
+			pOperationDefinition.Graph, tmpContext._NodeMap, tmpContext._PortLabelMap);
+
+		// Mark as running
+		tmpContext.Status = 'Running';
+		tmpContext.StartTime = new Date().toISOString();
+		this._log(tmpContext, `Operation [${pOperationDefinition.Hash}] started (async).`);
+
+		// Find Start node and enqueue its output events
+		let tmpStartNode = this._findStartNode(tmpContext);
+
+		if (!tmpStartNode)
+		{
+			tmpContext.Status = 'Error';
+			this._log(tmpContext, 'No Start node found in the graph.');
+			tmpManifestService.finalizeExecution(tmpContext);
+			return fCallback(new Error('No Start node found in the graph.'), tmpContext);
+		}
+
+		this._enqueueAllDownstreamEvents(tmpStartNode.Hash, tmpContext);
+
+		// Defer execution to the next tick so the caller gets the context immediately
+		let tmpSelf = this;
+		process.nextTick(function()
+		{
+			tmpSelf._processEventQueue(tmpContext,
+				function(pError)
+				{
+					if (pError)
+					{
+						tmpSelf._log(tmpContext, `Execution error: ${pError.message}`, 'error');
+						tmpContext.Errors.push({
+							NodeHash: null,
+							Message: pError.message,
+							Timestamp: new Date().toISOString()
+						});
+					}
+
+					tmpManifestService.finalizeExecution(tmpContext);
+				});
+		});
+
+		// Return immediately with the running context
+		return fCallback(null, tmpContext);
+	}
+
+	/**
 	 * Resume a paused operation after a value-input task receives input.
 	 *
 	 * @param {string} pRunHash - The execution run hash.
@@ -245,6 +368,93 @@ class UltravisorExecutionEngine extends libPictService
 				if (pError)
 				{
 					this._log(tmpContext, `Execution error after resume: ${pError.message}`, 'error');
+				}
+				tmpManifestService.finalizeExecution(tmpContext);
+				return fCallback(null, tmpContext);
+			});
+	}
+
+	/**
+	 * Force-error a waiting task so the operation continues on the Error path.
+	 *
+	 * Used when a beacon task is stuck or a user wants to abort a waiting
+	 * task without providing input.  The task's Error event is fired so
+	 * downstream error-handling nodes can run.
+	 *
+	 * @param {string} pRunHash - The execution run hash.
+	 * @param {string} pNodeHash - The waiting task node hash.
+	 * @param {function} fCallback - function(pError, pExecutionContext)
+	 */
+	forceErrorOnWaitingTask(pRunHash, pNodeHash, fCallback)
+	{
+		let tmpManifestService = this.fable.servicesMap['UltravisorExecutionManifest']
+			? Object.values(this.fable.servicesMap['UltravisorExecutionManifest'])[0]
+			: null;
+
+		if (!tmpManifestService)
+		{
+			return fCallback(new Error('ExecutionEngine: UltravisorExecutionManifest service not found.'));
+		}
+
+		let tmpContext = tmpManifestService.getRun(pRunHash);
+
+		if (!tmpContext)
+		{
+			return fCallback(new Error(`ExecutionEngine: run [${pRunHash}] not found.`));
+		}
+
+		if (tmpContext.Status !== 'WaitingForInput')
+		{
+			return fCallback(new Error(`ExecutionEngine: run [${pRunHash}] is not waiting for input (status: ${tmpContext.Status}).`));
+		}
+
+		let tmpWaitingInfo = tmpContext.WaitingTasks[pNodeHash];
+
+		if (!tmpWaitingInfo)
+		{
+			return fCallback(new Error(`ExecutionEngine: node [${pNodeHash}] is not waiting for input.`));
+		}
+
+		this._log(tmpContext, `Task [${pNodeHash}] force-errored by user while waiting.`, 'warn');
+
+		// Set error outputs for this task
+		if (!tmpContext.TaskOutputs[pNodeHash])
+		{
+			tmpContext.TaskOutputs[pNodeHash] = {};
+		}
+		tmpContext.TaskOutputs[pNodeHash].Error = 'Force-errored while waiting';
+		tmpContext.TaskOutputs[pNodeHash].ForceErrored = true;
+
+		// Record the error in the task manifest
+		let tmpTaskManifest = tmpContext.TaskManifests[pNodeHash];
+		if (tmpTaskManifest && tmpTaskManifest.Executions && tmpTaskManifest.Executions.length > 0)
+		{
+			let tmpExecution = tmpTaskManifest.Executions[tmpTaskManifest.Executions.length - 1];
+			let tmpNow = Date.now();
+			tmpExecution.Status = 'Error';
+			tmpExecution.StopTimeMs = tmpNow;
+			tmpExecution.StopTime = new Date(tmpNow).toISOString();
+			if (tmpExecution.StartTimeMs)
+			{
+				tmpExecution.ElapsedMs = tmpNow - tmpExecution.StartTimeMs;
+			}
+		}
+
+		// Remove from waiting list
+		delete tmpContext.WaitingTasks[pNodeHash];
+
+		// Fire the Error event so the operation continues on the error path
+		tmpContext.Status = 'Running';
+
+		this._enqueueDownstreamEvents(pNodeHash, 'Error', tmpContext);
+
+		// Process the event queue
+		this._processEventQueue(tmpContext,
+			(pError) =>
+			{
+				if (pError)
+				{
+					this._log(tmpContext, `Execution error after force-error: ${pError.message}`, 'error');
 				}
 				tmpManifestService.finalizeExecution(tmpContext);
 				return fCallback(null, tmpContext);

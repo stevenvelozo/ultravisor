@@ -39,6 +39,22 @@ class UltravisorBeaconCoordinator extends libPictService
 		// Map of WorkItemHash → { callback, timeoutHandle }
 		// Used by dispatchAndWait() for synchronous HTTP dispatch
 		this._DirectDispatchCallbacks = {};
+
+		// --- WebSocket Push Handler ---
+		// Called when a work item is enqueued to attempt immediate push
+		// to a WebSocket-connected beacon.  Set by the API server.
+		// Signature: function(pBeaconID, pSanitizedWorkItem) -> boolean
+		this._WorkItemPushHandler = null;
+	}
+
+	/**
+	 * Set the handler used to push work items to WebSocket-connected beacons.
+	 *
+	 * @param {function} fHandler - function(pBeaconID, pWorkItem) returns boolean
+	 */
+	setWorkItemPushHandler(fHandler)
+	{
+		this._WorkItemPushHandler = (typeof fHandler === 'function') ? fHandler : null;
 	}
 
 	// ====================================================================
@@ -336,7 +352,97 @@ class UltravisorBeaconCoordinator extends libPictService
 		this._WorkQueue[tmpWorkItemHash] = tmpWorkItem;
 		this.log.info(`BeaconCoordinator: enqueued work item [${tmpWorkItemHash}] (${tmpWorkItem.Capability}/${tmpWorkItem.Action}) status=${tmpWorkItem.Status}.`);
 
+		// Attempt immediate push to a WebSocket-connected beacon
+		if (tmpWorkItem.Status === 'Pending')
+		{
+			this._tryPushToWebSocketBeacon(tmpWorkItem);
+		}
+
 		return tmpWorkItem;
+	}
+
+	/**
+	 * Try to push a pending work item directly to a beacon via its
+	 * WebSocket connection (if one exists).
+	 *
+	 * The push handler (set by the API server) returns true only when
+	 * the beacon has a live WebSocket — this method is transport-agnostic.
+	 * Beacons that connected via HTTP polling will simply return false
+	 * and the work item stays in the queue for them to poll.
+	 *
+	 * @param {object} pWorkItem - The pending work item.
+	 * @returns {boolean} True if the item was pushed successfully.
+	 */
+	_tryPushToWebSocketBeacon(pWorkItem)
+	{
+		if (!this._WorkItemPushHandler)
+		{
+			return false;
+		}
+
+		let tmpBeaconIDs = Object.keys(this._Beacons);
+
+		for (let i = 0; i < tmpBeaconIDs.length; i++)
+		{
+			let tmpBeacon = this._Beacons[tmpBeaconIDs[i]];
+
+			// Must be online, have capacity, and match capability
+			if (tmpBeacon.Status !== 'Online' && tmpBeacon.Status !== 'Busy')
+			{
+				continue;
+			}
+			if (tmpBeacon.CurrentWorkItems.length >= tmpBeacon.MaxConcurrent)
+			{
+				continue;
+			}
+			if (tmpBeacon.Capabilities.indexOf(pWorkItem.Capability) === -1)
+			{
+				continue;
+			}
+
+			// Assign the work item to this beacon
+			pWorkItem.Status = 'Running';
+			pWorkItem.AssignedBeaconID = tmpBeacon.BeaconID;
+			pWorkItem.ClaimedAt = new Date().toISOString();
+			tmpBeacon.CurrentWorkItems.push(pWorkItem.WorkItemHash);
+
+			// Create affinity binding if applicable
+			if (pWorkItem.AffinityKey && !this._AffinityBindings[pWorkItem.AffinityKey])
+			{
+				let tmpAffinityTTL = this.fable.settings.UltravisorBeaconAffinityTTLMs || 3600000;
+				this._AffinityBindings[pWorkItem.AffinityKey] = {
+					AffinityKey: pWorkItem.AffinityKey,
+					BeaconID: tmpBeacon.BeaconID,
+					RunHash: pWorkItem.RunHash,
+					CreatedAt: new Date().toISOString(),
+					ExpiresAt: new Date(Date.now() + tmpAffinityTTL).toISOString()
+				};
+			}
+
+			// Push via WebSocket
+			let tmpPushed = this._WorkItemPushHandler(tmpBeacon.BeaconID,
+				this._sanitizeWorkItemForBeacon(pWorkItem));
+
+			if (tmpPushed)
+			{
+				this.log.info(`BeaconCoordinator: pushed work item [${pWorkItem.WorkItemHash}] to WebSocket beacon [${tmpBeacon.BeaconID}].`);
+				return true;
+			}
+			else
+			{
+				// Push failed — revert assignment
+				pWorkItem.Status = 'Pending';
+				pWorkItem.AssignedBeaconID = null;
+				pWorkItem.ClaimedAt = null;
+				let tmpIdx = tmpBeacon.CurrentWorkItems.indexOf(pWorkItem.WorkItemHash);
+				if (tmpIdx > -1)
+				{
+					tmpBeacon.CurrentWorkItems.splice(tmpIdx, 1);
+				}
+			}
+		}
+
+		return false;
 	}
 
 	/**

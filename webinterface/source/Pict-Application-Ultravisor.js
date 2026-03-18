@@ -388,6 +388,28 @@ class UltravisorApplication extends libPictApplication
 			}.bind(this));
 	}
 
+	executeOperationAsync(pHash, pRunMode, fCallback)
+	{
+		if (typeof pRunMode === 'function')
+		{
+			fCallback = pRunMode;
+			pRunMode = null;
+		}
+
+		let tmpRunMode = pRunMode || (this.pict.AppData.Ultravisor.DebugMode ? 'debug' : 'standard');
+
+		this.apiCall('POST',
+			`/Operation/${encodeURIComponent(pHash)}/Execute/Async`,
+			{ RunMode: tmpRunMode },
+			function (pError, pData)
+			{
+				if (typeof fCallback === 'function')
+				{
+					fCallback(pError, pData);
+				}
+			}.bind(this));
+	}
+
 	// --- Schedule ---
 	loadSchedule(fCallback)
 	{
@@ -528,6 +550,19 @@ class UltravisorApplication extends libPictApplication
 	{
 		this.apiCall('POST', `/PendingInput/${encodeURIComponent(pRunHash)}`,
 			{ NodeHash: pNodeHash, Value: pValue },
+			function (pError, pData)
+			{
+				if (typeof fCallback === 'function')
+				{
+					fCallback(pError, pData);
+				}
+			}.bind(this));
+	}
+
+	forceErrorPendingInput(pRunHash, pNodeHash, fCallback)
+	{
+		this.apiCall('POST', `/PendingInput/${encodeURIComponent(pRunHash)}/ForceError`,
+			{ NodeHash: pNodeHash },
 			function (pError, pData)
 			{
 				if (typeof fCallback === 'function')
