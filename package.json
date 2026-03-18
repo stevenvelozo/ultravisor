@@ -1,6 +1,6 @@
 {
     "name": "ultravisor",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "description": "Cyclic process execution with ai integration.",
     "main": "source/Ultravisor.cjs",
     "bin": {
