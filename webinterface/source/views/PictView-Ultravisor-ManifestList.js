@@ -216,6 +216,29 @@ class UltravisorManifestListView extends libPictView
 				tmpHTML += '<p><strong>Status:</strong> ' + libTimingUtils.escapeHTML(pManifest.Status || '') + '</p>';
 				tmpHTML += '<p><strong>Start:</strong> ' + libTimingUtils.escapeHTML(pManifest.StartTime || '') + ' &middot; <strong>Stop:</strong> ' + libTimingUtils.escapeHTML(pManifest.StopTime || '') + '</p>';
 				tmpHTML += '<p><strong>Elapsed:</strong> ' + this.fable.DataFormat.formatTimeSpan(pManifest.ElapsedMs || 0) + ' (' + (pManifest.ElapsedMs || 0) + 'ms)</p>';
+				if (pManifest.RunMode)
+				{
+					tmpHTML += '<p><strong>Run Mode:</strong> ' + libTimingUtils.escapeHTML(pManifest.RunMode) + '</p>';
+				}
+
+				// Operation Output (always present if non-empty)
+				if (pManifest.Output && Object.keys(pManifest.Output).length > 0)
+				{
+					tmpHTML += '<h3>Output</h3>';
+					tmpHTML += '<div class="ultravisor-manifest-output">' + libTimingUtils.escapeHTML(JSON.stringify(pManifest.Output, null, 2)) + '</div>';
+				}
+
+				// Debug-mode state (only present in debug manifests)
+				if (pManifest.OperationState && Object.keys(pManifest.OperationState).length > 0)
+				{
+					tmpHTML += '<h3>Operation State</h3>';
+					tmpHTML += '<div class="ultravisor-manifest-output">' + libTimingUtils.escapeHTML(JSON.stringify(pManifest.OperationState, null, 2)) + '</div>';
+				}
+				if (pManifest.GlobalState && Object.keys(pManifest.GlobalState).length > 0)
+				{
+					tmpHTML += '<h3>Global State</h3>';
+					tmpHTML += '<div class="ultravisor-manifest-output">' + libTimingUtils.escapeHTML(JSON.stringify(pManifest.GlobalState, null, 2)) + '</div>';
+				}
 
 				// Task Outputs
 				if (pManifest.TaskOutputs && Object.keys(pManifest.TaskOutputs).length > 0)

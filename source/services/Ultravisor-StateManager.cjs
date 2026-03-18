@@ -9,6 +9,7 @@ const libPictService = require('pict-serviceproviderbase');
  *   Operation.X         -> OperationState.X
  *   Task.X              -> TaskOutputs[currentNodeHash].X
  *   TaskOutput.{Hash}.X -> TaskOutputs[Hash].X
+ *   Output.X            -> Output.X
  *   Staging.Path        -> StagingPath string
  */
 class UltravisorStateManager extends libPictService
@@ -85,6 +86,9 @@ class UltravisorStateManager extends libPictService
 					pExecutionContext.TaskOutputs[tmpNodeHash] || {},
 					tmpPath);
 			}
+
+			case 'Output':
+				return this._resolveFromObject(pExecutionContext.Output, tmpRemainder);
 
 			case 'Staging':
 				if (tmpRemainder === 'Path' || tmpRemainder === '')
@@ -179,6 +183,13 @@ class UltravisorStateManager extends libPictService
 					tmpPath, pValue);
 			}
 
+			case 'Output':
+				if (!pExecutionContext.Output)
+				{
+					pExecutionContext.Output = {};
+				}
+				return this._setOnObject(pExecutionContext.Output, tmpRemainder, pValue);
+
 			default:
 				// Default: write to OperationState
 				return this._setOnObject(pExecutionContext.OperationState, pAddress, pValue);
@@ -200,6 +211,7 @@ class UltravisorStateManager extends libPictService
 			Global: pExecutionContext.GlobalState || {},
 			Operation: pExecutionContext.OperationState || {},
 			TaskOutput: pExecutionContext.TaskOutputs || {},
+			Output: pExecutionContext.Output || {},
 			Staging: { Path: pExecutionContext.StagingPath || '' }
 		};
 	}

@@ -163,6 +163,18 @@ const _ViewConfiguration =
 			overflow: hidden;
 			text-overflow: ellipsis;
 		}
+		.ultravisor-debug-toggle {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			padding: 8px 4px;
+			cursor: pointer;
+			font-size: 0.8em;
+			color: var(--uv-text);
+		}
+		.ultravisor-debug-toggle input[type="checkbox"] {
+			accent-color: var(--uv-brand);
+		}
 	`,
 
 	Templates:
@@ -192,6 +204,11 @@ const _ViewConfiguration =
 			<div class="ultravisor-settings-panel" id="Ultravisor-Settings-Panel" style="display:none;">
 				<div class="ultravisor-settings-panel-title">Theme</div>
 				<div class="ultravisor-settings-theme-grid" id="Ultravisor-Settings-ThemeGrid"></div>
+				<div class="ultravisor-settings-panel-title" style="margin-top:12px;">Run Mode</div>
+				<label class="ultravisor-debug-toggle">
+					<input type="checkbox" id="Ultravisor-DebugModeToggle" onchange="{~P~}.views['Ultravisor-TopBar'].toggleDebugMode()" />
+					<span>Debug Mode</span>
+				</label>
 			</div>
 		</div>
 	</div>
@@ -312,6 +329,11 @@ class UltravisorTopBarView extends libPictView
 		{
 			tmpPanel.style.display = 'none';
 		}
+	}
+
+	toggleDebugMode()
+	{
+		this.pict.AppData.Ultravisor.DebugMode = !this.pict.AppData.Ultravisor.DebugMode;
 	}
 
 	_handleOutsideClick(pEvent)

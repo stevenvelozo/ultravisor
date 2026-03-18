@@ -65,6 +65,10 @@ class UltravisorApplication extends libPictApplication
 
 		// Register pict-section-content service types so Markdown panels can render content
 		this.pict.addServiceType('PictContentProvider', libPictSectionContent.PictContentProvider);
+
+		// Register the Ultravisor card settings panel for per-field mode toggles (Constant/Address/Default)
+		const libUltravisorCardSettingsPanel = require('./panels/Ultravisor-CardSettingsPanel.js');
+		this.pict.addServiceType('PictFlowCardPropertiesPanel-UltravisorSettings', libUltravisorCardSettingsPanel);
 	}
 
 	onAfterInitializeAsync(fCallback)
@@ -91,7 +95,8 @@ class UltravisorApplication extends libPictApplication
 			BeaconCapabilities: {},
 			AffinityBindings: [],
 			CurrentEditOperation: null,
-			Flows: {}
+			Flows: {},
+			DebugMode: false
 		};
 
 		// Load task type definitions from the server BEFORE rendering the layout.
@@ -299,9 +304,18 @@ class UltravisorApplication extends libPictApplication
 			}.bind(this));
 	}
 
-	executeOperation(pHash, fCallback)
+	executeOperation(pHash, pRunMode, fCallback)
 	{
-		this.apiCall('GET', `/Operation/${encodeURIComponent(pHash)}/Execute`, null,
+		if (typeof pRunMode === 'function')
+		{
+			fCallback = pRunMode;
+			pRunMode = null;
+		}
+
+		let tmpRunMode = pRunMode || (this.pict.AppData.Ultravisor.DebugMode ? 'debug' : 'standard');
+		let tmpURL = `/Operation/${encodeURIComponent(pHash)}/Execute?RunMode=${encodeURIComponent(tmpRunMode)}`;
+
+		this.apiCall('GET', tmpURL, null,
 			function (pError, pData)
 			{
 				if (typeof fCallback === 'function')

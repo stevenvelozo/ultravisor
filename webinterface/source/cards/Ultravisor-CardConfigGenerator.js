@@ -187,10 +187,11 @@ function _calculateDimensions(pInputs, pOutputs)
 }
 
 /**
- * Build a Manyfest PropertiesPanel configuration from SettingsInputs.
+ * Build a PropertiesPanel configuration from SettingsInputs.
  *
- * Generates a single-section form with one descriptor per setting.
- * Each setting becomes a form field at `Record.Data.{Name}`.
+ * Uses the UltravisorSettings panel type which provides per-field
+ * mode toggles (Constant / Address / Default) and type-appropriate
+ * editors driven by the task definition schema.
  */
 function _buildPropertiesPanel(pDefinition)
 {
@@ -202,44 +203,8 @@ function _buildPropertiesPanel(pDefinition)
 	}
 
 	let tmpDefaults = pDefinition.DefaultSettings || {};
-	let tmpSectionHash = pDefinition.Hash.replace(/[^a-zA-Z0-9]/g, '') + 'Section';
-	let tmpGroupHash = pDefinition.Hash.replace(/[^a-zA-Z0-9]/g, '') + 'Group';
 
-	let tmpDescriptors = {};
-	let tmpRowIndex = 1;
-
-	for (let i = 0; i < tmpSettings.length; i++)
-	{
-		let tmpSetting = tmpSettings[i];
-		let tmpDataType = tmpSetting.DataType || 'String';
-		let tmpAddress = 'Record.Data.' + tmpSetting.Name;
-
-		let tmpDescriptor =
-		{
-			Name: tmpSetting.Name,
-			Hash: tmpSetting.Name,
-			DataType: tmpDataType,
-			Default: (tmpDefaults[tmpSetting.Name] !== undefined) ? tmpDefaults[tmpSetting.Name] : '',
-			PictForm:
-			{
-				Section: tmpSectionHash,
-				Group: tmpGroupHash,
-				Row: tmpRowIndex,
-				Width: 12
-			}
-		};
-
-		// Use TextArea for long-form inputs
-		if (tmpDataType === 'Array' || tmpDataType === 'Object')
-		{
-			tmpDescriptor.PictForm.InputType = 'TextArea';
-		}
-
-		tmpDescriptors[tmpAddress] = tmpDescriptor;
-		tmpRowIndex++;
-	}
-
-	// Account for settings form fields plus port summary sections below
+	// Account for mode-toggle fields (slightly taller per row) plus port summary sections below
 	let tmpPortSummaryHeight = 0;
 	if (Array.isArray(pDefinition.EventInputs) && pDefinition.EventInputs.length > 0)
 	{
@@ -253,31 +218,17 @@ function _buildPropertiesPanel(pDefinition)
 	{
 		tmpPortSummaryHeight += 30 + (pDefinition.StateOutputs.length * 20);
 	}
-	let tmpPanelHeight = 160 + (tmpSettings.length * 50) + tmpPortSummaryHeight;
+	let tmpPanelHeight = 160 + (tmpSettings.length * 65) + tmpPortSummaryHeight;
 
 	return {
-		PanelType: 'Form',
-		DefaultWidth: 360,
-		DefaultHeight: Math.min(tmpPanelHeight, 500),
+		PanelType: 'UltravisorSettings',
+		DefaultWidth: 380,
+		DefaultHeight: Math.min(tmpPanelHeight, 550),
 		Title: (pDefinition.Name || pDefinition.Hash) + ' Settings',
 		Configuration:
 		{
-			Manifest:
-			{
-				Scope: 'FlowCard-' + pDefinition.Hash,
-				Sections:
-				[
-					{
-						Name: pDefinition.Name || pDefinition.Hash,
-						Hash: tmpSectionHash,
-						Groups:
-						[
-							{ Name: 'Settings', Hash: tmpGroupHash }
-						]
-					}
-				],
-				Descriptors: tmpDescriptors
-			}
+			Schema: tmpSettings,
+			Defaults: tmpDefaults
 		}
 	};
 }

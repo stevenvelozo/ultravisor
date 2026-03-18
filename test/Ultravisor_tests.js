@@ -278,6 +278,69 @@ suite
 						Expect(tmpTemplateCtx.Staging.Path).to.equal('/staging');
 					}
 				);
+
+				test
+				(
+					'Should resolve and set Output addresses.',
+					function()
+					{
+						let tmpFable = createTestFable();
+						let tmpStateManager = Object.values(tmpFable.servicesMap['UltravisorStateManager'])[0];
+
+						let tmpContext = {
+							GlobalState: {},
+							OperationState: {},
+							TaskOutputs: {},
+							Output: { Summary: 'test result', Count: 7 },
+							StagingPath: '/tmp/staging'
+						};
+
+						// Resolve Output
+						Expect(tmpStateManager.resolveAddress('Output.Summary', tmpContext)).to.equal('test result');
+						Expect(tmpStateManager.resolveAddress('Output.Count', tmpContext)).to.equal(7);
+
+						// Resolve entire Output object
+						let tmpOutput = tmpStateManager.resolveAddress('Output', tmpContext);
+						Expect(tmpOutput.Summary).to.equal('test result');
+
+						// Set Output
+						tmpStateManager.setAddress('Output.NewKey', 'new value', tmpContext);
+						Expect(tmpContext.Output.NewKey).to.equal('new value');
+
+						// Set Output when Output is not initialized
+						let tmpContext2 = {
+							GlobalState: {},
+							OperationState: {},
+							TaskOutputs: {},
+							StagingPath: ''
+						};
+						tmpStateManager.setAddress('Output.Result', 'done', tmpContext2);
+						Expect(tmpContext2.Output.Result).to.equal('done');
+					}
+				);
+
+				test
+				(
+					'Should include Output in template context.',
+					function()
+					{
+						let tmpFable = createTestFable();
+						let tmpStateManager = Object.values(tmpFable.servicesMap['UltravisorStateManager'])[0];
+
+						let tmpContext = {
+							GlobalState: {},
+							OperationState: {},
+							TaskOutputs: {},
+							Output: { Result: 'success' },
+							StagingPath: ''
+						};
+
+						let tmpTemplateCtx = tmpStateManager.buildTemplateContext(tmpContext, null);
+
+						Expect(tmpTemplateCtx.Output).to.not.equal(undefined);
+						Expect(tmpTemplateCtx.Output.Result).to.equal('success');
+					}
+				);
 			}
 		);
 
@@ -727,6 +790,87 @@ suite
 						// List should include it
 						let tmpList = tmpManifest.listRuns();
 						Expect(tmpList.length).to.be.greaterThan(0);
+					}
+				);
+
+				test
+				(
+					'Should include Output in execution context and persist it.',
+					function()
+					{
+						let tmpFable = createTestFable();
+						let tmpManifest = Object.values(tmpFable.servicesMap['UltravisorExecutionManifest'])[0];
+
+						let tmpContext = tmpManifest.createExecutionContext(
+							{ Hash: 'OPR-OUTPUT-TEST', Name: 'Output Test' }, 'standard');
+
+						// Output should be initialized as empty object
+						Expect(tmpContext.Output).to.not.equal(undefined);
+						Expect(typeof tmpContext.Output).to.equal('object');
+
+						// Simulate task writing to Output
+						tmpContext.Output.Result = 'success';
+						tmpContext.Output.ItemCount = 42;
+
+						// Mark as running and finalize
+						tmpContext.Status = 'Running';
+						tmpContext.StartTime = new Date().toISOString();
+						tmpManifest.finalizeExecution(tmpContext);
+
+						// Verify the manifest file includes Output
+						let tmpManifestPath = libPath.resolve(tmpContext.StagingPath, 'Manifest_OPR-OUTPUT-TEST.json');
+						Expect(libFS.existsSync(tmpManifestPath)).to.equal(true);
+
+						let tmpSaved = JSON.parse(libFS.readFileSync(tmpManifestPath, 'utf8'));
+						Expect(tmpSaved.Output).to.not.equal(undefined);
+						Expect(tmpSaved.Output.Result).to.equal('success');
+						Expect(tmpSaved.Output.ItemCount).to.equal(42);
+
+						// In standard mode, state should NOT be in manifest
+						Expect(tmpSaved.GlobalState).to.equal(undefined);
+						Expect(tmpSaved.OperationState).to.equal(undefined);
+						Expect(tmpSaved.TaskOutputs).to.equal(undefined);
+					}
+				);
+
+				test
+				(
+					'Should include full state in debug mode manifest.',
+					function()
+					{
+						let tmpFable = createTestFable();
+						let tmpManifest = Object.values(tmpFable.servicesMap['UltravisorExecutionManifest'])[0];
+
+						let tmpContext = tmpManifest.createExecutionContext(
+							{ Hash: 'OPR-DEBUG-TEST', Name: 'Debug Test' }, 'debug');
+
+						// Populate state
+						tmpContext.GlobalState.AppName = 'DebugApp';
+						tmpContext.OperationState.InputFile = '/data/test.txt';
+						tmpContext.TaskOutputs['node-1'] = { FileContent: 'hello' };
+						tmpContext.Output.Summary = 'debug run complete';
+
+						tmpContext.Status = 'Running';
+						tmpContext.StartTime = new Date().toISOString();
+						tmpManifest.finalizeExecution(tmpContext);
+
+						// Verify the manifest file includes full state
+						let tmpManifestPath = libPath.resolve(tmpContext.StagingPath, 'Manifest_OPR-DEBUG-TEST.json');
+						let tmpSaved = JSON.parse(libFS.readFileSync(tmpManifestPath, 'utf8'));
+
+						Expect(tmpSaved.Output.Summary).to.equal('debug run complete');
+						Expect(tmpSaved.GlobalState).to.not.equal(undefined);
+						Expect(tmpSaved.GlobalState.AppName).to.equal('DebugApp');
+						Expect(tmpSaved.OperationState).to.not.equal(undefined);
+						Expect(tmpSaved.OperationState.InputFile).to.equal('/data/test.txt');
+						Expect(tmpSaved.TaskOutputs).to.not.equal(undefined);
+						Expect(tmpSaved.TaskOutputs['node-1'].FileContent).to.equal('hello');
+
+						// Verify output.json was written in state directory
+						let tmpOutputPath = libPath.resolve(tmpContext.StagingPath, 'state', 'output.json');
+						Expect(libFS.existsSync(tmpOutputPath)).to.equal(true);
+						let tmpOutputState = JSON.parse(libFS.readFileSync(tmpOutputPath, 'utf8'));
+						Expect(tmpOutputState.Summary).to.equal('debug run complete');
 					}
 				);
 			}

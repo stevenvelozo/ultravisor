@@ -325,7 +325,10 @@ class UltravisorAPIServer extends libPictService
 								return fNext();
 							}
 
-							tmpEngine.executeOperation(pOperation,
+							let tmpRunMode = (pRequest.query && pRequest.query.RunMode) || undefined;
+							let tmpInitialState = tmpRunMode ? { RunMode: tmpRunMode } : {};
+
+							tmpEngine.executeOperation(pOperation, tmpInitialState,
 								function (pExecError, pContext)
 								{
 									if (pExecError)
@@ -337,6 +340,8 @@ class UltravisorAPIServer extends libPictService
 										Status: pContext.Status,
 										Hash: pContext.Hash,
 										OperationHash: pContext.OperationHash,
+										RunMode: pContext.RunMode,
+										Output: pContext.Output,
 										TaskOutputs: pContext.TaskOutputs,
 										Log: pContext.Log,
 										Errors: pContext.Errors,

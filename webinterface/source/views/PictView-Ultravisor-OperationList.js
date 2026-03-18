@@ -355,6 +355,7 @@ class UltravisorOperationListView extends libPictView
 			tmpHTML += '<td><span class="ultravisor-operation-node-count">' + tmpNodeCount + ' node' + (tmpNodeCount !== 1 ? 's' : '') + '</span></td>';
 			tmpHTML += '<td><div class="ultravisor-task-actions">';
 			tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-execute" onclick="' + tmpGlobalRef + '.views[\'Ultravisor-OperationList\'].runOperation(\'' + tmpEscHash + '\')">Run</button>';
+			tmpHTML += '<button class="ultravisor-btn-sm" style="background-color:#00695c;color:#e0f2f1;" onclick="' + tmpGlobalRef + '.views[\'Ultravisor-OperationList\'].runOperation(\'' + tmpEscHash + '\', \'debug\')">Debug</button>';
 			tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-edit" onclick="' + tmpGlobalRef + '.PictApplication.editOperation(\'' + tmpEscHash + '\')">Edit</button>';
 			tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-delete" onclick="if(confirm(\'Delete operation ' + tmpEscHash + '?\')){ ' + tmpGlobalRef + '.PictApplication.deleteOperation(\'' + tmpEscHash + '\', function(){ ' + tmpGlobalRef + '.PictApplication.showView(\'Ultravisor-OperationList\'); }); }">Delete</button>';
 			tmpHTML += '<button class="ultravisor-btn-sm" style="background-color:var(--uv-info);color:#bbdefb;" onclick="' + tmpGlobalRef + '.views[\'Ultravisor-OperationList\'].exportOperation(\'' + tmpEscHash + '\')">Export</button>';
@@ -366,12 +367,13 @@ class UltravisorOperationListView extends libPictView
 		this.pict.ContentAssignment.assignContent('#Ultravisor-OperationList-Body', tmpHTML);
 	}
 
-	runOperation(pHash)
+	runOperation(pHash, pRunMode)
 	{
+		let tmpModeLabel = pRunMode === 'debug' ? ' (debug)' : '';
 		this.pict.ContentAssignment.assignContent('#Ultravisor-OperationList-Result',
-			'<div class="ultravisor-task-result-panel"><h3>Running operation ' + this.escapeHTML(pHash) + '...</h3></div>');
+			'<div class="ultravisor-task-result-panel"><h3>Running operation ' + this.escapeHTML(pHash) + tmpModeLabel + '...</h3></div>');
 
-		this.pict.PictApplication.executeOperation(pHash,
+		this.pict.PictApplication.executeOperation(pHash, pRunMode || null,
 			function (pError, pData)
 			{
 				if (pError)
@@ -383,9 +385,20 @@ class UltravisorOperationListView extends libPictView
 
 				let tmpHTML = '<div class="ultravisor-task-result-panel">';
 				tmpHTML += '<h3>Operation Result: ' + this.escapeHTML(pHash) + '</h3>';
-				tmpHTML += '<p><strong>Status:</strong> <span class="ultravisor-manifest-status ' + (pData.Status || '').toLowerCase() + '">' + this.escapeHTML(pData.Status || '') + '</span></p>';
+				tmpHTML += '<p><strong>Status:</strong> <span class="ultravisor-manifest-status ' + (pData.Status || '').toLowerCase() + '">' + this.escapeHTML(pData.Status || '') + '</span>';
+				if (pData.RunMode)
+				{
+					tmpHTML += ' &middot; <strong>Mode:</strong> ' + this.escapeHTML(pData.RunMode);
+				}
+				tmpHTML += '</p>';
 				tmpHTML += '<p><strong>Start:</strong> ' + this.escapeHTML(pData.StartTime || '') + ' &middot; <strong>Stop:</strong> ' + this.escapeHTML(pData.StopTime || '') + '</p>';
 				tmpHTML += '<p><strong>Elapsed:</strong> ' + (pData.ElapsedMs || 0) + 'ms</p>';
+
+				if (pData.Output && Object.keys(pData.Output).length > 0)
+				{
+					tmpHTML += '<h4 style="color:var(--uv-text-secondary); margin:0.75em 0 0.25em 0;">Output</h4>';
+					tmpHTML += '<div class="ultravisor-task-result-output">' + this.escapeHTML(JSON.stringify(pData.Output, null, 2)) + '</div>';
+				}
 
 				if (pData.TaskOutputs)
 				{

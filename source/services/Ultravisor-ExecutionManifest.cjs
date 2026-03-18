@@ -95,6 +95,7 @@ class UltravisorExecutionManifest extends libPictService
 			GlobalState: {},
 			OperationState: {},
 			TaskOutputs: {},
+			Output: {},
 
 			PendingEvents: [],
 			WaitingTasks: {},
@@ -510,12 +511,21 @@ class UltravisorExecutionManifest extends libPictService
 				StartTime: pExecutionContext.StartTime,
 				StopTime: pExecutionContext.StopTime,
 				ElapsedMs: pExecutionContext.ElapsedMs,
+				Output: pExecutionContext.Output || {},
 				TaskManifests: pExecutionContext.TaskManifests,
 				TimingSummary: pExecutionContext.TimingSummary,
 				EventLog: pExecutionContext.EventLog,
 				Errors: pExecutionContext.Errors,
 				Log: pExecutionContext.Log
 			};
+
+			// Debug mode: embed full state in the manifest
+			if (pExecutionContext.RunMode === 'debug')
+			{
+				tmpManifest.GlobalState = pExecutionContext.GlobalState;
+				tmpManifest.OperationState = pExecutionContext.OperationState;
+				tmpManifest.TaskOutputs = pExecutionContext.TaskOutputs;
+			}
 
 			libFS.writeFileSync(tmpManifestPath, JSON.stringify(tmpManifest, null, '\t'), 'utf8');
 			pExecutionContext.Log.push(`[${new Date().toISOString()}] Manifest written to ${tmpManifestPath}`);
@@ -563,6 +573,10 @@ class UltravisorExecutionManifest extends libPictService
 				libFS.writeFileSync(tmpTaskStatePath,
 					JSON.stringify(pExecutionContext.TaskOutputs[tmpNodeHash], null, '\t'), 'utf8');
 			}
+
+			// Write operation output state
+			let tmpOutputPath = libPath.resolve(tmpStatePath, 'output.json');
+			libFS.writeFileSync(tmpOutputPath, JSON.stringify(pExecutionContext.Output || {}, null, '\t'), 'utf8');
 
 			pExecutionContext.Log.push(`[${new Date().toISOString()}] State snapshots written to ${tmpStatePath}`);
 		}
