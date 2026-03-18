@@ -355,11 +355,17 @@ class UltravisorCardSettingsPanel extends libPictFlowCardPropertiesPanel
 	{
 		let tmpSelf = this;
 
-		// Mode toggle buttons — single click cycles to next mode
+		// Mode toggle buttons — use pointerup instead of click to avoid
+		// SVG foreignObject event routing issues in Safari
 		let tmpToggles = pContainer.querySelectorAll('.uv-mode-toggle');
 		for (let i = 0; i < tmpToggles.length; i++)
 		{
-			tmpToggles[i].addEventListener('click', function (pEvent)
+			tmpToggles[i].addEventListener('pointerdown', function (pEvent)
+			{
+				pEvent.stopPropagation();
+				pEvent.preventDefault();
+			});
+			tmpToggles[i].addEventListener('pointerup', function (pEvent)
 			{
 				pEvent.stopPropagation();
 				pEvent.preventDefault();
