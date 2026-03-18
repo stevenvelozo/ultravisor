@@ -65,6 +65,15 @@ const _ViewConfiguration =
 			flex: 1;
 			min-width: 120px;
 		}
+		.ultravisor-flow-meta textarea {
+			flex: 2;
+			min-width: 200px;
+			resize: none;
+			overflow-y: hidden;
+			font-family: inherit;
+			font-size: inherit;
+			line-height: 1.4;
+		}
 		.ultravisor-flow-meta-hash {
 			font-size: 0.8em;
 			color: var(--uv-text-tertiary);
@@ -93,7 +102,7 @@ const _ViewConfiguration =
 		<label>Name</label>
 		<input type="text" id="Ultravisor-FlowEditor-Name" placeholder="Operation name...">
 		<label>Description</label>
-		<input type="text" id="Ultravisor-FlowEditor-Description" placeholder="Description...">
+		<textarea id="Ultravisor-FlowEditor-Description" rows="1" placeholder="Description..."></textarea>
 	</div>
 	<div id="Ultravisor-FlowEditor-Container"></div>
 </div>
@@ -275,6 +284,15 @@ class UltravisorFlowEditorView extends libPictView
 			if (tmpDescEl)
 			{
 				tmpDescEl.value = tmpOp.Description || '';
+				// Auto-size the textarea to fit content
+				tmpDescEl.style.height = 'auto';
+				tmpDescEl.style.height = tmpDescEl.scrollHeight + 'px';
+				// Keep it auto-sized as user types
+				tmpDescEl.addEventListener('input', function ()
+				{
+					this.style.height = 'auto';
+					this.style.height = this.scrollHeight + 'px';
+				});
 			}
 		}
 
