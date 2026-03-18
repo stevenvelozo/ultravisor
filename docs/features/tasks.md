@@ -4,6 +4,20 @@ Tasks are the fundamental unit of work in Ultravisor. Each task represents a
 single executable action: a shell command, an HTTP request, or another
 supported task type.
 
+## Task Reference by Category
+
+For detailed documentation on each built-in task type, see the per-category reference pages:
+
+- [Data Transform](tasks-data-transform.md) — Set values, string manipulation, templates, expressions, CSV parsing, and dataset operations
+- [File System](tasks-file-system.md) — Read, write, copy, and list files on the local file system
+- [Flow Control](tasks-flow-control.md) — Conditionals, loops, sub-operations, and shell commands
+- [HTTP Client](tasks-http-client.md) — GET/POST requests, JSON APIs, and fully configurable REST calls
+- [LLM](tasks-llm.md) — Chat completions, embeddings, and tool use with large language models
+- [Meadow API](tasks-meadow-api.md) — CRUD operations against Meadow REST API endpoints
+- [Content System](tasks-content-system.md) — Remote file operations on Content System beacon workers
+- [Extension](tasks-extension.md) — Low-level Beacon dispatch for remote worker execution
+- [User Interaction](tasks-user-interaction.md) — User input prompts and diagnostic logging
+
 ## Task Model
 
 Every task requires at minimum a `GUIDTask`. All other fields are optional

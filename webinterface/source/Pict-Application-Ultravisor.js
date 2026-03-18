@@ -158,20 +158,83 @@ class UltravisorApplication extends libPictApplication
 			.then(
 				function (pData)
 				{
+					// Server responded — clear disconnected state if it was set
+					if (this.pict.AppData.Ultravisor.ServerStatus.StatusClass === 'error')
+					{
+						this._setConnectionState(true);
+					}
+
 					if (typeof fCallback === 'function')
 					{
 						fCallback(null, pData);
 					}
-				})
+				}.bind(this))
 			.catch(
 				function (pError)
 				{
 					this.pict.log.error(`API call failed: ${pMethod} ${pPath}`, pError);
+
+					// Network error — mark as disconnected
+					this._setConnectionState(false);
+
 					if (typeof fCallback === 'function')
 					{
 						fCallback(pError);
 					}
 				}.bind(this));
+	}
+
+	/**
+	 * Update the connection state and show/hide the disconnected banner.
+	 *
+	 * @param {boolean} pConnected - true if the server is reachable
+	 */
+	_setConnectionState(pConnected)
+	{
+		let tmpStatus = this.pict.AppData.Ultravisor.ServerStatus;
+
+		if (!pConnected)
+		{
+			if (tmpStatus.StatusClass !== 'error')
+			{
+				tmpStatus.StatusClass = 'error';
+				tmpStatus.StatusText = 'Disconnected';
+
+				// Update status indicator
+				let tmpContent = this.pict.parseTemplateByHash('Ultravisor-TopBar-Status-Template', {}, null, this.pict);
+				this.pict.ContentAssignment.assignContent('#Ultravisor-TopBar-StatusArea', tmpContent);
+
+				// Show a prominent banner in the content area
+				let tmpContentContainer = document.getElementById('Ultravisor-Content-Container');
+				if (tmpContentContainer)
+				{
+					tmpContentContainer.innerHTML = '<div class="ultravisor-disconnected-banner">'
+						+ '<div class="ultravisor-disconnected-banner-icon">&#x26A0;</div>'
+						+ '<h2>Server Unreachable</h2>'
+						+ '<p>The Ultravisor server is not responding. Make sure it is running and refresh the page.</p>'
+						+ '</div>';
+				}
+			}
+		}
+		else
+		{
+			if (tmpStatus.StatusClass === 'error')
+			{
+				tmpStatus.StatusClass = 'connected';
+				tmpStatus.StatusText = tmpStatus.Status || 'Connected';
+
+				// Update status indicator
+				let tmpContent = this.pict.parseTemplateByHash('Ultravisor-TopBar-Status-Template', {}, null, this.pict);
+				this.pict.ContentAssignment.assignContent('#Ultravisor-TopBar-StatusArea', tmpContent);
+
+				// Remove the disconnected banner if present
+				let tmpBanner = document.querySelector('.ultravisor-disconnected-banner');
+				if (tmpBanner)
+				{
+					tmpBanner.remove();
+				}
+			}
+		}
 	}
 
 	// --- Status ---

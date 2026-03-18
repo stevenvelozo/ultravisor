@@ -16,6 +16,18 @@
   - [Scheduling](features/scheduling.md)
   - [Manifests](features/manifests.md)
 
+- Task Reference
+
+  - [Data Transform](features/tasks-data-transform.md)
+  - [File System](features/tasks-file-system.md)
+  - [Flow Control](features/tasks-flow-control.md)
+  - [HTTP Client](features/tasks-http-client.md)
+  - [LLM](features/tasks-llm.md)
+  - [Meadow API](features/tasks-meadow-api.md)
+  - [Content System](features/tasks-content-system.md)
+  - [Extension](features/tasks-extension.md)
+  - [User Interaction](features/tasks-user-interaction.md)
+
 - Reference
 
   - [API Server](features/api.md)

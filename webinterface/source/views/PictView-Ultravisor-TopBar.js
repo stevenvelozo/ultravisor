@@ -175,6 +175,34 @@ const _ViewConfiguration =
 		.ultravisor-debug-toggle input[type="checkbox"] {
 			accent-color: var(--uv-brand);
 		}
+
+		/* Server disconnected banner */
+		.ultravisor-disconnected-banner {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			padding: 4em 2em;
+			text-align: center;
+			color: var(--uv-text-secondary, #8898a4);
+		}
+		.ultravisor-disconnected-banner-icon {
+			font-size: 3em;
+			margin-bottom: 0.4em;
+			opacity: 0.5;
+		}
+		.ultravisor-disconnected-banner h2 {
+			margin: 0 0 0.5em 0;
+			font-weight: 400;
+			font-size: 1.4em;
+			color: var(--uv-text, #c8d0d8);
+		}
+		.ultravisor-disconnected-banner p {
+			margin: 0 0 0.3em 0;
+			font-size: 0.9em;
+			max-width: 420px;
+			line-height: 1.5;
+		}
 	`,
 
 	Templates:
@@ -244,22 +272,16 @@ class UltravisorTopBarView extends libPictView
 
 	onAfterRender(pRenderable, pRenderDestinationAddress, pRecord, pContent)
 	{
-		// Check server status and update the status indicator
+		// Initial status check
 		this.pict.PictApplication.loadStatus(
 			function (pError)
 			{
 				let tmpStatus = this.pict.AppData.Ultravisor.ServerStatus;
-				if (pError)
-				{
-					tmpStatus.StatusClass = 'error';
-					tmpStatus.StatusText = 'Disconnected';
-				}
-				else
+				if (!pError)
 				{
 					tmpStatus.StatusClass = 'connected';
 					tmpStatus.StatusText = tmpStatus.Status || 'Connected';
 				}
-
 				let tmpContent = this.pict.parseTemplateByHash('Ultravisor-TopBar-Status-Template', {}, null, this.pict);
 				this.pict.ContentAssignment.assignContent('#Ultravisor-TopBar-StatusArea', tmpContent);
 			}.bind(this));

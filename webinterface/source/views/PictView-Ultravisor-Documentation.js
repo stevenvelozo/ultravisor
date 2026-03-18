@@ -631,8 +631,16 @@ class UltravisorDocumentationView extends libPictView
 			{
 				if (pError || !pHTML)
 				{
-					this.pict.ContentAssignment.assignContent('#Ultravisor-Docs-Content-Body',
-						'<div class="ultravisor-docs-not-found"><h2>Page Not Found</h2><p>The document <code>' + this._escapeHTML(pPath) + '</code> could not be loaded.</p></div>');
+					// Check if this is a network error (server down) vs a missing document
+					if (pError && typeof(pError) === 'object' && pError.message && pError.message.match(/fetch|network|failed/i))
+					{
+						this.pict.PictApplication._setConnectionState(false);
+					}
+					else
+					{
+						this.pict.ContentAssignment.assignContent('#Ultravisor-Docs-Content-Body',
+							'<div class="ultravisor-docs-not-found"><h2>Page Not Found</h2><p>The document <code>' + this._escapeHTML(pPath) + '</code> could not be loaded.</p></div>');
+					}
 					return;
 				}
 
