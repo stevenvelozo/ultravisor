@@ -66,6 +66,7 @@
 	--uv-table-header-bg: #302818;
 	--uv-table-row-hover: #302818;
 	--uv-table-stripe: rgba(58, 48, 40, 0.3);
+
 }
 
 /* ── Desert Day ── light ───────────────────────────────────── */
@@ -326,4 +327,342 @@ body[data-theme="desert-canyon"]
 	--uv-table-header-bg: #2e2018;
 	--uv-table-row-hover: #2e2018;
 	--uv-table-stripe: rgba(58, 42, 30, 0.3);
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   Flow Editor Theme Bridge
+   ══════════════════════════════════════════════════════════════
+   The flow editor defines --pf-* design tokens on .pict-flow-container.
+   These overrides must use the same scope to take effect.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Desert Dusk (default) ──────────────────────────────────── */
+body .pict-flow-container
+{
+	--pf-text-primary: #c8b8a0;
+	--pf-text-heading: #d8c8a8;
+	--pf-text-secondary: #a89878;
+	--pf-text-tertiary: #908068;
+	--pf-text-placeholder: #908068;
+	--pf-canvas-bg: #1a1714;
+	--pf-grid-stroke: #2a2418;
+	--pf-node-body-fill: #252018;
+	--pf-node-body-stroke: #3a3028;
+	--pf-node-body-stroke-hover: #4a4038;
+	--pf-node-title-fill: #c8b8a0;
+	--pf-node-title-bar-color: #c8b8a0;
+	--pf-node-type-label-fill: #a89878;
+	--pf-node-shadow: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.25));
+	--pf-node-shadow-hover: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+	--pf-port-label-bg: rgba(37, 32, 24, 0.7);
+	--pf-port-label-text: #c8b8a0;
+	--pf-port-stroke: #252018;
+	--pf-panel-bg: #252018;
+	--pf-panel-border: #3a3028;
+	--pf-panel-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+	--pf-panel-titlebar-bg: #302818;
+	--pf-panel-titlebar-border: #3a3028;
+	--pf-panel-title-color: #d8c8a8;
+	--pf-panel-text: #c8b8a0;
+	--pf-panel-input-bg: #1a1714;
+	--pf-tab-text: #a89878;
+	--pf-tab-text-hover: #c8b8a0;
+	--pf-resize-handle-hover: #4a4038;
+	--pf-input-border: #3a3028;
+	--pf-input-border-focus: #c4956a;
+	--pf-divider-light: #302818;
+	--pf-divider-medium: #3a3028;
+	--pf-button-border: #3a3028;
+	--pf-button-hover-border: #4a4038;
+	--pf-button-hover-bg: #302818;
+	--pf-button-active-bg: #3a3028;
+	--pf-button-close-color: #a89878;
+	--pf-badge-category-bg: #302818;
+	--pf-badge-category-text: #a89878;
+	--pf-badge-code-bg: #2a2418;
+	--pf-badge-code-text: #c4956a;
+	--pf-port-item-bg: #302818;
+	--pf-toolbar-bg: #252018;
+	--pf-toolbar-border: #3a3028;
+	--pf-card-border: #3a3028;
+	--pf-card-hover-bg: #302818;
+	--pf-card-hover-shadow: 0 1px 3px rgba(196, 149, 106, 0.15);
+	--pf-connection-stroke: #908068;
+	--pf-connection-stroke-hover: #a89878;
+}
+
+/* ── Desert Day ─────────────────────────────────────────────── */
+body[data-theme="desert-day"] .pict-flow-container
+{
+	--pf-text-primary: #3d2b1f;
+	--pf-text-heading: #2e1e14;
+	--pf-text-secondary: #8a7560;
+	--pf-text-tertiary: #a09080;
+	--pf-text-placeholder: #a09080;
+	--pf-canvas-bg: #faf6f0;
+	--pf-grid-stroke: #e8ddd0;
+	--pf-node-body-fill: #fff;
+	--pf-node-body-stroke: #e0d0b8;
+	--pf-node-body-stroke-hover: #c8b8a0;
+	--pf-node-title-fill: #3d2b1f;
+	--pf-node-title-bar-color: #3d2b1f;
+	--pf-node-type-label-fill: #8a7560;
+	--pf-node-shadow: drop-shadow(0 1px 3px rgba(92, 61, 46, 0.10));
+	--pf-node-shadow-hover: drop-shadow(0 2px 6px rgba(92, 61, 46, 0.15));
+	--pf-port-label-bg: rgba(250, 246, 240, 0.7);
+	--pf-port-label-text: #3d2b1f;
+	--pf-port-stroke: #fff;
+	--pf-panel-bg: #fff;
+	--pf-panel-border: #e0d0b8;
+	--pf-panel-shadow: 0 4px 12px rgba(92, 61, 46, 0.10);
+	--pf-panel-titlebar-bg: #f0e6d6;
+	--pf-panel-titlebar-border: #e0d0b8;
+	--pf-panel-title-color: #2e1e14;
+	--pf-panel-text: #3d2b1f;
+	--pf-panel-input-bg: #fff;
+	--pf-tab-text: #8a7560;
+	--pf-tab-text-hover: #3d2b1f;
+	--pf-resize-handle-hover: #d0c0a8;
+	--pf-input-border: #e0d0b8;
+	--pf-input-border-focus: #c2703e;
+	--pf-divider-light: #f0e6d6;
+	--pf-divider-medium: #e0d0b8;
+	--pf-button-border: #d0c0a8;
+	--pf-button-hover-border: #c0b098;
+	--pf-button-hover-bg: #f0e6d6;
+	--pf-button-active-bg: #e8ddd0;
+	--pf-button-close-color: #a09080;
+	--pf-badge-category-bg: #f0e6d6;
+	--pf-badge-category-text: #8a7560;
+	--pf-badge-code-bg: #e8ddd0;
+	--pf-badge-code-text: #5c3d2e;
+	--pf-port-item-bg: #f0e6d6;
+	--pf-toolbar-bg: #fff;
+	--pf-toolbar-border: #e0d0b8;
+	--pf-card-border: #e0d0b8;
+	--pf-card-hover-bg: #f0e6d6;
+	--pf-card-hover-shadow: 0 1px 3px rgba(92, 61, 46, 0.12);
+	--pf-connection-stroke: #c0b098;
+	--pf-connection-stroke-hover: #a09080;
+}
+
+/* ── Desert Sunset ──────────────────────────────────────────── */
+body[data-theme="desert-sunset"] .pict-flow-container
+{
+	--pf-text-primary: #d4c4aa;
+	--pf-text-heading: #e0d0b8;
+	--pf-text-secondary: #a89070;
+	--pf-text-tertiary: #8a7858;
+	--pf-text-placeholder: #8a7858;
+	--pf-canvas-bg: #1e1610;
+	--pf-grid-stroke: #2a2018;
+	--pf-node-body-fill: #2a2018;
+	--pf-node-body-stroke: #3a2e22;
+	--pf-node-body-stroke-hover: #4a3e32;
+	--pf-node-title-fill: #d4c4aa;
+	--pf-node-title-bar-color: #d4c4aa;
+	--pf-node-type-label-fill: #a89070;
+	--pf-node-shadow: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.25));
+	--pf-node-shadow-hover: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+	--pf-port-label-bg: rgba(42, 32, 24, 0.7);
+	--pf-port-label-text: #d4c4aa;
+	--pf-port-stroke: #2a2018;
+	--pf-panel-bg: #2a2018;
+	--pf-panel-border: #3a2e22;
+	--pf-panel-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+	--pf-panel-titlebar-bg: #342818;
+	--pf-panel-titlebar-border: #3a2e22;
+	--pf-panel-title-color: #e0d0b8;
+	--pf-panel-text: #d4c4aa;
+	--pf-panel-input-bg: #1e1610;
+	--pf-tab-text: #a89070;
+	--pf-tab-text-hover: #d4c4aa;
+	--pf-resize-handle-hover: #4a3e32;
+	--pf-input-border: #3a2e22;
+	--pf-input-border-focus: #e8943a;
+	--pf-divider-light: #342818;
+	--pf-divider-medium: #3a2e22;
+	--pf-button-border: #3a2e22;
+	--pf-button-hover-border: #4a3e32;
+	--pf-button-hover-bg: #342818;
+	--pf-button-active-bg: #3a2e22;
+	--pf-button-close-color: #a89070;
+	--pf-badge-category-bg: #342818;
+	--pf-badge-category-text: #a89070;
+	--pf-badge-code-bg: #2e2218;
+	--pf-badge-code-text: #e8943a;
+	--pf-port-item-bg: #342818;
+	--pf-toolbar-bg: #2a2018;
+	--pf-toolbar-border: #3a2e22;
+	--pf-card-border: #3a2e22;
+	--pf-card-hover-bg: #342818;
+	--pf-card-hover-shadow: 0 1px 3px rgba(232, 148, 58, 0.15);
+	--pf-connection-stroke: #8a7858;
+	--pf-connection-stroke-hover: #a89070;
+}
+
+/* ── Professional Light ─────────────────────────────────────── */
+body[data-theme="professional-light"] .pict-flow-container
+{
+	--pf-text-primary: #2d3748;
+	--pf-text-heading: #1a202c;
+	--pf-text-secondary: #6b7280;
+	--pf-text-tertiary: #9ca3af;
+	--pf-text-placeholder: #9ca3af;
+	--pf-canvas-bg: #f5f6f8;
+	--pf-grid-stroke: #e2e5ea;
+	--pf-node-body-fill: #fff;
+	--pf-node-body-stroke: #e2e5ea;
+	--pf-node-body-stroke-hover: #c8cdd5;
+	--pf-node-title-fill: #2d3748;
+	--pf-node-title-bar-color: #2d3748;
+	--pf-node-type-label-fill: #6b7280;
+	--pf-node-shadow: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.06));
+	--pf-node-shadow-hover: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.10));
+	--pf-port-label-bg: rgba(245, 246, 248, 0.7);
+	--pf-port-label-text: #2d3748;
+	--pf-port-stroke: #fff;
+	--pf-panel-bg: #fff;
+	--pf-panel-border: #e2e5ea;
+	--pf-panel-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+	--pf-panel-titlebar-bg: #f5f6f8;
+	--pf-panel-titlebar-border: #e2e5ea;
+	--pf-panel-title-color: #1a202c;
+	--pf-panel-text: #2d3748;
+	--pf-panel-input-bg: #fff;
+	--pf-tab-text: #6b7280;
+	--pf-tab-text-hover: #2d3748;
+	--pf-resize-handle-hover: #c8cdd5;
+	--pf-input-border: #e2e5ea;
+	--pf-input-border-focus: #3b82f6;
+	--pf-divider-light: #eceef2;
+	--pf-divider-medium: #e2e5ea;
+	--pf-button-border: #d1d5db;
+	--pf-button-hover-border: #9ca3af;
+	--pf-button-hover-bg: #f0f1f4;
+	--pf-button-active-bg: #e4e7ec;
+	--pf-button-close-color: #9ca3af;
+	--pf-badge-category-bg: #f0f1f4;
+	--pf-badge-category-text: #6b7280;
+	--pf-badge-code-bg: #eef2ff;
+	--pf-badge-code-text: #3b82f6;
+	--pf-port-item-bg: #f5f6f8;
+	--pf-toolbar-bg: #fff;
+	--pf-toolbar-border: #e2e5ea;
+	--pf-card-border: #e2e5ea;
+	--pf-card-hover-bg: #eef2ff;
+	--pf-card-hover-shadow: 0 1px 3px rgba(59, 130, 246, 0.12);
+	--pf-connection-stroke: #9ca3af;
+	--pf-connection-stroke-hover: #6b7280;
+}
+
+/* ── Professional Dark ──────────────────────────────────────── */
+body[data-theme="professional-dark"] .pict-flow-container
+{
+	--pf-text-primary: #c8cdd5;
+	--pf-text-heading: #e0e4ea;
+	--pf-text-secondary: #9da4b0;
+	--pf-text-tertiary: #7a8290;
+	--pf-text-placeholder: #7a8290;
+	--pf-canvas-bg: #111318;
+	--pf-grid-stroke: #1a1d24;
+	--pf-node-body-fill: #1a1d24;
+	--pf-node-body-stroke: #282c34;
+	--pf-node-body-stroke-hover: #3a3f4a;
+	--pf-node-title-fill: #c8cdd5;
+	--pf-node-title-bar-color: #c8cdd5;
+	--pf-node-type-label-fill: #9da4b0;
+	--pf-node-shadow: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.30));
+	--pf-node-shadow-hover: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.40));
+	--pf-port-label-bg: rgba(26, 29, 36, 0.7);
+	--pf-port-label-text: #c8cdd5;
+	--pf-port-stroke: #1a1d24;
+	--pf-panel-bg: #1a1d24;
+	--pf-panel-border: #282c34;
+	--pf-panel-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+	--pf-panel-titlebar-bg: #22252e;
+	--pf-panel-titlebar-border: #282c34;
+	--pf-panel-title-color: #e0e4ea;
+	--pf-panel-text: #c8cdd5;
+	--pf-panel-input-bg: #111318;
+	--pf-tab-text: #7a8290;
+	--pf-tab-text-hover: #c8cdd5;
+	--pf-resize-handle-hover: #3a3f4a;
+	--pf-input-border: #282c34;
+	--pf-input-border-focus: #60a5fa;
+	--pf-divider-light: #22252e;
+	--pf-divider-medium: #282c34;
+	--pf-button-border: #282c34;
+	--pf-button-hover-border: #3a3f4a;
+	--pf-button-hover-bg: #22252e;
+	--pf-button-active-bg: #282c34;
+	--pf-button-close-color: #7a8290;
+	--pf-badge-category-bg: #22252e;
+	--pf-badge-category-text: #9da4b0;
+	--pf-badge-code-bg: #1e2230;
+	--pf-badge-code-text: #60a5fa;
+	--pf-port-item-bg: #22252e;
+	--pf-toolbar-bg: #1a1d24;
+	--pf-toolbar-border: #282c34;
+	--pf-card-border: #282c34;
+	--pf-card-hover-bg: #22252e;
+	--pf-card-hover-shadow: 0 1px 3px rgba(96, 165, 250, 0.12);
+	--pf-connection-stroke: #7a8290;
+	--pf-connection-stroke-hover: #9da4b0;
+}
+
+/* ── Desert Canyon ──────────────────────────────────────────── */
+body[data-theme="desert-canyon"] .pict-flow-container
+{
+	--pf-text-primary: #d8c8b0;
+	--pf-text-heading: #e8d8c0;
+	--pf-text-secondary: #b0a090;
+	--pf-text-tertiary: #8a7868;
+	--pf-text-placeholder: #8a7868;
+	--pf-canvas-bg: #18120e;
+	--pf-grid-stroke: #221a14;
+	--pf-node-body-fill: #221a14;
+	--pf-node-body-stroke: #3a2a1e;
+	--pf-node-body-stroke-hover: #4a3a2e;
+	--pf-node-title-fill: #d8c8b0;
+	--pf-node-title-bar-color: #d8c8b0;
+	--pf-node-type-label-fill: #b0a090;
+	--pf-node-shadow: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.30));
+	--pf-node-shadow-hover: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.40));
+	--pf-port-label-bg: rgba(34, 26, 20, 0.7);
+	--pf-port-label-text: #d8c8b0;
+	--pf-port-stroke: #221a14;
+	--pf-panel-bg: #221a14;
+	--pf-panel-border: #3a2a1e;
+	--pf-panel-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+	--pf-panel-titlebar-bg: #2e2018;
+	--pf-panel-titlebar-border: #3a2a1e;
+	--pf-panel-title-color: #e8d8c0;
+	--pf-panel-text: #d8c8b0;
+	--pf-panel-input-bg: #18120e;
+	--pf-tab-text: #b0a090;
+	--pf-tab-text-hover: #d8c8b0;
+	--pf-resize-handle-hover: #4a3a2e;
+	--pf-input-border: #3a2a1e;
+	--pf-input-border-focus: #e8943a;
+	--pf-divider-light: #2e2018;
+	--pf-divider-medium: #3a2a1e;
+	--pf-button-border: #3a2a1e;
+	--pf-button-hover-border: #4a3a2e;
+	--pf-button-hover-bg: #2e2018;
+	--pf-button-active-bg: #3a2a1e;
+	--pf-button-close-color: #b0a090;
+	--pf-badge-category-bg: #2e2018;
+	--pf-badge-category-text: #b0a090;
+	--pf-badge-code-bg: #2a1e14;
+	--pf-badge-code-text: #e8943a;
+	--pf-port-item-bg: #2e2018;
+	--pf-toolbar-bg: #221a14;
+	--pf-toolbar-border: #3a2a1e;
+	--pf-card-border: #3a2a1e;
+	--pf-card-hover-bg: #2e2018;
+	--pf-card-hover-shadow: 0 1px 3px rgba(232, 148, 58, 0.15);
+	--pf-connection-stroke: #8a7868;
+	--pf-connection-stroke-hover: #b0a090;
 }
