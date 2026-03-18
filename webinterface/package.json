@@ -5,6 +5,7 @@
 	"main": "source/Pict-Application-Ultravisor.js",
 	"scripts": {
 		"start": "node source/Pict-Application-Ultravisor.js",
+		"prebuild": "node ./node_modules/pict-section-flow/scripts/generate-card-help.js ./docs/card-help ./source/card-help-content.js",
 		"build": "npx quack build && npx quack copy"
 	},
 	"author": "steven velozo <steven@velozo.com>",

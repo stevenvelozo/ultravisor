@@ -14,6 +14,18 @@
 
 const generateCardConfig = require('./Ultravisor-CardConfigGenerator.js');
 
+// Card help content generated from docs/card-help/ markdown files.
+// Falls back to an empty map if the module has not been generated yet.
+let _CardHelpContent = {};
+try
+{
+	_CardHelpContent = require('../card-help-content.js');
+}
+catch (pError)
+{
+	// No card help content available — Help tabs will not appear.
+}
+
 
 // ═══════════════════════════════════════════════════════════════════════
 //  VISUAL OVERRIDES per card hash
@@ -136,14 +148,24 @@ function generateCardConfigs(pDefinitions)
 
 		if (tmpCardConfig)
 		{
+			// Inject help content if available for this card code
+			if (_CardHelpContent[tmpCardConfig.Code])
+			{
+				tmpCardConfig.Help = _CardHelpContent[tmpCardConfig.Code];
+			}
 			tmpConfigs.push(tmpCardConfig);
 		}
 	}
 
-	// Append the 2 flow marker cards
+	// Append the 2 flow marker cards with help content
 	for (let i = 0; i < _FlowMarkerConfigs.length; i++)
 	{
-		tmpConfigs.push(_FlowMarkerConfigs[i]);
+		let tmpMarkerConfig = Object.assign({}, _FlowMarkerConfigs[i]);
+		if (_CardHelpContent[tmpMarkerConfig.Code])
+		{
+			tmpMarkerConfig.Help = _CardHelpContent[tmpMarkerConfig.Code];
+		}
+		tmpConfigs.push(tmpMarkerConfig);
 	}
 
 	return tmpConfigs;
