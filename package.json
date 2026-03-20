@@ -33,11 +33,11 @@
         "pict": "^1.0.359",
         "pict-service-commandlineutility": "^1.0.19",
         "pict-serviceproviderbase": "^1.0.4",
-        "ultravisor-beacon": "^0.0.2",
+        "ultravisor-beacon": "^0.0.3",
         "ws": "^8.19.0"
     },
     "devDependencies": {
-        "puppeteer": "^24.39.1",
+        "puppeteer": "^24.40.0",
         "quackage": "^1.0.65"
     },
     "mocha": {
