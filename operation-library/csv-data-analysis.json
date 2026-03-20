@@ -1,7 +1,12 @@
 {
 	"Name": "CSV Data Analysis",
-	"Description": "Reads two CSV files (sales report and product catalog), parses both, transforms sales data, intersects by product ID, computes a histogram of sales by category, and writes results to JSON. Demonstrates parse-csv, csv-transform, comprehension-intersect, histogram, set-values, read-file, and write-json.",
-	"Tags": ["data-pipeline", "csv", "analysis", "histogram"],
+	"Description": "Reads two CSV files (sales report and product catalog), parses both, transforms sales data, intersects by product ID, computes a histogram of sales by category, and writes results to JSON. Demonstrates parse-csv, csv-transform, comprehension-intersect, histogram, set-value, read-file, and write-json.",
+	"Tags": [
+		"data-pipeline",
+		"csv",
+		"analysis",
+		"histogram"
+	],
 	"Author": "Ultravisor",
 	"Version": "1.0.0",
 	"Graph": {
@@ -15,29 +20,166 @@
 				"Height": 80,
 				"Title": "Start",
 				"Ports": [
-					{ "Hash": "da-start-out", "Direction": "output", "Side": "right-bottom", "Label": "Out" }
+					{
+						"Hash": "da-start-out",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Out"
+					}
 				],
 				"Data": {}
 			},
 			{
 				"Hash": "da-init",
-				"Type": "set-values",
+				"Type": "set-value",
 				"X": 250,
 				"Y": 180,
 				"Width": 220,
 				"Height": 100,
 				"Title": "Set File Paths",
 				"Ports": [
-					{ "Hash": "da-init-ei-Execute", "Direction": "input", "Side": "left-bottom", "Label": "Execute" },
-					{ "Hash": "da-init-eo-Complete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
-					{ "Hash": "da-init-eo-Error", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{
+						"Hash": "da-init-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "da-init-Value",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Value"
+					},
+					{
+						"Hash": "da-init-ToAddress",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "ToAddress"
+					},
+					{
+						"Hash": "da-init-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "da-init-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "da-init-WrittenValue",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "WrittenValue"
+					}
 				],
 				"Data": {
-					"Values": [
-						{ "Address": "Operation.SalesFile", "Value": "sales-report.csv" },
-						{ "Address": "Operation.ProductFile", "Value": "product-catalog.csv" },
-						{ "Address": "Operation.MatchField", "Value": "ProductID" }
-					]
+					"Value": "sales-report.csv",
+					"ToAddress": "Operation.SalesFile"
+				}
+			},
+			{
+				"Hash": "da-init-sv-2",
+				"Type": "set-value",
+				"X": 250,
+				"Y": 210,
+				"Width": 220,
+				"Height": 100,
+				"Title": "Set File Paths (2)",
+				"Ports": [
+					{
+						"Hash": "da-init-sv-2-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "da-init-sv-2-Value",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Value"
+					},
+					{
+						"Hash": "da-init-sv-2-ToAddress",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "ToAddress"
+					},
+					{
+						"Hash": "da-init-sv-2-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "da-init-sv-2-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "da-init-sv-2-WrittenValue",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "WrittenValue"
+					}
+				],
+				"Data": {
+					"Value": "product-catalog.csv",
+					"ToAddress": "Operation.ProductFile"
+				}
+			},
+			{
+				"Hash": "da-init-sv-3",
+				"Type": "set-value",
+				"X": 250,
+				"Y": 240,
+				"Width": 220,
+				"Height": 100,
+				"Title": "Set File Paths (3)",
+				"Ports": [
+					{
+						"Hash": "da-init-sv-3-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "da-init-sv-3-Value",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Value"
+					},
+					{
+						"Hash": "da-init-sv-3-ToAddress",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "ToAddress"
+					},
+					{
+						"Hash": "da-init-sv-3-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "da-init-sv-3-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "da-init-sv-3-WrittenValue",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "WrittenValue"
+					}
+				],
+				"Data": {
+					"Value": "ProductID",
+					"ToAddress": "Operation.MatchField"
 				}
 			},
 			{
@@ -49,13 +191,41 @@
 				"Height": 120,
 				"Title": "Read Sales CSV",
 				"Ports": [
-					{ "Hash": "da-read-sales-ei-BeginRead", "Direction": "input", "Side": "left-bottom", "Label": "BeginRead" },
-					{ "Hash": "da-read-sales-eo-ReadComplete", "Direction": "output", "Side": "right-bottom", "Label": "ReadComplete" },
-					{ "Hash": "da-read-sales-eo-Error", "Direction": "output", "Side": "bottom", "Label": "Error" },
-					{ "Hash": "da-read-sales-so-FileContent", "Direction": "output", "Side": "right-top", "Label": "FileContent" },
-					{ "Hash": "da-read-sales-so-BytesRead", "Direction": "output", "Side": "right-top", "Label": "BytesRead" }
+					{
+						"Hash": "da-read-sales-ei-BeginRead",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "BeginRead"
+					},
+					{
+						"Hash": "da-read-sales-eo-ReadComplete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "ReadComplete"
+					},
+					{
+						"Hash": "da-read-sales-eo-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "da-read-sales-so-FileContent",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "FileContent"
+					},
+					{
+						"Hash": "da-read-sales-so-BytesRead",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "BytesRead"
+					}
 				],
-				"Data": { "FilePath": "{~D:Record.Operation.SalesFile~}", "Encoding": "utf8" }
+				"Data": {
+					"FilePath": "{~D:Record.Operation.SalesFile~}",
+					"Encoding": "utf8"
+				}
 			},
 			{
 				"Hash": "da-parse-sales",
@@ -66,12 +236,37 @@
 				"Height": 120,
 				"Title": "Parse Sales CSV",
 				"Ports": [
-					{ "Hash": "da-parse-sales-ei-Execute", "Direction": "input", "Side": "left-bottom", "Label": "Execute" },
-					{ "Hash": "da-parse-sales-eo-Complete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
-					{ "Hash": "da-parse-sales-eo-Error", "Direction": "output", "Side": "bottom", "Label": "Error" },
-					{ "Hash": "da-parse-sales-so-Records", "Direction": "output", "Side": "right-top", "Label": "Records" }
+					{
+						"Hash": "da-parse-sales-ei-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "da-parse-sales-eo-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "da-parse-sales-eo-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "da-parse-sales-so-Records",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "Records"
+					}
 				],
-				"Data": { "SourceAddress": "TaskOutput.da-read-sales.FileContent", "Delimiter": ",", "HasHeaders": true, "Destination": "Operation.SalesRecords" }
+				"Data": {
+					"SourceAddress": "TaskOutput.da-read-sales.FileContent",
+					"Delimiter": ",",
+					"HasHeaders": true,
+					"Destination": "Operation.SalesRecords"
+				}
 			},
 			{
 				"Hash": "da-transform",
@@ -82,12 +277,35 @@
 				"Height": 120,
 				"Title": "Transform Sales Data",
 				"Ports": [
-					{ "Hash": "da-transform-ei-Execute", "Direction": "input", "Side": "left-bottom", "Label": "Execute" },
-					{ "Hash": "da-transform-eo-Complete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
-					{ "Hash": "da-transform-eo-Error", "Direction": "output", "Side": "bottom", "Label": "Error" },
-					{ "Hash": "da-transform-so-Records", "Direction": "output", "Side": "right-top", "Label": "Records" }
+					{
+						"Hash": "da-transform-ei-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "da-transform-eo-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "da-transform-eo-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "da-transform-so-Records",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "Records"
+					}
 				],
-				"Data": { "SourceAddress": "Operation.SalesRecords", "Destination": "Operation.TransformedSales" }
+				"Data": {
+					"SourceAddress": "Operation.SalesRecords",
+					"Destination": "Operation.TransformedSales"
+				}
 			},
 			{
 				"Hash": "da-read-prods",
@@ -98,13 +316,41 @@
 				"Height": 120,
 				"Title": "Read Products CSV",
 				"Ports": [
-					{ "Hash": "da-read-prods-ei-BeginRead", "Direction": "input", "Side": "left-bottom", "Label": "BeginRead" },
-					{ "Hash": "da-read-prods-eo-ReadComplete", "Direction": "output", "Side": "right-bottom", "Label": "ReadComplete" },
-					{ "Hash": "da-read-prods-eo-Error", "Direction": "output", "Side": "bottom", "Label": "Error" },
-					{ "Hash": "da-read-prods-so-FileContent", "Direction": "output", "Side": "right-top", "Label": "FileContent" },
-					{ "Hash": "da-read-prods-so-BytesRead", "Direction": "output", "Side": "right-top", "Label": "BytesRead" }
+					{
+						"Hash": "da-read-prods-ei-BeginRead",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "BeginRead"
+					},
+					{
+						"Hash": "da-read-prods-eo-ReadComplete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "ReadComplete"
+					},
+					{
+						"Hash": "da-read-prods-eo-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "da-read-prods-so-FileContent",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "FileContent"
+					},
+					{
+						"Hash": "da-read-prods-so-BytesRead",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "BytesRead"
+					}
 				],
-				"Data": { "FilePath": "{~D:Record.Operation.ProductFile~}", "Encoding": "utf8" }
+				"Data": {
+					"FilePath": "{~D:Record.Operation.ProductFile~}",
+					"Encoding": "utf8"
+				}
 			},
 			{
 				"Hash": "da-parse-prods",
@@ -115,12 +361,37 @@
 				"Height": 120,
 				"Title": "Parse Products CSV",
 				"Ports": [
-					{ "Hash": "da-parse-prods-ei-Execute", "Direction": "input", "Side": "left-bottom", "Label": "Execute" },
-					{ "Hash": "da-parse-prods-eo-Complete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
-					{ "Hash": "da-parse-prods-eo-Error", "Direction": "output", "Side": "bottom", "Label": "Error" },
-					{ "Hash": "da-parse-prods-so-Records", "Direction": "output", "Side": "right-top", "Label": "Records" }
+					{
+						"Hash": "da-parse-prods-ei-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "da-parse-prods-eo-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "da-parse-prods-eo-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "da-parse-prods-so-Records",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "Records"
+					}
 				],
-				"Data": { "SourceAddress": "TaskOutput.da-read-prods.FileContent", "Delimiter": ",", "HasHeaders": true, "Destination": "Operation.ProductRecords" }
+				"Data": {
+					"SourceAddress": "TaskOutput.da-read-prods.FileContent",
+					"Delimiter": ",",
+					"HasHeaders": true,
+					"Destination": "Operation.ProductRecords"
+				}
 			},
 			{
 				"Hash": "da-intersect",
@@ -131,12 +402,37 @@
 				"Height": 120,
 				"Title": "Intersect by Product ID",
 				"Ports": [
-					{ "Hash": "da-intersect-ei-Execute", "Direction": "input", "Side": "left-bottom", "Label": "Execute" },
-					{ "Hash": "da-intersect-eo-Complete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
-					{ "Hash": "da-intersect-eo-Error", "Direction": "output", "Side": "bottom", "Label": "Error" },
-					{ "Hash": "da-intersect-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
+					{
+						"Hash": "da-intersect-ei-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "da-intersect-eo-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "da-intersect-eo-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "da-intersect-so-Result",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "Result"
+					}
 				],
-				"Data": { "SourceAddressA": "Operation.TransformedSales", "SourceAddressB": "Operation.ProductRecords", "MatchField": "{~D:Record.Operation.MatchField~}", "Destination": "Operation.JoinedData" }
+				"Data": {
+					"SourceAddressA": "Operation.TransformedSales",
+					"SourceAddressB": "Operation.ProductRecords",
+					"MatchField": "{~D:Record.Operation.MatchField~}",
+					"Destination": "Operation.JoinedData"
+				}
 			},
 			{
 				"Hash": "da-histogram",
@@ -147,12 +443,37 @@
 				"Height": 120,
 				"Title": "Histogram by Category",
 				"Ports": [
-					{ "Hash": "da-histogram-ei-Execute", "Direction": "input", "Side": "left-bottom", "Label": "Execute" },
-					{ "Hash": "da-histogram-eo-Complete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
-					{ "Hash": "da-histogram-eo-Error", "Direction": "output", "Side": "bottom", "Label": "Error" },
-					{ "Hash": "da-histogram-so-Stats", "Direction": "output", "Side": "right-top", "Label": "Stats" }
+					{
+						"Hash": "da-histogram-ei-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "da-histogram-eo-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "da-histogram-eo-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "da-histogram-so-Stats",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "Stats"
+					}
 				],
-				"Data": { "SourceAddress": "Operation.JoinedData", "Field": "Category", "Bins": 10, "Destination": "Operation.CategoryStats" }
+				"Data": {
+					"SourceAddress": "Operation.JoinedData",
+					"Field": "Category",
+					"Bins": 10,
+					"Destination": "Operation.CategoryStats"
+				}
 			},
 			{
 				"Hash": "da-write",
@@ -163,12 +484,35 @@
 				"Height": 120,
 				"Title": "Write Analysis JSON",
 				"Ports": [
-					{ "Hash": "da-write-ei-BeginWrite", "Direction": "input", "Side": "left-bottom", "Label": "BeginWrite" },
-					{ "Hash": "da-write-eo-WriteComplete", "Direction": "output", "Side": "right-bottom", "Label": "WriteComplete" },
-					{ "Hash": "da-write-eo-Error", "Direction": "output", "Side": "bottom", "Label": "Error" },
-					{ "Hash": "da-write-so-BytesWritten", "Direction": "output", "Side": "right-top", "Label": "BytesWritten" }
+					{
+						"Hash": "da-write-ei-BeginWrite",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "BeginWrite"
+					},
+					{
+						"Hash": "da-write-eo-WriteComplete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "WriteComplete"
+					},
+					{
+						"Hash": "da-write-eo-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "da-write-so-BytesWritten",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "BytesWritten"
+					}
 				],
-				"Data": { "File": "analysis-results.json", "Address": "Operation.CategoryStats" }
+				"Data": {
+					"File": "analysis-results.json",
+					"Address": "Operation.CategoryStats"
+				}
 			},
 			{
 				"Hash": "da-err",
@@ -179,10 +523,22 @@
 				"Height": 80,
 				"Title": "Pipeline Error",
 				"Ports": [
-					{ "Hash": "da-err-ei-Execute", "Direction": "input", "Side": "left-bottom", "Label": "Execute" },
-					{ "Hash": "da-err-eo-Complete", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+					{
+						"Hash": "da-err-ei-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "da-err-eo-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					}
 				],
-				"Data": { "MessageTemplate": "Analysis pipeline failed" }
+				"Data": {
+					"MessageTemplate": "Analysis pipeline failed"
+				}
 			},
 			{
 				"Hash": "da-end",
@@ -193,34 +549,217 @@
 				"Height": 80,
 				"Title": "End",
 				"Ports": [
-					{ "Hash": "da-end-in", "Direction": "input", "Side": "left-bottom", "Label": "In" }
+					{
+						"Hash": "da-end-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "In"
+					}
 				],
 				"Data": {}
 			}
 		],
 		"Connections": [
-			{ "Hash": "da-c1", "SourceNodeHash": "da-start", "SourcePortHash": "da-start-out", "TargetNodeHash": "da-init", "TargetPortHash": "da-init-ei-Execute", "Data": {} },
-			{ "Hash": "da-c2", "SourceNodeHash": "da-init", "SourcePortHash": "da-init-eo-Complete", "TargetNodeHash": "da-read-sales", "TargetPortHash": "da-read-sales-ei-BeginRead", "Data": {} },
-			{ "Hash": "da-c3", "SourceNodeHash": "da-read-sales", "SourcePortHash": "da-read-sales-eo-ReadComplete", "TargetNodeHash": "da-parse-sales", "TargetPortHash": "da-parse-sales-ei-Execute", "Data": {} },
-			{ "Hash": "da-c4", "SourceNodeHash": "da-parse-sales", "SourcePortHash": "da-parse-sales-eo-Complete", "TargetNodeHash": "da-transform", "TargetPortHash": "da-transform-ei-Execute", "Data": {} },
-			{ "Hash": "da-c5", "SourceNodeHash": "da-transform", "SourcePortHash": "da-transform-eo-Complete", "TargetNodeHash": "da-read-prods", "TargetPortHash": "da-read-prods-ei-BeginRead", "Data": {} },
-			{ "Hash": "da-c6", "SourceNodeHash": "da-read-prods", "SourcePortHash": "da-read-prods-eo-ReadComplete", "TargetNodeHash": "da-parse-prods", "TargetPortHash": "da-parse-prods-ei-Execute", "Data": {} },
-			{ "Hash": "da-c7", "SourceNodeHash": "da-parse-prods", "SourcePortHash": "da-parse-prods-eo-Complete", "TargetNodeHash": "da-intersect", "TargetPortHash": "da-intersect-ei-Execute", "Data": {} },
-			{ "Hash": "da-c8", "SourceNodeHash": "da-intersect", "SourcePortHash": "da-intersect-eo-Complete", "TargetNodeHash": "da-histogram", "TargetPortHash": "da-histogram-ei-Execute", "Data": {} },
-			{ "Hash": "da-c9", "SourceNodeHash": "da-histogram", "SourcePortHash": "da-histogram-eo-Complete", "TargetNodeHash": "da-write", "TargetPortHash": "da-write-ei-BeginWrite", "Data": {} },
-			{ "Hash": "da-c10", "SourceNodeHash": "da-write", "SourcePortHash": "da-write-eo-WriteComplete", "TargetNodeHash": "da-end", "TargetPortHash": "da-end-in", "Data": {} },
-			{ "Hash": "da-c11", "SourceNodeHash": "da-read-sales", "SourcePortHash": "da-read-sales-eo-Error", "TargetNodeHash": "da-err", "TargetPortHash": "da-err-ei-Execute", "Data": {} },
-			{ "Hash": "da-c12", "SourceNodeHash": "da-read-prods", "SourcePortHash": "da-read-prods-eo-Error", "TargetNodeHash": "da-err", "TargetPortHash": "da-err-ei-Execute", "Data": {} },
-			{ "Hash": "da-c13", "SourceNodeHash": "da-init", "SourcePortHash": "da-init-eo-Error", "TargetNodeHash": "da-err", "TargetPortHash": "da-err-ei-Execute", "Data": {} },
-			{ "Hash": "da-c14", "SourceNodeHash": "da-parse-sales", "SourcePortHash": "da-parse-sales-eo-Error", "TargetNodeHash": "da-err", "TargetPortHash": "da-err-ei-Execute", "Data": {} },
-			{ "Hash": "da-c15", "SourceNodeHash": "da-transform", "SourcePortHash": "da-transform-eo-Error", "TargetNodeHash": "da-err", "TargetPortHash": "da-err-ei-Execute", "Data": {} },
-			{ "Hash": "da-c16", "SourceNodeHash": "da-parse-prods", "SourcePortHash": "da-parse-prods-eo-Error", "TargetNodeHash": "da-err", "TargetPortHash": "da-err-ei-Execute", "Data": {} },
-			{ "Hash": "da-c17", "SourceNodeHash": "da-intersect", "SourcePortHash": "da-intersect-eo-Error", "TargetNodeHash": "da-err", "TargetPortHash": "da-err-ei-Execute", "Data": {} },
-			{ "Hash": "da-c18", "SourceNodeHash": "da-histogram", "SourcePortHash": "da-histogram-eo-Error", "TargetNodeHash": "da-err", "TargetPortHash": "da-err-ei-Execute", "Data": {} },
-			{ "Hash": "da-c19", "SourceNodeHash": "da-write", "SourcePortHash": "da-write-eo-Error", "TargetNodeHash": "da-err", "TargetPortHash": "da-err-ei-Execute", "Data": {} },
-			{ "Hash": "da-c20", "SourceNodeHash": "da-err", "SourcePortHash": "da-err-eo-Complete", "TargetNodeHash": "da-end", "TargetPortHash": "da-end-in", "Data": {} }
+			{
+				"Hash": "da-c3",
+				"SourceNodeHash": "da-read-sales",
+				"SourcePortHash": "da-read-sales-eo-ReadComplete",
+				"TargetNodeHash": "da-parse-sales",
+				"TargetPortHash": "da-parse-sales-ei-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c4",
+				"SourceNodeHash": "da-parse-sales",
+				"SourcePortHash": "da-parse-sales-eo-Complete",
+				"TargetNodeHash": "da-transform",
+				"TargetPortHash": "da-transform-ei-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c5",
+				"SourceNodeHash": "da-transform",
+				"SourcePortHash": "da-transform-eo-Complete",
+				"TargetNodeHash": "da-read-prods",
+				"TargetPortHash": "da-read-prods-ei-BeginRead",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c6",
+				"SourceNodeHash": "da-read-prods",
+				"SourcePortHash": "da-read-prods-eo-ReadComplete",
+				"TargetNodeHash": "da-parse-prods",
+				"TargetPortHash": "da-parse-prods-ei-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c7",
+				"SourceNodeHash": "da-parse-prods",
+				"SourcePortHash": "da-parse-prods-eo-Complete",
+				"TargetNodeHash": "da-intersect",
+				"TargetPortHash": "da-intersect-ei-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c8",
+				"SourceNodeHash": "da-intersect",
+				"SourcePortHash": "da-intersect-eo-Complete",
+				"TargetNodeHash": "da-histogram",
+				"TargetPortHash": "da-histogram-ei-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c9",
+				"SourceNodeHash": "da-histogram",
+				"SourcePortHash": "da-histogram-eo-Complete",
+				"TargetNodeHash": "da-write",
+				"TargetPortHash": "da-write-ei-BeginWrite",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c10",
+				"SourceNodeHash": "da-write",
+				"SourcePortHash": "da-write-eo-WriteComplete",
+				"TargetNodeHash": "da-end",
+				"TargetPortHash": "da-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c11",
+				"SourceNodeHash": "da-read-sales",
+				"SourcePortHash": "da-read-sales-eo-Error",
+				"TargetNodeHash": "da-err",
+				"TargetPortHash": "da-err-ei-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c12",
+				"SourceNodeHash": "da-read-prods",
+				"SourcePortHash": "da-read-prods-eo-Error",
+				"TargetNodeHash": "da-err",
+				"TargetPortHash": "da-err-ei-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c14",
+				"SourceNodeHash": "da-parse-sales",
+				"SourcePortHash": "da-parse-sales-eo-Error",
+				"TargetNodeHash": "da-err",
+				"TargetPortHash": "da-err-ei-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c15",
+				"SourceNodeHash": "da-transform",
+				"SourcePortHash": "da-transform-eo-Error",
+				"TargetNodeHash": "da-err",
+				"TargetPortHash": "da-err-ei-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c16",
+				"SourceNodeHash": "da-parse-prods",
+				"SourcePortHash": "da-parse-prods-eo-Error",
+				"TargetNodeHash": "da-err",
+				"TargetPortHash": "da-err-ei-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c17",
+				"SourceNodeHash": "da-intersect",
+				"SourcePortHash": "da-intersect-eo-Error",
+				"TargetNodeHash": "da-err",
+				"TargetPortHash": "da-err-ei-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c18",
+				"SourceNodeHash": "da-histogram",
+				"SourcePortHash": "da-histogram-eo-Error",
+				"TargetNodeHash": "da-err",
+				"TargetPortHash": "da-err-ei-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c19",
+				"SourceNodeHash": "da-write",
+				"SourcePortHash": "da-write-eo-Error",
+				"TargetNodeHash": "da-err",
+				"TargetPortHash": "da-err-ei-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c20",
+				"SourceNodeHash": "da-err",
+				"SourcePortHash": "da-err-eo-Complete",
+				"TargetNodeHash": "da-end",
+				"TargetPortHash": "da-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c1",
+				"SourceNodeHash": "da-start",
+				"SourcePortHash": "da-start-out",
+				"TargetNodeHash": "da-init",
+				"TargetPortHash": "da-init-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "da-init-chain-1",
+				"SourceNodeHash": "da-init",
+				"SourcePortHash": "da-init-Complete",
+				"TargetNodeHash": "da-init-sv-2",
+				"TargetPortHash": "da-init-sv-2-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "da-init-chain-2",
+				"SourceNodeHash": "da-init-sv-2",
+				"SourcePortHash": "da-init-sv-2-Complete",
+				"TargetNodeHash": "da-init-sv-3",
+				"TargetPortHash": "da-init-sv-3-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c2",
+				"SourceNodeHash": "da-init-sv-3",
+				"SourcePortHash": "da-init-sv-3-Complete",
+				"TargetNodeHash": "da-read-sales",
+				"TargetPortHash": "da-read-sales-ei-BeginRead",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c13",
+				"SourceNodeHash": "da-init",
+				"SourcePortHash": "da-init-Error",
+				"TargetNodeHash": "da-err",
+				"TargetPortHash": "da-err-ei-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c13-e2",
+				"SourceNodeHash": "da-init-sv-2",
+				"SourcePortHash": "da-init-sv-2-Error",
+				"TargetNodeHash": "da-err",
+				"TargetPortHash": "da-err-ei-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "da-c13-e3",
+				"SourceNodeHash": "da-init-sv-3",
+				"SourcePortHash": "da-init-sv-3-Error",
+				"TargetNodeHash": "da-err",
+				"TargetPortHash": "da-err-ei-Execute",
+				"Data": {}
+			}
 		],
-		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
+		"ViewState": {
+			"PanX": 0,
+			"PanY": 0,
+			"Zoom": 1,
+			"SelectedNodeHash": null,
+			"SelectedConnectionHash": null
+		}
 	},
 	"SavedLayouts": [],
 	"InitialGlobalState": {},

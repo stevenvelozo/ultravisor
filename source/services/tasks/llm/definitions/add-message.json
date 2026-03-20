@@ -1,0 +1,21 @@
+{
+	"Hash": "add-message",
+	"Type": "add-message",
+	"Name": "Add Message",
+	"Description": "Appends a single message to an accumulated messages list. Chain multiple add-message nodes before an LLM node.",
+	"Category": "llm",
+	"Capability": "LLM",
+	"Action": "AddMessage",
+	"Tier": "Extension",
+	"EventInputs": [{ "Name": "In" }],
+	"EventOutputs": [{ "Name": "Complete" }],
+	"SettingsInputs": [
+		{ "Name": "Role", "DataType": "String", "Required": true, "Description": "Message role (system, user, assistant)" },
+		{ "Name": "Content", "DataType": "String", "Required": true, "Description": "Message content text" },
+		{ "Name": "ListAddress", "DataType": "String", "Required": true, "Description": "State address for the accumulated messages list" }
+	],
+	"StateOutputs": [
+		{ "Name": "Messages", "DataType": "Object", "Description": "The accumulated messages list" }
+	],
+	"DefaultSettings": { "Role": "user", "Content": "", "ListAddress": "Operation.Messages" }
+}

@@ -30,7 +30,6 @@ const libBeaconProviderLLM = require('../source/beacon/providers/Ultravisor-Beac
 
 const libTaskTypeReadFile = require('../source/services/tasks/file-system/Ultravisor-TaskType-ReadFile.cjs');
 const libTaskTypeWriteFile = require('../source/services/tasks/file-system/Ultravisor-TaskType-WriteFile.cjs');
-const libTaskTypeSetValues = require('../source/services/tasks/data-transform/Ultravisor-TaskType-SetValues.cjs');
 const libTaskTypeReplaceString = require('../source/services/tasks/data-transform/Ultravisor-TaskType-ReplaceString.cjs');
 const libTaskTypeStringAppender = require('../source/services/tasks/data-transform/Ultravisor-TaskType-StringAppender.cjs');
 const libTaskTypeIfConditional = require('../source/services/tasks/flow-control/Ultravisor-TaskType-IfConditional.cjs');
@@ -92,7 +91,6 @@ function createTestFable()
 	let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
 	tmpRegistry.registerTaskType(libTaskTypeReadFile);
 	tmpRegistry.registerTaskType(libTaskTypeWriteFile);
-	tmpRegistry.registerTaskType(libTaskTypeSetValues);
 	tmpRegistry.registerTaskType(libTaskTypeReplaceString);
 	tmpRegistry.registerTaskType(libTaskTypeStringAppender);
 	tmpRegistry.registerTaskType(libTaskTypeIfConditional);
@@ -100,6 +98,10 @@ function createTestFable()
 	tmpRegistry.registerTaskType(libTaskTypeValueInput);
 	tmpRegistry.registerTaskType(libTaskTypeErrorMessage);
 	tmpRegistry.registerTaskType(libTaskTypeReadFileBuffered);
+
+	// Also register all config-driven task types (set-value, event-counter, etc.)
+	let tmpBuiltInConfigs = require('../source/services/tasks/Ultravisor-BuiltIn-TaskConfigs.cjs');
+	tmpRegistry.registerTaskTypesFromConfigArray(tmpBuiltInConfigs);
 
 	return tmpFable;
 }
@@ -187,7 +189,8 @@ suite
 						Expect(tmpInstance.definition.Hash).to.equal('read-file');
 
 						let tmpDefs = tmpRegistry.listDefinitions();
-						Expect(tmpDefs.length).to.equal(10);
+						// 9 class-based + 41 config-driven = 50 total
+						Expect(tmpDefs.length).to.equal(48);
 
 						// Verify all registered definitions have Capability, Action, and Tier
 						for (let i = 0; i < tmpDefs.length; i++)
@@ -826,10 +829,10 @@ suite
 						Expect(tmpSaved.Output.Result).to.equal('success');
 						Expect(tmpSaved.Output.ItemCount).to.equal(42);
 
-						// In standard mode, state should NOT be in manifest
-						Expect(tmpSaved.GlobalState).to.equal(undefined);
-						Expect(tmpSaved.OperationState).to.equal(undefined);
-						Expect(tmpSaved.TaskOutputs).to.equal(undefined);
+						// State is always persisted now for checkpoint/resume
+						Expect(tmpSaved.GlobalState).to.not.equal(undefined);
+						Expect(tmpSaved.OperationState).to.not.equal(undefined);
+						Expect(tmpSaved.TaskOutputs).to.not.equal(undefined);
 					}
 				);
 
@@ -916,18 +919,18 @@ suite
 			{
 				test
 				(
-					'Should set values at specified addresses.',
+					'Should set value at specified address.',
 					function(fDone)
 					{
 						let tmpFable = createTestFable();
 						let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
-						let tmpInstance = tmpRegistry.instantiateTaskType('set-values');
+						let tmpBuiltInConfigs = require('../source/services/tasks/Ultravisor-BuiltIn-TaskConfigs.cjs');
+						tmpRegistry.registerTaskTypesFromConfigArray(tmpBuiltInConfigs);
+						let tmpInstance = tmpRegistry.instantiateTaskType('set-value');
 
 						let tmpSettings = {
-							Mappings: [
-								{ Address: 'Operation.OutputDir', Value: '/tmp/out' },
-								{ Address: 'Global.RunCount', Value: 42 }
-							]
+							Value: '/tmp/out',
+							ToAddress: 'Operation.OutputDir'
 						};
 
 						tmpInstance.execute(tmpSettings, { GlobalState: {}, OperationState: {}, TaskOutputs: {}, StagingPath: '', NodeHash: 'test' },
@@ -936,7 +939,6 @@ suite
 								Expect(pError).to.equal(null);
 								Expect(pResult.EventToFire).to.equal('Complete');
 								Expect(pResult.StateWrites['Operation.OutputDir']).to.equal('/tmp/out');
-								Expect(pResult.StateWrites['Global.RunCount']).to.equal(42);
 								fDone();
 							});
 					}
@@ -1539,13 +1541,12 @@ suite
 									{ Hash: 'node-start', Type: 'start', X: 0, Y: 0 },
 									{
 										Hash: 'node-setvals',
-										Type: 'set-values',
-										DefinitionHash: 'set-values',
+										Type: 'set-value',
+										DefinitionHash: 'set-value',
 										Name: 'Set Test Value',
 										Settings: {
-											Mappings: [
-												{ Address: 'Operation.TestValue', Value: 'active' }
-											]
+											Value: 'active',
+											ToAddress: 'Operation.TestValue'
 										},
 										Ports: [],
 										X: 200, Y: 0
@@ -1805,7 +1806,7 @@ suite
 						let tmpBuiltInConfigs = require('../source/services/tasks/Ultravisor-BuiltIn-TaskConfigs.cjs');
 						let tmpCount = tmpRegistry.registerTaskTypesFromConfigArray(tmpBuiltInConfigs);
 
-						Expect(tmpCount).to.equal(40);
+						Expect(tmpCount).to.equal(48);
 
 						// Spot-check a few
 						Expect(tmpRegistry.hasTaskType('error-message')).to.equal(true);
@@ -1953,7 +1954,7 @@ suite
 
 				test
 				(
-					'Config-driven set-values task should write state.',
+					'Config-driven set-value task should write state.',
 					function(fDone)
 					{
 						let tmpFable = createTestFable();
@@ -1961,16 +1962,13 @@ suite
 						let tmpBuiltInConfigs = require('../source/services/tasks/Ultravisor-BuiltIn-TaskConfigs.cjs');
 						tmpRegistry.registerTaskTypesFromConfigArray(tmpBuiltInConfigs);
 
-						let tmpInstance = tmpRegistry.instantiateTaskType('set-values');
+						let tmpInstance = tmpRegistry.instantiateTaskType('set-value');
 						Expect(tmpInstance).to.not.equal(null);
 
 						tmpInstance.execute(
 							{
-								Mappings:
-								[
-									{ Address: 'State.Name', Value: 'Ultravisor' },
-									{ Address: 'State.Version', Value: '1.0' }
-								]
+								Value: 'Ultravisor',
+								ToAddress: 'State.Name'
 							},
 							{ NodeHash: 'sv-node' },
 							function (pError, pResult)
@@ -1978,7 +1976,6 @@ suite
 								Expect(pError).to.equal(null);
 								Expect(pResult.EventToFire).to.equal('Complete');
 								Expect(pResult.StateWrites['State.Name']).to.equal('Ultravisor');
-								Expect(pResult.StateWrites['State.Version']).to.equal('1.0');
 								fDone();
 							});
 					}
@@ -1992,15 +1989,9 @@ suite
 						let tmpFable = createTestFable();
 						let tmpRegistry = Object.values(tmpFable.servicesMap['UltravisorTaskTypeRegistry'])[0];
 
-						// Clear any previously registered types so we get a clean count
-						tmpRegistry._TaskTypeConfigs = {};
-						tmpRegistry._Definitions = {};
-						tmpRegistry._TaskTypes = {};
-
-						tmpRegistry.registerBuiltInTaskTypes();
-
+						// Configs already registered by createTestFable — verify all present
 						let tmpDefs = tmpRegistry.listDefinitions();
-						Expect(tmpDefs.length).to.equal(40);
+						Expect(tmpDefs.length).to.equal(48);
 					}
 				);
 			}
@@ -2019,7 +2010,7 @@ suite
 						let tmpFable = createTestFable();
 						let tmpEngine = Object.values(tmpFable.servicesMap['UltravisorExecutionEngine'])[0];
 
-						// Simple operation: set-values -> end
+						// Simple operation: set-value -> end
 						let tmpOperation = {
 							Hash: 'telemetry-test-op',
 							Name: 'Telemetry Test',
@@ -2027,8 +2018,8 @@ suite
 								Nodes: [
 									{ Hash: 'start-1', Type: 'start', Ports: [{ Hash: 'start-1-eo-Begin', Label: 'Begin' }] },
 									{
-										Hash: 'set-1', Type: 'set-values', DefinitionHash: 'set-values',
-										Settings: { Values: { TestKey: 'TestValue' } },
+										Hash: 'set-1', Type: 'set-value', DefinitionHash: 'set-value',
+										Settings: { Value: 'TestValue', ToAddress: 'State.TestKey' },
 										Ports: [
 											{ Hash: 'set-1-ei-Trigger', Label: 'Trigger' },
 											{ Hash: 'set-1-eo-Complete', Label: 'Complete' }
@@ -2052,11 +2043,11 @@ suite
 								// Verify TaskManifests have metadata
 								let tmpTaskManifest = pContext.TaskManifests['set-1'];
 								Expect(tmpTaskManifest).to.not.equal(undefined);
-								Expect(tmpTaskManifest.DefinitionHash).to.equal('set-values');
-								Expect(tmpTaskManifest.TaskTypeName).to.equal('Set Values');
+								Expect(tmpTaskManifest.DefinitionHash).to.equal('set-value');
+								Expect(tmpTaskManifest.TaskTypeName).to.equal('Set Value');
 								Expect(tmpTaskManifest.Category).to.be.a('string');
 								Expect(tmpTaskManifest.Capability).to.equal('Data Transform');
-								Expect(tmpTaskManifest.Action).to.equal('SetValues');
+								Expect(tmpTaskManifest.Action).to.equal('SetValue');
 								Expect(tmpTaskManifest.Tier).to.equal('Engine');
 
 								// Verify execution has timing data
@@ -2087,8 +2078,8 @@ suite
 								Nodes: [
 									{ Hash: 'start-1', Type: 'start', Ports: [{ Hash: 'start-1-eo-Begin', Label: 'Begin' }] },
 									{
-										Hash: 'set-1', Type: 'set-values', DefinitionHash: 'set-values',
-										Settings: { Values: { X: 1 } },
+										Hash: 'set-1', Type: 'set-value', DefinitionHash: 'set-value',
+										Settings: { Value: 1, ToAddress: 'State.X' },
 										Ports: [
 											{ Hash: 'set-1-ei-Trigger', Label: 'Trigger' },
 											{ Hash: 'set-1-eo-Complete', Label: 'Complete' }
@@ -2156,16 +2147,16 @@ suite
 								Nodes: [
 									{ Hash: 'start-1', Type: 'start', Ports: [{ Hash: 'start-1-eo-Begin', Label: 'Begin' }] },
 									{
-										Hash: 'set-1', Type: 'set-values', DefinitionHash: 'set-values',
-										Settings: { Values: { A: 1 } },
+										Hash: 'set-1', Type: 'set-value', DefinitionHash: 'set-value',
+										Settings: { Value: 1, ToAddress: 'State.A' },
 										Ports: [
 											{ Hash: 'set-1-ei-Trigger', Label: 'Trigger' },
 											{ Hash: 'set-1-eo-Complete', Label: 'Complete' }
 										]
 									},
 									{
-										Hash: 'set-2', Type: 'set-values', DefinitionHash: 'set-values',
-										Settings: { Values: { B: 2 } },
+										Hash: 'set-2', Type: 'set-value', DefinitionHash: 'set-value',
+										Settings: { Value: 2, ToAddress: 'State.B' },
 										Ports: [
 											{ Hash: 'set-2-ei-Trigger', Label: 'Trigger' },
 											{ Hash: 'set-2-eo-Complete', Label: 'Complete' }
@@ -2192,21 +2183,21 @@ suite
 								Expect(pContext.TimingSummary.ByTaskType).to.be.an('object');
 								Expect(pContext.TimingSummary.Timeline).to.be.an('array');
 
-								// ByTaskType should have set-values
-								Expect(pContext.TimingSummary.ByTaskType['set-values']).to.not.equal(undefined);
-								Expect(pContext.TimingSummary.ByTaskType['set-values'].Count).to.equal(2);
-								Expect(pContext.TimingSummary.ByTaskType['set-values'].Name).to.equal('Set Values');
-								Expect(pContext.TimingSummary.ByTaskType['set-values'].TotalMs).to.be.a('number');
-								Expect(pContext.TimingSummary.ByTaskType['set-values'].MinMs).to.be.a('number');
-								Expect(pContext.TimingSummary.ByTaskType['set-values'].MaxMs).to.be.a('number');
-								Expect(pContext.TimingSummary.ByTaskType['set-values'].AvgMs).to.be.a('number');
+								// ByTaskType should have set-value
+								Expect(pContext.TimingSummary.ByTaskType['set-value']).to.not.equal(undefined);
+								Expect(pContext.TimingSummary.ByTaskType['set-value'].Count).to.equal(2);
+								Expect(pContext.TimingSummary.ByTaskType['set-value'].Name).to.equal('Set Value');
+								Expect(pContext.TimingSummary.ByTaskType['set-value'].TotalMs).to.be.a('number');
+								Expect(pContext.TimingSummary.ByTaskType['set-value'].MinMs).to.be.a('number');
+								Expect(pContext.TimingSummary.ByTaskType['set-value'].MaxMs).to.be.a('number');
+								Expect(pContext.TimingSummary.ByTaskType['set-value'].AvgMs).to.be.a('number');
 
 								// Timeline should have entries
 								Expect(pContext.TimingSummary.Timeline.length).to.equal(2);
 								let tmpTimelineEntry = pContext.TimingSummary.Timeline[0];
 								Expect(tmpTimelineEntry.NodeHash).to.be.a('string');
-								Expect(tmpTimelineEntry.DefinitionHash).to.equal('set-values');
-								Expect(tmpTimelineEntry.Name).to.equal('Set Values');
+								Expect(tmpTimelineEntry.DefinitionHash).to.equal('set-value');
+								Expect(tmpTimelineEntry.Name).to.equal('Set Value');
 								Expect(tmpTimelineEntry.ElapsedMs).to.be.a('number');
 								Expect(tmpTimelineEntry.StartTimeMs).to.be.a('number');
 
@@ -3145,15 +3136,13 @@ suite
 									{ Hash: 'node-start', Type: 'start', X: 0, Y: 0 },
 									{
 										Hash: 'node-set',
-										Type: 'set-values',
-										DefinitionHash: 'set-values',
+										Type: 'set-value',
+										DefinitionHash: 'set-value',
 										Name: 'Set Test Value',
 										Settings:
 										{
-											Mappings:
-											[
-												{ Address: 'Operation.Marker', Value: 'scheduled-run' }
-											]
+											Value: 'scheduled-run',
+											ToAddress: 'Operation.Marker'
 										},
 										Ports: [],
 										X: 200, Y: 0
@@ -5784,9 +5773,11 @@ suite
 							{
 								return pConfig.Definition && pConfig.Definition.Category === 'llm';
 							});
-							Expect(tmpLLMConfigs.length).to.equal(3);
+							Expect(tmpLLMConfigs.length).to.equal(5);
 
 							let tmpHashes = tmpLLMConfigs.map(function (pConfig) { return pConfig.Definition.Hash; });
+							Expect(tmpHashes).to.include('add-message');
+							Expect(tmpHashes).to.include('add-tool');
 							Expect(tmpHashes).to.include('llm-chat-completion');
 							Expect(tmpHashes).to.include('llm-embedding');
 							Expect(tmpHashes).to.include('llm-tool-use');

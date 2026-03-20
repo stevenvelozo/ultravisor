@@ -1,0 +1,21 @@
+{
+	"Hash": "add-header",
+	"Type": "add-header",
+	"Name": "Add Header",
+	"Description": "Appends a single HTTP header to an accumulated list. Chain multiple add-header nodes before an HTTP request node.",
+	"Category": "rest",
+	"Capability": "HTTP Client",
+	"Action": "AddHeader",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "In" }],
+	"EventOutputs": [{ "Name": "Complete" }],
+	"SettingsInputs": [
+		{ "Name": "Name", "DataType": "String", "Required": true, "Description": "Header name (e.g. Authorization, Content-Type)" },
+		{ "Name": "Value", "DataType": "String", "Required": true, "Description": "Header value" },
+		{ "Name": "ListAddress", "DataType": "String", "Required": true, "Description": "State address for the accumulated headers list" }
+	],
+	"StateOutputs": [
+		{ "Name": "Headers", "DataType": "Object", "Description": "The accumulated headers list" }
+	],
+	"DefaultSettings": { "Name": "", "Value": "", "ListAddress": "Operation.Headers" }
+}

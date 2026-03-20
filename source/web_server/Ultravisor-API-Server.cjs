@@ -572,12 +572,79 @@ class UltravisorAPIServer extends libPictService
 					let tmpRun = tmpManifest ? tmpManifest.getRun(pRequest.params.RunHash) : null;
 					if (tmpRun)
 					{
-						pResponse.send(tmpRun);
+						// Send a clean, JSON-serializable snapshot of the run
+						// (the raw context may contain closures in PendingEvents)
+						let tmpClean = {
+							Hash: tmpRun.Hash,
+							OperationHash: tmpRun.OperationHash,
+							OperationName: tmpRun.OperationName,
+							Status: tmpRun.Status,
+							RunMode: tmpRun.RunMode,
+							Live: tmpRun.Live || false,
+							StartTime: tmpRun.StartTime,
+							StopTime: tmpRun.StopTime,
+							ElapsedMs: tmpRun.ElapsedMs,
+							Output: tmpRun.Output || {},
+							GlobalState: tmpRun.GlobalState || {},
+							OperationState: tmpRun.OperationState || {},
+							TaskOutputs: tmpRun.TaskOutputs || {},
+							TaskManifests: tmpRun.TaskManifests || {},
+							WaitingTasks: tmpRun.WaitingTasks || {},
+							TimingSummary: tmpRun.TimingSummary || null,
+							EventLog: tmpRun.EventLog || [],
+							Errors: tmpRun.Errors || [],
+							Log: tmpRun.Log || []
+						};
+						pResponse.send(tmpClean);
 					}
 					else
 					{
 						pResponse.send(404, { Error: `Manifest ${pRequest.params.RunHash} not found.` });
 					}
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- Abandon runs ---
+		this._OratorServer.post
+			(
+				'/Manifest/:RunHash/Abandon',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpManifest = this._getService('UltravisorExecutionManifest');
+					if (!tmpManifest)
+					{
+						pResponse.send(500, { Error: 'Manifest service not available.' });
+						return fNext();
+					}
+
+					let tmpResult = tmpManifest.abandonRun(pRequest.params.RunHash);
+					if (tmpResult)
+					{
+						pResponse.send({ Status: tmpResult.Status, Hash: tmpResult.Hash });
+					}
+					else
+					{
+						pResponse.send(404, { Error: `Run ${pRequest.params.RunHash} not found.` });
+					}
+					return fNext();
+				}.bind(this)
+			);
+
+		this._OratorServer.post
+			(
+				'/Manifest/AbandonStale',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpManifest = this._getService('UltravisorExecutionManifest');
+					if (!tmpManifest)
+					{
+						pResponse.send(500, { Error: 'Manifest service not available.' });
+						return fNext();
+					}
+
+					let tmpCount = tmpManifest.abandonStaleRuns();
+					pResponse.send({ AbandonedCount: tmpCount });
 					return fNext();
 				}.bind(this)
 			);

@@ -4,6 +4,7 @@
  * General-purpose REST / HTTP request tasks.
  *
  * Contains:
+ *   - add-header      — Accumulator: appends one HTTP header to a growing list.
  *   - get-json        — Performs an HTTP GET request and parses the response as JSON.
  *   - get-text        — Performs an HTTP GET request and returns the response as text.
  *   - send-json       — Sends JSON data via HTTP POST or PUT.
@@ -26,26 +27,57 @@ function _getService(pTask, pTypeName)
 }
 
 /**
- * Parse headers from a JSON string or return empty object.
+ * Parse headers from a JSON string, accumulated array, or object.
+ * Supports the accumulator pattern: an array of {Name, Value} objects
+ * built by chaining add-header nodes.
  */
-function _parseHeaders(pHeadersString)
+function _parseHeaders(pHeaders)
 {
-	if (!pHeadersString || typeof(pHeadersString) !== 'string' || pHeadersString.trim().length === 0)
+	if (!pHeaders)
 	{
 		return {};
 	}
 
-	try
+	// Already a plain object (e.g. from state wire) — use directly
+	if (typeof(pHeaders) === 'object' && !Array.isArray(pHeaders))
 	{
-		let tmpHeaders = JSON.parse(pHeadersString);
-		if (typeof(tmpHeaders) === 'object' && tmpHeaders !== null)
-		{
-			return tmpHeaders;
-		}
+		return pHeaders;
 	}
-	catch (pError)
+
+	// Accumulated array of {Name, Value} objects from add-header nodes
+	if (Array.isArray(pHeaders))
 	{
-		// Not valid JSON — ignore
+		let tmpResult = {};
+		for (let i = 0; i < pHeaders.length; i++)
+		{
+			if (pHeaders[i] && pHeaders[i].Name)
+			{
+				tmpResult[pHeaders[i].Name] = pHeaders[i].Value || '';
+			}
+		}
+		return tmpResult;
+	}
+
+	// Legacy: JSON string
+	if (typeof(pHeaders) === 'string' && pHeaders.trim().length > 0)
+	{
+		try
+		{
+			let tmpParsed = JSON.parse(pHeaders);
+			if (typeof(tmpParsed) === 'object' && tmpParsed !== null)
+			{
+				// Could be a parsed array of {Name, Value} or a flat object
+				if (Array.isArray(tmpParsed))
+				{
+					return _parseHeaders(tmpParsed);
+				}
+				return tmpParsed;
+			}
+		}
+		catch (pError)
+		{
+			// Not valid JSON — ignore
+		}
 	}
 
 	return {};
@@ -54,6 +86,59 @@ function _parseHeaders(pHeadersString)
 
 module.exports =
 [
+	// ── add-header (accumulator) ──────────────────────────────
+	{
+		Definition: require('./definitions/add-header.json'),
+		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
+		{
+			let tmpName = pResolvedSettings.Name || '';
+			let tmpValue = pResolvedSettings.Value || '';
+			let tmpListAddress = pResolvedSettings.ListAddress;
+
+			if (!tmpListAddress)
+			{
+				return fCallback(null, {
+					EventToFire: 'Complete',
+					Outputs: { Headers: [] },
+					Log: ['AddHeader: no ListAddress specified.']
+				});
+			}
+
+			if (!tmpName)
+			{
+				return fCallback(null, {
+					EventToFire: 'Complete',
+					Outputs: { Headers: [] },
+					Log: ['AddHeader: no header Name specified.']
+				});
+			}
+
+			// Read existing accumulated list from state
+			let tmpList = [];
+			if (pExecutionContext.StateManager)
+			{
+				let tmpExisting = pExecutionContext.StateManager.resolveAddress(tmpListAddress, pExecutionContext, pExecutionContext.NodeHash);
+				if (Array.isArray(tmpExisting))
+				{
+					tmpList = tmpExisting.slice();
+				}
+			}
+
+			// Append new header
+			tmpList.push({ Name: tmpName, Value: tmpValue });
+
+			let tmpStateWrites = {};
+			tmpStateWrites[tmpListAddress] = tmpList;
+
+			return fCallback(null, {
+				EventToFire: 'Complete',
+				Outputs: { Headers: tmpList },
+				StateWrites: tmpStateWrites,
+				Log: [`AddHeader: appended "${tmpName}: ${tmpValue}" (${tmpList.length} headers total)`]
+			});
+		}
+	},
+
 	// ── get-json ───────────────────────────────────────────────
 	{
 		Definition: require('./definitions/get-json.json'),

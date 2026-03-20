@@ -1,6 +1,6 @@
 {
 	"Name": "JSON Config Merge",
-	"Description": "Reads two JSON config files, merges values from the override into the base, and writes the result. Demonstrates read-json, set-values, write-json.",
+	"Description": "Reads two JSON config files, merges values from the override into the base, and writes the result. Demonstrates read-json, set-value, write-json.",
 	"Tags": [
 		"file-io",
 		"json",
@@ -108,7 +108,7 @@
 			},
 			{
 				"Hash": "jm-merge",
-				"Type": "set-values",
+				"Type": "set-value",
 				"X": 820,
 				"Y": 160,
 				"Width": 220,
@@ -116,29 +116,96 @@
 				"Title": "Merge Configs",
 				"Ports": [
 					{
-						"Hash": "jm-merge-in",
+						"Hash": "jm-merge-Execute",
 						"Direction": "input",
 						"Side": "left-bottom",
 						"Label": "Execute"
 					},
 					{
-						"Hash": "jm-merge-done",
+						"Hash": "jm-merge-Value",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Value"
+					},
+					{
+						"Hash": "jm-merge-ToAddress",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "ToAddress"
+					},
+					{
+						"Hash": "jm-merge-Complete",
 						"Direction": "output",
 						"Side": "right-bottom",
 						"Label": "Complete"
+					},
+					{
+						"Hash": "jm-merge-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "jm-merge-WrittenValue",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "WrittenValue"
 					}
 				],
 				"Data": {
-					"Mappings": [
-						{
-							"Address": "Operation.MergedConfig.base",
-							"Value": "{~D:Record.Operation.BaseConfig~}"
-						},
-						{
-							"Address": "Operation.MergedConfig.overrides",
-							"Value": "{~D:Record.Operation.OverrideConfig~}"
-						}
-					]
+					"Value": "{~D:Record.Operation.BaseConfig~}",
+					"ToAddress": "Operation.MergedConfig.base"
+				}
+			},
+			{
+				"Hash": "jm-merge-sv-2",
+				"Type": "set-value",
+				"X": 820,
+				"Y": 190,
+				"Width": 220,
+				"Height": 80,
+				"Title": "Merge Configs (2)",
+				"Ports": [
+					{
+						"Hash": "jm-merge-sv-2-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "jm-merge-sv-2-Value",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Value"
+					},
+					{
+						"Hash": "jm-merge-sv-2-ToAddress",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "ToAddress"
+					},
+					{
+						"Hash": "jm-merge-sv-2-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "jm-merge-sv-2-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "jm-merge-sv-2-WrittenValue",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "WrittenValue"
+					}
+				],
+				"Data": {
+					"Value": "{~D:Record.Operation.OverrideConfig~}",
+					"ToAddress": "Operation.MergedConfig.overrides"
 				}
 			},
 			{
@@ -243,22 +310,6 @@
 				"Data": {}
 			},
 			{
-				"Hash": "jm-c3",
-				"SourceNodeHash": "jm-read-over",
-				"SourcePortHash": "jm-ro-done",
-				"TargetNodeHash": "jm-merge",
-				"TargetPortHash": "jm-merge-in",
-				"Data": {}
-			},
-			{
-				"Hash": "jm-c4",
-				"SourceNodeHash": "jm-merge",
-				"SourcePortHash": "jm-merge-done",
-				"TargetNodeHash": "jm-write",
-				"TargetPortHash": "jm-write-in",
-				"Data": {}
-			},
-			{
 				"Hash": "jm-c5",
 				"SourceNodeHash": "jm-write",
 				"SourcePortHash": "jm-write-done",
@@ -296,6 +347,30 @@
 				"SourcePortHash": "jm-write-err",
 				"TargetNodeHash": "jm-end",
 				"TargetPortHash": "jm-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "jm-c3",
+				"SourceNodeHash": "jm-read-over",
+				"SourcePortHash": "jm-ro-done",
+				"TargetNodeHash": "jm-merge",
+				"TargetPortHash": "jm-merge-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "jm-merge-chain-1",
+				"SourceNodeHash": "jm-merge",
+				"SourcePortHash": "jm-merge-Complete",
+				"TargetNodeHash": "jm-merge-sv-2",
+				"TargetPortHash": "jm-merge-sv-2-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "jm-c4",
+				"SourceNodeHash": "jm-merge-sv-2",
+				"SourcePortHash": "jm-merge-sv-2-Complete",
+				"TargetNodeHash": "jm-write",
+				"TargetPortHash": "jm-write-in",
 				"Data": {}
 			}
 		],

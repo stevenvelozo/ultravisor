@@ -175,7 +175,7 @@ class UltravisorOperationEditView extends libPictView
 			{
 				if (pError)
 				{
-					alert('Error saving operation: ' + pError.message);
+					this.pict.views.Modal.toast('Error saving operation: ' + pError.message, { type: 'error' });
 					return;
 				}
 				this.pict.PictApplication.navigateTo('/Operations');

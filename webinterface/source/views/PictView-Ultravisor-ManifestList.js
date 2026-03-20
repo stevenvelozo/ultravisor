@@ -14,7 +14,7 @@ const _ViewConfiguration =
 	CSS: /*css*/`
 		.ultravisor-manifestlist {
 			padding: 2em;
-			max-width: 1200px;
+			max-width: 1400px;
 			margin: 0 auto;
 		}
 		.ultravisor-manifestlist-header {
@@ -60,53 +60,163 @@ const _ViewConfiguration =
 			background-color: #c62828;
 			color: #ffcdd2;
 		}
-		.ultravisor-manifest-status.waiting {
+		.ultravisor-manifest-status.waiting,
+		.ultravisor-manifest-status.waitingforinput {
 			background-color: var(--uv-warning);
 			color: #fff9c4;
 		}
-		.ultravisor-manifest-detail {
-			background: var(--uv-bg-surface);
-			border: 1px solid var(--uv-border-subtle);
-			border-radius: 8px;
-			padding: 1.5em;
-			margin-top: 1em;
-			display: none;
+		.ultravisor-manifest-status.beacon-waiting {
+			background-color: #1a3a4a;
+			color: #5a9ecb;
 		}
-		.ultravisor-manifest-detail.visible {
-			display: block;
+		.ultravisor-manifest-status.abandoned {
+			background-color: #3a3a3a;
+			color: #999;
 		}
-		.ultravisor-manifest-detail h3 {
-			margin: 0 0 1em 0;
-			color: var(--uv-text-secondary);
-		}
-		.ultravisor-manifest-task-result {
-			background: var(--uv-bg-base);
-			border-radius: 4px;
-			padding: 0.75em;
-			margin-bottom: 0.5em;
-		}
-		.ultravisor-manifest-task-result-header {
+
+		/* Filter tabs */
+		.ultravisor-manifest-filters {
 			display: flex;
-			justify-content: space-between;
-			align-items: center;
-			margin-bottom: 0.5em;
+			gap: 0;
+			margin-bottom: 1em;
+			border-bottom: 2px solid var(--uv-border-subtle);
 		}
-		.ultravisor-manifest-task-result-header code {
+		.ultravisor-manifest-filter-tab {
+			padding: 0.5em 1em;
+			cursor: pointer;
+			font-size: 0.85em;
+			font-weight: 600;
+			color: var(--uv-text-secondary);
+			border-bottom: 2px solid transparent;
+			margin-bottom: -2px;
+			transition: color 0.15s, border-color 0.15s;
+			user-select: none;
+		}
+		.ultravisor-manifest-filter-tab:hover {
+			color: var(--uv-text);
+		}
+		.ultravisor-manifest-filter-tab.active {
 			color: var(--uv-brand);
+			border-bottom-color: var(--uv-brand);
 		}
-		.ultravisor-manifest-output {
-			background: #0d1117;
-			color: #c9d1d9;
+		.ultravisor-manifest-filter-count {
+			font-weight: 400;
+			opacity: 0.7;
+			margin-left: 0.3em;
+		}
+
+		/* Action buttons in rows */
+		.ultravisor-manifest-actions {
+			display: flex;
+			gap: 0.35em;
+			flex-wrap: wrap;
+		}
+
+		/* Inline awaiting detail row */
+		.ultravisor-manifest-awaiting-row td {
+			padding: 0 !important;
+			border-top: none !important;
+		}
+		.ultravisor-manifest-awaiting-detail {
+			padding: 0.75em 1em;
+			background: var(--uv-bg-base);
+		}
+		.ultravisor-manifest-awaiting-task {
+			background: var(--uv-bg-surface);
 			border-radius: 4px;
 			padding: 0.75em;
-			font-family: monospace;
+			margin-bottom: 0.5em;
+		}
+		.ultravisor-manifest-awaiting-task:last-child {
+			margin-bottom: 0;
+		}
+		.ultravisor-manifest-beacon-status {
+			display: flex;
+			align-items: center;
+			gap: 0.5em;
+		}
+		.ultravisor-manifest-waiting-indicator {
+			display: inline-block;
+			width: 8px;
+			height: 8px;
+			border-radius: 50%;
+			background: var(--uv-info);
+			animation: uv-manifest-waiting-pulse 1.5s ease-in-out infinite;
+			flex-shrink: 0;
+		}
+		@keyframes uv-manifest-waiting-pulse {
+			0%, 100% { opacity: 1; transform: scale(1); }
+			50% { opacity: 0.4; transform: scale(0.7); }
+		}
+		.ultravisor-manifest-beacon-prompt {
+			color: var(--uv-text-secondary);
+			font-size: 0.9em;
+		}
+		.ultravisor-manifest-input-prompt {
+			color: #d4884a;
+			font-size: 0.9em;
+			margin-bottom: 0.5em;
+		}
+		.ultravisor-manifest-input-address {
+			font-size: 0.8em;
+			color: var(--uv-text-tertiary);
+			margin-bottom: 0.5em;
+		}
+		.ultravisor-manifest-input-form {
+			display: flex;
+			gap: 0.5em;
+			align-items: center;
+		}
+		.ultravisor-manifest-input-form input {
+			flex: 1;
+			min-width: 150px;
+		}
+		.ultravisor-manifest-input-submit {
+			padding: 0.4em 0.8em;
+			background: #3a2a1a;
+			color: #d4884a;
+			border: 1px solid #5a3a1a;
+			border-radius: 4px;
+			cursor: pointer;
+			font-weight: 600;
 			font-size: 0.85em;
-			white-space: pre-wrap;
-			word-break: break-all;
-			max-height: 200px;
-			overflow-y: auto;
+		}
+		.ultravisor-manifest-input-submit:hover {
+			background: #4a3a2a;
+		}
+		.ultravisor-manifest-force-error {
+			padding: 0.35em 0.7em;
+			background: #3a1a1a;
+			color: #c44e4e;
+			border: 1px solid #5a2a2a;
+			border-radius: 4px;
+			cursor: pointer;
+			font-size: 0.8em;
 			margin-top: 0.5em;
 		}
+		.ultravisor-manifest-force-error:hover {
+			background: #4a2020;
+		}
+		.ultravisor-manifest-elapsed-hint {
+			font-size: 0.75em;
+			color: var(--uv-text-tertiary);
+			margin-top: 0.25em;
+		}
+		.ultravisor-manifest-result {
+			margin-top: 0.5em;
+			padding: 0.4em 0.6em;
+			border-radius: 3px;
+			font-size: 0.85em;
+		}
+		.ultravisor-manifest-result.success {
+			background: #1a3a1a;
+			color: #5ab88a;
+		}
+		.ultravisor-manifest-result.error {
+			background: #3a1a1a;
+			color: #c44e4e;
+		}
+
 	`,
 
 	Templates:
@@ -118,9 +228,10 @@ const _ViewConfiguration =
 	<div class="ultravisor-manifestlist-header">
 		<h1>Execution Manifests</h1>
 		<button class="ultravisor-btn ultravisor-btn-secondary" onclick="{~P~}.PictApplication.showView('Ultravisor-ManifestList')">Refresh</button>
+		<button class="ultravisor-btn ultravisor-btn-delete" onclick="{~P~}.views['Ultravisor-ManifestList'].clearStaleRuns()" style="font-size:0.8em;">Clear Stale</button>
 	</div>
+	<div id="Ultravisor-ManifestList-Filters"></div>
 	<div id="Ultravisor-ManifestList-Body"></div>
-	<div id="Ultravisor-ManifestList-Detail"></div>
 </div>
 `
 		}
@@ -142,6 +253,8 @@ class UltravisorManifestListView extends libPictView
 	constructor(pFable, pOptions, pServiceHash)
 	{
 		super(pFable, pOptions, pServiceHash);
+
+		this._CurrentFilter = 'all';
 	}
 
 	onAfterRender(pRenderable, pRenderDestinationAddress, pRecord, pContent)
@@ -155,11 +268,89 @@ class UltravisorManifestListView extends libPictView
 		return super.onAfterRender(pRenderable, pRenderDestinationAddress, pRecord, pContent);
 	}
 
+	/**
+	 * Set the active filter and re-render the table.
+	 * Called from filter tabs and from route navigation.
+	 */
+	setFilter(pFilter)
+	{
+		this._CurrentFilter = pFilter || 'all';
+		this.renderManifestTable();
+	}
+
+	/**
+	 * Set filter from a route parameter (e.g. /Manifests/waiting).
+	 */
+	setFilterFromRoute(pFilter)
+	{
+		this._CurrentFilter = pFilter || 'all';
+	}
+
+	// ── Filter Helpers ──
+
+	_matchesFilter(pStatus)
+	{
+		if (this._CurrentFilter === 'all') return true;
+		let tmpNormalized = (pStatus || '').toLowerCase();
+		switch (this._CurrentFilter)
+		{
+			case 'running': return tmpNormalized === 'running';
+			case 'waiting': return tmpNormalized === 'waitingforinput';
+			case 'complete': return tmpNormalized === 'complete';
+			case 'error': return tmpNormalized === 'error';
+			case 'abandoned': return tmpNormalized === 'abandoned';
+			default: return true;
+		}
+	}
+
+	_countByFilter(pManifests, pFilter)
+	{
+		if (pFilter === 'all') return pManifests.length;
+		let tmpCount = 0;
+		for (let i = 0; i < pManifests.length; i++)
+		{
+			let tmpNormalized = (pManifests[i].Status || '').toLowerCase();
+			switch (pFilter)
+			{
+				case 'running': if (tmpNormalized === 'running') tmpCount++; break;
+				case 'waiting': if (tmpNormalized === 'waitingforinput') tmpCount++; break;
+				case 'complete': if (tmpNormalized === 'complete') tmpCount++; break;
+				case 'error': if (tmpNormalized === 'error') tmpCount++; break;
+				case 'abandoned': if (tmpNormalized === 'abandoned') tmpCount++; break;
+			}
+		}
+		return tmpCount;
+	}
+
+	_isBeaconTask(pTask)
+	{
+		if (pTask.ResumeEventName && pTask.ResumeEventName !== 'ValueInputComplete')
+		{
+			return true;
+		}
+		return false;
+	}
+
+	_formatElapsed(pTimestamp)
+	{
+		if (!pTimestamp) return '';
+		let tmpElapsedMs = Date.now() - new Date(pTimestamp).getTime();
+		if (tmpElapsedMs < 1000) return 'just now';
+		if (tmpElapsedMs < 60000) return Math.floor(tmpElapsedMs / 1000) + 's ago';
+		if (tmpElapsedMs < 3600000) return Math.floor(tmpElapsedMs / 60000) + 'm ' + Math.floor((tmpElapsedMs % 60000) / 1000) + 's ago';
+		return Math.floor(tmpElapsedMs / 3600000) + 'h ' + Math.floor((tmpElapsedMs % 3600000) / 60000) + 'm ago';
+	}
+
+	// ── Table Rendering ──
+
 	renderManifestTable()
 	{
 		let tmpManifests = this.pict.AppData.Ultravisor.Manifests;
 		let tmpGlobalRef = '_Pict';
 		let tmpViewRef = tmpGlobalRef + ".views['Ultravisor-ManifestList']";
+
+		// Render filter tabs
+		this._renderFilterTabs(tmpManifests || [], tmpViewRef);
 
 		if (!tmpManifests || tmpManifests.length === 0)
 		{
@@ -168,367 +359,365 @@ class UltravisorManifestListView extends libPictView
 			return;
 		}
 
+		// Sort newest first by StartTime
+		tmpManifests.sort(function (pA, pB)
+		{
+			let tmpTimeA = pA.StartTime ? new Date(pA.StartTime).getTime() : 0;
+			let tmpTimeB = pB.StartTime ? new Date(pB.StartTime).getTime() : 0;
+			return tmpTimeB - tmpTimeA;
+		});
+
 		let tmpHTML = '<table class="ultravisor-manifest-table">';
-		tmpHTML += '<thead><tr><th>Run Hash</th><th>Operation</th><th>Status</th><th>Elapsed</th><th>Started</th><th>Actions</th></tr></thead>';
+		tmpHTML += '<thead><tr><th>Operation</th><th>Status</th><th>Elapsed</th><th>Started</th><th>Completed</th><th>Actions</th></tr></thead>';
 		tmpHTML += '<tbody>';
+
+		let tmpRowCount = 0;
 
 		for (let i = 0; i < tmpManifests.length; i++)
 		{
 			let tmpManifest = tmpManifests[i];
+			let tmpStatus = tmpManifest.Status || 'Unknown';
+
+			// Apply filter
+			if (!this._matchesFilter(tmpStatus))
+			{
+				continue;
+			}
+
+			tmpRowCount++;
 			let tmpRunHash = tmpManifest.Hash || '';
 			let tmpEscHash = tmpRunHash.replace(/'/g, "\\'");
-			let tmpStatus = tmpManifest.Status || 'Unknown';
+			let tmpEscOpHash = (tmpManifest.OperationHash || '').replace(/'/g, "\\'");
 			let tmpStatusClass = tmpStatus.toLowerCase();
-			if (tmpStatusClass !== 'complete' && tmpStatusClass !== 'running' && tmpStatusClass !== 'error' && tmpStatusClass !== 'waiting')
+			if (tmpStatusClass !== 'complete' && tmpStatusClass !== 'running'
+				&& tmpStatusClass !== 'error' && tmpStatusClass !== 'waiting'
+				&& tmpStatusClass !== 'waitingforinput' && tmpStatusClass !== 'abandoned')
 			{
 				tmpStatusClass = '';
 			}
 
+			// Format elapsed time — compute from timestamps if ElapsedMs is missing
+			let tmpElapsedMs = tmpManifest.ElapsedMs;
+			if (tmpElapsedMs == null && tmpManifest.StartTime && tmpManifest.StopTime)
+			{
+				tmpElapsedMs = new Date(tmpManifest.StopTime).getTime() - new Date(tmpManifest.StartTime).getTime();
+			}
+			let tmpElapsed = '';
+			if (tmpElapsedMs != null && tmpElapsedMs >= 0)
+			{
+				tmpElapsed = (tmpElapsedMs === 0) ? '< 1ms' : libTimingUtils.formatMs(tmpElapsedMs);
+			}
+
+			// Format timestamps with dayJS
+			let tmpStarted = tmpManifest.StartTime
+				? this.fable.Dates.dayJS(tmpManifest.StartTime).format('YYYY-MM-DD HH:mm:ss')
+				: '';
+			let tmpCompleted = tmpManifest.StopTime
+				? this.fable.Dates.dayJS(tmpManifest.StopTime).format('YYYY-MM-DD HH:mm:ss')
+				: '';
+
+			// Show operation name when available, fall back to hash
+			let tmpOperationLabel = tmpManifest.OperationName || tmpManifest.OperationHash || '';
+
+			// Determine status display
+			let tmpStatusLabel = tmpStatus;
+			let tmpIsLive = tmpManifest.Live || false;
+			let tmpIsWaiting = (tmpStatusClass === 'waitingforinput');
+			let tmpIsRunning = (tmpStatusClass === 'running');
+
+			if (tmpIsWaiting)
+			{
+				// Check if all tasks are beacon tasks
+				let tmpWaitingTasks = tmpManifest.WaitingTasks || {};
+				let tmpNodeHashes = Object.keys(tmpWaitingTasks);
+				let tmpAllBeacon = tmpNodeHashes.length > 0;
+				for (let k = 0; k < tmpNodeHashes.length; k++)
+				{
+					if (!this._isBeaconTask(tmpWaitingTasks[tmpNodeHashes[k]]))
+					{
+						tmpAllBeacon = false;
+						break;
+					}
+				}
+				if (tmpAllBeacon)
+				{
+					tmpStatusLabel = 'Waiting for Beacon';
+					tmpStatusClass = 'beacon-waiting';
+				}
+				else
+				{
+					tmpStatusLabel = 'Waiting for Input';
+					tmpStatusClass = 'waitingforinput';
+				}
+			}
+
 			tmpHTML += '<tr>';
-			tmpHTML += '<td><code style="font-size:0.8em;">' + libTimingUtils.escapeHTML(tmpRunHash) + '</code></td>';
-			tmpHTML += '<td>' + libTimingUtils.escapeHTML(tmpManifest.OperationHash || '') + '</td>';
-			tmpHTML += '<td><span class="ultravisor-manifest-status ' + tmpStatusClass + '">' + libTimingUtils.escapeHTML(tmpStatus) + '</span></td>';
-			tmpHTML += '<td>' + (tmpManifest.ElapsedMs ? this.fable.DataFormat.formatTimeSpan(tmpManifest.ElapsedMs) + ' (' + tmpManifest.ElapsedMs + 'ms)' : '') + '</td>';
-			tmpHTML += '<td>' + libTimingUtils.escapeHTML(tmpManifest.StartTime || '') + '</td>';
-			tmpHTML += '<td><button class="ultravisor-btn-sm ultravisor-btn-edit" onclick="' + tmpViewRef + '.showManifestDetail(\'' + tmpEscHash + '\')">Details</button></td>';
+			tmpHTML += '<td>' + libTimingUtils.escapeHTML(tmpOperationLabel) + '</td>';
+			tmpHTML += '<td><span class="ultravisor-manifest-status ' + tmpStatusClass + '">' + libTimingUtils.escapeHTML(tmpStatusLabel) + '</span></td>';
+			tmpHTML += '<td>' + tmpElapsed + '</td>';
+			tmpHTML += '<td>' + libTimingUtils.escapeHTML(tmpStarted) + '</td>';
+			tmpHTML += '<td>' + libTimingUtils.escapeHTML(tmpCompleted) + '</td>';
+
+			// Actions column
+			tmpHTML += '<td><div class="ultravisor-manifest-actions">';
+
+			// Watch button — only for live (in-memory) running/waiting operations
+			if (tmpIsLive && (tmpIsRunning || tmpIsWaiting))
+			{
+				tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-execute" onclick="' + tmpGlobalRef + '.PictApplication.watchExecution(\'' + tmpEscHash + '\', \'' + tmpEscOpHash + '\')">Watch</button>';
+			}
+
+			// Awaiting expand button — only for live waiting operations with tasks
+			if (tmpIsLive && tmpIsWaiting && tmpManifest.WaitingTasks && Object.keys(tmpManifest.WaitingTasks).length > 0)
+			{
+				tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-secondary" onclick="' + tmpViewRef + '.toggleAwaitingDetail(\'' + tmpEscHash + '\')">Awaiting</button>';
+			}
+
+			// Abandon button for non-terminal statuses
+			if (tmpStatusClass !== 'complete' && tmpStatusClass !== 'abandoned')
+			{
+				tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-delete" onclick="' + tmpViewRef + '.abandonRun(\'' + tmpEscHash + '\')">Abandon</button>';
+			}
+
+			tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-edit" onclick="' + tmpGlobalRef + '.PictApplication.navigateTo(\'/Manifests/detail/' + tmpEscHash + '\')">Details</button>';
+			tmpHTML += '</div></td>';
 			tmpHTML += '</tr>';
+
+			// Inline awaiting detail row (hidden by default, live runs only)
+			if (tmpIsLive && tmpIsWaiting && tmpManifest.WaitingTasks && Object.keys(tmpManifest.WaitingTasks).length > 0)
+			{
+				tmpHTML += '<tr class="ultravisor-manifest-awaiting-row" id="awaiting-row-' + tmpRunHash + '" style="display:none">';
+				tmpHTML += '<td colspan="6">';
+				tmpHTML += this._renderAwaitingDetail(tmpManifest, tmpViewRef);
+				tmpHTML += '</td></tr>';
+			}
+		}
+
+		if (tmpRowCount === 0)
+		{
+			tmpHTML += '<tr><td colspan="6" style="text-align:center;color:var(--uv-text-secondary);padding:2em;">No manifests match this filter.</td></tr>';
 		}
 
 		tmpHTML += '</tbody></table>';
 		this.pict.ContentAssignment.assignContent('#Ultravisor-ManifestList-Body', tmpHTML);
 	}
 
-	showManifestDetail(pRunHash)
+	_renderFilterTabs(pManifests, pViewRef)
 	{
-		this.pict.PictApplication.loadManifest(pRunHash,
-			function (pError, pManifest)
+		let tmpFilters = ['all', 'running', 'waiting', 'complete', 'error', 'abandoned'];
+		let tmpLabels = { all: 'All', running: 'Running', waiting: 'Waiting', complete: 'Complete', error: 'Error', abandoned: 'Abandoned' };
+
+		let tmpHTML = '<div class="ultravisor-manifest-filters">';
+		for (let i = 0; i < tmpFilters.length; i++)
+		{
+			let tmpFilter = tmpFilters[i];
+			let tmpCount = this._countByFilter(pManifests, tmpFilter);
+			let tmpActiveClass = (this._CurrentFilter === tmpFilter) ? ' active' : '';
+			tmpHTML += '<div class="ultravisor-manifest-filter-tab' + tmpActiveClass + '" onclick="' + pViewRef + '.setFilter(\'' + tmpFilter + '\')">';
+			tmpHTML += tmpLabels[tmpFilter];
+			tmpHTML += '<span class="ultravisor-manifest-filter-count">(' + tmpCount + ')</span>';
+			tmpHTML += '</div>';
+		}
+		tmpHTML += '</div>';
+
+		this.pict.ContentAssignment.assignContent('#Ultravisor-ManifestList-Filters', tmpHTML);
+	}
+
+	// ── Abandon Actions ──
+
+	abandonRun(pRunHash)
+	{
+		this.pict.views.Modal.confirm('Abandon this run? It will be marked as Abandoned and cannot be resumed.', { confirmLabel: 'Abandon', dangerous: true }).then(
+			function (pConfirmed)
 			{
-				if (pError || !pManifest)
+				if (pConfirmed)
 				{
-					this.pict.ContentAssignment.assignContent('#Ultravisor-ManifestList-Detail',
-						'<div class="ultravisor-manifest-detail visible"><p style="color:var(--uv-error);">Error loading manifest details.</p></div>');
-					return;
-				}
-
-				let tmpHTML = '<div class="ultravisor-manifest-detail visible">';
-				tmpHTML += '<h3>Run: ' + libTimingUtils.escapeHTML(pManifest.Hash || '') + '</h3>';
-				tmpHTML += '<p><strong>Operation:</strong> ' + libTimingUtils.escapeHTML(pManifest.OperationHash || '') + '</p>';
-				tmpHTML += '<p><strong>Status:</strong> ' + libTimingUtils.escapeHTML(pManifest.Status || '') + '</p>';
-				tmpHTML += '<p><strong>Start:</strong> ' + libTimingUtils.escapeHTML(pManifest.StartTime || '') + ' &middot; <strong>Stop:</strong> ' + libTimingUtils.escapeHTML(pManifest.StopTime || '') + '</p>';
-				tmpHTML += '<p><strong>Elapsed:</strong> ' + this.fable.DataFormat.formatTimeSpan(pManifest.ElapsedMs || 0) + ' (' + (pManifest.ElapsedMs || 0) + 'ms)</p>';
-				if (pManifest.RunMode)
-				{
-					tmpHTML += '<p><strong>Run Mode:</strong> ' + libTimingUtils.escapeHTML(pManifest.RunMode) + '</p>';
-				}
-
-				// Operation Output (always present if non-empty)
-				if (pManifest.Output && Object.keys(pManifest.Output).length > 0)
-				{
-					tmpHTML += '<h3>Output</h3>';
-					tmpHTML += '<div class="ultravisor-manifest-output">' + libTimingUtils.escapeHTML(JSON.stringify(pManifest.Output, null, 2)) + '</div>';
-				}
-
-				// Debug-mode state (only present in debug manifests)
-				if (pManifest.OperationState && Object.keys(pManifest.OperationState).length > 0)
-				{
-					tmpHTML += '<h3>Operation State</h3>';
-					tmpHTML += '<div class="ultravisor-manifest-output">' + libTimingUtils.escapeHTML(JSON.stringify(pManifest.OperationState, null, 2)) + '</div>';
-				}
-				if (pManifest.GlobalState && Object.keys(pManifest.GlobalState).length > 0)
-				{
-					tmpHTML += '<h3>Global State</h3>';
-					tmpHTML += '<div class="ultravisor-manifest-output">' + libTimingUtils.escapeHTML(JSON.stringify(pManifest.GlobalState, null, 2)) + '</div>';
-				}
-
-				// Task Outputs
-				if (pManifest.TaskOutputs && Object.keys(pManifest.TaskOutputs).length > 0)
-				{
-					tmpHTML += '<h3>Task Outputs</h3>';
-					tmpHTML += '<div class="ultravisor-manifest-output">' + libTimingUtils.escapeHTML(JSON.stringify(pManifest.TaskOutputs, null, 2)) + '</div>';
-				}
-
-				// Task Manifests (object keyed by node hash)
-				if (pManifest.TaskManifests && Object.keys(pManifest.TaskManifests).length > 0)
-				{
-					tmpHTML += '<h3>Task Manifests</h3>';
-					let tmpNodeHashes = Object.keys(pManifest.TaskManifests);
-					for (let i = 0; i < tmpNodeHashes.length; i++)
-					{
-						let tmpNodeHash = tmpNodeHashes[i];
-						let tmpTaskManifest = pManifest.TaskManifests[tmpNodeHash];
-						tmpHTML += '<div class="ultravisor-manifest-task-result">';
-						tmpHTML += '<div class="ultravisor-manifest-task-result-header">';
-						tmpHTML += '<code>' + libTimingUtils.escapeHTML(tmpNodeHash) + '</code>';
-						tmpHTML += '<span class="ultravisor-manifest-status ' + (tmpTaskManifest.Status || '').toLowerCase() + '">' + libTimingUtils.escapeHTML(tmpTaskManifest.Status || '') + '</span>';
-						tmpHTML += '</div>';
-						if (tmpTaskManifest.Output)
+					this.pict.PictApplication.abandonRun(pRunHash,
+						function (pError, pData)
 						{
-							tmpHTML += '<div class="ultravisor-manifest-output">' + libTimingUtils.escapeHTML(JSON.stringify(tmpTaskManifest.Output, null, 2)) + '</div>';
-						}
-						tmpHTML += '</div>';
-					}
+							if (pError)
+							{
+								this.pict.views.Modal.toast('Failed to abandon run: ' + (pError.message || 'Unknown error'), { type: 'error' });
+								return;
+							}
+							this.pict.views.Modal.toast('Run abandoned.', { type: 'success' });
+							this.pict.PictApplication.loadManifests(
+								function ()
+								{
+									this.renderManifestTable();
+								}.bind(this));
+						}.bind(this));
 				}
-
-				// Errors
-				if (pManifest.Errors && pManifest.Errors.length > 0)
-				{
-					tmpHTML += '<h3 style="color:var(--uv-error);">Errors</h3>';
-					tmpHTML += '<div class="ultravisor-manifest-output" style="border: 1px solid var(--uv-error);">' + libTimingUtils.escapeHTML(pManifest.Errors.join('\n')) + '</div>';
-				}
-
-				// Log
-				if (pManifest.Log && pManifest.Log.length > 0)
-				{
-					tmpHTML += '<h3>Log</h3>';
-					tmpHTML += '<div class="ultravisor-manifest-output">' + libTimingUtils.escapeHTML(pManifest.Log.join('\n')) + '</div>';
-				}
-
-				// ---- Timing Analysis ----
-				let tmpHasTimingData = (pManifest.TimingSummary &&
-					(pManifest.TimingSummary.ByCategory || pManifest.TimingSummary.ByTaskType)) ||
-					(pManifest.TaskManifests && Object.keys(pManifest.TaskManifests).length > 0);
-
-				if (tmpHasTimingData)
-				{
-					tmpHTML += '<h3 style="margin-top: 1.5em;">Timing Analysis</h3>';
-
-					// Task Timeline
-					tmpHTML += this._renderTaskTimeline(pManifest);
-
-					// Category Histogram
-					if (pManifest.TimingSummary && pManifest.TimingSummary.ByCategory)
-					{
-						tmpHTML += this._renderCategoryHistogram(pManifest.TimingSummary.ByCategory);
-					}
-
-					// Task Type Histogram
-					if (pManifest.TimingSummary && pManifest.TimingSummary.ByTaskType)
-					{
-						tmpHTML += this._renderTaskTypeHistogram(pManifest.TimingSummary.ByTaskType);
-					}
-				}
-
-				tmpHTML += '</div>';
-				this.pict.ContentAssignment.assignContent('#Ultravisor-ManifestList-Detail', tmpHTML);
 			}.bind(this));
 	}
 
-	// ── Timing Visualization Methods ─────────────────────────────────────
-
-	/**
-	 * Render a horizontal bar chart of individual task durations.
-	 * Color-coded by status: complete=green, error=red, running=blue.
-	 *
-	 * @param {Object} pManifest - The full manifest object
-	 * @returns {string} HTML string
-	 */
-	_renderTaskTimeline(pManifest)
+	clearStaleRuns()
 	{
-		// Convert TaskManifests to array with computed elapsed + status
-		let tmpTaskResults = [];
-		if (pManifest.TaskManifests && typeof pManifest.TaskManifests === 'object')
-		{
-			let tmpKeys = Object.keys(pManifest.TaskManifests);
-			for (let k = 0; k < tmpKeys.length; k++)
+		this.pict.views.Modal.confirm('Abandon all stale runs (non-live Waiting/Running)? This cannot be undone.', { confirmLabel: 'Clear All', dangerous: true }).then(
+			function (pConfirmed)
 			{
-				let tmpEntry = pManifest.TaskManifests[tmpKeys[k]];
-				tmpEntry._NodeHash = tmpKeys[k];
-				tmpEntry._ComputedElapsedMs = libTimingUtils.computeTaskElapsedMs(tmpEntry);
-				tmpEntry._ComputedStatus = libTimingUtils.computeTaskStatus(tmpEntry);
-				tmpTaskResults.push(tmpEntry);
+				if (pConfirmed)
+				{
+					this.pict.PictApplication.abandonStaleRuns(
+						function (pError, pData)
+						{
+							if (pError)
+							{
+								this.pict.views.Modal.toast('Failed to clear stale runs: ' + (pError.message || 'Unknown error'), { type: 'error' });
+								return;
+							}
+							let tmpCount = (pData && pData.AbandonedCount) || 0;
+							this.pict.views.Modal.toast('Abandoned ' + tmpCount + ' stale run(s).', { type: 'success' });
+							this.pict.PictApplication.loadManifests(
+								function ()
+								{
+									this.renderManifestTable();
+								}.bind(this));
+						}.bind(this));
+				}
+			}.bind(this));
+	}
+
+	// ── Inline Awaiting ──
+
+	_renderAwaitingDetail(pManifest, pViewRef)
+	{
+		let tmpWaitingTasks = pManifest.WaitingTasks || {};
+		let tmpNodeHashes = Object.keys(tmpWaitingTasks);
+		let tmpRunHash = pManifest.Hash || '';
+		let tmpEscRunHash = tmpRunHash.replace(/'/g, "\\'");
+
+		let tmpHTML = '<div class="ultravisor-manifest-awaiting-detail">';
+
+		for (let j = 0; j < tmpNodeHashes.length; j++)
+		{
+			let tmpNodeHash = tmpNodeHashes[j];
+			let tmpEscNodeHash = tmpNodeHash.replace(/'/g, "\\'");
+			let tmpTask = tmpWaitingTasks[tmpNodeHash];
+			let tmpResultId = 'manifest-result-' + tmpRunHash.replace(/[^a-zA-Z0-9]/g, '') + '-' + tmpNodeHash.replace(/[^a-zA-Z0-9]/g, '');
+
+			tmpHTML += '<div class="ultravisor-manifest-awaiting-task">';
+
+			if (this._isBeaconTask(tmpTask))
+			{
+				// Beacon task: waiting indicator + force error
+				tmpHTML += '<div class="ultravisor-manifest-beacon-status">';
+				tmpHTML += '<span class="ultravisor-manifest-waiting-indicator"></span>';
+				tmpHTML += '<span class="ultravisor-manifest-beacon-prompt">' + libTimingUtils.escapeHTML(tmpTask.PromptMessage || 'Waiting for beacon to complete') + '</span>';
+				tmpHTML += '</div>';
+				if (tmpTask.Timestamp)
+				{
+					tmpHTML += '<div class="ultravisor-manifest-elapsed-hint">Dispatched ' + libTimingUtils.escapeHTML(this._formatElapsed(tmpTask.Timestamp)) + '</div>';
+				}
+				tmpHTML += '<button class="ultravisor-manifest-force-error" onclick="' + pViewRef + '.forceError(\'' + tmpEscRunHash + '\', \'' + tmpEscNodeHash + '\', \'' + tmpResultId + '\')">Force Error</button>';
 			}
-		}
-
-		if (tmpTaskResults.length === 0)
-		{
-			return '';
-		}
-
-		// Find max task duration for bar scaling
-		let tmpMaxTaskMs = 0;
-		for (let i = 0; i < tmpTaskResults.length; i++)
-		{
-			let tmpMs = tmpTaskResults[i]._ComputedElapsedMs;
-			if (tmpMs > tmpMaxTaskMs)
+			else
 			{
-				tmpMaxTaskMs = tmpMs;
-			}
-		}
-		if (tmpMaxTaskMs <= 0)
-		{
-			tmpMaxTaskMs = 1;
-		}
+				// Value-input task: prompt + input + submit
+				let tmpInputId = 'manifest-input-' + tmpRunHash.replace(/[^a-zA-Z0-9]/g, '') + '-' + tmpNodeHash.replace(/[^a-zA-Z0-9]/g, '');
 
-		let tmpHTML = '<div class="ultravisor-timing-card">';
-		tmpHTML += '<div class="ultravisor-timing-chart">';
-		tmpHTML += '<div class="ultravisor-timing-chart-title">Task Timeline</div>';
-
-		for (let i = 0; i < tmpTaskResults.length; i++)
-		{
-			let tmpResult = tmpTaskResults[i];
-			let tmpTaskMs = tmpResult._ComputedElapsedMs;
-			let tmpTaskFormatted = libTimingUtils.formatMs(tmpTaskMs);
-			let tmpTaskStatus = tmpResult._ComputedStatus.toLowerCase();
-			let tmpBarClass = 'other';
-			if (tmpTaskStatus === 'complete')
-			{
-				tmpBarClass = 'complete';
-			}
-			else if (tmpTaskStatus === 'error')
-			{
-				tmpBarClass = 'error';
-			}
-			else if (tmpTaskStatus === 'running')
-			{
-				tmpBarClass = 'running';
+				tmpHTML += '<div class="ultravisor-manifest-input-prompt">' + libTimingUtils.escapeHTML(tmpTask.PromptMessage || 'Enter a value') + '</div>';
+				if (tmpTask.OutputAddress)
+				{
+					tmpHTML += '<div class="ultravisor-manifest-input-address">Target: <code>' + libTimingUtils.escapeHTML(tmpTask.OutputAddress) + '</code></div>';
+				}
+				tmpHTML += '<div class="ultravisor-manifest-input-form">';
+				tmpHTML += '<input type="text" id="' + tmpInputId + '" placeholder="Enter value..." onkeydown="if(event.key===\'Enter\'){' + pViewRef + '.submitInput(\'' + tmpEscRunHash + '\', \'' + tmpEscNodeHash + '\', \'' + tmpInputId + '\', \'' + tmpResultId + '\');}" />';
+				tmpHTML += '<button class="ultravisor-manifest-input-submit" onclick="' + pViewRef + '.submitInput(\'' + tmpEscRunHash + '\', \'' + tmpEscNodeHash + '\', \'' + tmpInputId + '\', \'' + tmpResultId + '\')">Submit</button>';
+				tmpHTML += '</div>';
 			}
 
-			let tmpWidthPercent = Math.max((tmpTaskMs / tmpMaxTaskMs) * 100, 1);
-			let tmpNodeHash = tmpResult._NodeHash || '';
-			let tmpDisplayName = tmpResult.TaskTypeName || tmpResult._NodeHash || 'Task ' + (i + 1);
-
-			let tmpRowData =
-			{
-				Label: libTimingUtils.escapeHTML(tmpDisplayName),
-				LabelTitle: libTimingUtils.escapeHTML(tmpNodeHash),
-				LabelStyle: '',
-				BarClass: tmpBarClass,
-				BarStyle: '',
-				WidthPercent: tmpWidthPercent.toFixed(1),
-				BarText: (tmpWidthPercent > 20) ? '<span class="ultravisor-timing-row-bar-text">' + libTimingUtils.escapeHTML(tmpDisplayName) + '</span>' : '',
-				Duration: libTimingUtils.escapeHTML(tmpTaskFormatted),
-				CountHTML: ''
-			};
-			tmpHTML += this.pict.parseTemplateByHash('Ultravisor-Timing-Row-Template', tmpRowData);
+			tmpHTML += '<div id="' + tmpResultId + '"></div>';
+			tmpHTML += '</div>';
 		}
 
-		// Time axis
-		tmpHTML += '<div class="ultravisor-timing-axis">';
-		tmpHTML += '<div class="ultravisor-timing-axis-line">';
-		let tmpTickCount = 5;
-		for (let t = 0; t <= tmpTickCount; t++)
-		{
-			let tmpTickMs = (tmpMaxTaskMs / tmpTickCount) * t;
-			tmpHTML += '<span class="ultravisor-timing-axis-tick">' + libTimingUtils.formatMs(tmpTickMs) + '</span>';
-		}
-		tmpHTML += '</div>';
-		tmpHTML += '<div class="ultravisor-timing-axis-spacer"></div>';
-		tmpHTML += '</div>';
-
-		tmpHTML += '</div>';
 		tmpHTML += '</div>';
 		return tmpHTML;
 	}
 
-	/**
-	 * Render a category histogram (time aggregated by category).
-	 *
-	 * @param {Object} pByCategory - { CategoryName: { TotalMs, Count } }
-	 * @returns {string} HTML string
-	 */
-	_renderCategoryHistogram(pByCategory)
+	toggleAwaitingDetail(pRunHash)
 	{
-		let tmpCategories = Object.keys(pByCategory);
-		if (tmpCategories.length === 0)
+		let tmpRow = document.getElementById('awaiting-row-' + pRunHash);
+		if (tmpRow)
 		{
-			return '';
+			tmpRow.style.display = (tmpRow.style.display === 'none') ? '' : 'none';
 		}
-
-		// Sort by TotalMs descending
-		tmpCategories.sort(function (pA, pB)
-		{
-			return (pByCategory[pB].TotalMs || 0) - (pByCategory[pA].TotalMs || 0);
-		});
-
-		let tmpMaxMs = pByCategory[tmpCategories[0]].TotalMs || 1;
-
-		let tmpHTML = '<div class="ultravisor-timing-card">';
-		tmpHTML += '<div class="ultravisor-timing-chart">';
-		tmpHTML += '<div class="ultravisor-timing-chart-title">Time by Category</div>';
-
-		for (let i = 0; i < tmpCategories.length; i++)
-		{
-			let tmpCat = tmpCategories[i];
-			let tmpData = pByCategory[tmpCat];
-			let tmpMs = tmpData.TotalMs || 0;
-			let tmpWidthPercent = Math.max((tmpMs / tmpMaxMs) * 100, 1);
-			let tmpColors = libTimingUtils.CategoryColors[tmpCat] || libTimingUtils.CategoryColors['Uncategorized'];
-
-			let tmpRowData =
-			{
-				Label: libTimingUtils.escapeHTML(tmpCat),
-				LabelTitle: '',
-				LabelStyle: 'color:' + tmpColors.text + ';',
-				BarClass: '',
-				BarStyle: ' background: ' + tmpColors.bar + ';',
-				WidthPercent: tmpWidthPercent.toFixed(1),
-				BarText: (tmpWidthPercent > 15) ? '<span class="ultravisor-timing-row-bar-text">' + libTimingUtils.formatMs(tmpMs) + '</span>' : '',
-				Duration: libTimingUtils.formatMs(tmpMs),
-				CountHTML: '<div class="ultravisor-timing-row-count">' + tmpData.Count + 'x</div>'
-			};
-			tmpHTML += this.pict.parseTemplateByHash('Ultravisor-Timing-Row-Template', tmpRowData);
-		}
-
-		tmpHTML += '</div>';
-		tmpHTML += '</div>';
-		return tmpHTML;
 	}
 
-	/**
-	 * Render a task type histogram (time broken down by task type).
-	 *
-	 * @param {Object} pByTaskType - { TaskTypeId: { TotalMs, Count, Category, Name } }
-	 * @returns {string} HTML string
-	 */
-	_renderTaskTypeHistogram(pByTaskType)
+	submitInput(pRunHash, pNodeHash, pInputId, pResultId)
 	{
-		let tmpTypes = Object.keys(pByTaskType);
-		if (tmpTypes.length === 0)
+		let tmpInputEl = document.getElementById(pInputId);
+		if (!tmpInputEl) return;
+
+		let tmpValue = tmpInputEl.value;
+		tmpInputEl.disabled = true;
+		let tmpButton = tmpInputEl.parentElement.querySelector('.ultravisor-manifest-input-submit');
+		if (tmpButton)
 		{
-			return '';
+			tmpButton.disabled = true;
+			tmpButton.textContent = 'Submitting...';
 		}
 
-		// Sort by TotalMs descending
-		tmpTypes.sort(function (pA, pB)
-		{
-			return (pByTaskType[pB].TotalMs || 0) - (pByTaskType[pA].TotalMs || 0);
-		});
-
-		let tmpMaxMs = pByTaskType[tmpTypes[0]].TotalMs || 1;
-
-		let tmpHTML = '<div class="ultravisor-timing-card">';
-		tmpHTML += '<div class="ultravisor-timing-chart">';
-		tmpHTML += '<div class="ultravisor-timing-chart-title">Time by Task Type</div>';
-
-		for (let i = 0; i < tmpTypes.length; i++)
-		{
-			let tmpType = tmpTypes[i];
-			let tmpData = pByTaskType[tmpType];
-			let tmpMs = tmpData.TotalMs || 0;
-			let tmpWidthPercent = Math.max((tmpMs / tmpMaxMs) * 100, 1);
-			let tmpCategory = tmpData.Category || 'Uncategorized';
-			let tmpColors = libTimingUtils.CategoryColors[tmpCategory] || libTimingUtils.CategoryColors['Uncategorized'];
-			let tmpDisplayName = tmpData.Name || tmpType;
-
-			let tmpRowData =
+		this.pict.PictApplication.submitPendingInput(pRunHash, pNodeHash, tmpValue,
+			function (pError, pData)
 			{
-				Label: libTimingUtils.escapeHTML(tmpDisplayName),
-				LabelTitle: libTimingUtils.escapeHTML(tmpType),
-				LabelStyle: '',
-				BarClass: '',
-				BarStyle: ' background: ' + tmpColors.bar + ';',
-				WidthPercent: tmpWidthPercent.toFixed(1),
-				BarText: (tmpWidthPercent > 15) ? '<span class="ultravisor-timing-row-bar-text">' + libTimingUtils.formatMs(tmpMs) + '</span>' : '',
-				Duration: libTimingUtils.formatMs(tmpMs),
-				CountHTML: '<div class="ultravisor-timing-row-count">' + tmpData.Count + 'x</div>'
-			};
-			tmpHTML += this.pict.parseTemplateByHash('Ultravisor-Timing-Row-Template', tmpRowData);
-		}
+				if (pError || (pData && pData.Error))
+				{
+					let tmpMsg = (pError && pError.message) || (pData && pData.Error) || 'Request failed';
+					this.pict.ContentAssignment.assignContent('#' + pResultId,
+						'<div class="ultravisor-manifest-result error">Error: ' + libTimingUtils.escapeHTML(tmpMsg) + '</div>');
+					tmpInputEl.disabled = false;
+					if (tmpButton) { tmpButton.disabled = false; tmpButton.textContent = 'Submit'; }
+					return;
+				}
 
-		tmpHTML += '</div>';
-		tmpHTML += '</div>';
-		return tmpHTML;
+				let tmpStatus = (pData && pData.Status) || 'Submitted';
+				this.pict.ContentAssignment.assignContent('#' + pResultId,
+					'<div class="ultravisor-manifest-result success">Input submitted — status: ' + libTimingUtils.escapeHTML(tmpStatus) + '</div>');
+
+				setTimeout(function ()
+				{
+					this.pict.PictApplication.loadManifests(function () { this.renderManifestTable(); }.bind(this));
+				}.bind(this), 1500);
+			}.bind(this));
 	}
+
+	forceError(pRunHash, pNodeHash, pResultId)
+	{
+		this.pict.views.Modal.confirm('Force this task to error?\nThe operation will continue on the Error path.', { confirmLabel: 'Force Error', dangerous: true }).then(
+			function (pConfirmed)
+			{
+				if (pConfirmed)
+				{
+					this._doForceError(pRunHash, pNodeHash, pResultId);
+				}
+			}.bind(this));
+	}
+
+	_doForceError(pRunHash, pNodeHash, pResultId)
+	{
+		this.pict.PictApplication.forceErrorPendingInput(pRunHash, pNodeHash,
+			function (pError, pData)
+			{
+				if (pError || (pData && pData.Error))
+				{
+					let tmpMsg = (pError && pError.message) || (pData && pData.Error) || 'Request failed';
+					this.pict.ContentAssignment.assignContent('#' + pResultId,
+						'<div class="ultravisor-manifest-result error">Error: ' + libTimingUtils.escapeHTML(tmpMsg) + '</div>');
+					return;
+				}
+
+				let tmpStatus = (pData && pData.Status) || 'Errored';
+				this.pict.ContentAssignment.assignContent('#' + pResultId,
+					'<div class="ultravisor-manifest-result error">Task force-errored — status: ' + libTimingUtils.escapeHTML(tmpStatus) + '</div>');
+
+				setTimeout(function ()
+				{
+					this.pict.PictApplication.loadManifests(function () { this.renderManifestTable(); }.bind(this));
+				}.bind(this), 1500);
+			}.bind(this));
+	}
+
 }
 
 module.exports = UltravisorManifestListView;

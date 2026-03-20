@@ -23,12 +23,20 @@
 			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-Schedule`)~}"
 		},
 		{
+			"path": "/Manifests/detail/:runHash",
+			"template": "{~LV:Pict.PictApplication.showManifestDetail(Record.data.runHash)~}"
+		},
+		{
+			"path": "/Manifests/:filter",
+			"template": "{~LV:Pict.PictApplication.showManifestsFiltered(Record.data.filter)~}"
+		},
+		{
 			"path": "/Manifests",
 			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-ManifestList`)~}"
 		},
 		{
 			"path": "/PendingInput",
-			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-PendingInput`)~}"
+			"template": "{~LV:Pict.PictApplication.showManifestsFiltered(`waiting`)~}"
 		},
 		{
 			"path": "/Beacons",

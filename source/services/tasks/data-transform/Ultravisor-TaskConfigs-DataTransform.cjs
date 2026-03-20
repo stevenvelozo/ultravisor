@@ -2,9 +2,9 @@
  * Data Transform task configurations for Ultravisor.
  *
  * Contains task types for manipulating and transforming data in state:
- *   set-values, replace-string, string-appender, template-string,
- *   expression-solver, parse-csv, csv-transform, comprehension-intersect,
- *   histogram
+ *   set-values, add-field-mapping, set-value, replace-string,
+ *   string-appender, template-string, expression-solver, parse-csv,
+ *   csv-transform, comprehension-intersect, histogram
  *
  * Each entry defines a task type as a config object with:
  *   Definition  {object}   - Port schema, metadata, default settings
@@ -72,6 +72,36 @@ function _splitCSVLine(pLine, pDelimiter, pQuoteChar)
 //  DATA TRANSFORM TASK CONFIGS
 // ═══════════════════════════════════════════════════════════════════
 
+/**
+ * Coerce a FieldMapping or OutputFields setting to an array.
+ * Supports the accumulator pattern (pre-built array from state wires)
+ * and legacy JSON string format.
+ */
+function _coerceToArray(pValue)
+{
+	if (Array.isArray(pValue))
+	{
+		return pValue;
+	}
+	if (typeof(pValue) === 'string' && pValue.trim().length > 0)
+	{
+		try
+		{
+			let tmpParsed = JSON.parse(pValue);
+			if (Array.isArray(tmpParsed))
+			{
+				return tmpParsed;
+			}
+		}
+		catch (pError)
+		{
+			// Not valid JSON
+		}
+	}
+	return [];
+}
+
+
 module.exports =
 [
 	// ── set-values ─────────────────────────────────────────────
@@ -120,6 +150,100 @@ module.exports =
 				Outputs: {},
 				StateWrites: tmpStateWrites,
 				Log: tmpLog
+			});
+		}
+	},
+
+	// ── add-field-mapping (accumulator) ────────────────────────
+	{
+		Definition: require('./definitions/add-field-mapping.json'),
+		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
+		{
+			let tmpFrom = pResolvedSettings.From || '';
+			let tmpTo = pResolvedSettings.To || tmpFrom;
+			let tmpTemplate = pResolvedSettings.Template || '';
+			let tmpListAddress = pResolvedSettings.ListAddress;
+
+			if (!tmpListAddress)
+			{
+				return fCallback(null, {
+					EventToFire: 'Complete',
+					Outputs: { FieldMappings: [] },
+					Log: ['AddFieldMapping: no ListAddress specified.']
+				});
+			}
+
+			if (!tmpFrom)
+			{
+				return fCallback(null, {
+					EventToFire: 'Complete',
+					Outputs: { FieldMappings: [] },
+					Log: ['AddFieldMapping: no From field specified.']
+				});
+			}
+
+			// Read existing accumulated list from state
+			let tmpList = [];
+			if (pExecutionContext.StateManager)
+			{
+				let tmpExisting = pExecutionContext.StateManager.resolveAddress(tmpListAddress, pExecutionContext, pExecutionContext.NodeHash);
+				if (Array.isArray(tmpExisting))
+				{
+					tmpList = tmpExisting.slice();
+				}
+			}
+
+			// Append new field mapping
+			let tmpMapping = { From: tmpFrom, To: tmpTo };
+			if (tmpTemplate)
+			{
+				tmpMapping.Template = tmpTemplate;
+			}
+			tmpList.push(tmpMapping);
+
+			let tmpStateWrites = {};
+			tmpStateWrites[tmpListAddress] = tmpList;
+
+			return fCallback(null, {
+				EventToFire: 'Complete',
+				Outputs: { FieldMappings: tmpList },
+				StateWrites: tmpStateWrites,
+				Log: [`AddFieldMapping: appended "${tmpFrom}" -> "${tmpTo}" (${tmpList.length} mappings total)`]
+			});
+		}
+	},
+
+	// ── set-value (simple single-value copy/set) ──────────────
+	{
+		Definition: require('./definitions/set-value.json'),
+		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
+		{
+			let tmpValue = pResolvedSettings.Value;
+			let tmpToAddress = pResolvedSettings.ToAddress;
+
+			if (!tmpToAddress)
+			{
+				return fCallback(null, {
+					EventToFire: 'Error',
+					Outputs: { WrittenValue: '' },
+					Log: ['No ToAddress specified.']
+				});
+			}
+
+			// If Value is undefined/null, write empty string
+			if (tmpValue === undefined || tmpValue === null)
+			{
+				tmpValue = '';
+			}
+
+			let tmpStateWrites = {};
+			tmpStateWrites[tmpToAddress] = tmpValue;
+
+			return fCallback(null, {
+				EventToFire: 'Complete',
+				Outputs: { WrittenValue: tmpValue },
+				StateWrites: tmpStateWrites,
+				Log: [`Set [${tmpToAddress}] = ${JSON.stringify(tmpValue)}`]
 			});
 		}
 	},
@@ -428,7 +552,53 @@ module.exports =
 				return fCallback(null, { EventToFire: 'Complete', Outputs: { Records: [] }, Log: ['CSVTransform: source is not an array.'] });
 			}
 
-			// Pass-through for now — transformation logic is extensible
+			// FieldMapping and OutputFields: accept array (accumulator) or JSON string (legacy)
+			let tmpFieldMapping = _coerceToArray(pResolvedSettings.FieldMapping);
+			let tmpOutputFields = _coerceToArray(pResolvedSettings.OutputFields);
+
+			// Apply field mappings if provided
+			if (tmpFieldMapping.length > 0)
+			{
+				tmpRecords = tmpRecords.map(function (pRecord)
+				{
+					let tmpMapped = {};
+					for (let i = 0; i < tmpFieldMapping.length; i++)
+					{
+						let tmpMap = tmpFieldMapping[i];
+						let tmpFromValue = pRecord[tmpMap.From];
+						let tmpToKey = tmpMap.To || tmpMap.From;
+
+						if (tmpMap.Template && pTask.fable.parseTemplate)
+						{
+							tmpMapped[tmpToKey] = pTask.fable.parseTemplate(tmpMap.Template, pRecord);
+						}
+						else
+						{
+							tmpMapped[tmpToKey] = (tmpFromValue !== undefined) ? tmpFromValue : '';
+						}
+					}
+					return tmpMapped;
+				});
+			}
+
+			// Apply output field filtering if provided
+			if (tmpOutputFields.length > 0)
+			{
+				tmpRecords = tmpRecords.map(function (pRecord)
+				{
+					let tmpFiltered = {};
+					for (let i = 0; i < tmpOutputFields.length; i++)
+					{
+						let tmpField = tmpOutputFields[i];
+						if (pRecord[tmpField] !== undefined)
+						{
+							tmpFiltered[tmpField] = pRecord[tmpField];
+						}
+					}
+					return tmpFiltered;
+				});
+			}
+
 			let tmpStateWrites = {};
 			if (pResolvedSettings.Destination)
 			{
@@ -439,7 +609,9 @@ module.exports =
 				EventToFire: 'Complete',
 				Outputs: { Records: tmpRecords },
 				StateWrites: tmpStateWrites,
-				Log: [`CSVTransform: processed ${tmpRecords.length} records`]
+				Log: [`CSVTransform: processed ${tmpRecords.length} records` +
+					(tmpFieldMapping.length > 0 ? ` with ${tmpFieldMapping.length} field mappings` : '') +
+					(tmpOutputFields.length > 0 ? `, filtered to ${tmpOutputFields.length} fields` : '')]
 			});
 		}
 	},

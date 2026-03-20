@@ -22,11 +22,14 @@ const libViewOperationList = require('./views/PictView-Ultravisor-OperationList.
 const libViewOperationEdit = require('./views/PictView-Ultravisor-OperationEdit.js');
 const libViewSchedule = require('./views/PictView-Ultravisor-Schedule.js');
 const libViewManifestList = require('./views/PictView-Ultravisor-ManifestList.js');
+const libViewManifestDetail = require('./views/PictView-Ultravisor-ManifestDetail.js');
 const libViewTimingView = require('./views/PictView-Ultravisor-TimingView.js');
 const libViewFlowEditor = require('./views/PictView-Ultravisor-FlowEditor.js');
 const libViewPendingInput = require('./views/PictView-Ultravisor-PendingInput.js');
 const libViewDocumentation = require('./views/PictView-Ultravisor-Documentation.js');
 const libViewBeaconList = require('./views/PictView-Ultravisor-BeaconList.js');
+const libViewOperationDescriptionEditor = require('./views/PictView-Ultravisor-OperationDescriptionEditor.js');
+const libPictSectionModal = require('pict-section-modal');
 
 class UltravisorApplication extends libPictApplication
 {
@@ -54,11 +57,16 @@ class UltravisorApplication extends libPictApplication
 		this.pict.addView('Ultravisor-OperationEdit', libViewOperationEdit.default_configuration, libViewOperationEdit);
 		this.pict.addView('Ultravisor-Schedule', libViewSchedule.default_configuration, libViewSchedule);
 		this.pict.addView('Ultravisor-ManifestList', libViewManifestList.default_configuration, libViewManifestList);
+		this.pict.addView('Ultravisor-ManifestDetail', libViewManifestDetail.default_configuration, libViewManifestDetail);
 		this.pict.addView('Ultravisor-TimingView', libViewTimingView.default_configuration, libViewTimingView);
 		this.pict.addView('Ultravisor-FlowEditor', libViewFlowEditor.default_configuration, libViewFlowEditor);
 		this.pict.addView('Ultravisor-PendingInput', libViewPendingInput.default_configuration, libViewPendingInput);
 		this.pict.addView('Ultravisor-Documentation', libViewDocumentation.default_configuration, libViewDocumentation);
 		this.pict.addView('Ultravisor-BeaconList', libViewBeaconList.default_configuration, libViewBeaconList);
+		this.pict.addView('Ultravisor-OperationDescriptionEditor', libViewOperationDescriptionEditor.default_configuration, libViewOperationDescriptionEditor);
+
+		// Modal/toast notification system (replaces browser alert/confirm)
+		this.pict.addView('Modal', {}, libPictSectionModal);
 
 		// Register pict-section-form service types so Form panels can use them
 		this.pict.addServiceType('PictFormMetacontroller', libPictSectionForm.PictFormMetacontroller);
@@ -96,6 +104,7 @@ class UltravisorApplication extends libPictApplication
 			AffinityBindings: [],
 			CurrentEditOperation: null,
 			Flows: {},
+			OperationDescriptionSegments: [{ Content: '' }],
 			DebugMode: false
 		};
 
@@ -572,6 +581,31 @@ class UltravisorApplication extends libPictApplication
 			}.bind(this));
 	}
 
+	// --- Abandon ---
+	abandonRun(pRunHash, fCallback)
+	{
+		this.apiCall('POST', `/Manifest/${encodeURIComponent(pRunHash)}/Abandon`, {},
+			function (pError, pData)
+			{
+				if (typeof fCallback === 'function')
+				{
+					fCallback(pError, pData);
+				}
+			}.bind(this));
+	}
+
+	abandonStaleRuns(fCallback)
+	{
+		this.apiCall('POST', '/Manifest/AbandonStale', {},
+			function (pError, pData)
+			{
+				if (typeof fCallback === 'function')
+				{
+					fCallback(pError, pData);
+				}
+			}.bind(this));
+	}
+
 	// --- Beacons ---
 	loadBeacons(fCallback)
 	{
@@ -851,6 +885,85 @@ class UltravisorApplication extends libPictApplication
 				Connections: [],
 				ViewState: { PanX: 0, PanY: 0, Zoom: 1, SelectedNodeHash: null, SelectedConnectionHash: null }
 			};
+		}
+	}
+
+	/**
+	 * Show the Manifest Detail view for a specific run hash.
+	 * Called from the /Manifests/detail/:runHash route.
+	 */
+	showManifestDetail(pRunHash)
+	{
+		if (this.pict.views['Ultravisor-ManifestDetail'])
+		{
+			this.pict.views['Ultravisor-ManifestDetail'].setRunHash(decodeURIComponent(pRunHash));
+			this.pict.views['Ultravisor-ManifestDetail'].render();
+		}
+	}
+
+	/**
+	 * Show the Manifest List with a pre-set status filter.
+	 * Called from the /Manifests/:filter and /PendingInput routes.
+	 */
+	showManifestsFiltered(pFilter)
+	{
+		if (this.pict.views['Ultravisor-ManifestList'])
+		{
+			this.pict.views['Ultravisor-ManifestList'].setFilterFromRoute(pFilter || 'all');
+			this.pict.views['Ultravisor-ManifestList'].render();
+		}
+	}
+
+	/**
+	 * Watch a running execution in the flow editor.
+	 * Loads the operation, navigates to the FlowEditor, and starts
+	 * monitoring the given RunHash without starting a new execution.
+	 */
+	watchExecution(pRunHash, pOperationHash)
+	{
+		if (!pRunHash || !pOperationHash)
+		{
+			return;
+		}
+
+		let tmpSelf = this;
+
+		// Ensure operations and task types are loaded
+		let tmpNeedOperations = (this.pict.AppData.Ultravisor.OperationList.length < 1);
+		let tmpNeedTaskTypes = (this.pict.AppData.Ultravisor.TaskTypes.length < 1);
+
+		let tmpPending = 0;
+
+		function onReady()
+		{
+			tmpPending--;
+			if (tmpPending > 0) return;
+
+			tmpSelf._setCurrentEditOperation(pOperationHash);
+			tmpSelf.pict.views['Ultravisor-FlowEditor'].render();
+
+			// After render, attach to the running execution
+			setTimeout(function ()
+			{
+				tmpSelf.pict.views['Ultravisor-FlowEditor'].watchExecution(pRunHash);
+			}, 100);
+		}
+
+		if (tmpNeedOperations)
+		{
+			tmpPending++;
+			this.loadOperations(function () { onReady(); });
+		}
+		if (tmpNeedTaskTypes)
+		{
+			tmpPending++;
+			this.loadTaskTypes(function () { onReady(); });
+		}
+
+		if (!tmpNeedOperations && !tmpNeedTaskTypes)
+		{
+			tmpPending = 1;
+			onReady();
 		}
 	}
 

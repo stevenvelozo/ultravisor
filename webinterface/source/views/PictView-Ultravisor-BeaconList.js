@@ -593,21 +593,23 @@ class UltravisorBeaconListView extends libPictView
 
 	deregisterBeacon(pBeaconID)
 	{
-		if (!confirm('Deregister beacon ' + pBeaconID + '? Any assigned work items will be released.'))
-		{
-			return;
-		}
-
-		this.pict.PictApplication.deregisterBeacon(pBeaconID,
-			function (pError)
+		this.pict.views.Modal.confirm('Deregister beacon ' + pBeaconID + '? Any assigned work items will be released.', { confirmLabel: 'Deregister', dangerous: true }).then(
+			function (pConfirmed)
 			{
-				if (pError)
+				if (pConfirmed)
 				{
-					this.pict.log.error('Failed to deregister beacon: ' + pBeaconID, pError);
+					this.pict.PictApplication.deregisterBeacon(pBeaconID,
+						function (pError)
+						{
+							if (pError)
+							{
+								this.pict.log.error('Failed to deregister beacon: ' + pBeaconID, pError);
+							}
+							// Clear detail panel and refresh
+							this.pict.ContentAssignment.assignContent('#Ultravisor-BeaconList-Detail', '');
+							this.refreshAll();
+						}.bind(this));
 				}
-				// Clear detail panel and refresh
-				this.pict.ContentAssignment.assignContent('#Ultravisor-BeaconList-Detail', '');
-				this.refreshAll();
 			}.bind(this));
 	}
 

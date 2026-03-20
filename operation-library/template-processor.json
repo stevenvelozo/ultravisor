@@ -1,7 +1,11 @@
 {
 	"Name": "Template Processor",
 	"Description": "Multi-step text processing pipeline. Initializes project metadata, reads a template, performs chained string replacements, validates for unresolved placeholders, and writes the output. Demonstrates state management and conditional validation.",
-	"Tags": ["text-processing", "templates", "validation"],
+	"Tags": [
+		"text-processing",
+		"templates",
+		"validation"
+	],
 	"Author": "Ultravisor",
 	"Version": "1.0.0",
 	"Graph": {
@@ -15,28 +19,166 @@
 				"Height": 80,
 				"Title": "Start",
 				"Ports": [
-					{ "Hash": "tpl-start-out", "Direction": "output", "Side": "right", "Label": "Out" }
+					{
+						"Hash": "tpl-start-out",
+						"Direction": "output",
+						"Side": "right",
+						"Label": "Out"
+					}
 				],
 				"Data": {}
 			},
 			{
 				"Hash": "tpl-setvals",
-				"Type": "set-values",
+				"Type": "set-value",
 				"X": 270,
 				"Y": 200,
 				"Width": 200,
 				"Height": 80,
 				"Title": "Set Project Info",
 				"Ports": [
-					{ "Hash": "tpl-sv-in", "Direction": "input", "Side": "left", "Label": "Execute" },
-					{ "Hash": "tpl-sv-out", "Direction": "output", "Side": "right", "Label": "Complete" }
+					{
+						"Hash": "tpl-setvals-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "tpl-setvals-Value",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Value"
+					},
+					{
+						"Hash": "tpl-setvals-ToAddress",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "ToAddress"
+					},
+					{
+						"Hash": "tpl-setvals-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "tpl-setvals-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "tpl-setvals-WrittenValue",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "WrittenValue"
+					}
 				],
 				"Data": {
-					"Mappings": [
-						{ "Address": "Operation.ProjectName", "Value": "Retold" },
-						{ "Address": "Operation.Version", "Value": "3.0.0" },
-						{ "Address": "Operation.Author", "Value": "Steven Velozo" }
-					]
+					"Value": "Retold",
+					"ToAddress": "Operation.ProjectName"
+				}
+			},
+			{
+				"Hash": "tpl-setvals-sv-2",
+				"Type": "set-value",
+				"X": 270,
+				"Y": 230,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Set Project Info (2)",
+				"Ports": [
+					{
+						"Hash": "tpl-setvals-sv-2-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "tpl-setvals-sv-2-Value",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Value"
+					},
+					{
+						"Hash": "tpl-setvals-sv-2-ToAddress",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "ToAddress"
+					},
+					{
+						"Hash": "tpl-setvals-sv-2-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "tpl-setvals-sv-2-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "tpl-setvals-sv-2-WrittenValue",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "WrittenValue"
+					}
+				],
+				"Data": {
+					"Value": "3.0.0",
+					"ToAddress": "Operation.Version"
+				}
+			},
+			{
+				"Hash": "tpl-setvals-sv-3",
+				"Type": "set-value",
+				"X": 270,
+				"Y": 260,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Set Project Info (3)",
+				"Ports": [
+					{
+						"Hash": "tpl-setvals-sv-3-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "tpl-setvals-sv-3-Value",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Value"
+					},
+					{
+						"Hash": "tpl-setvals-sv-3-ToAddress",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "ToAddress"
+					},
+					{
+						"Hash": "tpl-setvals-sv-3-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "tpl-setvals-sv-3-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "tpl-setvals-sv-3-WrittenValue",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "WrittenValue"
+					}
+				],
+				"Data": {
+					"Value": "Steven Velozo",
+					"ToAddress": "Operation.Author"
 				}
 			},
 			{
@@ -48,13 +190,41 @@
 				"Height": 120,
 				"Title": "Read Template",
 				"Ports": [
-					{ "Hash": "tpl-read-in", "Direction": "input", "Side": "left", "Label": "BeginRead" },
-					{ "Hash": "tpl-read-done", "Direction": "output", "Side": "right", "Label": "ReadComplete" },
-					{ "Hash": "tpl-read-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
-					{ "Hash": "tpl-read-so-FileContent", "Direction": "output", "Side": "right-top", "Label": "FileContent" },
-					{ "Hash": "tpl-read-so-BytesRead", "Direction": "output", "Side": "right-top", "Label": "BytesRead" }
+					{
+						"Hash": "tpl-read-in",
+						"Direction": "input",
+						"Side": "left",
+						"Label": "BeginRead"
+					},
+					{
+						"Hash": "tpl-read-done",
+						"Direction": "output",
+						"Side": "right",
+						"Label": "ReadComplete"
+					},
+					{
+						"Hash": "tpl-read-err",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "tpl-read-so-FileContent",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "FileContent"
+					},
+					{
+						"Hash": "tpl-read-so-BytesRead",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "BytesRead"
+					}
 				],
-				"Data": { "FilePath": "readme.template.md", "Encoding": "utf8" }
+				"Data": {
+					"FilePath": "readme.template.md",
+					"Encoding": "utf8"
+				}
 			},
 			{
 				"Hash": "tpl-replace-name",
@@ -65,13 +235,42 @@
 				"Height": 120,
 				"Title": "Set Project Name",
 				"Ports": [
-					{ "Hash": "tpl-rn-in", "Direction": "input", "Side": "left", "Label": "Replace" },
-					{ "Hash": "tpl-rn-done", "Direction": "output", "Side": "right", "Label": "ReplaceComplete" },
-					{ "Hash": "tpl-rn-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
-					{ "Hash": "tpl-rn-si-InputString", "Direction": "input", "Side": "left-top", "Label": "InputString" },
-					{ "Hash": "tpl-rn-so-ReplacedString", "Direction": "output", "Side": "right-top", "Label": "ReplacedString" }
+					{
+						"Hash": "tpl-rn-in",
+						"Direction": "input",
+						"Side": "left",
+						"Label": "Replace"
+					},
+					{
+						"Hash": "tpl-rn-done",
+						"Direction": "output",
+						"Side": "right",
+						"Label": "ReplaceComplete"
+					},
+					{
+						"Hash": "tpl-rn-err",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "tpl-rn-si-InputString",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "InputString"
+					},
+					{
+						"Hash": "tpl-rn-so-ReplacedString",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "ReplacedString"
+					}
 				],
-				"Data": { "InputString": "{~D:Record.TaskOutput.tpl-read.FileContent~}", "SearchString": "${PROJECT_NAME}", "ReplaceString": "{~D:Record.Operation.ProjectName~}" }
+				"Data": {
+					"InputString": "{~D:Record.TaskOutput.tpl-read.FileContent~}",
+					"SearchString": "${PROJECT_NAME}",
+					"ReplaceString": "{~D:Record.Operation.ProjectName~}"
+				}
 			},
 			{
 				"Hash": "tpl-replace-ver",
@@ -82,13 +281,42 @@
 				"Height": 120,
 				"Title": "Set Version",
 				"Ports": [
-					{ "Hash": "tpl-rv-in", "Direction": "input", "Side": "left", "Label": "Replace" },
-					{ "Hash": "tpl-rv-done", "Direction": "output", "Side": "right", "Label": "ReplaceComplete" },
-					{ "Hash": "tpl-rv-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
-					{ "Hash": "tpl-rv-si-InputString", "Direction": "input", "Side": "left-top", "Label": "InputString" },
-					{ "Hash": "tpl-rv-so-ReplacedString", "Direction": "output", "Side": "right-top", "Label": "ReplacedString" }
+					{
+						"Hash": "tpl-rv-in",
+						"Direction": "input",
+						"Side": "left",
+						"Label": "Replace"
+					},
+					{
+						"Hash": "tpl-rv-done",
+						"Direction": "output",
+						"Side": "right",
+						"Label": "ReplaceComplete"
+					},
+					{
+						"Hash": "tpl-rv-err",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "tpl-rv-si-InputString",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "InputString"
+					},
+					{
+						"Hash": "tpl-rv-so-ReplacedString",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "ReplacedString"
+					}
 				],
-				"Data": { "InputString": "{~D:Record.TaskOutput.tpl-replace-name.ReplacedString~}", "SearchString": "${VERSION}", "ReplaceString": "{~D:Record.Operation.Version~}" }
+				"Data": {
+					"InputString": "{~D:Record.TaskOutput.tpl-replace-name.ReplacedString~}",
+					"SearchString": "${VERSION}",
+					"ReplaceString": "{~D:Record.Operation.Version~}"
+				}
 			},
 			{
 				"Hash": "tpl-validate",
@@ -99,12 +327,36 @@
 				"Height": 100,
 				"Title": "Unresolved Placeholders?",
 				"Ports": [
-					{ "Hash": "tpl-val-in", "Direction": "input", "Side": "left", "Label": "Evaluate" },
-					{ "Hash": "tpl-val-true", "Direction": "output", "Side": "bottom", "Label": "True" },
-					{ "Hash": "tpl-val-false", "Direction": "output", "Side": "right", "Label": "False" },
-					{ "Hash": "tpl-val-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
+					{
+						"Hash": "tpl-val-in",
+						"Direction": "input",
+						"Side": "left",
+						"Label": "Evaluate"
+					},
+					{
+						"Hash": "tpl-val-true",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "True"
+					},
+					{
+						"Hash": "tpl-val-false",
+						"Direction": "output",
+						"Side": "right",
+						"Label": "False"
+					},
+					{
+						"Hash": "tpl-val-so-Result",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "Result"
+					}
 				],
-				"Data": { "DataAddress": "TaskOutput.tpl-replace-ver.ReplacedString", "CompareValue": "${", "Operator": "contains" }
+				"Data": {
+					"DataAddress": "TaskOutput.tpl-replace-ver.ReplacedString",
+					"CompareValue": "${",
+					"Operator": "contains"
+				}
 			},
 			{
 				"Hash": "tpl-warn",
@@ -115,10 +367,22 @@
 				"Height": 80,
 				"Title": "Warn: Unresolved",
 				"Ports": [
-					{ "Hash": "tpl-warn-in", "Direction": "input", "Side": "left", "Label": "Trigger" },
-					{ "Hash": "tpl-warn-done", "Direction": "output", "Side": "right", "Label": "Complete" }
+					{
+						"Hash": "tpl-warn-in",
+						"Direction": "input",
+						"Side": "left",
+						"Label": "Trigger"
+					},
+					{
+						"Hash": "tpl-warn-done",
+						"Direction": "output",
+						"Side": "right",
+						"Label": "Complete"
+					}
 				],
-				"Data": { "MessageTemplate": "Warning: Template still contains unresolved ${...} placeholders after processing" }
+				"Data": {
+					"MessageTemplate": "Warning: Template still contains unresolved ${...} placeholders after processing"
+				}
 			},
 			{
 				"Hash": "tpl-header",
@@ -129,12 +393,35 @@
 				"Height": 120,
 				"Title": "Add Header",
 				"Ports": [
-					{ "Hash": "tpl-hdr-in", "Direction": "input", "Side": "left", "Label": "Append" },
-					{ "Hash": "tpl-hdr-done", "Direction": "output", "Side": "right", "Label": "Completed" },
-					{ "Hash": "tpl-hdr-si-InputString", "Direction": "input", "Side": "left-top", "Label": "InputString" },
-					{ "Hash": "tpl-hdr-so-AppendedString", "Direction": "output", "Side": "right-top", "Label": "AppendedString" }
+					{
+						"Hash": "tpl-hdr-in",
+						"Direction": "input",
+						"Side": "left",
+						"Label": "Append"
+					},
+					{
+						"Hash": "tpl-hdr-done",
+						"Direction": "output",
+						"Side": "right",
+						"Label": "Completed"
+					},
+					{
+						"Hash": "tpl-hdr-si-InputString",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "InputString"
+					},
+					{
+						"Hash": "tpl-hdr-so-AppendedString",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "AppendedString"
+					}
 				],
-				"Data": { "InputString": "{~D:Record.TaskOutput.tpl-replace-ver.ReplacedString~}", "OutputAddress": "Operation.FinalContent" }
+				"Data": {
+					"InputString": "{~D:Record.TaskOutput.tpl-replace-ver.ReplacedString~}",
+					"OutputAddress": "Operation.FinalContent"
+				}
 			},
 			{
 				"Hash": "tpl-write",
@@ -145,13 +432,42 @@
 				"Height": 120,
 				"Title": "Write Output",
 				"Ports": [
-					{ "Hash": "tpl-write-in", "Direction": "input", "Side": "left", "Label": "BeginWrite" },
-					{ "Hash": "tpl-write-done", "Direction": "output", "Side": "right", "Label": "WriteComplete" },
-					{ "Hash": "tpl-write-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
-					{ "Hash": "tpl-write-si-Content", "Direction": "input", "Side": "left-top", "Label": "Content" },
-					{ "Hash": "tpl-write-so-BytesWritten", "Direction": "output", "Side": "right-top", "Label": "BytesWritten" }
+					{
+						"Hash": "tpl-write-in",
+						"Direction": "input",
+						"Side": "left",
+						"Label": "BeginWrite"
+					},
+					{
+						"Hash": "tpl-write-done",
+						"Direction": "output",
+						"Side": "right",
+						"Label": "WriteComplete"
+					},
+					{
+						"Hash": "tpl-write-err",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "tpl-write-si-Content",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Content"
+					},
+					{
+						"Hash": "tpl-write-so-BytesWritten",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "BytesWritten"
+					}
 				],
-				"Data": { "FilePath": "README.md", "Content": "{~D:Record.Operation.FinalContent~}", "Encoding": "utf8" }
+				"Data": {
+					"FilePath": "README.md",
+					"Content": "{~D:Record.Operation.FinalContent~}",
+					"Encoding": "utf8"
+				}
 			},
 			{
 				"Hash": "tpl-end",
@@ -162,28 +478,17 @@
 				"Height": 80,
 				"Title": "End",
 				"Ports": [
-					{ "Hash": "tpl-end-in", "Direction": "input", "Side": "left", "Label": "In" }
+					{
+						"Hash": "tpl-end-in",
+						"Direction": "input",
+						"Side": "left",
+						"Label": "In"
+					}
 				],
 				"Data": {}
 			}
 		],
 		"Connections": [
-			{
-				"Hash": "tpl-c1",
-				"SourceNodeHash": "tpl-start",
-				"SourcePortHash": "tpl-start-out",
-				"TargetNodeHash": "tpl-setvals",
-				"TargetPortHash": "tpl-sv-in",
-				"Data": {}
-			},
-			{
-				"Hash": "tpl-c2",
-				"SourceNodeHash": "tpl-setvals",
-				"SourcePortHash": "tpl-sv-out",
-				"TargetNodeHash": "tpl-read",
-				"TargetPortHash": "tpl-read-in",
-				"Data": {}
-			},
 			{
 				"Hash": "tpl-c3",
 				"SourceNodeHash": "tpl-read",
@@ -280,10 +585,70 @@
 				"TargetPortHash": "tpl-end-in",
 				"Data": {}
 			},
-			{ "Hash": "tpl-sc1", "SourceNodeHash": "tpl-read", "SourcePortHash": "tpl-read-so-FileContent", "TargetNodeHash": "tpl-replace-name", "TargetPortHash": "tpl-rn-si-InputString", "Data": {} },
-			{ "Hash": "tpl-sc2", "SourceNodeHash": "tpl-replace-name", "SourcePortHash": "tpl-rn-so-ReplacedString", "TargetNodeHash": "tpl-replace-ver", "TargetPortHash": "tpl-rv-si-InputString", "Data": {} },
-			{ "Hash": "tpl-sc3", "SourceNodeHash": "tpl-replace-ver", "SourcePortHash": "tpl-rv-so-ReplacedString", "TargetNodeHash": "tpl-header", "TargetPortHash": "tpl-hdr-si-InputString", "Data": {} },
-			{ "Hash": "tpl-sc4", "SourceNodeHash": "tpl-header", "SourcePortHash": "tpl-hdr-so-AppendedString", "TargetNodeHash": "tpl-write", "TargetPortHash": "tpl-write-si-Content", "Data": {} }
+			{
+				"Hash": "tpl-sc1",
+				"SourceNodeHash": "tpl-read",
+				"SourcePortHash": "tpl-read-so-FileContent",
+				"TargetNodeHash": "tpl-replace-name",
+				"TargetPortHash": "tpl-rn-si-InputString",
+				"Data": {}
+			},
+			{
+				"Hash": "tpl-sc2",
+				"SourceNodeHash": "tpl-replace-name",
+				"SourcePortHash": "tpl-rn-so-ReplacedString",
+				"TargetNodeHash": "tpl-replace-ver",
+				"TargetPortHash": "tpl-rv-si-InputString",
+				"Data": {}
+			},
+			{
+				"Hash": "tpl-sc3",
+				"SourceNodeHash": "tpl-replace-ver",
+				"SourcePortHash": "tpl-rv-so-ReplacedString",
+				"TargetNodeHash": "tpl-header",
+				"TargetPortHash": "tpl-hdr-si-InputString",
+				"Data": {}
+			},
+			{
+				"Hash": "tpl-sc4",
+				"SourceNodeHash": "tpl-header",
+				"SourcePortHash": "tpl-hdr-so-AppendedString",
+				"TargetNodeHash": "tpl-write",
+				"TargetPortHash": "tpl-write-si-Content",
+				"Data": {}
+			},
+			{
+				"Hash": "tpl-c1",
+				"SourceNodeHash": "tpl-start",
+				"SourcePortHash": "tpl-start-out",
+				"TargetNodeHash": "tpl-setvals",
+				"TargetPortHash": "tpl-setvals-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "tpl-setvals-chain-1",
+				"SourceNodeHash": "tpl-setvals",
+				"SourcePortHash": "tpl-setvals-Complete",
+				"TargetNodeHash": "tpl-setvals-sv-2",
+				"TargetPortHash": "tpl-setvals-sv-2-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "tpl-setvals-chain-2",
+				"SourceNodeHash": "tpl-setvals-sv-2",
+				"SourcePortHash": "tpl-setvals-sv-2-Complete",
+				"TargetNodeHash": "tpl-setvals-sv-3",
+				"TargetPortHash": "tpl-setvals-sv-3-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "tpl-c2",
+				"SourceNodeHash": "tpl-setvals-sv-3",
+				"SourcePortHash": "tpl-setvals-sv-3-Complete",
+				"TargetNodeHash": "tpl-read",
+				"TargetPortHash": "tpl-read-in",
+				"Data": {}
+			}
 		],
 		"ViewState": {
 			"PanX": 0,

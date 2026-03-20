@@ -116,6 +116,21 @@ _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorStateM
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorExecutionEngine', libServiceExecutionEngine);
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorExecutionManifest', libServiceExecutionManifest);
 
+// Load recent manifests from disk so history persists across restarts
+let tmpManifestService = Object.values(_Ultravisor_Pict.fable.servicesMap['UltravisorExecutionManifest'])[0];
+if (tmpManifestService)
+{
+	tmpManifestService.loadRecentManifests(100);
+}
+
+// Resume any WaitingForInput operations from previous sessions
+// (also marks stale Running operations as Error)
+let tmpEngine = Object.values(_Ultravisor_Pict.fable.servicesMap['UltravisorExecutionEngine'])[0];
+if (tmpEngine)
+{
+	tmpEngine.resumeWaitingRuns();
+}
+
 // Register built-in task types
 let tmpRegistry = Object.values(_Ultravisor_Pict.fable.servicesMap['UltravisorTaskTypeRegistry'])[0];
 if (tmpRegistry)

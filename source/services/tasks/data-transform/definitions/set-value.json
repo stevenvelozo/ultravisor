@@ -1,0 +1,23 @@
+{
+	"Hash": "set-value",
+	"Type": "set-value",
+	"Name": "Set Value",
+	"Description": "Copies a value from one state address to another, or sets a constant value at an address.",
+	"Category": "data",
+	"Capability": "Data Transform",
+	"Action": "SetValue",
+	"Tier": "Engine",
+	"EventInputs": [{ "Name": "Execute" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "Value", "DataType": "String", "Required": false, "Description": "The value to set (constant or resolved from address mode)" },
+		{ "Name": "ToAddress", "DataType": "String", "Required": true, "Description": "State address to write to (e.g. OperationState.MyField)" }
+	],
+	"StateOutputs": [
+		{ "Name": "WrittenValue", "DataType": "String", "Description": "The value that was written" }
+	],
+	"DefaultSettings": { "Value": "", "ToAddress": "" }
+}

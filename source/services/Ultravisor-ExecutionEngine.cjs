@@ -272,6 +272,133 @@ class UltravisorExecutionEngine extends libPictService
 		return fCallback(null, tmpContext);
 	}
 
+	// ====================================================================
+	// Graph Context Rebuild (for disk-loaded manifests)
+	// ====================================================================
+
+	/**
+	 * Rebuild the runtime graph structures on a disk-loaded execution context.
+	 * After this call, the context has _Graph, _NodeMap, _PortLabelMap, and
+	 * _ConnectionMap — enough for resumeOperation() and forceErrorOnWaitingTask()
+	 * to work.
+	 *
+	 * @param {object} pContext - The disk-loaded execution context
+	 * @param {object} pOperationDefinition - The operation definition with Graph
+	 */
+	_rebuildGraphContext(pContext, pOperationDefinition)
+	{
+		pContext._Graph = pOperationDefinition.Graph;
+		pContext._NodeMap = this._buildNodeMap(pOperationDefinition.Graph);
+		pContext._PortLabelMap = this._buildPortLabelMap(pOperationDefinition.Graph);
+		pContext._ConnectionMap = this._buildConnectionMap(
+			pOperationDefinition.Graph, pContext._NodeMap, pContext._PortLabelMap);
+		pContext.Live = true;
+	}
+
+	/**
+	 * Resume all WaitingForInput runs loaded from disk.
+	 * Called once at startup after loadRecentManifests() and operation
+	 * definitions are available.
+	 *
+	 * For each disk-loaded WaitingForInput run with non-empty WaitingTasks:
+	 *   1. Looks up the operation definition
+	 *   2. Rebuilds graph structures on the context
+	 *   3. Marks as Live so the UI shows Watch/Awaiting/Force Error buttons
+	 *
+	 * Also marks stale Running operations as Error since their in-flight
+	 * tasks cannot be recovered.
+	 */
+	resumeWaitingRuns()
+	{
+		let tmpManifestService = this._getManifestService();
+		if (!tmpManifestService)
+		{
+			return;
+		}
+
+		let tmpStateService = this.fable.servicesMap['UltravisorHypervisorState']
+			? Object.values(this.fable.servicesMap['UltravisorHypervisorState'])[0]
+			: null;
+
+		if (!tmpStateService)
+		{
+			return;
+		}
+
+		let tmpRuns = tmpManifestService.listRuns();
+		let tmpResumedCount = 0;
+		let tmpErroredCount = 0;
+
+		for (let i = 0; i < tmpRuns.length; i++)
+		{
+			let tmpRun = tmpRuns[i];
+
+			// Resume WaitingForInput runs
+			if (tmpRun.Status === 'WaitingForInput' && !tmpRun.Live)
+			{
+				if (!tmpRun.WaitingTasks || Object.keys(tmpRun.WaitingTasks).length === 0)
+				{
+					continue;
+				}
+
+				// Look up the operation definition
+				let tmpOperation = tmpStateService.getOperationSync(tmpRun.OperationHash);
+				if (!tmpOperation || !tmpOperation.Graph)
+				{
+					this.log.warn(`ExecutionEngine: cannot resume run [${tmpRun.Hash}] — operation [${tmpRun.OperationHash}] not found.`);
+					continue;
+				}
+
+				// Get the full context
+				let tmpContext = tmpManifestService.getRun(tmpRun.Hash);
+				if (!tmpContext)
+				{
+					continue;
+				}
+
+				// Rebuild graph structures so resume/forceError work
+				this._rebuildGraphContext(tmpContext, tmpOperation);
+
+				this.log.info(`ExecutionEngine: resumed waiting run [${tmpRun.Hash}] for operation [${tmpRun.OperationName || tmpRun.OperationHash}]`);
+				tmpResumedCount++;
+			}
+
+			// Mark stale Running operations as Error
+			if (tmpRun.Status === 'Running' && !tmpRun.Live)
+			{
+				let tmpContext = tmpManifestService.getRun(tmpRun.Hash);
+				if (tmpContext)
+				{
+					tmpContext.Status = 'Error';
+					tmpContext.Errors.push({
+						NodeHash: null,
+						Message: 'Operation was running when server stopped. Execution cannot be resumed.',
+						Timestamp: new Date().toISOString()
+					});
+					tmpContext.StopTime = new Date().toISOString();
+
+					// Re-write the manifest with the error status
+					if (tmpContext.StagingPath)
+					{
+						tmpManifestService._writeManifest(tmpContext, tmpContext.StagingPath);
+					}
+
+					this.log.warn(`ExecutionEngine: marked stale run [${tmpRun.Hash}] as Error (was Running when server stopped).`);
+					tmpErroredCount++;
+				}
+			}
+		}
+
+		if (tmpResumedCount > 0)
+		{
+			this.log.info(`ExecutionEngine: resumed ${tmpResumedCount} waiting operation(s) from disk.`);
+		}
+		if (tmpErroredCount > 0)
+		{
+			this.log.info(`ExecutionEngine: marked ${tmpErroredCount} stale running operation(s) as Error.`);
+		}
+	}
+
 	/**
 	 * Resume a paused operation after a value-input task receives input.
 	 *
@@ -695,6 +822,11 @@ class UltravisorExecutionEngine extends libPictService
 				if (tmpManifestService)
 				{
 					tmpManifestService.recordTaskComplete(pContext, pNodeHash, pResult);
+					// Checkpoint: persist state so WaitingForInput survives restart
+					if (pContext.StagingPath)
+					{
+						tmpManifestService._writeManifest(pContext, pContext.StagingPath);
+					}
 				}
 				return fCallback(null);
 			}
@@ -746,12 +878,19 @@ class UltravisorExecutionEngine extends libPictService
 				}
 			}
 
-			// Record completion
+			// Record completion and checkpoint state
 			if (tmpManifestService)
 			{
 				tmpManifestService.recordTaskComplete(pContext, pNodeHash, pResult);
 				tmpManifestService.recordEvent(pContext, pNodeHash, 'TaskComplete',
 					`Completed [${pNodeHash}] -> ${pResult.EventToFire || 'no event'}`, 0);
+
+				// Checkpoint: persist current state after each task so at most
+				// we lose the currently-executing task on crash
+				if (pContext.StagingPath)
+				{
+					tmpManifestService._writeManifest(pContext, pContext.StagingPath);
+				}
 			}
 
 			// Fire the output event (enqueue downstream tasks)

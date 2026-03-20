@@ -81,6 +81,156 @@ class UltravisorExecutionManifest extends libPictService
 	}
 
 	/**
+	 * Load recent completed manifests from disk into memory.
+	 * Called on startup so that the Manifests UI has historical data
+	 * across server restarts.
+	 *
+	 * Scans the staging root for run folders, finds Manifest_*.json
+	 * files, parses them, and loads up to pLimit most recent runs
+	 * (sorted by StopTime descending).
+	 *
+	 * @param {number} [pLimit=100] - Maximum number of manifests to load.
+	 */
+	loadRecentManifests(pLimit)
+	{
+		let tmpLimit = pLimit || 100;
+		let tmpStagingRoot = this.resolveStagingRoot();
+
+		if (!libFS.existsSync(tmpStagingRoot))
+		{
+			return;
+		}
+
+		let tmpEntries;
+		try
+		{
+			tmpEntries = libFS.readdirSync(tmpStagingRoot);
+		}
+		catch (pError)
+		{
+			this.log.warn(`UltravisorExecutionManifest: could not read staging root [${tmpStagingRoot}]: ${pError.message}`);
+			return;
+		}
+
+		// Collect all manifest files with their metadata
+		let tmpManifestFiles = [];
+
+		for (let i = 0; i < tmpEntries.length; i++)
+		{
+			let tmpEntryPath = libPath.resolve(tmpStagingRoot, tmpEntries[i]);
+
+			try
+			{
+				let tmpStat = libFS.statSync(tmpEntryPath);
+				if (!tmpStat.isDirectory())
+				{
+					continue;
+				}
+			}
+			catch (pError)
+			{
+				continue;
+			}
+
+			// Look for Manifest_*.json in this run folder
+			let tmpRunFiles;
+			try
+			{
+				tmpRunFiles = libFS.readdirSync(tmpEntryPath);
+			}
+			catch (pError)
+			{
+				continue;
+			}
+
+			for (let j = 0; j < tmpRunFiles.length; j++)
+			{
+				if (tmpRunFiles[j].startsWith('Manifest_') && tmpRunFiles[j].endsWith('.json'))
+				{
+					let tmpManifestPath = libPath.resolve(tmpEntryPath, tmpRunFiles[j]);
+					try
+					{
+						let tmpFileStat = libFS.statSync(tmpManifestPath);
+						tmpManifestFiles.push({
+							Path: tmpManifestPath,
+							StagingPath: tmpEntryPath,
+							ModifiedTime: tmpFileStat.mtimeMs
+						});
+					}
+					catch (pError)
+					{
+						// Skip unreadable files
+					}
+				}
+			}
+		}
+
+		// Sort by modification time descending (most recent first)
+		tmpManifestFiles.sort(function (pA, pB) { return pB.ModifiedTime - pA.ModifiedTime; });
+
+		// Load up to the limit
+		let tmpLoaded = 0;
+
+		for (let i = 0; i < tmpManifestFiles.length && tmpLoaded < tmpLimit; i++)
+		{
+			try
+			{
+				let tmpRawJSON = libFS.readFileSync(tmpManifestFiles[i].Path, 'utf8');
+				let tmpManifest = JSON.parse(tmpRawJSON);
+
+				// Skip if this run is already in memory (e.g. currently executing)
+				if (this._Runs[tmpManifest.Hash])
+				{
+					continue;
+				}
+
+				// Reconstruct a context-like object from the manifest.
+				// Disk-loaded runs are not live — they can't be watched or
+				// resumed, so we mark them accordingly.
+				let tmpContext = {
+					Hash: tmpManifest.Hash,
+					OperationHash: tmpManifest.OperationHash,
+					OperationName: tmpManifest.OperationName,
+					Status: tmpManifest.Status,
+					RunMode: tmpManifest.RunMode,
+					StagingPath: tmpManifestFiles[i].StagingPath,
+					Live: false,
+
+					GlobalState: tmpManifest.GlobalState || {},
+					OperationState: tmpManifest.OperationState || {},
+					TaskOutputs: tmpManifest.TaskOutputs || {},
+					Output: tmpManifest.Output || {},
+
+					PendingEvents: [],
+					WaitingTasks: tmpManifest.WaitingTasks || {},
+
+					TaskManifests: tmpManifest.TaskManifests || {},
+					EventLog: tmpManifest.EventLog || [],
+					Log: tmpManifest.Log || [],
+					Errors: tmpManifest.Errors || [],
+
+					StartTime: tmpManifest.StartTime,
+					StopTime: tmpManifest.StopTime,
+					ElapsedMs: tmpManifest.ElapsedMs,
+					TimingSummary: tmpManifest.TimingSummary || null
+				};
+
+				this._Runs[tmpContext.Hash] = tmpContext;
+				tmpLoaded++;
+			}
+			catch (pError)
+			{
+				this.log.warn(`UltravisorExecutionManifest: failed to load manifest [${tmpManifestFiles[i].Path}]: ${pError.message}`);
+			}
+		}
+
+		if (tmpLoaded > 0)
+		{
+			this.log.info(`UltravisorExecutionManifest: loaded ${tmpLoaded} recent manifest(s) from disk.`);
+		}
+	}
+
+	/**
 	 * Resolve the base staging root folder.
 	 *
 	 * @returns {string} Absolute path to the staging root.
@@ -147,6 +297,7 @@ class UltravisorExecutionManifest extends libPictService
 			Status: 'Pending',
 			RunMode: tmpRunMode,
 			StagingPath: tmpStagingPath,
+			Live: true,
 
 			GlobalState: {},
 			OperationState: {},
@@ -562,7 +713,7 @@ class UltravisorExecutionManifest extends libPictService
 		for (let i = 0; i < tmpKeys.length; i++)
 		{
 			let tmpRun = this._Runs[tmpKeys[i]];
-			tmpRuns.push({
+			let tmpSummary = {
 				Hash: tmpRun.Hash,
 				OperationHash: tmpRun.OperationHash,
 				OperationName: tmpRun.OperationName,
@@ -572,11 +723,105 @@ class UltravisorExecutionManifest extends libPictService
 				StopTime: tmpRun.StopTime,
 				ElapsedMs: tmpRun.ElapsedMs,
 				ErrorCount: tmpRun.Errors.length,
-				StagingPath: tmpRun.StagingPath
-			});
+				StagingPath: tmpRun.StagingPath,
+				Live: tmpRun.Live || false
+			};
+
+			// Include WaitingTasks for runs that are waiting, so the UI
+			// can render inline awaiting actions without a second API call
+			if (tmpRun.Status === 'WaitingForInput' && tmpRun.WaitingTasks)
+			{
+				tmpSummary.WaitingTasks = tmpRun.WaitingTasks;
+			}
+
+			tmpRuns.push(tmpSummary);
 		}
 
 		return tmpRuns;
+	}
+
+	/**
+	 * Abandon a single execution run.
+	 * Sets status to 'Abandoned', clears WaitingTasks, persists to disk.
+	 *
+	 * @param {string} pRunHash - The run hash to abandon.
+	 * @returns {object|null} The updated context, or null if not found.
+	 */
+	abandonRun(pRunHash)
+	{
+		let tmpContext = this._Runs[pRunHash];
+		if (!tmpContext)
+		{
+			return null;
+		}
+
+		// Only abandon non-terminal runs
+		if (tmpContext.Status === 'Complete' || tmpContext.Status === 'Abandoned')
+		{
+			return tmpContext;
+		}
+
+		tmpContext.Status = 'Abandoned';
+		tmpContext.WaitingTasks = {};
+		tmpContext.PendingEvents = [];
+		tmpContext.Live = false;
+		tmpContext.StopTime = tmpContext.StopTime || new Date().toISOString();
+
+		if (!tmpContext.ElapsedMs && tmpContext.StartTime)
+		{
+			tmpContext.ElapsedMs = new Date(tmpContext.StopTime).getTime() - new Date(tmpContext.StartTime).getTime();
+		}
+
+		tmpContext.Log.push(`[${new Date().toISOString()}] Run abandoned by user.`);
+
+		// Persist the updated status to disk
+		if (tmpContext.StagingPath)
+		{
+			this._writeManifest(tmpContext, tmpContext.StagingPath);
+		}
+
+		this.log.info(`UltravisorExecutionManifest: run [${pRunHash}] abandoned.`);
+		return tmpContext;
+	}
+
+	/**
+	 * Abandon all stale runs in impossible states.
+	 * Targets: WaitingForInput with no live graph, Running with no live context.
+	 *
+	 * @returns {number} Count of runs abandoned.
+	 */
+	abandonStaleRuns()
+	{
+		let tmpKeys = Object.keys(this._Runs);
+		let tmpCount = 0;
+
+		for (let i = 0; i < tmpKeys.length; i++)
+		{
+			let tmpRun = this._Runs[tmpKeys[i]];
+
+			// Abandon non-live WaitingForInput runs (orphaned from previous sessions)
+			if (tmpRun.Status === 'WaitingForInput' && !tmpRun.Live)
+			{
+				this.abandonRun(tmpRun.Hash);
+				tmpCount++;
+				continue;
+			}
+
+			// Abandon non-live Running runs (crashed mid-execution)
+			if (tmpRun.Status === 'Running' && !tmpRun.Live)
+			{
+				this.abandonRun(tmpRun.Hash);
+				tmpCount++;
+				continue;
+			}
+		}
+
+		if (tmpCount > 0)
+		{
+			this.log.info(`UltravisorExecutionManifest: abandoned ${tmpCount} stale run(s).`);
+		}
+
+		return tmpCount;
 	}
 
 	// --- Internal: file writing ---
@@ -605,12 +850,17 @@ class UltravisorExecutionManifest extends libPictService
 				Log: pExecutionContext.Log
 			};
 
-			// Debug mode: embed full state in the manifest
-			if (pExecutionContext.RunMode === 'debug')
+			// Always persist execution state for checkpoint/resume
+			tmpManifest.GlobalState = pExecutionContext.GlobalState;
+			tmpManifest.OperationState = pExecutionContext.OperationState;
+			tmpManifest.TaskOutputs = pExecutionContext.TaskOutputs;
+
+			// Persist WaitingTasks so WaitingForInput runs can resume after restart
+			if (pExecutionContext.Status === 'WaitingForInput'
+				&& pExecutionContext.WaitingTasks
+				&& Object.keys(pExecutionContext.WaitingTasks).length > 0)
 			{
-				tmpManifest.GlobalState = pExecutionContext.GlobalState;
-				tmpManifest.OperationState = pExecutionContext.OperationState;
-				tmpManifest.TaskOutputs = pExecutionContext.TaskOutputs;
+				tmpManifest.WaitingTasks = pExecutionContext.WaitingTasks;
 			}
 
 			libFS.writeFileSync(tmpManifestPath, JSON.stringify(tmpManifest, null, '\t'), 'utf8');

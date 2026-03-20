@@ -7,7 +7,7 @@
  * Creates and executes multiple operations via the REST API to exercise
  * all task types and workflow patterns:
  *   - Simple file copy (read-file → write-file)
- *   - Conditional branching (set-values → if-conditional → write-file)
+ *   - Conditional branching (set-value → if-conditional → write-file)
  *   - Error handling (read-file error → error-message)
  *   - Looping pipeline (read → split → replace → append → write)
  *   - Sub-operation composition (launch-operation)
@@ -678,7 +678,7 @@ suite
 						libAssert.ok(tmpResponse.length >= 10, 'Should have at least 10 built-in task types (got ' + tmpResponse.length + ')');
 
 						// Verify every expected task type is registered
-						let tmpExpected = ['read-file', 'write-file', 'set-values', 'replace-string',
+						let tmpExpected = ['read-file', 'write-file', 'set-value', 'replace-string',
 							'string-appender', 'if-conditional', 'split-execute', 'launch-operation',
 							'value-input', 'error-message'];
 
@@ -1008,7 +1008,7 @@ suite
 
 		// ════════════════════════════════════════════════
 		// Workflow 3: Conditional Branching
-		// (set-values → if-conditional → true/false write paths)
+		// (set-value → if-conditional → true/false write paths)
 		// ════════════════════════════════════════════════
 		suite
 		(
@@ -1034,8 +1034,8 @@ suite
 								Nodes: [
 									{ Hash: 'n-start', Type: 'start', X: 0, Y: 0 },
 									{
-										Hash: 'n-set', Type: 'set-values',
-										Settings: { Mappings: [{ Address: 'Operation.Status', Value: 'active' }] },
+										Hash: 'n-set', Type: 'set-value',
+										Settings: { Value: 'active', ToAddress: 'Operation.Status' },
 										Ports: [], X: 200, Y: 0
 									},
 									{
@@ -1101,8 +1101,8 @@ suite
 								Nodes: [
 									{ Hash: 'n-start', Type: 'start', X: 0, Y: 0 },
 									{
-										Hash: 'n-set', Type: 'set-values',
-										Settings: { Mappings: [{ Address: 'Operation.Status', Value: 'inactive' }] },
+										Hash: 'n-set', Type: 'set-value',
+										Settings: { Value: 'inactive', ToAddress: 'Operation.Status' },
 										Ports: [], X: 200, Y: 0
 									},
 									{
@@ -1230,7 +1230,7 @@ suite
 
 		// ════════════════════════════════════════════════
 		// Workflow 5: Multi-Value SetValues
-		// (set-values with multiple addresses → if-conditional with contains)
+		// (set-value → if-conditional with contains)
 		// ════════════════════════════════════════════════
 		suite
 		(
@@ -1255,13 +1255,10 @@ suite
 								Nodes: [
 									{ Hash: 'n-start', Type: 'start', X: 0, Y: 0 },
 									{
-										Hash: 'n-set', Type: 'set-values',
+										Hash: 'n-set', Type: 'set-value',
 										Settings: {
-											Mappings: [
-												{ Address: 'Operation.Greeting', Value: 'Hello World from Ultravisor' },
-												{ Address: 'Operation.Counter', Value: 42 },
-												{ Address: 'Global.AppVersion', Value: '2.0' }
-											]
+											Value: 'Hello World from Ultravisor',
+											ToAddress: 'Operation.Greeting'
 										},
 										Ports: [], X: 200, Y: 0
 									},
@@ -1622,14 +1619,17 @@ suite
 						let tmpSaveResult = await _Page.evaluate(() =>
 						{
 							let tmpHashEl = document.getElementById('Ultravisor-FlowEditor-HashDisplay');
+							// Check for toast notification (replaced browser alert)
+							let tmpToast = document.querySelector('.pict-modal-toast--success');
+							let tmpToastMessage = tmpToast ? tmpToast.textContent : '';
 							return {
-								alertMessage: window._lastAlert,
+								toastMessage: tmpToastMessage,
 								operationHash: tmpHashEl ? tmpHashEl.textContent : ''
 							};
 						});
 
-						console.log('  Save result:', tmpSaveResult.alertMessage, '| Hash:', tmpSaveResult.operationHash);
-						libAssert.ok(tmpSaveResult.alertMessage && tmpSaveResult.alertMessage.includes('saved'), 'Should show saved alert');
+						console.log('  Save result:', tmpSaveResult.toastMessage, '| Hash:', tmpSaveResult.operationHash);
+						libAssert.ok(tmpSaveResult.toastMessage && tmpSaveResult.toastMessage.includes('saved'), 'Should show saved toast');
 						libAssert.ok(tmpSaveResult.operationHash.length > 0, 'Should have an operation hash');
 
 						_SavedOperationHash = tmpSaveResult.operationHash;
@@ -2124,17 +2124,24 @@ suite
 					{
 						this.timeout(15000);
 
+						// /PendingInput now routes to the ManifestList with waiting filter
 						await navigateToRoute('#/PendingInput');
 						await settle(2000);
 
-						let tmpCardCount = await _Page.evaluate(() =>
+						// The manifest list should be visible with the waiting filter active
+						let tmpRowCount = await _Page.evaluate(() =>
 						{
+							// Check for manifest table rows (the consolidated view)
+							let tmpRows = document.querySelectorAll('.ultravisor-manifest-table tbody tr');
+							if (tmpRows && tmpRows.length > 0) return tmpRows.length;
+
+							// Fallback: check for legacy pending input cards
 							let tmpCards = document.querySelectorAll('.ultravisor-pendinginput-card');
 							return tmpCards ? tmpCards.length : 0;
 						});
 
-						libAssert.ok(tmpCardCount >= 1, 'Should show at least one pending input card');
-						console.log('  Pending input cards visible:', tmpCardCount);
+						libAssert.ok(tmpRowCount >= 1, 'Should show at least one waiting manifest row');
+						console.log('  Waiting manifest rows visible:', tmpRowCount);
 
 						await takeScreenshot('pending-input-view');
 

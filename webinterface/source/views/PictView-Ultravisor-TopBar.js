@@ -217,10 +217,7 @@ const _ViewConfiguration =
 		<a onclick="{~P~}.PictApplication.navigateTo('/Operations')">Operations</a>
 		<a onclick="{~P~}.PictApplication.navigateTo('/Schedule')">Schedule</a>
 		<a onclick="{~P~}.PictApplication.navigateTo('/Manifests')">Manifests</a>
-		<a onclick="{~P~}.PictApplication.navigateTo('/PendingInput')">Awaiting</a>
 		<a onclick="{~P~}.PictApplication.navigateTo('/Beacons')">Beacons</a>
-		<a onclick="{~P~}.PictApplication.navigateTo('/Timing')">Timing</a>
-		<a onclick="{~P~}.PictApplication.editOperation()">Flow Editor</a>
 		<a onclick="{~P~}.PictApplication.navigateTo('/Docs')">Docs</a>
 	</div>
 	<div class="ultravisor-topbar-right">

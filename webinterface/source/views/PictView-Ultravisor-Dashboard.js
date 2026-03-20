@@ -137,7 +137,6 @@ const _ViewConfiguration =
 <div class="ultravisor-dashboard">
 	<div class="ultravisor-dashboard-header">
 		<h1>Dashboard</h1>
-		<p>Ultravisor task server status and quick actions.</p>
 	</div>
 	<div class="ultravisor-dashboard-cards" id="Ultravisor-Dashboard-Cards"></div>
 	<div class="ultravisor-dashboard-section-title">Schedule Control</div>

@@ -6,6 +6,7 @@
  * an array of task type definitions.
  */
 module.exports = [].concat(
+	require('./data-collection/Ultravisor-TaskConfigs-DataCollection.cjs'),
 	require('./data-transform/Ultravisor-TaskConfigs-DataTransform.cjs'),
 	require('./flow-control/Ultravisor-TaskConfigs-FlowControl.cjs'),
 	require('./file-system/Ultravisor-TaskConfigs-FileSystem.cjs'),

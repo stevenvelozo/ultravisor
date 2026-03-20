@@ -1,7 +1,10 @@
 {
 	"Name": "Directory Inventory",
-	"Description": "Lists files in a directory, counts them, and writes an inventory report. Demonstrates list-files, set-values, template-string, and write-file.",
-	"Tags": ["file-io", "reporting"],
+	"Description": "Lists files in a directory, counts them, and writes an inventory report. Demonstrates list-files, set-value, template-string, and write-file.",
+	"Tags": [
+		"file-io",
+		"reporting"
+	],
 	"Author": "Ultravisor",
 	"Version": "1.0.0",
 	"Graph": {
@@ -15,23 +18,116 @@
 				"Height": 80,
 				"Title": "Start",
 				"Ports": [
-					{ "Hash": "inv-start-out", "Direction": "output", "Side": "right-bottom", "Label": "Out" }
+					{
+						"Hash": "inv-start-out",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Out"
+					}
 				],
 				"Data": {}
 			},
 			{
 				"Hash": "inv-setdir",
-				"Type": "set-values",
+				"Type": "set-value",
 				"X": 260,
 				"Y": 180,
 				"Width": 200,
 				"Height": 80,
 				"Title": "Set Target Dir",
 				"Ports": [
-					{ "Hash": "inv-setdir-in", "Direction": "input", "Side": "left-bottom", "Label": "Execute" },
-					{ "Hash": "inv-setdir-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+					{
+						"Hash": "inv-setdir-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "inv-setdir-Value",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Value"
+					},
+					{
+						"Hash": "inv-setdir-ToAddress",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "ToAddress"
+					},
+					{
+						"Hash": "inv-setdir-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "inv-setdir-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "inv-setdir-WrittenValue",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "WrittenValue"
+					}
 				],
-				"Data": {"Mappings": [{"Address": "Operation.TargetDir", "Value": "."}, {"Address": "Operation.ReportName", "Value": "inventory-report.txt"}]}
+				"Data": {
+					"Value": ".",
+					"ToAddress": "Operation.TargetDir"
+				}
+			},
+			{
+				"Hash": "inv-setdir-sv-2",
+				"Type": "set-value",
+				"X": 260,
+				"Y": 210,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Set Target Dir (2)",
+				"Ports": [
+					{
+						"Hash": "inv-setdir-sv-2-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "inv-setdir-sv-2-Value",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Value"
+					},
+					{
+						"Hash": "inv-setdir-sv-2-ToAddress",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "ToAddress"
+					},
+					{
+						"Hash": "inv-setdir-sv-2-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "inv-setdir-sv-2-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "inv-setdir-sv-2-WrittenValue",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "WrittenValue"
+					}
+				],
+				"Data": {
+					"Value": "inventory-report.txt",
+					"ToAddress": "Operation.ReportName"
+				}
 			},
 			{
 				"Hash": "inv-list",
@@ -42,12 +138,36 @@
 				"Height": 100,
 				"Title": "List Files",
 				"Ports": [
-					{ "Hash": "inv-list-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
-					{ "Hash": "inv-list-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
-					{ "Hash": "inv-list-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
-					{ "Hash": "inv-list-so-Files", "Direction": "output", "Side": "right-top", "Label": "Files" }
+					{
+						"Hash": "inv-list-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Trigger"
+					},
+					{
+						"Hash": "inv-list-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "inv-list-err",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "inv-list-so-Files",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "Files"
+					}
 				],
-				"Data": {"Folder": "{~D:Record.Operation.TargetDir~}", "Pattern": "*", "Destination": "Operation.FileList"}
+				"Data": {
+					"Folder": "{~D:Record.Operation.TargetDir~}",
+					"Pattern": "*",
+					"Destination": "Operation.FileList"
+				}
 			},
 			{
 				"Hash": "inv-template",
@@ -58,11 +178,29 @@
 				"Height": 100,
 				"Title": "Build Report",
 				"Ports": [
-					{ "Hash": "inv-template-in", "Direction": "input", "Side": "left-bottom", "Label": "In" },
-					{ "Hash": "inv-template-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
-					{ "Hash": "inv-template-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
+					{
+						"Hash": "inv-template-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "In"
+					},
+					{
+						"Hash": "inv-template-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "inv-template-so-Result",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "Result"
+					}
 				],
-				"Data": {"Template": "Directory Inventory Report\n========================\nDirectory: {~D:Record.Operation.TargetDir~}\nGenerated: {~D:Record.Operation.ReportName~}\n", "Destination": "Operation.ReportContent"}
+				"Data": {
+					"Template": "Directory Inventory Report\n========================\nDirectory: {~D:Record.Operation.TargetDir~}\nGenerated: {~D:Record.Operation.ReportName~}\n",
+					"Destination": "Operation.ReportContent"
+				}
 			},
 			{
 				"Hash": "inv-write",
@@ -73,13 +211,42 @@
 				"Height": 120,
 				"Title": "Save Report",
 				"Ports": [
-					{ "Hash": "inv-write-in", "Direction": "input", "Side": "left-bottom", "Label": "BeginWrite" },
-					{ "Hash": "inv-write-done", "Direction": "output", "Side": "right-bottom", "Label": "WriteComplete" },
-					{ "Hash": "inv-write-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
-					{ "Hash": "inv-write-si-Content", "Direction": "input", "Side": "left-top", "Label": "Content" },
-					{ "Hash": "inv-write-so-BytesWritten", "Direction": "output", "Side": "right-top", "Label": "BytesWritten" }
+					{
+						"Hash": "inv-write-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "BeginWrite"
+					},
+					{
+						"Hash": "inv-write-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "WriteComplete"
+					},
+					{
+						"Hash": "inv-write-err",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "inv-write-si-Content",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Content"
+					},
+					{
+						"Hash": "inv-write-so-BytesWritten",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "BytesWritten"
+					}
 				],
-				"Data": {"FilePath": "{~D:Record.Operation.ReportName~}", "Content": "{~D:Record.Operation.ReportContent~}", "Encoding": "utf8"}
+				"Data": {
+					"FilePath": "{~D:Record.Operation.ReportName~}",
+					"Content": "{~D:Record.Operation.ReportContent~}",
+					"Encoding": "utf8"
+				}
 			},
 			{
 				"Hash": "inv-error",
@@ -90,10 +257,22 @@
 				"Height": 80,
 				"Title": "List Error",
 				"Ports": [
-					{ "Hash": "inv-error-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
-					{ "Hash": "inv-error-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+					{
+						"Hash": "inv-error-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Trigger"
+					},
+					{
+						"Hash": "inv-error-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					}
 				],
-				"Data": {"MessageTemplate": "Failed to list directory: {~D:Record.Operation.TargetDir~}"}
+				"Data": {
+					"MessageTemplate": "Failed to list directory: {~D:Record.Operation.TargetDir~}"
+				}
 			},
 			{
 				"Hash": "inv-end",
@@ -104,23 +283,105 @@
 				"Height": 80,
 				"Title": "End",
 				"Ports": [
-					{ "Hash": "inv-end-in", "Direction": "input", "Side": "left-bottom", "Label": "In" }
+					{
+						"Hash": "inv-end-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "In"
+					}
 				],
 				"Data": {}
 			}
 		],
 		"Connections": [
-			{ "Hash": "inv-c1", "SourceNodeHash": "inv-start", "SourcePortHash": "inv-start-out", "TargetNodeHash": "inv-setdir", "TargetPortHash": "inv-setdir-in", "Data": {} },
-			{ "Hash": "inv-c2", "SourceNodeHash": "inv-setdir", "SourcePortHash": "inv-setdir-done", "TargetNodeHash": "inv-list", "TargetPortHash": "inv-list-in", "Data": {} },
-			{ "Hash": "inv-c3", "SourceNodeHash": "inv-list", "SourcePortHash": "inv-list-done", "TargetNodeHash": "inv-template", "TargetPortHash": "inv-template-in", "Data": {} },
-			{ "Hash": "inv-c4", "SourceNodeHash": "inv-template", "SourcePortHash": "inv-template-done", "TargetNodeHash": "inv-write", "TargetPortHash": "inv-write-in", "Data": {} },
-			{ "Hash": "inv-c5", "SourceNodeHash": "inv-write", "SourcePortHash": "inv-write-done", "TargetNodeHash": "inv-end", "TargetPortHash": "inv-end-in", "Data": {} },
-			{ "Hash": "inv-c6", "SourceNodeHash": "inv-list", "SourcePortHash": "inv-list-err", "TargetNodeHash": "inv-error", "TargetPortHash": "inv-error-in", "Data": {} },
-			{ "Hash": "inv-c7", "SourceNodeHash": "inv-error", "SourcePortHash": "inv-error-done", "TargetNodeHash": "inv-end", "TargetPortHash": "inv-end-in", "Data": {} },
-			{ "Hash": "inv-c8", "SourceNodeHash": "inv-write", "SourcePortHash": "inv-write-err", "TargetNodeHash": "inv-end", "TargetPortHash": "inv-end-in", "Data": {} },
-			{ "Hash": "inv-sc1", "SourceNodeHash": "inv-template", "SourcePortHash": "inv-template-so-Result", "TargetNodeHash": "inv-write", "TargetPortHash": "inv-write-si-Content", "Data": {} }
+			{
+				"Hash": "inv-c3",
+				"SourceNodeHash": "inv-list",
+				"SourcePortHash": "inv-list-done",
+				"TargetNodeHash": "inv-template",
+				"TargetPortHash": "inv-template-in",
+				"Data": {}
+			},
+			{
+				"Hash": "inv-c4",
+				"SourceNodeHash": "inv-template",
+				"SourcePortHash": "inv-template-done",
+				"TargetNodeHash": "inv-write",
+				"TargetPortHash": "inv-write-in",
+				"Data": {}
+			},
+			{
+				"Hash": "inv-c5",
+				"SourceNodeHash": "inv-write",
+				"SourcePortHash": "inv-write-done",
+				"TargetNodeHash": "inv-end",
+				"TargetPortHash": "inv-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "inv-c6",
+				"SourceNodeHash": "inv-list",
+				"SourcePortHash": "inv-list-err",
+				"TargetNodeHash": "inv-error",
+				"TargetPortHash": "inv-error-in",
+				"Data": {}
+			},
+			{
+				"Hash": "inv-c7",
+				"SourceNodeHash": "inv-error",
+				"SourcePortHash": "inv-error-done",
+				"TargetNodeHash": "inv-end",
+				"TargetPortHash": "inv-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "inv-c8",
+				"SourceNodeHash": "inv-write",
+				"SourcePortHash": "inv-write-err",
+				"TargetNodeHash": "inv-end",
+				"TargetPortHash": "inv-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "inv-sc1",
+				"SourceNodeHash": "inv-template",
+				"SourcePortHash": "inv-template-so-Result",
+				"TargetNodeHash": "inv-write",
+				"TargetPortHash": "inv-write-si-Content",
+				"Data": {}
+			},
+			{
+				"Hash": "inv-c1",
+				"SourceNodeHash": "inv-start",
+				"SourcePortHash": "inv-start-out",
+				"TargetNodeHash": "inv-setdir",
+				"TargetPortHash": "inv-setdir-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "inv-setdir-chain-1",
+				"SourceNodeHash": "inv-setdir",
+				"SourcePortHash": "inv-setdir-Complete",
+				"TargetNodeHash": "inv-setdir-sv-2",
+				"TargetPortHash": "inv-setdir-sv-2-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "inv-c2",
+				"SourceNodeHash": "inv-setdir-sv-2",
+				"SourcePortHash": "inv-setdir-sv-2-Complete",
+				"TargetNodeHash": "inv-list",
+				"TargetPortHash": "inv-list-in",
+				"Data": {}
+			}
 		],
-		"ViewState": {"PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null}
+		"ViewState": {
+			"PanX": 0,
+			"PanY": 0,
+			"Zoom": 1,
+			"SelectedNodeHash": null,
+			"SelectedConnectionHash": null
+		}
 	},
 	"SavedLayouts": [],
 	"InitialGlobalState": {},

@@ -12,7 +12,7 @@ const _ViewConfiguration =
 	CSS: /*css*/`
 		.ultravisor-schedule {
 			padding: 2em;
-			max-width: 1200px;
+			max-width: 1400px;
 			margin: 0 auto;
 		}
 		.ultravisor-schedule-header {
@@ -319,7 +319,7 @@ class UltravisorScheduleView extends libPictView
 			{
 				tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-primary" onclick="' + tmpGlobalRef + '.PictApplication.startScheduleEntry(\'' + tmpEscGUID + '\', function(){ ' + tmpGlobalRef + '.PictApplication.showView(\'Ultravisor-Schedule\'); })">Start</button> ';
 			}
-			tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-delete" onclick="if(confirm(\'Remove schedule entry?\')){ ' + tmpGlobalRef + '.PictApplication.removeScheduleEntry(\'' + tmpEscGUID + '\', function(){ ' + tmpGlobalRef + '.PictApplication.showView(\'Ultravisor-Schedule\'); }); }">Remove</button>';
+			tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-delete" onclick="' + tmpGlobalRef + '.views[\'Ultravisor-Schedule\'].confirmRemoveEntry(\'' + tmpEscGUID + '\')">Remove</button>';
 			tmpHTML += '</td>';
 			tmpHTML += '</tr>';
 		}
@@ -708,7 +708,7 @@ class UltravisorScheduleView extends libPictView
 
 		if (!tmpHash)
 		{
-			alert('Please select an operation.');
+			this.pict.views.Modal.toast('Please select an operation.', { type: 'warning' });
 			return;
 		}
 
@@ -717,10 +717,26 @@ class UltravisorScheduleView extends libPictView
 			{
 				if (pError)
 				{
-					alert('Error scheduling operation: ' + pError.message);
+					this.pict.views.Modal.toast('Error scheduling operation: ' + pError.message, { type: 'error' });
 					return;
 				}
 				this.pict.PictApplication.showView('Ultravisor-Schedule');
+			}.bind(this));
+	}
+
+	confirmRemoveEntry(pGUID)
+	{
+		this.pict.views.Modal.confirm('Remove schedule entry?', { confirmLabel: 'Remove', dangerous: true }).then(
+			function (pConfirmed)
+			{
+				if (pConfirmed)
+				{
+					this.pict.PictApplication.removeScheduleEntry(pGUID,
+						function ()
+						{
+							this.pict.PictApplication.showView('Ultravisor-Schedule');
+						}.bind(this));
+				}
 			}.bind(this));
 	}
 

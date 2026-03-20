@@ -323,6 +323,18 @@ class UltravisorHypervisorState extends libPictService
 	}
 
 	/**
+	 * Get an operation definition synchronously.
+	 * Used by the execution engine during startup resume.
+	 *
+	 * @param {string} pHash - Operation hash.
+	 * @returns {object|null} The operation definition, or null if not found.
+	 */
+	getOperationSync(pHash)
+	{
+		return this._Operations[pHash] || null;
+	}
+
+	/**
 	 * List all operations.
 	 */
 	getOperationList(fCallback)

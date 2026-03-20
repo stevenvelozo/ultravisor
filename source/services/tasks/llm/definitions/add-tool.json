@@ -1,0 +1,22 @@
+{
+	"Hash": "add-tool",
+	"Type": "add-tool",
+	"Name": "Add Tool",
+	"Description": "Appends a single tool definition to an accumulated tools list. Chain multiple add-tool nodes before an LLM Tool Use node.",
+	"Category": "llm",
+	"Capability": "LLM",
+	"Action": "AddTool",
+	"Tier": "Extension",
+	"EventInputs": [{ "Name": "In" }],
+	"EventOutputs": [{ "Name": "Complete" }],
+	"SettingsInputs": [
+		{ "Name": "ToolName", "DataType": "String", "Required": true, "Description": "Tool function name" },
+		{ "Name": "Description", "DataType": "String", "Required": false, "Description": "What the tool does" },
+		{ "Name": "Parameters", "DataType": "String", "Required": false, "Description": "JSON schema for tool parameters" },
+		{ "Name": "ListAddress", "DataType": "String", "Required": true, "Description": "State address for the accumulated tools list" }
+	],
+	"StateOutputs": [
+		{ "Name": "Tools", "DataType": "Object", "Description": "The accumulated tools list" }
+	],
+	"DefaultSettings": { "ToolName": "", "Description": "", "Parameters": "", "ListAddress": "Operation.Tools" }
+}

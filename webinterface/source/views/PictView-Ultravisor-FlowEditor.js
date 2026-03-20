@@ -48,25 +48,19 @@ const _ViewConfiguration =
 		.ultravisor-flow-meta {
 			flex-shrink: 0;
 			display: flex;
-			gap: 0.75em;
-			align-items: flex-start;
-			margin-bottom: 0.5em;
+			flex-wrap: wrap;
+			gap: 0.5em 0.75em;
+			align-items: center;
 			padding-bottom: 0.5em;
-			border-bottom: 1px solid var(--uv-bg-base);
+			border-bottom: 2px solid var(--uv-border-subtle);
+			margin-bottom: 0.5em;
 		}
-		.ultravisor-flow-meta-field {
+		.ultravisor-flow-meta-left {
 			display: flex;
 			align-items: center;
-			gap: 0.35em;
-		}
-		.ultravisor-flow-meta-field-desc {
-			display: flex;
-			align-items: flex-start;
-			gap: 0.35em;
-			flex: 2;
-		}
-		.ultravisor-flow-meta-field-desc label {
-			padding-top: 0.4em;
+			gap: 0.5em;
+			flex: 1;
+			min-width: 200px;
 		}
 		.ultravisor-flow-meta label {
 			font-size: 0.8em;
@@ -79,20 +73,92 @@ const _ViewConfiguration =
 			flex: 1;
 			min-width: 120px;
 		}
-		.ultravisor-flow-meta textarea {
-			flex: 1;
-			min-width: 200px;
-			resize: none;
-			overflow-y: hidden;
-			font-family: inherit;
-			font-size: inherit;
-			line-height: 1.4;
-		}
 		.ultravisor-flow-meta-hash {
 			font-size: 0.8em;
 			color: var(--uv-text-tertiary);
 			font-family: monospace;
-			padding-top: 0.4em;
+		}
+
+		/* Flow / Information tab switcher — right-aligned in meta row */
+		.ultravisor-floweditor-tabs {
+			display: flex;
+			gap: 0;
+			margin-left: auto;
+		}
+		.ultravisor-floweditor-tab {
+			padding: 0.4em 0.75em;
+			cursor: pointer;
+			font-size: 0.8em;
+			font-weight: 600;
+			color: var(--uv-text-secondary);
+			text-transform: uppercase;
+			letter-spacing: 0.05em;
+			border-bottom: 2px solid transparent;
+			margin-bottom: -2px;
+			transition: color 0.15s, border-color 0.15s;
+			user-select: none;
+		}
+		.ultravisor-floweditor-tab:hover {
+			color: var(--uv-text);
+		}
+		.ultravisor-floweditor-tab.active {
+			color: var(--uv-brand);
+			border-bottom-color: var(--uv-brand);
+		}
+		@media (max-width: 600px) {
+			.ultravisor-floweditor-tabs {
+				margin-left: 0;
+				justify-content: flex-end;
+				width: 100%;
+			}
+		}
+
+		/* Information tab content */
+		.ultravisor-floweditor-info {
+			flex: 1;
+			min-height: 0;
+			display: flex;
+			flex-direction: column;
+			overflow-y: auto;
+			padding: 1em 0;
+		}
+		.ultravisor-floweditor-info-section {
+			margin-bottom: 1.5em;
+		}
+		.ultravisor-floweditor-info-section h3 {
+			font-size: 0.85em;
+			font-weight: 600;
+			color: var(--uv-text-secondary);
+			text-transform: uppercase;
+			letter-spacing: 0.05em;
+			margin: 0 0 0.75em 0;
+		}
+		.ultravisor-floweditor-audit {
+			display: grid;
+			grid-template-columns: auto 1fr;
+			gap: 0.35em 1em;
+			font-size: 0.85em;
+		}
+		.ultravisor-floweditor-audit dt {
+			color: var(--uv-text-secondary);
+			font-weight: 600;
+		}
+		.ultravisor-floweditor-audit dd {
+			margin: 0;
+			color: var(--uv-text);
+		}
+		#Ultravisor-FlowEditor-DescriptionEditor {
+			flex: 1;
+			min-height: 300px;
+		}
+		#Ultravisor-FlowEditor-DescriptionEditor .cm-editor {
+			height: 100%;
+			min-height: 250px;
+			border: 1px solid var(--uv-border-subtle);
+			border-radius: 4px;
+		}
+		#Ultravisor-FlowEditor-DescriptionEditor .cm-scroller {
+			overflow: auto;
 		}
 		.ultravisor-btn-execute {
 			background-color: #1a3a2a;
@@ -208,17 +274,27 @@ const _ViewConfiguration =
 	</div>
 	<div id="Ultravisor-FlowEditor-ExecStatus" class="ultravisor-floweditor-execution-status" style="display:none"></div>
 	<div class="ultravisor-flow-meta">
-		<span id="Ultravisor-FlowEditor-HashDisplay" class="ultravisor-flow-meta-hash"></span>
-		<div class="ultravisor-flow-meta-field">
+		<div class="ultravisor-flow-meta-left">
+			<span id="Ultravisor-FlowEditor-HashDisplay" class="ultravisor-flow-meta-hash"></span>
 			<label>Name</label>
 			<input type="text" id="Ultravisor-FlowEditor-Name" placeholder="Operation name...">
 		</div>
-		<div class="ultravisor-flow-meta-field-desc">
-			<label>Description</label>
-			<textarea id="Ultravisor-FlowEditor-Description" rows="1" placeholder="Description..."></textarea>
+		<div class="ultravisor-floweditor-tabs">
+			<div class="ultravisor-floweditor-tab active" id="Ultravisor-FlowEditor-TabFlow" onclick="{~P~}.views['Ultravisor-FlowEditor'].switchTab('flow')">Flow</div>
+			<div class="ultravisor-floweditor-tab" id="Ultravisor-FlowEditor-TabInfo" onclick="{~P~}.views['Ultravisor-FlowEditor'].switchTab('info')">Information</div>
 		</div>
 	</div>
 	<div id="Ultravisor-FlowEditor-Container"></div>
+	<div id="Ultravisor-FlowEditor-InfoPanel" class="ultravisor-floweditor-info" style="display:none">
+		<div class="ultravisor-floweditor-info-section">
+			<h3>Description</h3>
+			<div id="Ultravisor-FlowEditor-DescriptionEditor"></div>
+		</div>
+		<div class="ultravisor-floweditor-info-section">
+			<h3>Operation Details</h3>
+			<dl id="Ultravisor-FlowEditor-AuditInfo" class="ultravisor-floweditor-audit"></dl>
+		</div>
+	</div>
 </div>
 `
 		}
@@ -403,20 +479,10 @@ class UltravisorFlowEditorView extends libPictView
 				tmpNameEl.value = tmpOp.Name || '';
 			}
 
-			let tmpDescEl = document.getElementById('Ultravisor-FlowEditor-Description');
-			if (tmpDescEl)
-			{
-				tmpDescEl.value = tmpOp.Description || '';
-				// Auto-size the textarea to fit content
-				tmpDescEl.style.height = 'auto';
-				tmpDescEl.style.height = tmpDescEl.scrollHeight + 'px';
-				// Keep it auto-sized as user types
-				tmpDescEl.addEventListener('input', function ()
-				{
-					this.style.height = 'auto';
-					this.style.height = this.scrollHeight + 'px';
-				});
-			}
+			// Load description into the markdown editor's data address
+			this.pict.AppData.Ultravisor.OperationDescriptionSegments = [
+				{ Content: tmpOp.Description || '' }
+			];
 		}
 
 		// Create and render the flow section view into its container
@@ -829,17 +895,33 @@ class UltravisorFlowEditorView extends libPictView
 		let tmpFlowData = this._FlowView.getFlowData();
 		if (!tmpFlowData || !tmpFlowData.Nodes || tmpFlowData.Nodes.length === 0)
 		{
-			alert('No flow data to save. Add some nodes first.');
+			this.pict.views.Modal.toast('No flow data to save. Add some nodes first.', { type: 'warning' });
 			return;
 		}
 
 		// Read the metadata from the form fields
 		let tmpName = document.getElementById('Ultravisor-FlowEditor-Name').value.trim();
-		let tmpDescription = document.getElementById('Ultravisor-FlowEditor-Description').value.trim();
+
+		// Get description from the markdown editor
+		let tmpDescEditor = this.pict.views['Ultravisor-OperationDescriptionEditor'];
+		let tmpDescription = '';
+		if (tmpDescEditor && typeof tmpDescEditor.getAllContent === 'function')
+		{
+			tmpDescription = tmpDescEditor.getAllContent('');
+		}
+		else
+		{
+			// Fallback: read from the data address
+			let tmpSegments = this.pict.AppData.Ultravisor.OperationDescriptionSegments;
+			if (Array.isArray(tmpSegments) && tmpSegments.length > 0)
+			{
+				tmpDescription = tmpSegments[0].Content || '';
+			}
+		}
 
 		if (!tmpName)
 		{
-			alert('Please enter an operation name.');
+			this.pict.views.Modal.toast('Please enter an operation name.', { type: 'warning' });
 			return;
 		}
 
@@ -868,7 +950,7 @@ class UltravisorFlowEditorView extends libPictView
 			{
 				if (pError)
 				{
-					alert('Error saving operation: ' + pError.message);
+					this.pict.views.Modal.toast('Error saving operation: ' + pError.message, { type: 'error' });
 					return;
 				}
 
@@ -890,11 +972,83 @@ class UltravisorFlowEditorView extends libPictView
 					}
 				}
 
-				alert('Operation saved successfully.');
+				this.pict.views.Modal.toast('Operation saved.', { type: 'success' });
 			}.bind(this));
 	}
 
 	// ====================================================================
+	// ── Tab Switching ──
+
+	switchTab(pTab)
+	{
+		let tmpFlowContainer = document.getElementById('Ultravisor-FlowEditor-Container');
+		let tmpInfoPanel = document.getElementById('Ultravisor-FlowEditor-InfoPanel');
+		let tmpFlowTab = document.getElementById('Ultravisor-FlowEditor-TabFlow');
+		let tmpInfoTab = document.getElementById('Ultravisor-FlowEditor-TabInfo');
+
+		if (pTab === 'info')
+		{
+			if (tmpFlowContainer) { tmpFlowContainer.style.display = 'none'; }
+			if (tmpInfoPanel) { tmpInfoPanel.style.display = 'flex'; }
+			if (tmpFlowTab) { tmpFlowTab.classList.remove('active'); }
+			if (tmpInfoTab) { tmpInfoTab.classList.add('active'); }
+
+			// Render the markdown editor into the info panel
+			let tmpDescEditor = this.pict.views['Ultravisor-OperationDescriptionEditor'];
+			if (tmpDescEditor)
+			{
+				tmpDescEditor.render();
+			}
+
+			// Render audit info
+			this._renderAuditInfo();
+		}
+		else
+		{
+			if (tmpFlowContainer) { tmpFlowContainer.style.display = ''; }
+			if (tmpInfoPanel) { tmpInfoPanel.style.display = 'none'; }
+			if (tmpFlowTab) { tmpFlowTab.classList.add('active'); }
+			if (tmpInfoTab) { tmpInfoTab.classList.remove('active'); }
+		}
+	}
+
+	_renderAuditInfo()
+	{
+		let tmpAuditEl = document.getElementById('Ultravisor-FlowEditor-AuditInfo');
+		if (!tmpAuditEl) return;
+
+		let tmpOp = this.pict.AppData.Ultravisor.CurrentEditOperation;
+		if (!tmpOp)
+		{
+			tmpAuditEl.innerHTML = '<dt>Status</dt><dd>No operation loaded</dd>';
+			return;
+		}
+
+		let tmpHTML = '';
+
+		tmpHTML += '<dt>Operation Hash</dt>';
+		tmpHTML += '<dd><code>' + (tmpOp.Hash || 'Unsaved') + '</code></dd>';
+
+		if (tmpOp.CreatedAt)
+		{
+			tmpHTML += '<dt>Created</dt>';
+			tmpHTML += '<dd>' + this.fable.Dates.dayJS(tmpOp.CreatedAt).format('YYYY-MM-DD HH:mm:ss') + '</dd>';
+		}
+
+		if (tmpOp.UpdatedAt)
+		{
+			tmpHTML += '<dt>Last Modified</dt>';
+			tmpHTML += '<dd>' + this.fable.Dates.dayJS(tmpOp.UpdatedAt).format('YYYY-MM-DD HH:mm:ss') + '</dd>';
+		}
+
+		let tmpNodeCount = (tmpOp.Graph && tmpOp.Graph.Nodes) ? tmpOp.Graph.Nodes.length : 0;
+		let tmpConnectionCount = (tmpOp.Graph && tmpOp.Graph.Connections) ? tmpOp.Graph.Connections.length : 0;
+		tmpHTML += '<dt>Nodes</dt><dd>' + tmpNodeCount + '</dd>';
+		tmpHTML += '<dt>Connections</dt><dd>' + tmpConnectionCount + '</dd>';
+
+		tmpAuditEl.innerHTML = tmpHTML;
+	}
+
 	// Visual Execution Mode
 	// ====================================================================
 
@@ -909,7 +1063,7 @@ class UltravisorFlowEditorView extends libPictView
 
 		if (!tmpOp || !tmpOp.Hash)
 		{
-			alert('Please save the operation before executing.');
+			this.pict.views.Modal.toast('Please save the operation before executing.', { type: 'warning' });
 			return;
 		}
 
@@ -959,6 +1113,55 @@ class UltravisorFlowEditorView extends libPictView
 				// Connect WebSocket for real-time events
 				this._connectExecutionWebSocket(pData.RunHash);
 			}.bind(this));
+	}
+
+	/**
+	 * Watch an already-running execution in the flow editor.
+	 * Attaches to an existing run without starting a new one.
+	 *
+	 * @param {string} pRunHash - The execution run hash to watch.
+	 */
+	watchExecution(pRunHash)
+	{
+		if (this._IsExecuting)
+		{
+			return;
+		}
+
+		if (!pRunHash)
+		{
+			return;
+		}
+
+		this._IsExecuting = true;
+		this._ExecutionRunHash = pRunHash;
+		this._ExecutionNodeStates = {};
+		this._ExecutionStartTime = Date.now();
+		this._ExecutionCompletedCount = 0;
+		this._ExecutionErrorCount = 0;
+
+		// Update button visibility
+		let tmpExecBtn = document.getElementById('Ultravisor-FlowEditor-ExecuteBtn');
+		let tmpStopBtn = document.getElementById('Ultravisor-FlowEditor-StopBtn');
+		if (tmpExecBtn) { tmpExecBtn.style.display = 'none'; }
+		if (tmpStopBtn) { tmpStopBtn.style.display = 'inline-block'; }
+
+		// Initialize all nodes to idle visual state
+		if (this._FlowView && this._FlowView._NodesLayer)
+		{
+			let tmpNodes = this.pict.AppData.Ultravisor.Flows.Current.Nodes || [];
+			for (let i = 0; i < tmpNodes.length; i++)
+			{
+				this._applyNodeVisualState(tmpNodes[i].Hash, 'idle');
+			}
+		}
+
+		// Show execution status bar
+		this._updateExecutionStatusBar('Watching', 0, 0, 0);
+
+		// Connect WebSocket for real-time events (same as startVisualExecution
+		// but we skip the executeOperationAsync call — the run is already going)
+		this._connectExecutionWebSocket(pRunHash);
 	}
 
 	/**

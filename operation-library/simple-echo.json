@@ -1,7 +1,10 @@
 {
 	"Name": "Simple Echo",
 	"Description": "Minimal three-node operation: sets a value, formats it with a template, and writes the output. The simplest possible end-to-end pipeline.",
-	"Tags": ["minimal", "hello-world"],
+	"Tags": [
+		"minimal",
+		"hello-world"
+	],
 	"Author": "Ultravisor",
 	"Version": "1.0.0",
 	"Graph": {
@@ -15,23 +18,116 @@
 				"Height": 80,
 				"Title": "Start",
 				"Ports": [
-					{ "Hash": "se-start-out", "Direction": "output", "Side": "right-bottom", "Label": "Out" }
+					{
+						"Hash": "se-start-out",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Out"
+					}
 				],
 				"Data": {}
 			},
 			{
 				"Hash": "se-set",
-				"Type": "set-values",
+				"Type": "set-value",
 				"X": 260,
 				"Y": 180,
 				"Width": 200,
 				"Height": 80,
 				"Title": "Set Message",
 				"Ports": [
-					{ "Hash": "se-set-in", "Direction": "input", "Side": "left-bottom", "Label": "Execute" },
-					{ "Hash": "se-set-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+					{
+						"Hash": "se-set-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "se-set-Value",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Value"
+					},
+					{
+						"Hash": "se-set-ToAddress",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "ToAddress"
+					},
+					{
+						"Hash": "se-set-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "se-set-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "se-set-WrittenValue",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "WrittenValue"
+					}
 				],
-				"Data": { "Mappings": [{ "Address": "Operation.Message", "Value": "Hello from Ultravisor!" }, { "Address": "Operation.Timestamp", "Value": "now" }] }
+				"Data": {
+					"Value": "Hello from Ultravisor!",
+					"ToAddress": "Operation.Message"
+				}
+			},
+			{
+				"Hash": "se-set-sv-2",
+				"Type": "set-value",
+				"X": 260,
+				"Y": 210,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Set Message (2)",
+				"Ports": [
+					{
+						"Hash": "se-set-sv-2-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "se-set-sv-2-Value",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Value"
+					},
+					{
+						"Hash": "se-set-sv-2-ToAddress",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "ToAddress"
+					},
+					{
+						"Hash": "se-set-sv-2-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "se-set-sv-2-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "se-set-sv-2-WrittenValue",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "WrittenValue"
+					}
+				],
+				"Data": {
+					"Value": "now",
+					"ToAddress": "Operation.Timestamp"
+				}
 			},
 			{
 				"Hash": "se-template",
@@ -42,11 +138,29 @@
 				"Height": 100,
 				"Title": "Format Output",
 				"Ports": [
-					{ "Hash": "se-tpl-in", "Direction": "input", "Side": "left-bottom", "Label": "In" },
-					{ "Hash": "se-tpl-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
-					{ "Hash": "se-tpl-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
+					{
+						"Hash": "se-tpl-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "In"
+					},
+					{
+						"Hash": "se-tpl-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "se-tpl-so-Result",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "Result"
+					}
 				],
-				"Data": { "Template": "[{~D:Record.Operation.Timestamp~}] {~D:Record.Operation.Message~}\n", "Destination": "Operation.Output" }
+				"Data": {
+					"Template": "[{~D:Record.Operation.Timestamp~}] {~D:Record.Operation.Message~}\n",
+					"Destination": "Operation.Output"
+				}
 			},
 			{
 				"Hash": "se-write",
@@ -57,13 +171,42 @@
 				"Height": 120,
 				"Title": "Write Output",
 				"Ports": [
-					{ "Hash": "se-wr-in", "Direction": "input", "Side": "left-bottom", "Label": "BeginWrite" },
-					{ "Hash": "se-wr-done", "Direction": "output", "Side": "right-bottom", "Label": "WriteComplete" },
-					{ "Hash": "se-wr-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
-					{ "Hash": "se-wr-si-Content", "Direction": "input", "Side": "left-top", "Label": "Content" },
-					{ "Hash": "se-wr-so-BytesWritten", "Direction": "output", "Side": "right-top", "Label": "BytesWritten" }
+					{
+						"Hash": "se-wr-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "BeginWrite"
+					},
+					{
+						"Hash": "se-wr-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "WriteComplete"
+					},
+					{
+						"Hash": "se-wr-err",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "se-wr-si-Content",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Content"
+					},
+					{
+						"Hash": "se-wr-so-BytesWritten",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "BytesWritten"
+					}
 				],
-				"Data": { "FilePath": "echo-output.txt", "Content": "{~D:Record.Operation.Output~}", "Encoding": "utf8" }
+				"Data": {
+					"FilePath": "echo-output.txt",
+					"Content": "{~D:Record.Operation.Output~}",
+					"Encoding": "utf8"
+				}
 			},
 			{
 				"Hash": "se-end",
@@ -74,20 +217,81 @@
 				"Height": 80,
 				"Title": "End",
 				"Ports": [
-					{ "Hash": "se-end-in", "Direction": "input", "Side": "left-bottom", "Label": "In" }
+					{
+						"Hash": "se-end-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "In"
+					}
 				],
 				"Data": {}
 			}
 		],
 		"Connections": [
-			{ "Hash": "se-c1", "SourceNodeHash": "se-start", "SourcePortHash": "se-start-out", "TargetNodeHash": "se-set", "TargetPortHash": "se-set-in", "Data": {} },
-			{ "Hash": "se-c2", "SourceNodeHash": "se-set", "SourcePortHash": "se-set-done", "TargetNodeHash": "se-template", "TargetPortHash": "se-tpl-in", "Data": {} },
-			{ "Hash": "se-c3", "SourceNodeHash": "se-template", "SourcePortHash": "se-tpl-done", "TargetNodeHash": "se-write", "TargetPortHash": "se-wr-in", "Data": {} },
-			{ "Hash": "se-c4", "SourceNodeHash": "se-write", "SourcePortHash": "se-wr-done", "TargetNodeHash": "se-end", "TargetPortHash": "se-end-in", "Data": {} },
-			{ "Hash": "se-c5", "SourceNodeHash": "se-write", "SourcePortHash": "se-wr-err", "TargetNodeHash": "se-end", "TargetPortHash": "se-end-in", "Data": {} },
-			{ "Hash": "se-sc1", "SourceNodeHash": "se-template", "SourcePortHash": "se-tpl-so-Result", "TargetNodeHash": "se-write", "TargetPortHash": "se-wr-si-Content", "Data": {} }
+			{
+				"Hash": "se-c3",
+				"SourceNodeHash": "se-template",
+				"SourcePortHash": "se-tpl-done",
+				"TargetNodeHash": "se-write",
+				"TargetPortHash": "se-wr-in",
+				"Data": {}
+			},
+			{
+				"Hash": "se-c4",
+				"SourceNodeHash": "se-write",
+				"SourcePortHash": "se-wr-done",
+				"TargetNodeHash": "se-end",
+				"TargetPortHash": "se-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "se-c5",
+				"SourceNodeHash": "se-write",
+				"SourcePortHash": "se-wr-err",
+				"TargetNodeHash": "se-end",
+				"TargetPortHash": "se-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "se-sc1",
+				"SourceNodeHash": "se-template",
+				"SourcePortHash": "se-tpl-so-Result",
+				"TargetNodeHash": "se-write",
+				"TargetPortHash": "se-wr-si-Content",
+				"Data": {}
+			},
+			{
+				"Hash": "se-c1",
+				"SourceNodeHash": "se-start",
+				"SourcePortHash": "se-start-out",
+				"TargetNodeHash": "se-set",
+				"TargetPortHash": "se-set-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "se-set-chain-1",
+				"SourceNodeHash": "se-set",
+				"SourcePortHash": "se-set-Complete",
+				"TargetNodeHash": "se-set-sv-2",
+				"TargetPortHash": "se-set-sv-2-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "se-c2",
+				"SourceNodeHash": "se-set-sv-2",
+				"SourcePortHash": "se-set-sv-2-Complete",
+				"TargetNodeHash": "se-template",
+				"TargetPortHash": "se-tpl-in",
+				"Data": {}
+			}
 		],
-		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
+		"ViewState": {
+			"PanX": 0,
+			"PanY": 0,
+			"Zoom": 1,
+			"SelectedNodeHash": null,
+			"SelectedConnectionHash": null
+		}
 	},
 	"SavedLayouts": [],
 	"InitialGlobalState": {},

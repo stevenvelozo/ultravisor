@@ -2,6 +2,8 @@
  * Task configurations for the "LLM" capability.
  *
  * Contains:
+ *   - add-message           — Accumulator: appends one message to a growing list.
+ *   - add-tool              — Accumulator: appends one tool definition to a growing list.
  *   - llm-chat-completion   — Send messages to an LLM with conversation management.
  *   - llm-embedding         — Generate embeddings for text.
  *   - llm-tool-use          — Chat completion with tool/function definitions.
@@ -48,10 +50,13 @@ function _buildMessages(pResolvedSettings, pExecutionContext, pStateManager, pCu
 		}
 	}
 
-	// 2. If Messages JSON is provided, use it (overrides history for direct control)
+	// 2. If Messages is provided, use it (overrides history for direct control)
+	//    Supports both JSON string (legacy) and pre-built array (accumulator pattern)
 	if (pResolvedSettings.Messages)
 	{
-		let tmpParsed = _safeParseJSON(pResolvedSettings.Messages, null);
+		let tmpParsed = Array.isArray(pResolvedSettings.Messages)
+			? pResolvedSettings.Messages
+			: _safeParseJSON(pResolvedSettings.Messages, null);
 
 		if (Array.isArray(tmpParsed))
 		{
@@ -303,6 +308,130 @@ function _safeParseJSON(pString, pFallback)
 
 module.exports =
 [
+	// ── add-message (accumulator) ─────────────────────────────
+	{
+		Definition: require('./definitions/add-message.json'),
+		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
+		{
+			let tmpRole = pResolvedSettings.Role || 'user';
+			let tmpContent = pResolvedSettings.Content || '';
+			let tmpListAddress = pResolvedSettings.ListAddress;
+
+			if (!tmpListAddress)
+			{
+				return fCallback(null, {
+					EventToFire: 'Complete',
+					Outputs: { Messages: [] },
+					Log: ['AddMessage: no ListAddress specified.']
+				});
+			}
+
+			// Read existing accumulated list from state
+			let tmpList = [];
+			if (pExecutionContext.StateManager)
+			{
+				let tmpExisting = pExecutionContext.StateManager.resolveAddress(tmpListAddress, pExecutionContext, pExecutionContext.NodeHash);
+				if (Array.isArray(tmpExisting))
+				{
+					tmpList = tmpExisting.slice();
+				}
+			}
+
+			// Append new message
+			tmpList.push({ role: tmpRole, content: tmpContent });
+
+			let tmpStateWrites = {};
+			tmpStateWrites[tmpListAddress] = tmpList;
+
+			return fCallback(null, {
+				EventToFire: 'Complete',
+				Outputs: { Messages: tmpList },
+				StateWrites: tmpStateWrites,
+				Log: [`AddMessage: appended ${tmpRole} message (${tmpList.length} messages total)`]
+			});
+		}
+	},
+
+	// ── add-tool (accumulator) ────────────────────────────────
+	{
+		Definition: require('./definitions/add-tool.json'),
+		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
+		{
+			let tmpToolName = pResolvedSettings.ToolName || '';
+			let tmpDescription = pResolvedSettings.Description || '';
+			let tmpListAddress = pResolvedSettings.ListAddress;
+
+			if (!tmpListAddress)
+			{
+				return fCallback(null, {
+					EventToFire: 'Complete',
+					Outputs: { Tools: [] },
+					Log: ['AddTool: no ListAddress specified.']
+				});
+			}
+
+			if (!tmpToolName)
+			{
+				return fCallback(null, {
+					EventToFire: 'Complete',
+					Outputs: { Tools: [] },
+					Log: ['AddTool: no ToolName specified.']
+				});
+			}
+
+			// Parse parameters schema if provided
+			let tmpParameters = {};
+			if (pResolvedSettings.Parameters)
+			{
+				if (typeof(pResolvedSettings.Parameters) === 'object')
+				{
+					tmpParameters = pResolvedSettings.Parameters;
+				}
+				else
+				{
+					try { tmpParameters = JSON.parse(pResolvedSettings.Parameters); } catch(e) {}
+				}
+			}
+
+			// Read existing accumulated list from state
+			let tmpList = [];
+			if (pExecutionContext.StateManager)
+			{
+				let tmpExisting = pExecutionContext.StateManager.resolveAddress(tmpListAddress, pExecutionContext, pExecutionContext.NodeHash);
+				if (Array.isArray(tmpExisting))
+				{
+					tmpList = tmpExisting.slice();
+				}
+			}
+
+			// Append new tool definition
+			let tmpToolDef = {
+				type: 'function',
+				function: {
+					name: tmpToolName,
+					description: tmpDescription
+				}
+			};
+
+			if (Object.keys(tmpParameters).length > 0)
+			{
+				tmpToolDef.function.parameters = tmpParameters;
+			}
+
+			tmpList.push(tmpToolDef);
+
+			let tmpStateWrites = {};
+			tmpStateWrites[tmpListAddress] = tmpList;
+
+			return fCallback(null, {
+				EventToFire: 'Complete',
+				Outputs: { Tools: tmpList },
+				StateWrites: tmpStateWrites,
+				Log: [`AddTool: appended "${tmpToolName}" (${tmpList.length} tools total)`]
+			});
+		}
+	},
+
 	// ── llm-chat-completion ───────────────────────────────────
 	{
 		Definition: require('./definitions/llm-chat-completion.json'),
@@ -549,6 +678,11 @@ module.exports =
 				});
 			}
 
+			// Tools: accept array (accumulator pattern) or JSON string (legacy)
+			let tmpToolsString = Array.isArray(pResolvedSettings.Tools)
+				? JSON.stringify(pResolvedSettings.Tools)
+				: (pResolvedSettings.Tools || '[]');
+
 			let tmpWorkItemInfo = {
 				RunHash: pExecutionContext.RunHash,
 				NodeHash: pExecutionContext.NodeHash,
@@ -557,7 +691,7 @@ module.exports =
 				Action: 'ToolUse',
 				Settings: {
 					Messages: JSON.stringify(tmpMessages),
-					Tools: pResolvedSettings.Tools || '[]',
+					Tools: tmpToolsString,
 					Model: pResolvedSettings.Model || '',
 					ToolChoice: pResolvedSettings.ToolChoice || 'auto',
 					Temperature: pResolvedSettings.Temperature,

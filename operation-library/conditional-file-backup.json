@@ -1,7 +1,11 @@
 {
 	"Name": "Conditional File Backup",
 	"Description": "Reads a file, checks if it contains important markers, and conditionally backs it up. Demonstrates if-conditional branching with copy-file and error paths.",
-	"Tags": ["file-io", "branching", "backup"],
+	"Tags": [
+		"file-io",
+		"branching",
+		"backup"
+	],
 	"Author": "Ultravisor",
 	"Version": "1.0.0",
 	"Graph": {
@@ -15,23 +19,65 @@
 				"Height": 80,
 				"Title": "Start",
 				"Ports": [
-					{ "Hash": "bk-start-out", "Direction": "output", "Side": "right-bottom", "Label": "Out" }
+					{
+						"Hash": "bk-start-out",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Out"
+					}
 				],
 				"Data": {}
 			},
 			{
 				"Hash": "bk-setpath",
-				"Type": "set-values",
+				"Type": "set-value",
 				"X": 260,
 				"Y": 180,
 				"Width": 200,
 				"Height": 80,
 				"Title": "Set File Path",
 				"Ports": [
-					{ "Hash": "bk-sp-in", "Direction": "input", "Side": "left-bottom", "Label": "Execute" },
-					{ "Hash": "bk-sp-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+					{
+						"Hash": "bk-setpath-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "bk-setpath-Value",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Value"
+					},
+					{
+						"Hash": "bk-setpath-ToAddress",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "ToAddress"
+					},
+					{
+						"Hash": "bk-setpath-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "bk-setpath-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "bk-setpath-WrittenValue",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "WrittenValue"
+					}
 				],
-				"Data": { "Mappings": [{ "Address": "Operation.SourceFile", "Value": "package.json" }] }
+				"Data": {
+					"Value": "package.json",
+					"ToAddress": "Operation.SourceFile"
+				}
 			},
 			{
 				"Hash": "bk-read",
@@ -42,13 +88,41 @@
 				"Height": 120,
 				"Title": "Read Source",
 				"Ports": [
-					{ "Hash": "bk-rd-in", "Direction": "input", "Side": "left-bottom", "Label": "BeginRead" },
-					{ "Hash": "bk-rd-done", "Direction": "output", "Side": "right-bottom", "Label": "ReadComplete" },
-					{ "Hash": "bk-rd-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
-					{ "Hash": "bk-rd-so-FileContent", "Direction": "output", "Side": "right-top", "Label": "FileContent" },
-					{ "Hash": "bk-rd-so-BytesRead", "Direction": "output", "Side": "right-top", "Label": "BytesRead" }
+					{
+						"Hash": "bk-rd-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "BeginRead"
+					},
+					{
+						"Hash": "bk-rd-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "ReadComplete"
+					},
+					{
+						"Hash": "bk-rd-err",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "bk-rd-so-FileContent",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "FileContent"
+					},
+					{
+						"Hash": "bk-rd-so-BytesRead",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "BytesRead"
+					}
 				],
-				"Data": { "FilePath": "{~D:Record.Operation.SourceFile~}", "Encoding": "utf8" }
+				"Data": {
+					"FilePath": "{~D:Record.Operation.SourceFile~}",
+					"Encoding": "utf8"
+				}
 			},
 			{
 				"Hash": "bk-check",
@@ -59,12 +133,36 @@
 				"Height": 100,
 				"Title": "Has Version Field?",
 				"Ports": [
-					{ "Hash": "bk-chk-in", "Direction": "input", "Side": "left-bottom", "Label": "Evaluate" },
-					{ "Hash": "bk-chk-true", "Direction": "output", "Side": "right-bottom", "Label": "True" },
-					{ "Hash": "bk-chk-false", "Direction": "output", "Side": "bottom", "Label": "False" },
-					{ "Hash": "bk-chk-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
+					{
+						"Hash": "bk-chk-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Evaluate"
+					},
+					{
+						"Hash": "bk-chk-true",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "True"
+					},
+					{
+						"Hash": "bk-chk-false",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "False"
+					},
+					{
+						"Hash": "bk-chk-so-Result",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "Result"
+					}
 				],
-				"Data": { "DataAddress": "TaskOutput.bk-read.FileContent", "CompareValue": "version", "Operator": "contains" }
+				"Data": {
+					"DataAddress": "TaskOutput.bk-read.FileContent",
+					"CompareValue": "version",
+					"Operator": "contains"
+				}
 			},
 			{
 				"Hash": "bk-copy",
@@ -75,11 +173,29 @@
 				"Height": 80,
 				"Title": "Create Backup",
 				"Ports": [
-					{ "Hash": "bk-cp-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
-					{ "Hash": "bk-cp-done", "Direction": "output", "Side": "right-bottom", "Label": "Done" },
-					{ "Hash": "bk-cp-err", "Direction": "output", "Side": "bottom", "Label": "Error" }
+					{
+						"Hash": "bk-cp-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Trigger"
+					},
+					{
+						"Hash": "bk-cp-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Done"
+					},
+					{
+						"Hash": "bk-cp-err",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					}
 				],
-				"Data": { "Source": "{~D:Record.Operation.SourceFile~}", "TargetFile": "{~D:Record.Operation.SourceFile~}.backup" }
+				"Data": {
+					"Source": "{~D:Record.Operation.SourceFile~}",
+					"TargetFile": "{~D:Record.Operation.SourceFile~}.backup"
+				}
 			},
 			{
 				"Hash": "bk-skip",
@@ -90,10 +206,22 @@
 				"Height": 80,
 				"Title": "Skip - No Version",
 				"Ports": [
-					{ "Hash": "bk-sk-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
-					{ "Hash": "bk-sk-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+					{
+						"Hash": "bk-sk-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Trigger"
+					},
+					{
+						"Hash": "bk-sk-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					}
 				],
-				"Data": { "MessageTemplate": "Skipping backup: file does not contain a version field" }
+				"Data": {
+					"MessageTemplate": "Skipping backup: file does not contain a version field"
+				}
 			},
 			{
 				"Hash": "bk-rderr",
@@ -104,10 +232,22 @@
 				"Height": 80,
 				"Title": "Read Error",
 				"Ports": [
-					{ "Hash": "bk-rde-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
-					{ "Hash": "bk-rde-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+					{
+						"Hash": "bk-rde-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Trigger"
+					},
+					{
+						"Hash": "bk-rde-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					}
 				],
-				"Data": { "MessageTemplate": "Could not read source file: {~D:Record.Operation.SourceFile~}" }
+				"Data": {
+					"MessageTemplate": "Could not read source file: {~D:Record.Operation.SourceFile~}"
+				}
 			},
 			{
 				"Hash": "bk-end",
@@ -118,24 +258,105 @@
 				"Height": 80,
 				"Title": "End",
 				"Ports": [
-					{ "Hash": "bk-end-in", "Direction": "input", "Side": "left-bottom", "Label": "In" }
+					{
+						"Hash": "bk-end-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "In"
+					}
 				],
 				"Data": {}
 			}
 		],
 		"Connections": [
-			{ "Hash": "bk-c1", "SourceNodeHash": "bk-start", "SourcePortHash": "bk-start-out", "TargetNodeHash": "bk-setpath", "TargetPortHash": "bk-sp-in", "Data": {} },
-			{ "Hash": "bk-c2", "SourceNodeHash": "bk-setpath", "SourcePortHash": "bk-sp-done", "TargetNodeHash": "bk-read", "TargetPortHash": "bk-rd-in", "Data": {} },
-			{ "Hash": "bk-c3", "SourceNodeHash": "bk-read", "SourcePortHash": "bk-rd-done", "TargetNodeHash": "bk-check", "TargetPortHash": "bk-chk-in", "Data": {} },
-			{ "Hash": "bk-c4", "SourceNodeHash": "bk-check", "SourcePortHash": "bk-chk-true", "TargetNodeHash": "bk-copy", "TargetPortHash": "bk-cp-in", "Data": {} },
-			{ "Hash": "bk-c5", "SourceNodeHash": "bk-copy", "SourcePortHash": "bk-cp-done", "TargetNodeHash": "bk-end", "TargetPortHash": "bk-end-in", "Data": {} },
-			{ "Hash": "bk-c6", "SourceNodeHash": "bk-check", "SourcePortHash": "bk-chk-false", "TargetNodeHash": "bk-skip", "TargetPortHash": "bk-sk-in", "Data": {} },
-			{ "Hash": "bk-c7", "SourceNodeHash": "bk-skip", "SourcePortHash": "bk-sk-done", "TargetNodeHash": "bk-end", "TargetPortHash": "bk-end-in", "Data": {} },
-			{ "Hash": "bk-c8", "SourceNodeHash": "bk-read", "SourcePortHash": "bk-rd-err", "TargetNodeHash": "bk-rderr", "TargetPortHash": "bk-rde-in", "Data": {} },
-			{ "Hash": "bk-c9", "SourceNodeHash": "bk-rderr", "SourcePortHash": "bk-rde-done", "TargetNodeHash": "bk-end", "TargetPortHash": "bk-end-in", "Data": {} },
-			{ "Hash": "bk-c10", "SourceNodeHash": "bk-copy", "SourcePortHash": "bk-cp-err", "TargetNodeHash": "bk-end", "TargetPortHash": "bk-end-in", "Data": {} }
+			{
+				"Hash": "bk-c3",
+				"SourceNodeHash": "bk-read",
+				"SourcePortHash": "bk-rd-done",
+				"TargetNodeHash": "bk-check",
+				"TargetPortHash": "bk-chk-in",
+				"Data": {}
+			},
+			{
+				"Hash": "bk-c4",
+				"SourceNodeHash": "bk-check",
+				"SourcePortHash": "bk-chk-true",
+				"TargetNodeHash": "bk-copy",
+				"TargetPortHash": "bk-cp-in",
+				"Data": {}
+			},
+			{
+				"Hash": "bk-c5",
+				"SourceNodeHash": "bk-copy",
+				"SourcePortHash": "bk-cp-done",
+				"TargetNodeHash": "bk-end",
+				"TargetPortHash": "bk-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "bk-c6",
+				"SourceNodeHash": "bk-check",
+				"SourcePortHash": "bk-chk-false",
+				"TargetNodeHash": "bk-skip",
+				"TargetPortHash": "bk-sk-in",
+				"Data": {}
+			},
+			{
+				"Hash": "bk-c7",
+				"SourceNodeHash": "bk-skip",
+				"SourcePortHash": "bk-sk-done",
+				"TargetNodeHash": "bk-end",
+				"TargetPortHash": "bk-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "bk-c8",
+				"SourceNodeHash": "bk-read",
+				"SourcePortHash": "bk-rd-err",
+				"TargetNodeHash": "bk-rderr",
+				"TargetPortHash": "bk-rde-in",
+				"Data": {}
+			},
+			{
+				"Hash": "bk-c9",
+				"SourceNodeHash": "bk-rderr",
+				"SourcePortHash": "bk-rde-done",
+				"TargetNodeHash": "bk-end",
+				"TargetPortHash": "bk-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "bk-c10",
+				"SourceNodeHash": "bk-copy",
+				"SourcePortHash": "bk-cp-err",
+				"TargetNodeHash": "bk-end",
+				"TargetPortHash": "bk-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "bk-c1",
+				"SourceNodeHash": "bk-start",
+				"SourcePortHash": "bk-start-out",
+				"TargetNodeHash": "bk-setpath",
+				"TargetPortHash": "bk-setpath-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "bk-c2",
+				"SourceNodeHash": "bk-setpath",
+				"SourcePortHash": "bk-setpath-Complete",
+				"TargetNodeHash": "bk-read",
+				"TargetPortHash": "bk-rd-in",
+				"Data": {}
+			}
 		],
-		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
+		"ViewState": {
+			"PanX": 0,
+			"PanY": 0,
+			"Zoom": 1,
+			"SelectedNodeHash": null,
+			"SelectedConnectionHash": null
+		}
 	},
 	"SavedLayouts": [],
 	"InitialGlobalState": {},

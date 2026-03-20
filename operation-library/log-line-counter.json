@@ -1,7 +1,11 @@
 {
 	"Name": "Log Line Counter",
 	"Description": "Reads a log file, splits it into lines, loops through each to count ERROR occurrences, and writes a summary. Demonstrates split-execute looping with if-conditional counting.",
-	"Tags": ["file-io", "looping", "analysis"],
+	"Tags": [
+		"file-io",
+		"looping",
+		"analysis"
+	],
 	"Author": "Ultravisor",
 	"Version": "1.0.0",
 	"Graph": {
@@ -15,23 +19,116 @@
 				"Height": 80,
 				"Title": "Start",
 				"Ports": [
-					{ "Hash": "lc-start-out", "Direction": "output", "Side": "right-bottom", "Label": "Out" }
+					{
+						"Hash": "lc-start-out",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Out"
+					}
 				],
 				"Data": {}
 			},
 			{
 				"Hash": "lc-init",
-				"Type": "set-values",
+				"Type": "set-value",
 				"X": 260,
 				"Y": 180,
 				"Width": 200,
 				"Height": 80,
 				"Title": "Initialize Counter",
 				"Ports": [
-					{ "Hash": "lc-init-in", "Direction": "input", "Side": "left-bottom", "Label": "Execute" },
-					{ "Hash": "lc-init-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+					{
+						"Hash": "lc-init-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "lc-init-Value",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Value"
+					},
+					{
+						"Hash": "lc-init-ToAddress",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "ToAddress"
+					},
+					{
+						"Hash": "lc-init-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "lc-init-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "lc-init-WrittenValue",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "WrittenValue"
+					}
 				],
-				"Data": { "Mappings": [{ "Address": "Operation.ErrorCount", "Value": "0" }, { "Address": "Operation.LogFile", "Value": "application.log" }] }
+				"Data": {
+					"Value": "0",
+					"ToAddress": "Operation.ErrorCount"
+				}
+			},
+			{
+				"Hash": "lc-init-sv-2",
+				"Type": "set-value",
+				"X": 260,
+				"Y": 210,
+				"Width": 200,
+				"Height": 80,
+				"Title": "Initialize Counter (2)",
+				"Ports": [
+					{
+						"Hash": "lc-init-sv-2-Execute",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Execute"
+					},
+					{
+						"Hash": "lc-init-sv-2-Value",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Value"
+					},
+					{
+						"Hash": "lc-init-sv-2-ToAddress",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "ToAddress"
+					},
+					{
+						"Hash": "lc-init-sv-2-Complete",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "lc-init-sv-2-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "lc-init-sv-2-WrittenValue",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "WrittenValue"
+					}
+				],
+				"Data": {
+					"Value": "application.log",
+					"ToAddress": "Operation.LogFile"
+				}
 			},
 			{
 				"Hash": "lc-read",
@@ -42,13 +139,41 @@
 				"Height": 120,
 				"Title": "Read Log File",
 				"Ports": [
-					{ "Hash": "lc-rd-in", "Direction": "input", "Side": "left-bottom", "Label": "BeginRead" },
-					{ "Hash": "lc-rd-done", "Direction": "output", "Side": "right-bottom", "Label": "ReadComplete" },
-					{ "Hash": "lc-rd-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
-					{ "Hash": "lc-rd-so-FileContent", "Direction": "output", "Side": "right-top", "Label": "FileContent" },
-					{ "Hash": "lc-rd-so-BytesRead", "Direction": "output", "Side": "right-top", "Label": "BytesRead" }
+					{
+						"Hash": "lc-rd-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "BeginRead"
+					},
+					{
+						"Hash": "lc-rd-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "ReadComplete"
+					},
+					{
+						"Hash": "lc-rd-err",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "lc-rd-so-FileContent",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "FileContent"
+					},
+					{
+						"Hash": "lc-rd-so-BytesRead",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "BytesRead"
+					}
 				],
-				"Data": { "FilePath": "{~D:Record.Operation.LogFile~}", "Encoding": "utf8" }
+				"Data": {
+					"FilePath": "{~D:Record.Operation.LogFile~}",
+					"Encoding": "utf8"
+				}
 			},
 			{
 				"Hash": "lc-split",
@@ -59,16 +184,59 @@
 				"Height": 140,
 				"Title": "Split Into Lines",
 				"Ports": [
-					{ "Hash": "lc-spl-begin", "Direction": "input", "Side": "left-bottom", "Label": "PerformSplit" },
-					{ "Hash": "lc-spl-step", "Direction": "input", "Side": "left-bottom", "Label": "StepComplete" },
-					{ "Hash": "lc-spl-token", "Direction": "output", "Side": "right-bottom", "Label": "TokenDataSent" },
-					{ "Hash": "lc-spl-alldone", "Direction": "output", "Side": "right-bottom", "Label": "CompletedAllSubtasks" },
-					{ "Hash": "lc-spl-so-CurrentToken", "Direction": "output", "Side": "right-top", "Label": "CurrentToken" },
-					{ "Hash": "lc-spl-so-TokenIndex", "Direction": "output", "Side": "right-top", "Label": "TokenIndex" },
-					{ "Hash": "lc-spl-so-TokenCount", "Direction": "output", "Side": "right-top", "Label": "TokenCount" },
-					{ "Hash": "lc-spl-so-CompletedCount", "Direction": "output", "Side": "right-top", "Label": "CompletedCount" }
+					{
+						"Hash": "lc-spl-begin",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "PerformSplit"
+					},
+					{
+						"Hash": "lc-spl-step",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "StepComplete"
+					},
+					{
+						"Hash": "lc-spl-token",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "TokenDataSent"
+					},
+					{
+						"Hash": "lc-spl-alldone",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "CompletedAllSubtasks"
+					},
+					{
+						"Hash": "lc-spl-so-CurrentToken",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "CurrentToken"
+					},
+					{
+						"Hash": "lc-spl-so-TokenIndex",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "TokenIndex"
+					},
+					{
+						"Hash": "lc-spl-so-TokenCount",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "TokenCount"
+					},
+					{
+						"Hash": "lc-spl-so-CompletedCount",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "CompletedCount"
+					}
 				],
-				"Data": { "InputString": "{~D:Record.TaskOutput.lc-read.FileContent~}", "SplitDelimiter": "\n" }
+				"Data": {
+					"InputString": "{~D:Record.TaskOutput.lc-read.FileContent~}",
+					"SplitDelimiter": "\n"
+				}
 			},
 			{
 				"Hash": "lc-check",
@@ -79,12 +247,36 @@
 				"Height": 100,
 				"Title": "Is Error Line?",
 				"Ports": [
-					{ "Hash": "lc-chk-in", "Direction": "input", "Side": "left-bottom", "Label": "Evaluate" },
-					{ "Hash": "lc-chk-true", "Direction": "output", "Side": "right-bottom", "Label": "True" },
-					{ "Hash": "lc-chk-false", "Direction": "output", "Side": "bottom", "Label": "False" },
-					{ "Hash": "lc-chk-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
+					{
+						"Hash": "lc-chk-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Evaluate"
+					},
+					{
+						"Hash": "lc-chk-true",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "True"
+					},
+					{
+						"Hash": "lc-chk-false",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "False"
+					},
+					{
+						"Hash": "lc-chk-so-Result",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "Result"
+					}
 				],
-				"Data": { "DataAddress": "TaskOutput.lc-split.CurrentToken", "CompareValue": "ERROR", "Operator": "contains" }
+				"Data": {
+					"DataAddress": "TaskOutput.lc-split.CurrentToken",
+					"CompareValue": "ERROR",
+					"Operator": "contains"
+				}
 			},
 			{
 				"Hash": "lc-increment",
@@ -95,11 +287,29 @@
 				"Height": 100,
 				"Title": "Increment Count",
 				"Ports": [
-					{ "Hash": "lc-inc-in", "Direction": "input", "Side": "left-bottom", "Label": "In" },
-					{ "Hash": "lc-inc-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
-					{ "Hash": "lc-inc-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
+					{
+						"Hash": "lc-inc-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "In"
+					},
+					{
+						"Hash": "lc-inc-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "lc-inc-so-Result",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "Result"
+					}
 				],
-				"Data": { "Expression": "{~D:Record.Operation.ErrorCount~}+1", "Destination": "Operation.ErrorCount" }
+				"Data": {
+					"Expression": "{~D:Record.Operation.ErrorCount~}+1",
+					"Destination": "Operation.ErrorCount"
+				}
 			},
 			{
 				"Hash": "lc-summary",
@@ -110,11 +320,29 @@
 				"Height": 100,
 				"Title": "Build Summary",
 				"Ports": [
-					{ "Hash": "lc-sum-in", "Direction": "input", "Side": "left-bottom", "Label": "In" },
-					{ "Hash": "lc-sum-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" },
-					{ "Hash": "lc-sum-so-Result", "Direction": "output", "Side": "right-top", "Label": "Result" }
+					{
+						"Hash": "lc-sum-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "In"
+					},
+					{
+						"Hash": "lc-sum-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					},
+					{
+						"Hash": "lc-sum-so-Result",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "Result"
+					}
 				],
-				"Data": { "Template": "Log Analysis Complete\nFile: {~D:Record.Operation.LogFile~}\nError lines found: {~D:Record.Operation.ErrorCount~}\n", "Destination": "Operation.Summary" }
+				"Data": {
+					"Template": "Log Analysis Complete\nFile: {~D:Record.Operation.LogFile~}\nError lines found: {~D:Record.Operation.ErrorCount~}\n",
+					"Destination": "Operation.Summary"
+				}
 			},
 			{
 				"Hash": "lc-write",
@@ -125,13 +353,42 @@
 				"Height": 120,
 				"Title": "Save Summary",
 				"Ports": [
-					{ "Hash": "lc-wr-in", "Direction": "input", "Side": "left-bottom", "Label": "BeginWrite" },
-					{ "Hash": "lc-wr-done", "Direction": "output", "Side": "right-bottom", "Label": "WriteComplete" },
-					{ "Hash": "lc-wr-err", "Direction": "output", "Side": "bottom", "Label": "Error" },
-					{ "Hash": "lc-wr-si-Content", "Direction": "input", "Side": "left-top", "Label": "Content" },
-					{ "Hash": "lc-wr-so-BytesWritten", "Direction": "output", "Side": "right-top", "Label": "BytesWritten" }
+					{
+						"Hash": "lc-wr-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "BeginWrite"
+					},
+					{
+						"Hash": "lc-wr-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "WriteComplete"
+					},
+					{
+						"Hash": "lc-wr-err",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "lc-wr-si-Content",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Content"
+					},
+					{
+						"Hash": "lc-wr-so-BytesWritten",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "BytesWritten"
+					}
 				],
-				"Data": { "FilePath": "log-analysis.txt", "Content": "{~D:Record.Operation.Summary~}", "Encoding": "utf8" }
+				"Data": {
+					"FilePath": "log-analysis.txt",
+					"Content": "{~D:Record.Operation.Summary~}",
+					"Encoding": "utf8"
+				}
 			},
 			{
 				"Hash": "lc-rderr",
@@ -142,10 +399,22 @@
 				"Height": 80,
 				"Title": "Read Error",
 				"Ports": [
-					{ "Hash": "lc-rde-in", "Direction": "input", "Side": "left-bottom", "Label": "Trigger" },
-					{ "Hash": "lc-rde-done", "Direction": "output", "Side": "right-bottom", "Label": "Complete" }
+					{
+						"Hash": "lc-rde-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "Trigger"
+					},
+					{
+						"Hash": "lc-rde-done",
+						"Direction": "output",
+						"Side": "right-bottom",
+						"Label": "Complete"
+					}
 				],
-				"Data": { "MessageTemplate": "Could not read log file: {~D:Record.Operation.LogFile~}" }
+				"Data": {
+					"MessageTemplate": "Could not read log file: {~D:Record.Operation.LogFile~}"
+				}
 			},
 			{
 				"Hash": "lc-end",
@@ -156,28 +425,145 @@
 				"Height": 80,
 				"Title": "End",
 				"Ports": [
-					{ "Hash": "lc-end-in", "Direction": "input", "Side": "left-bottom", "Label": "In" }
+					{
+						"Hash": "lc-end-in",
+						"Direction": "input",
+						"Side": "left-bottom",
+						"Label": "In"
+					}
 				],
 				"Data": {}
 			}
 		],
 		"Connections": [
-			{ "Hash": "lc-c1", "SourceNodeHash": "lc-start", "SourcePortHash": "lc-start-out", "TargetNodeHash": "lc-init", "TargetPortHash": "lc-init-in", "Data": {} },
-			{ "Hash": "lc-c2", "SourceNodeHash": "lc-init", "SourcePortHash": "lc-init-done", "TargetNodeHash": "lc-read", "TargetPortHash": "lc-rd-in", "Data": {} },
-			{ "Hash": "lc-c3", "SourceNodeHash": "lc-read", "SourcePortHash": "lc-rd-done", "TargetNodeHash": "lc-split", "TargetPortHash": "lc-spl-begin", "Data": {} },
-			{ "Hash": "lc-c4", "SourceNodeHash": "lc-split", "SourcePortHash": "lc-spl-token", "TargetNodeHash": "lc-check", "TargetPortHash": "lc-chk-in", "Data": {} },
-			{ "Hash": "lc-c5", "SourceNodeHash": "lc-check", "SourcePortHash": "lc-chk-true", "TargetNodeHash": "lc-increment", "TargetPortHash": "lc-inc-in", "Data": {} },
-			{ "Hash": "lc-c6", "SourceNodeHash": "lc-increment", "SourcePortHash": "lc-inc-done", "TargetNodeHash": "lc-split", "TargetPortHash": "lc-spl-step", "Data": {} },
-			{ "Hash": "lc-c7", "SourceNodeHash": "lc-check", "SourcePortHash": "lc-chk-false", "TargetNodeHash": "lc-split", "TargetPortHash": "lc-spl-step", "Data": {} },
-			{ "Hash": "lc-c8", "SourceNodeHash": "lc-split", "SourcePortHash": "lc-spl-alldone", "TargetNodeHash": "lc-summary", "TargetPortHash": "lc-sum-in", "Data": {} },
-			{ "Hash": "lc-c9", "SourceNodeHash": "lc-summary", "SourcePortHash": "lc-sum-done", "TargetNodeHash": "lc-write", "TargetPortHash": "lc-wr-in", "Data": {} },
-			{ "Hash": "lc-c10", "SourceNodeHash": "lc-write", "SourcePortHash": "lc-wr-done", "TargetNodeHash": "lc-end", "TargetPortHash": "lc-end-in", "Data": {} },
-			{ "Hash": "lc-c11", "SourceNodeHash": "lc-read", "SourcePortHash": "lc-rd-err", "TargetNodeHash": "lc-rderr", "TargetPortHash": "lc-rde-in", "Data": {} },
-			{ "Hash": "lc-c12", "SourceNodeHash": "lc-rderr", "SourcePortHash": "lc-rde-done", "TargetNodeHash": "lc-end", "TargetPortHash": "lc-end-in", "Data": {} },
-			{ "Hash": "lc-c13", "SourceNodeHash": "lc-write", "SourcePortHash": "lc-wr-err", "TargetNodeHash": "lc-end", "TargetPortHash": "lc-end-in", "Data": {} },
-			{ "Hash": "lc-sc1", "SourceNodeHash": "lc-summary", "SourcePortHash": "lc-sum-so-Result", "TargetNodeHash": "lc-write", "TargetPortHash": "lc-wr-si-Content", "Data": {} }
+			{
+				"Hash": "lc-c3",
+				"SourceNodeHash": "lc-read",
+				"SourcePortHash": "lc-rd-done",
+				"TargetNodeHash": "lc-split",
+				"TargetPortHash": "lc-spl-begin",
+				"Data": {}
+			},
+			{
+				"Hash": "lc-c4",
+				"SourceNodeHash": "lc-split",
+				"SourcePortHash": "lc-spl-token",
+				"TargetNodeHash": "lc-check",
+				"TargetPortHash": "lc-chk-in",
+				"Data": {}
+			},
+			{
+				"Hash": "lc-c5",
+				"SourceNodeHash": "lc-check",
+				"SourcePortHash": "lc-chk-true",
+				"TargetNodeHash": "lc-increment",
+				"TargetPortHash": "lc-inc-in",
+				"Data": {}
+			},
+			{
+				"Hash": "lc-c6",
+				"SourceNodeHash": "lc-increment",
+				"SourcePortHash": "lc-inc-done",
+				"TargetNodeHash": "lc-split",
+				"TargetPortHash": "lc-spl-step",
+				"Data": {}
+			},
+			{
+				"Hash": "lc-c7",
+				"SourceNodeHash": "lc-check",
+				"SourcePortHash": "lc-chk-false",
+				"TargetNodeHash": "lc-split",
+				"TargetPortHash": "lc-spl-step",
+				"Data": {}
+			},
+			{
+				"Hash": "lc-c8",
+				"SourceNodeHash": "lc-split",
+				"SourcePortHash": "lc-spl-alldone",
+				"TargetNodeHash": "lc-summary",
+				"TargetPortHash": "lc-sum-in",
+				"Data": {}
+			},
+			{
+				"Hash": "lc-c9",
+				"SourceNodeHash": "lc-summary",
+				"SourcePortHash": "lc-sum-done",
+				"TargetNodeHash": "lc-write",
+				"TargetPortHash": "lc-wr-in",
+				"Data": {}
+			},
+			{
+				"Hash": "lc-c10",
+				"SourceNodeHash": "lc-write",
+				"SourcePortHash": "lc-wr-done",
+				"TargetNodeHash": "lc-end",
+				"TargetPortHash": "lc-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "lc-c11",
+				"SourceNodeHash": "lc-read",
+				"SourcePortHash": "lc-rd-err",
+				"TargetNodeHash": "lc-rderr",
+				"TargetPortHash": "lc-rde-in",
+				"Data": {}
+			},
+			{
+				"Hash": "lc-c12",
+				"SourceNodeHash": "lc-rderr",
+				"SourcePortHash": "lc-rde-done",
+				"TargetNodeHash": "lc-end",
+				"TargetPortHash": "lc-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "lc-c13",
+				"SourceNodeHash": "lc-write",
+				"SourcePortHash": "lc-wr-err",
+				"TargetNodeHash": "lc-end",
+				"TargetPortHash": "lc-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "lc-sc1",
+				"SourceNodeHash": "lc-summary",
+				"SourcePortHash": "lc-sum-so-Result",
+				"TargetNodeHash": "lc-write",
+				"TargetPortHash": "lc-wr-si-Content",
+				"Data": {}
+			},
+			{
+				"Hash": "lc-c1",
+				"SourceNodeHash": "lc-start",
+				"SourcePortHash": "lc-start-out",
+				"TargetNodeHash": "lc-init",
+				"TargetPortHash": "lc-init-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "lc-init-chain-1",
+				"SourceNodeHash": "lc-init",
+				"SourcePortHash": "lc-init-Complete",
+				"TargetNodeHash": "lc-init-sv-2",
+				"TargetPortHash": "lc-init-sv-2-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "lc-c2",
+				"SourceNodeHash": "lc-init-sv-2",
+				"SourcePortHash": "lc-init-sv-2-Complete",
+				"TargetNodeHash": "lc-read",
+				"TargetPortHash": "lc-rd-in",
+				"Data": {}
+			}
 		],
-		"ViewState": { "PanX": 0, "PanY": 0, "Zoom": 1, "SelectedNodeHash": null, "SelectedConnectionHash": null }
+		"ViewState": {
+			"PanX": 0,
+			"PanY": 0,
+			"Zoom": 1,
+			"SelectedNodeHash": null,
+			"SelectedConnectionHash": null
+		}
 	},
 	"SavedLayouts": [],
 	"InitialGlobalState": {},

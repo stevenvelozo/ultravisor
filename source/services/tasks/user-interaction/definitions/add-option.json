@@ -1,0 +1,21 @@
+{
+	"Hash": "add-option",
+	"Type": "add-option",
+	"Name": "Add Option",
+	"Description": "Appends a single option to an accumulated list. Chain multiple add-option nodes before a Value Input node with InputType select.",
+	"Category": "interaction",
+	"Capability": "User Interaction",
+	"Action": "AddOption",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "In" }],
+	"EventOutputs": [{ "Name": "Complete" }],
+	"SettingsInputs": [
+		{ "Name": "Label", "DataType": "String", "Required": true, "Description": "Display label for the option" },
+		{ "Name": "Value", "DataType": "String", "Required": true, "Description": "Option value" },
+		{ "Name": "ListAddress", "DataType": "String", "Required": true, "Description": "State address for the accumulated options list" }
+	],
+	"StateOutputs": [
+		{ "Name": "Options", "DataType": "Object", "Description": "The accumulated options list" }
+	],
+	"DefaultSettings": { "Label": "", "Value": "", "ListAddress": "Operation.Options" }
+}

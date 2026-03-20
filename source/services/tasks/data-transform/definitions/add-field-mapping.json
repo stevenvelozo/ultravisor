@@ -1,0 +1,22 @@
+{
+	"Hash": "add-field-mapping",
+	"Type": "add-field-mapping",
+	"Name": "Add Field Mapping",
+	"Description": "Appends a single field mapping to an accumulated list. Chain multiple add-field-mapping nodes before a CSV Transform node.",
+	"Category": "pipeline",
+	"Capability": "Data Transform",
+	"Action": "AddFieldMapping",
+	"Tier": "Engine",
+	"EventInputs": [{ "Name": "In" }],
+	"EventOutputs": [{ "Name": "Complete" }],
+	"SettingsInputs": [
+		{ "Name": "From", "DataType": "String", "Required": true, "Description": "Source field name" },
+		{ "Name": "To", "DataType": "String", "Required": false, "Description": "Destination field name (defaults to From)" },
+		{ "Name": "Template", "DataType": "String", "Required": false, "Description": "Template expression applied to the field value" },
+		{ "Name": "ListAddress", "DataType": "String", "Required": true, "Description": "State address for the accumulated field mappings list" }
+	],
+	"StateOutputs": [
+		{ "Name": "FieldMappings", "DataType": "Object", "Description": "The accumulated field mappings list" }
+	],
+	"DefaultSettings": { "From": "", "To": "", "Template": "", "ListAddress": "Operation.FieldMappings" }
+}

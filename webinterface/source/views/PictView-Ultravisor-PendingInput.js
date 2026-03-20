@@ -467,61 +467,63 @@ class UltravisorPendingInputView extends libPictView
 
 	forceError(pRunHash, pNodeHash, pResultId)
 	{
-		if (!confirm('Force this task to error?\nThe operation will continue on the Error path.'))
-		{
-			return;
-		}
-
-		// Disable the button while processing
-		let tmpResultEl = document.getElementById(pResultId);
-		let tmpButtonEl = tmpResultEl ? tmpResultEl.previousElementSibling.querySelector('.ultravisor-pendinginput-force-error') : null;
-		if (tmpButtonEl)
-		{
-			tmpButtonEl.disabled = true;
-			tmpButtonEl.textContent = 'Forcing error...';
-		}
-
-		this.pict.PictApplication.forceErrorPendingInput(pRunHash, pNodeHash,
-			function (pError, pData)
+		this.pict.views.Modal.confirm('Force this task to error?\nThe operation will continue on the Error path.', { confirmLabel: 'Force Error', dangerous: true }).then(
+			function (pConfirmed)
 			{
-				if (pError)
+				if (pConfirmed)
 				{
-					this.pict.ContentAssignment.assignContent('#' + pResultId,
-						'<div class="ultravisor-pendinginput-result error">Error: ' + this.escapeHTML(pError.message || 'Request failed') + '</div>');
+					// Disable the button while processing
+					let tmpResultEl = document.getElementById(pResultId);
+					let tmpButtonEl = tmpResultEl ? tmpResultEl.previousElementSibling.querySelector('.ultravisor-pendinginput-force-error') : null;
 					if (tmpButtonEl)
 					{
-						tmpButtonEl.disabled = false;
-						tmpButtonEl.textContent = 'Force Error';
+						tmpButtonEl.disabled = true;
+						tmpButtonEl.textContent = 'Forcing error...';
 					}
-					return;
-				}
 
-				if (pData && pData.Error)
-				{
-					this.pict.ContentAssignment.assignContent('#' + pResultId,
-						'<div class="ultravisor-pendinginput-result error">Error: ' + this.escapeHTML(pData.Error) + '</div>');
-					if (tmpButtonEl)
-					{
-						tmpButtonEl.disabled = false;
-						tmpButtonEl.textContent = 'Force Error';
-					}
-					return;
-				}
-
-				let tmpStatus = (pData && pData.Status) || 'Errored';
-				this.pict.ContentAssignment.assignContent('#' + pResultId,
-					'<div class="ultravisor-pendinginput-result error">Task force-errored — operation status: ' + this.escapeHTML(tmpStatus) + '</div>');
-
-				// Refresh the list after a brief delay
-				setTimeout(
-					function ()
-					{
-						this.pict.PictApplication.loadPendingInputs(
-							function ()
+					this.pict.PictApplication.forceErrorPendingInput(pRunHash, pNodeHash,
+						function (pError, pData)
+						{
+							if (pError)
 							{
-								this.renderPendingInputs();
-							}.bind(this));
-					}.bind(this), 1500);
+								this.pict.ContentAssignment.assignContent('#' + pResultId,
+									'<div class="ultravisor-pendinginput-result error">Error: ' + this.escapeHTML(pError.message || 'Request failed') + '</div>');
+								if (tmpButtonEl)
+								{
+									tmpButtonEl.disabled = false;
+									tmpButtonEl.textContent = 'Force Error';
+								}
+								return;
+							}
+
+							if (pData && pData.Error)
+							{
+								this.pict.ContentAssignment.assignContent('#' + pResultId,
+									'<div class="ultravisor-pendinginput-result error">Error: ' + this.escapeHTML(pData.Error) + '</div>');
+								if (tmpButtonEl)
+								{
+									tmpButtonEl.disabled = false;
+									tmpButtonEl.textContent = 'Force Error';
+								}
+								return;
+							}
+
+							let tmpStatus = (pData && pData.Status) || 'Errored';
+							this.pict.ContentAssignment.assignContent('#' + pResultId,
+								'<div class="ultravisor-pendinginput-result error">Task force-errored — operation status: ' + this.escapeHTML(tmpStatus) + '</div>');
+
+							// Refresh the list after a brief delay
+							setTimeout(
+								function ()
+								{
+									this.pict.PictApplication.loadPendingInputs(
+										function ()
+										{
+											this.renderPendingInputs();
+										}.bind(this));
+								}.bind(this), 1500);
+						}.bind(this));
+				}
 			}.bind(this));
 	}
 

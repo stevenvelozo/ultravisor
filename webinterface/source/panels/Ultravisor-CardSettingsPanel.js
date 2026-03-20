@@ -1,4 +1,5 @@
 const libPictFlowCardPropertiesPanel = require('pict-section-flow/source/PictFlowCardPropertiesPanel.js');
+const libPictSectionObjectEditor = require('pict-section-objecteditor');
 
 /**
  * Ultravisor Card Settings Panel
@@ -60,6 +61,9 @@ class UltravisorCardSettingsPanel extends libPictFlowCardPropertiesPanel
 
 		// Per-field state: { fieldName: { mode, constantValue, addressValue, dataType, defaultValue } }
 		this._FieldStates = {};
+
+		// Active ObjectEditor view instances keyed by field name
+		this._ObjectEditors = {};
 
 		// Track whether CSS has been injected
 		this._CSSInjected = false;
@@ -289,16 +293,8 @@ class UltravisorCardSettingsPanel extends libPictFlowCardPropertiesPanel
 			case 'Array':
 			case 'Object':
 			{
-				let tmpDisplayValue = '';
-				if (typeof(tmpValue) === 'object' && tmpValue !== null)
-				{
-					tmpDisplayValue = JSON.stringify(tmpValue, null, '\t');
-				}
-				else if (typeof(tmpValue) === 'string')
-				{
-					tmpDisplayValue = tmpValue;
-				}
-				return '<textarea class="uv-settings-textarea" data-field="' + pAttrName + '">' + this._escapeHTML(tmpDisplayValue) + '</textarea>';
+				let tmpEditorId = 'uv-objecteditor-' + pAttrName;
+				return '<div class="uv-objecteditor-container" id="' + tmpEditorId + '" data-field="' + pAttrName + '"></div>';
 			}
 
 			default: // String
@@ -375,6 +371,9 @@ class UltravisorCardSettingsPanel extends libPictFlowCardPropertiesPanel
 			});
 		}
 
+		// Instantiate ObjectEditors for Array/Object fields
+		this._initObjectEditors(pContainer);
+
 		// Wire input listeners for all existing editors
 		this._wireInputListeners(pContainer);
 
@@ -396,6 +395,127 @@ class UltravisorCardSettingsPanel extends libPictFlowCardPropertiesPanel
 			{
 				pEvent.stopPropagation();
 			});
+		}
+	}
+
+	/**
+	 * Initialize ObjectEditor views for Array/Object fields.
+	 * Stores the field value into AppData and points the ObjectEditor at it.
+	 *
+	 * @param {HTMLElement} pContainer
+	 */
+	_initObjectEditors(pContainer)
+	{
+		// Clean up any previously instantiated editors
+		this._destroyObjectEditors();
+
+		let tmpContainers = pContainer.querySelectorAll('.uv-objecteditor-container');
+
+		for (let i = 0; i < tmpContainers.length; i++)
+		{
+			let tmpDiv = tmpContainers[i];
+			let tmpFieldName = tmpDiv.getAttribute('data-field');
+			let tmpState = this._FieldStates[tmpFieldName];
+
+			if (!tmpState)
+			{
+				continue;
+			}
+
+			// Ensure the AppData staging area exists
+			if (!this.fable.AppData._UVSettingsEditors)
+			{
+				this.fable.AppData._UVSettingsEditors = {};
+			}
+
+			// Parse string values into objects for the editor
+			let tmpValue = tmpState.constantValue;
+			if (typeof(tmpValue) === 'string' && tmpValue.trim().length > 0)
+			{
+				try
+				{
+					tmpValue = JSON.parse(tmpValue);
+				}
+				catch (pError)
+				{
+					// Keep as-is; editor will show null
+					tmpValue = (tmpState.dataType === 'Array') ? [] : {};
+				}
+			}
+			if (tmpValue === undefined || tmpValue === null || tmpValue === '')
+			{
+				tmpValue = (tmpState.dataType === 'Array') ? [] : {};
+			}
+
+			let tmpAppDataKey = 'OE_' + tmpFieldName;
+			this.fable.AppData._UVSettingsEditors[tmpAppDataKey] = tmpValue;
+
+			let tmpViewHash = 'UVObjEditor-' + tmpFieldName + '-' + Date.now();
+
+			let tmpEditorView = this.fable.addView(
+				tmpViewHash,
+				{
+					ViewIdentifier: tmpViewHash,
+					AutoRender: false,
+					ObjectDataAddress: 'AppData._UVSettingsEditors.' + tmpAppDataKey,
+					Editable: true,
+					InitialExpandDepth: 2
+				},
+				libPictSectionObjectEditor
+			);
+
+			// addView does not call initialize(), so node type renderers are
+			// not set up yet.  Calling initialize() triggers onBeforeInitialize()
+			// which registers node type service providers and creates the
+			// _NodeRenderers map that renderTree() depends on.
+			tmpEditorView.initialize();
+
+			// SVG foreignObject workaround: document.querySelectorAll can't find
+			// elements inside foreignObject, so we bypass the normal render() path
+			// and inject the tree container directly via DOM, then override
+			// _getTreeElement to return a direct DOM reference.
+			let tmpTreeId = 'ObjectEditor-Tree-' + tmpViewHash;
+			tmpDiv.innerHTML = '<div class="pict-objecteditor" id="' + tmpTreeId + '"></div>';
+
+			let tmpTreeElement = tmpDiv.querySelector('.pict-objecteditor');
+			tmpEditorView._getTreeElement = function () { return tmpTreeElement; };
+
+			this._ObjectEditors[tmpFieldName] = tmpViewHash;
+
+			// Inject the ObjectEditor's CSS into the DOM
+			this.fable.CSSMap.injectCSS();
+
+			// Trigger initial expand and tree render
+			tmpEditorView.onAfterInitialRender();
+			tmpEditorView.renderTree();
+		}
+	}
+
+	/**
+	 * Destroy all active ObjectEditor instances and clean up AppData.
+	 */
+	_destroyObjectEditors()
+	{
+		let tmpFieldNames = Object.keys(this._ObjectEditors);
+
+		for (let i = 0; i < tmpFieldNames.length; i++)
+		{
+			let tmpViewHash = this._ObjectEditors[tmpFieldNames[i]];
+
+			if (this.fable.views[tmpViewHash])
+			{
+				// PictView does not have a destroy() method; just remove
+				// the view from the service map so it can be garbage collected.
+				delete this.fable.views[tmpViewHash];
+			}
+		}
+
+		this._ObjectEditors = {};
+
+		// Clean up AppData staging area
+		if (this.fable.AppData._UVSettingsEditors)
+		{
+			delete this.fable.AppData._UVSettingsEditors;
 		}
 	}
 
@@ -454,22 +574,7 @@ class UltravisorCardSettingsPanel extends libPictFlowCardPropertiesPanel
 			});
 		}
 
-		// Textareas (Array/Object JSON)
-		let tmpTextareas = pContainer.querySelectorAll('.uv-settings-textarea');
-		for (let i = 0; i < tmpTextareas.length; i++)
-		{
-			tmpTextareas[i].addEventListener('input', function ()
-			{
-				let tmpFieldName = this.getAttribute('data-field');
-				let tmpState = tmpSelf._FieldStates[tmpFieldName];
-
-				if (tmpState)
-				{
-					// Store raw string; JSON.parse happens in marshal
-					tmpState.constantValue = this.value;
-				}
-			});
-		}
+		// (Array/Object fields use modal editor — no inline listeners needed)
 	}
 
 	/**
@@ -514,6 +619,26 @@ class UltravisorCardSettingsPanel extends libPictFlowCardPropertiesPanel
 			tmpToggle.title = _ModeTitles[tmpNewMode] || '';
 		}
 
+		// If leaving constant mode for an Array/Object field, save the editor value back
+		if (tmpState.mode !== 'constant' && (tmpState.dataType === 'Array' || tmpState.dataType === 'Object'))
+		{
+			let tmpAppDataKey = 'OE_' + pFieldName;
+			if (this.fable.AppData._UVSettingsEditors && this.fable.AppData._UVSettingsEditors.hasOwnProperty(tmpAppDataKey))
+			{
+				tmpState.constantValue = this.fable.AppData._UVSettingsEditors[tmpAppDataKey];
+			}
+			// Remove the editor for this field
+			if (this._ObjectEditors[pFieldName])
+			{
+				let tmpViewHash = this._ObjectEditors[pFieldName];
+				if (this.fable.views[tmpViewHash])
+				{
+					delete this.fable.views[tmpViewHash];
+				}
+				delete this._ObjectEditors[pFieldName];
+			}
+		}
+
 		// Re-render the editor area
 		let tmpEditorContainer = tmpFieldContainer.querySelector('.uv-settings-field-editor');
 		if (tmpEditorContainer)
@@ -523,6 +648,12 @@ class UltravisorCardSettingsPanel extends libPictFlowCardPropertiesPanel
 			// Re-wire listeners on new elements
 			this._wireInputListeners(tmpEditorContainer);
 			this._wirePointerIsolation(tmpEditorContainer);
+
+			// If entering constant mode for Array/Object, init the ObjectEditor
+			if (tmpState.mode === 'constant' && (tmpState.dataType === 'Array' || tmpState.dataType === 'Object'))
+			{
+				this._initObjectEditors(pContainer);
+			}
 		}
 	}
 
@@ -563,20 +694,28 @@ class UltravisorCardSettingsPanel extends libPictFlowCardPropertiesPanel
 				{
 					let tmpValue = tmpState.constantValue;
 
-					// Parse JSON for Array/Object data types
-					if ((tmpState.dataType === 'Array' || tmpState.dataType === 'Object') && typeof(tmpValue) === 'string')
+					// For Array/Object fields, read live data from the ObjectEditor's AppData address
+					if (tmpState.dataType === 'Array' || tmpState.dataType === 'Object')
 					{
-						let tmpTrimmed = tmpValue.trim();
-
-						if (tmpTrimmed.length > 0)
+						let tmpAppDataKey = 'OE_' + tmpFieldName;
+						if (this.fable.AppData._UVSettingsEditors && this.fable.AppData._UVSettingsEditors.hasOwnProperty(tmpAppDataKey))
 						{
-							try
+							tmpValue = this.fable.AppData._UVSettingsEditors[tmpAppDataKey];
+						}
+						else if (typeof(tmpValue) === 'string')
+						{
+							// Fallback: parse JSON string
+							let tmpTrimmed = tmpValue.trim();
+							if (tmpTrimmed.length > 0)
 							{
-								tmpValue = JSON.parse(tmpTrimmed);
-							}
-							catch (pParseError)
-							{
-								// Keep as raw string if not valid JSON
+								try
+								{
+									tmpValue = JSON.parse(tmpTrimmed);
+								}
+								catch (pParseError)
+								{
+									// Keep as raw string
+								}
 							}
 						}
 					}
@@ -623,6 +762,7 @@ class UltravisorCardSettingsPanel extends libPictFlowCardPropertiesPanel
 
 	destroy()
 	{
+		this._destroyObjectEditors();
 		this._Schema = null;
 		this._Defaults = null;
 		this._FieldStates = null;
@@ -824,23 +964,41 @@ UltravisorCardSettingsPanel.CSS = [
 '	border-color: #5a9ecb;',
 '	outline: none;',
 '}',
-'.uv-settings-textarea {',
-'	width: 100%;',
-'	box-sizing: border-box;',
-'	min-height: 56px;',
-'	padding: 4px 8px;',
-'	border: 1px solid var(--pf-panel-titlebar-border, #343c44);',
+'/* ── ObjectEditor container (dark theme overrides) ──────────────── */',
+'.uv-objecteditor-container {',
+'	overflow: visible;',
+'}',
+'.uv-objecteditor-container .pict-objecteditor {',
 '	background: var(--pf-panel-input-bg, #181c22);',
+'	border-color: var(--pf-panel-titlebar-border, #343c44);',
 '	color: var(--pf-panel-text, #b8c4cc);',
-'	border-radius: 3px;',
-'	font-family: monospace;',
-'	font-size: 0.78em;',
-'	resize: vertical;',
+'	font-size: 12px;',
+'	overflow: visible;',
 '}',
-'.uv-settings-textarea:focus {',
-'	border-color: #5a9ecb;',
-'	outline: none;',
+'.uv-objecteditor-container .pict-oe-row:hover {',
+'	background: #252a32;',
 '}',
+'.uv-objecteditor-container .pict-oe-key { color: #d4884a; }',
+'.uv-objecteditor-container .pict-oe-value-string { color: #5ab88a; }',
+'.uv-objecteditor-container .pict-oe-value-string::before,',
+'.uv-objecteditor-container .pict-oe-value-string::after { color: #3a7a5a; }',
+'.uv-objecteditor-container .pict-oe-value-number { color: #5a9ecb; }',
+'.uv-objecteditor-container .pict-oe-value-boolean { color: #d4884a; }',
+'.uv-objecteditor-container .pict-oe-value-null { color: #506070; }',
+'.uv-objecteditor-container .pict-oe-summary { color: #506070; }',
+'.uv-objecteditor-container .pict-oe-separator { color: #506070; }',
+'.uv-objecteditor-container .pict-oe-toggle { color: #607080; }',
+'.uv-objecteditor-container .pict-oe-toggle:hover { background: #2a3040; color: #b8c4cc; }',
+'.uv-objecteditor-container .pict-oe-type-badge { background: #252a32; color: #607080; }',
+'.uv-objecteditor-container .pict-oe-action-btn { background: #252a32; border-color: #343c44; color: #607080; }',
+'.uv-objecteditor-container .pict-oe-action-btn:hover { background: #2a3040; border-color: #4a5460; color: #b8c4cc; }',
+'.uv-objecteditor-container .pict-oe-action-remove { background: #2a1a1a; border-color: #4a2020; color: #c44e4e; }',
+'.uv-objecteditor-container .pict-oe-action-remove:hover { background: #3a2020; }',
+'.uv-objecteditor-container .pict-oe-action-add { background: #1a2a1a; border-color: #204a20; color: #5ab88a; }',
+'.uv-objecteditor-container .pict-oe-action-add:hover { background: #203a20; }',
+'.uv-objecteditor-container .pict-oe-value-input { background: #181c22; border-color: #5a9ecb; color: #b8c4cc; }',
+'.uv-objecteditor-container .pict-oe-key-input { background: #181c22; border-color: #d4884a; color: #d4884a; }',
+'.uv-objecteditor-container .pict-oe-empty { color: #506070; }',
 '.uv-settings-checkbox {',
 '	display: flex;',
 '	align-items: center;',

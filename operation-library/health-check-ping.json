@@ -30,7 +30,7 @@
 			},
 			{
 				"Hash": "hc-seturl",
-				"Type": "set-values",
+				"Type": "set-value",
 				"X": 260,
 				"Y": 180,
 				"Width": 220,
@@ -38,25 +38,45 @@
 				"Title": "Set Target URL",
 				"Ports": [
 					{
-						"Hash": "hc-su-in",
+						"Hash": "hc-seturl-Execute",
 						"Direction": "input",
 						"Side": "left-bottom",
 						"Label": "Execute"
 					},
 					{
-						"Hash": "hc-su-done",
+						"Hash": "hc-seturl-Value",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "Value"
+					},
+					{
+						"Hash": "hc-seturl-ToAddress",
+						"Direction": "input",
+						"Side": "left-top",
+						"Label": "ToAddress"
+					},
+					{
+						"Hash": "hc-seturl-Complete",
 						"Direction": "output",
 						"Side": "right-bottom",
 						"Label": "Complete"
+					},
+					{
+						"Hash": "hc-seturl-Error",
+						"Direction": "output",
+						"Side": "bottom",
+						"Label": "Error"
+					},
+					{
+						"Hash": "hc-seturl-WrittenValue",
+						"Direction": "output",
+						"Side": "right-top",
+						"Label": "WrittenValue"
 					}
 				],
 				"Data": {
-					"Mappings": [
-						{
-							"Address": "Operation.TargetURL",
-							"Value": "http://localhost:54321/Status"
-						}
-					]
+					"Value": "http://localhost:54321/Status",
+					"ToAddress": "Operation.TargetURL"
 				}
 			},
 			{
@@ -243,22 +263,6 @@
 		],
 		"Connections": [
 			{
-				"Hash": "hc-c1",
-				"SourceNodeHash": "hc-start",
-				"SourcePortHash": "hc-start-out",
-				"TargetNodeHash": "hc-seturl",
-				"TargetPortHash": "hc-su-in",
-				"Data": {}
-			},
-			{
-				"Hash": "hc-c2",
-				"SourceNodeHash": "hc-seturl",
-				"SourcePortHash": "hc-su-done",
-				"TargetNodeHash": "hc-fetch",
-				"TargetPortHash": "hc-ft-in",
-				"Data": {}
-			},
-			{
 				"Hash": "hc-c3",
 				"SourceNodeHash": "hc-fetch",
 				"SourcePortHash": "hc-ft-done",
@@ -312,6 +316,22 @@
 				"SourcePortHash": "hc-ne-done",
 				"TargetNodeHash": "hc-end",
 				"TargetPortHash": "hc-end-in",
+				"Data": {}
+			},
+			{
+				"Hash": "hc-c1",
+				"SourceNodeHash": "hc-start",
+				"SourcePortHash": "hc-start-out",
+				"TargetNodeHash": "hc-seturl",
+				"TargetPortHash": "hc-seturl-Execute",
+				"Data": {}
+			},
+			{
+				"Hash": "hc-c2",
+				"SourceNodeHash": "hc-seturl",
+				"SourcePortHash": "hc-seturl-Complete",
+				"TargetNodeHash": "hc-fetch",
+				"TargetPortHash": "hc-ft-in",
 				"Data": {}
 			}
 		],

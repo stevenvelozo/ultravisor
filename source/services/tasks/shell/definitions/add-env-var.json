@@ -1,0 +1,21 @@
+{
+	"Hash": "add-env-var",
+	"Type": "add-env-var",
+	"Name": "Add Env Var",
+	"Description": "Appends a single environment variable to an accumulated list. Chain multiple add-env-var nodes before a Shell Command node.",
+	"Category": "control",
+	"Capability": "Shell",
+	"Action": "AddEnvVar",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "In" }],
+	"EventOutputs": [{ "Name": "Complete" }],
+	"SettingsInputs": [
+		{ "Name": "Name", "DataType": "String", "Required": true, "Description": "Environment variable name" },
+		{ "Name": "Value", "DataType": "String", "Required": true, "Description": "Environment variable value" },
+		{ "Name": "ListAddress", "DataType": "String", "Required": true, "Description": "State address for the accumulated environment variables" }
+	],
+	"StateOutputs": [
+		{ "Name": "Environment", "DataType": "Object", "Description": "The accumulated environment variables" }
+	],
+	"DefaultSettings": { "Name": "", "Value": "", "ListAddress": "Operation.Environment" }
+}

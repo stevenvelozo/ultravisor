@@ -12,7 +12,7 @@ const _ViewConfiguration =
 	CSS: /*css*/`
 		.ultravisor-operationlist {
 			padding: 2em;
-			max-width: 1200px;
+			max-width: 1400px;
 			margin: 0 auto;
 		}
 		.ultravisor-operationlist-header {
@@ -357,7 +357,7 @@ class UltravisorOperationListView extends libPictView
 			tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-execute" onclick="' + tmpGlobalRef + '.views[\'Ultravisor-OperationList\'].runOperation(\'' + tmpEscHash + '\')">Run</button>';
 			tmpHTML += '<button class="ultravisor-btn-sm" style="background-color:#00695c;color:#e0f2f1;" onclick="' + tmpGlobalRef + '.views[\'Ultravisor-OperationList\'].runOperation(\'' + tmpEscHash + '\', \'debug\')">Debug</button>';
 			tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-edit" onclick="' + tmpGlobalRef + '.PictApplication.editOperation(\'' + tmpEscHash + '\')">Edit</button>';
-			tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-delete" onclick="if(confirm(\'Delete operation ' + tmpEscHash + '?\')){ ' + tmpGlobalRef + '.PictApplication.deleteOperation(\'' + tmpEscHash + '\', function(){ ' + tmpGlobalRef + '.PictApplication.showView(\'Ultravisor-OperationList\'); }); }">Delete</button>';
+			tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-delete" onclick="' + tmpGlobalRef + '.views[\'Ultravisor-OperationList\'].confirmDeleteOperation(\'' + tmpEscHash + '\')">Delete</button>';
 			tmpHTML += '<button class="ultravisor-btn-sm" style="background-color:var(--uv-info);color:#bbdefb;" onclick="' + tmpGlobalRef + '.views[\'Ultravisor-OperationList\'].exportOperation(\'' + tmpEscHash + '\')">Export</button>';
 			tmpHTML += '</div></td>';
 			tmpHTML += '</tr>';
@@ -497,6 +497,22 @@ class UltravisorOperationListView extends libPictView
 				{
 					this.pict.ContentAssignment.assignContent('#Ultravisor-OperationList-Result',
 						'<div class="ultravisor-task-result-panel"><p style="color:var(--uv-error);">Export error: ' + this.escapeHTML(pError.message) + '</p></div>');
+				}
+			}.bind(this));
+	}
+
+	confirmDeleteOperation(pHash)
+	{
+		this.pict.views.Modal.confirm('Delete operation ' + pHash + '?', { confirmLabel: 'Delete', dangerous: true }).then(
+			function (pConfirmed)
+			{
+				if (pConfirmed)
+				{
+					this.pict.PictApplication.deleteOperation(pHash,
+						function ()
+						{
+							this.pict.PictApplication.showView('Ultravisor-OperationList');
+						}.bind(this));
 				}
 			}.bind(this));
 	}

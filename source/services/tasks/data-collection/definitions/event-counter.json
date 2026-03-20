@@ -1,0 +1,26 @@
+{
+	"Hash": "event-counter",
+	"Type": "event-counter",
+	"Name": "Event Counter",
+	"Description": "Counts the number of times an event passes through. Stores the count at an address in operation state. Passes the event through to downstream nodes.",
+	"Category": "data",
+	"Capability": "Data Collection",
+	"Action": "Count",
+	"Tier": "Engine",
+	"EventInputs": [
+		{ "Name": "Trigger", "Description": "Increment the counter and pass through" },
+		{ "Name": "Reset", "Description": "Reset the counter to zero" }
+	],
+	"EventOutputs": [
+		{ "Name": "Complete", "Description": "Fired after each increment" },
+		{ "Name": "ResetComplete", "Description": "Fired after counter is reset" }
+	],
+	"SettingsInputs": [
+		{ "Name": "CounterName", "DataType": "String", "Required": false, "Description": "Label for this counter (for display and logging)" },
+		{ "Name": "OutputAddress", "DataType": "String", "Required": false, "Description": "State address to write the count to (e.g. OperationState.MyCounter)" }
+	],
+	"StateOutputs": [
+		{ "Name": "Count", "DataType": "Number", "Description": "Current count value" }
+	],
+	"DefaultSettings": { "CounterName": "Counter", "OutputAddress": "" }
+}
