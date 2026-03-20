@@ -17,11 +17,11 @@
 		"pict-provider": "^1.0.12",
 		"pict-router": "^1.0.9",
 		"pict-section-content": "^0.0.11",
-		"pict-section-flow": "file:../../../pict/pict-section-flow",
+		"pict-section-flow": "^0.0.17",
 		"pict-section-form": "^1.0.195",
-		"pict-section-objecteditor": "file:../../../pict/pict-section-objecteditor",
 		"pict-section-markdowneditor": "^1.0.7",
 		"pict-section-modal": "^0.0.1",
+		"pict-section-objecteditor": "file:../../../pict/pict-section-objecteditor",
 		"pict-view": "^1.0.67"
 	},
 	"devDependencies": {

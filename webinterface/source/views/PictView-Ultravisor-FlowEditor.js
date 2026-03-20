@@ -502,6 +502,8 @@ class UltravisorFlowEditorView extends libPictView
 					TargetElementAddress: '#Flow-SVG-Container',
 
 					EnableToolbar: true,
+					EnableAddNode: false,
+					IncludeDefaultNodeTypes: false,
 					EnablePanning: true,
 					EnableZooming: true,
 					EnableNodeDragging: true,
@@ -656,9 +658,6 @@ class UltravisorFlowEditorView extends libPictView
 					background-color: #4a3828;
 					border-color: #c4956a;
 					color: #d8c8a8;
-				}
-				.pict-flow-toolbar-separator {
-					border-left-color: #3a3028;
 				}
 				.pict-flow-toolbar-dropdown {
 					background-color: #252018;
