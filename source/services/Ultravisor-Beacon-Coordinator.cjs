@@ -40,11 +40,33 @@ class UltravisorBeaconCoordinator extends libPictService
 		// Used by dispatchAndWait() for synchronous HTTP dispatch
 		this._DirectDispatchCallbacks = {};
 
+		// --- Streaming Dispatch Handlers ---
+		// Map of WorkItemHash → { writeFrame, timeoutHandle }
+		// Used by dispatchAndStream() for binary-framed streaming dispatch
+		this._StreamDispatchHandlers = {};
+
 		// --- WebSocket Push Handler ---
 		// Called when a work item is enqueued to attempt immediate push
 		// to a WebSocket-connected beacon.  Set by the API server.
 		// Signature: function(pBeaconID, pSanitizedWorkItem) -> boolean
 		this._WorkItemPushHandler = null;
+
+		// --- Queue Journal ---
+		// Cached reference to the BeaconQueueJournal service (if available).
+		// Set lazily on first use via _getJournal().
+		this._Journal = null;
+		this._JournalChecked = false;
+
+		// --- Work Item Hash Counter ---
+		// Monotonic counter appended to WorkItemHash to prevent collisions
+		// when multiple items are enqueued in the same millisecond.
+		this._WorkItemCounter = 0;
+
+		// --- Action Catalog ---
+		// In-memory mirror of the persistent action catalog from HypervisorState.
+		// Populated on beacon registration and from persisted state at startup.
+		// Map of 'Capability:Action' → { Capability, Action, Description, SettingsSchema, SourceBeacons: [] }
+		this._ActionCatalog = {};
 	}
 
 	/**
@@ -55,6 +77,74 @@ class UltravisorBeaconCoordinator extends libPictService
 	setWorkItemPushHandler(fHandler)
 	{
 		this._WorkItemPushHandler = (typeof fHandler === 'function') ? fHandler : null;
+	}
+
+	/**
+	 * Get the queue journal service (lazy lookup, cached).
+	 *
+	 * @returns {object|null}
+	 */
+	_getJournal()
+	{
+		if (!this._JournalChecked)
+		{
+			this._JournalChecked = true;
+			let tmpJournal = this._getService('UltravisorBeaconQueueJournal');
+			if (tmpJournal && tmpJournal.isEnabled())
+			{
+				this._Journal = tmpJournal;
+			}
+		}
+		return this._Journal;
+	}
+
+	/**
+	 * Restore work queue and affinity bindings from the journal.
+	 *
+	 * Called once at startup after the journal service is initialized.
+	 * Replays the journal and merges the resulting state into the
+	 * coordinator's in-memory maps.
+	 */
+	restoreFromJournal()
+	{
+		let tmpJournal = this._getJournal();
+
+		if (!tmpJournal)
+		{
+			return;
+		}
+
+		let tmpState = tmpJournal.replay();
+
+		// Merge work queue
+		let tmpRestoredWorkItems = Object.keys(tmpState.WorkQueue);
+		for (let i = 0; i < tmpRestoredWorkItems.length; i++)
+		{
+			let tmpHash = tmpRestoredWorkItems[i];
+			if (!this._WorkQueue[tmpHash])
+			{
+				this._WorkQueue[tmpHash] = tmpState.WorkQueue[tmpHash];
+			}
+		}
+
+		// Merge affinity bindings
+		let tmpRestoredBindings = Object.keys(tmpState.AffinityBindings);
+		for (let i = 0; i < tmpRestoredBindings.length; i++)
+		{
+			let tmpKey = tmpRestoredBindings[i];
+			if (!this._AffinityBindings[tmpKey])
+			{
+				this._AffinityBindings[tmpKey] = tmpState.AffinityBindings[tmpKey];
+			}
+		}
+
+		let tmpQueueCount = Object.keys(this._WorkQueue).length;
+		let tmpAffinityCount = Object.keys(this._AffinityBindings).length;
+
+		if (tmpQueueCount > 0 || tmpAffinityCount > 0)
+		{
+			this.log.info(`BeaconCoordinator: restored state from journal — ${tmpQueueCount} work items, ${tmpAffinityCount} affinity bindings.`);
+		}
 	}
 
 	// ====================================================================
@@ -133,8 +223,26 @@ class UltravisorBeaconCoordinator extends libPictService
 			{
 				tmpExistingBeacon.Tags = pBeaconInfo.Tags;
 			}
+			if (pBeaconInfo.Contexts)
+			{
+				tmpExistingBeacon.Contexts = pBeaconInfo.Contexts;
+			}
 
 			this.log.info(`BeaconCoordinator: reconnected beacon [${tmpExistingBeacon.BeaconID}] "${tmpName}" with session [${tmpExistingBeacon.SessionID}].`);
+
+			// Process action schemas into the persistent catalog on reconnect
+			if (Array.isArray(pBeaconInfo.ActionSchemas) && pBeaconInfo.ActionSchemas.length > 0)
+			{
+				this._updateActionCatalog(tmpExistingBeacon.BeaconID, pBeaconInfo.ActionSchemas);
+				this._registerCatalogTaskTypes();
+			}
+
+			// Process beacon-provided operation definitions on reconnect
+			if (Array.isArray(pBeaconInfo.Operations) && pBeaconInfo.Operations.length > 0)
+			{
+				this._registerBeaconOperations(tmpExistingBeacon.BeaconID, pBeaconInfo.Operations);
+			}
+
 			return tmpExistingBeacon;
 		}
 
@@ -151,14 +259,333 @@ class UltravisorBeaconCoordinator extends libPictService
 			CurrentWorkItems: [],
 			MaxConcurrent: pBeaconInfo.MaxConcurrent || 1,
 			Tags: pBeaconInfo.Tags || {},
+			Contexts: pBeaconInfo.Contexts || {},
 			RegisteredAt: new Date().toISOString()
 		};
 
 		this._Beacons[tmpBeaconID] = tmpBeacon;
 		this.log.info(`BeaconCoordinator: registered beacon [${tmpBeaconID}] "${tmpName}" with capabilities [${tmpBeacon.Capabilities.join(', ')}].`);
 
+		// Process action schemas into the persistent catalog
+		if (Array.isArray(pBeaconInfo.ActionSchemas) && pBeaconInfo.ActionSchemas.length > 0)
+		{
+			this._updateActionCatalog(tmpBeaconID, pBeaconInfo.ActionSchemas);
+			this._registerCatalogTaskTypes();
+		}
+
+		// Process beacon-provided operation definitions
+		if (Array.isArray(pBeaconInfo.Operations) && pBeaconInfo.Operations.length > 0)
+		{
+			this._registerBeaconOperations(tmpBeaconID, pBeaconInfo.Operations);
+		}
+
 		return tmpBeacon;
 	}
+
+	// ================================================================
+	// Action Catalog
+	// ================================================================
+
+	/**
+	 * Load the action catalog from persistent storage.
+	 * Called once at startup after HypervisorState is initialized.
+	 */
+	loadActionCatalog()
+	{
+		let tmpState = this._getService('UltravisorHypervisorState');
+		if (tmpState)
+		{
+			let tmpCatalog = tmpState.getActionCatalog();
+			if (tmpCatalog && typeof(tmpCatalog) === 'object')
+			{
+				this._ActionCatalog = tmpCatalog;
+				let tmpCount = Object.keys(this._ActionCatalog).length;
+				if (tmpCount > 0)
+				{
+					this.log.info(`BeaconCoordinator: loaded ${tmpCount} action catalog entries from persistent storage.`);
+					this._registerCatalogTaskTypes();
+				}
+			}
+		}
+	}
+
+	/**
+	 * Update the action catalog with schemas from a registering beacon.
+	 *
+	 * Each Capability:Action pair is upserted.  SourceBeacons tracks which
+	 * beacons have reported this action.
+	 *
+	 * @param {string} pBeaconID - The registering beacon's ID
+	 * @param {Array} pActionSchemas - Array of { Capability, Action, Description, SettingsSchema }
+	 */
+	_updateActionCatalog(pBeaconID, pActionSchemas)
+	{
+		for (let i = 0; i < pActionSchemas.length; i++)
+		{
+			let tmpSchema = pActionSchemas[i];
+			let tmpKey = tmpSchema.Capability + ':' + tmpSchema.Action;
+
+			if (this._ActionCatalog[tmpKey])
+			{
+				// Update description and schema (latest registration wins)
+				this._ActionCatalog[tmpKey].Description = tmpSchema.Description || this._ActionCatalog[tmpKey].Description;
+				this._ActionCatalog[tmpKey].SettingsSchema = tmpSchema.SettingsSchema || this._ActionCatalog[tmpKey].SettingsSchema;
+
+				// Track source beacon
+				if (this._ActionCatalog[tmpKey].SourceBeacons.indexOf(pBeaconID) === -1)
+				{
+					this._ActionCatalog[tmpKey].SourceBeacons.push(pBeaconID);
+				}
+			}
+			else
+			{
+				this._ActionCatalog[tmpKey] = {
+					Capability: tmpSchema.Capability,
+					Action: tmpSchema.Action,
+					Description: tmpSchema.Description || '',
+					SettingsSchema: tmpSchema.SettingsSchema || [],
+					SourceBeacons: [pBeaconID]
+				};
+			}
+		}
+
+		// Persist to HypervisorState
+		let tmpState = this._getService('UltravisorHypervisorState');
+		if (tmpState)
+		{
+			tmpState.updateActionCatalog(this._ActionCatalog);
+		}
+
+		this.log.info(`BeaconCoordinator: action catalog updated — ${Object.keys(this._ActionCatalog).length} entries.`);
+	}
+
+	/**
+	 * Auto-generate and register task type configs from the action catalog.
+	 *
+	 * Each Capability:Action pair produces a config-driven task type that
+	 * uses beaconDispatch() to execute.  Only registers types not already
+	 * in the registry (built-in types take precedence).
+	 */
+	_registerCatalogTaskTypes()
+	{
+		let tmpRegistryServices = this.fable.servicesMap['UltravisorTaskTypeRegistry'];
+		if (!tmpRegistryServices)
+		{
+			return;
+		}
+
+		let tmpRegistry = Object.values(tmpRegistryServices)[0];
+		if (!tmpRegistry)
+		{
+			return;
+		}
+
+		let tmpBeaconDispatch = null;
+		try
+		{
+			tmpBeaconDispatch = require('./tasks/Ultravisor-TaskHelper-BeaconDispatch.cjs');
+		}
+		catch (pError)
+		{
+			this.log.error(`BeaconCoordinator: could not load BeaconDispatch helper: ${pError.message}`);
+			return;
+		}
+
+		let tmpKeys = Object.keys(this._ActionCatalog);
+		let tmpRegistered = 0;
+
+		for (let i = 0; i < tmpKeys.length; i++)
+		{
+			let tmpEntry = this._ActionCatalog[tmpKeys[i]];
+			let tmpHash = 'beacon-' + tmpEntry.Capability.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + tmpEntry.Action.toLowerCase().replace(/[^a-z0-9]/g, '-');
+
+			// Skip if already registered (built-in types take precedence)
+			if (tmpRegistry.hasTaskType(tmpHash))
+			{
+				continue;
+			}
+
+			// Build SettingsInputs from the action's SettingsSchema
+			let tmpSettingsInputs = [];
+			let tmpDefaultSettings = {};
+
+			for (let j = 0; j < tmpEntry.SettingsSchema.length; j++)
+			{
+				let tmpField = tmpEntry.SettingsSchema[j];
+				tmpSettingsInputs.push({
+					Name: tmpField.Name,
+					DataType: tmpField.DataType || 'String',
+					Required: tmpField.Required || false,
+					Description: tmpField.Description || ''
+				});
+				tmpDefaultSettings[tmpField.Name] = tmpField.Default || '';
+			}
+
+			// Add standard beacon dispatch settings
+			tmpSettingsInputs.push({ Name: 'AffinityKey', DataType: 'String', Required: false, Description: 'Sticky routing key for beacon affinity.' });
+			tmpSettingsInputs.push({ Name: 'TimeoutMs', DataType: 'Number', Required: false, Description: 'Work item timeout in milliseconds.' });
+			tmpDefaultSettings.AffinityKey = '';
+			tmpDefaultSettings.TimeoutMs = 300000;
+
+			// Derive a display name from the action
+			let tmpName = tmpEntry.Action.replace(/([a-z])([A-Z])/g, '$1 $2');
+
+			let tmpConfig = {
+				Definition: {
+					Hash: tmpHash,
+					Type: tmpHash,
+					Name: tmpName,
+					Description: tmpEntry.Description,
+					Category: 'beacon-' + tmpEntry.Capability.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+					Capability: tmpEntry.Capability,
+					Action: tmpEntry.Action,
+					Tier: 'Beacon',
+					EventInputs: [{ Name: 'Trigger' }],
+					EventOutputs: [
+						{ Name: 'Complete' },
+						{ Name: 'Error', IsError: true }
+					],
+					SettingsInputs: tmpSettingsInputs,
+					StateOutputs: [
+						{ Name: 'Result', DataType: 'String', Description: 'Action result data.' },
+						{ Name: 'StdOut', DataType: 'String', Description: 'Status message.' }
+					],
+					DefaultSettings: tmpDefaultSettings
+				},
+				Execute: this._createBeaconDispatchExecutor(tmpEntry.Capability, tmpEntry.Action, tmpBeaconDispatch)
+			};
+
+			tmpRegistry.registerTaskTypeFromConfig(tmpConfig);
+			tmpRegistered++;
+		}
+
+		if (tmpRegistered > 0)
+		{
+			this.log.info(`BeaconCoordinator: auto-registered ${tmpRegistered} task type(s) from action catalog.`);
+		}
+	}
+
+	/**
+	 * Create an Execute function for an auto-generated beacon task type.
+	 *
+	 * @param {string} pCapability - The capability name
+	 * @param {string} pAction - The action name
+	 * @param {function} pBeaconDispatch - The beaconDispatch helper
+	 * @returns {function} Execute function matching the task type config interface
+	 */
+	_createBeaconDispatchExecutor(pCapability, pAction, pBeaconDispatch)
+	{
+		return function (pTask, pResolvedSettings, pExecutionContext, fCallback)
+		{
+			// Build settings object from resolved settings, excluding beacon dispatch meta-fields
+			let tmpSettings = Object.assign({}, pResolvedSettings);
+			delete tmpSettings.AffinityKey;
+			delete tmpSettings.TimeoutMs;
+
+			pBeaconDispatch(pTask, {
+				Capability: pCapability,
+				Action: pAction,
+				Settings: tmpSettings,
+				AffinityKey: pResolvedSettings.AffinityKey || '',
+				TimeoutMs: pResolvedSettings.TimeoutMs || 300000
+			}, pExecutionContext, fCallback);
+		};
+	}
+
+	/**
+	 * Register operation definitions provided by a beacon.
+	 *
+	 * @param {string} pBeaconID - The registering beacon's ID
+	 * @param {Array} pOperations - Array of operation definition objects
+	 */
+	_registerBeaconOperations(pBeaconID, pOperations)
+	{
+		let tmpState = this._getService('UltravisorHypervisorState');
+		if (!tmpState)
+		{
+			this.log.warn('BeaconCoordinator: HypervisorState not available; cannot register beacon operations.');
+			return;
+		}
+
+		for (let i = 0; i < pOperations.length; i++)
+		{
+			let tmpOp = Object.assign({}, pOperations[i]);
+
+			// Tag with beacon source
+			tmpOp.SourceBeacon = pBeaconID;
+			tmpOp.SourceType = 'Beacon';
+
+			tmpState.updateOperation(tmpOp, (pError, pSavedOp) =>
+			{
+				if (pError)
+				{
+					this.log.error(`BeaconCoordinator: failed to register beacon operation: ${pError.message}`);
+				}
+				else
+				{
+					this.log.info(`BeaconCoordinator: registered beacon operation [${pSavedOp.Hash}] "${pSavedOp.Name || ''}".`);
+				}
+			});
+		}
+	}
+
+	/**
+	 * Get the full action catalog, annotated with availability.
+	 *
+	 * @returns {Array} Array of catalog entries, each with an Available boolean
+	 */
+	getActionCatalog()
+	{
+		let tmpResult = [];
+		let tmpKeys = Object.keys(this._ActionCatalog);
+
+		// Build set of capabilities from online beacons
+		let tmpOnlineCapabilities = {};
+		let tmpBeaconIDs = Object.keys(this._Beacons);
+		for (let i = 0; i < tmpBeaconIDs.length; i++)
+		{
+			let tmpBeacon = this._Beacons[tmpBeaconIDs[i]];
+			if (tmpBeacon.Status === 'Online')
+			{
+				for (let j = 0; j < tmpBeacon.Capabilities.length; j++)
+				{
+					tmpOnlineCapabilities[tmpBeacon.Capabilities[j]] = true;
+				}
+			}
+		}
+
+		for (let i = 0; i < tmpKeys.length; i++)
+		{
+			let tmpEntry = this._ActionCatalog[tmpKeys[i]];
+			tmpResult.push({
+				Capability: tmpEntry.Capability,
+				Action: tmpEntry.Action,
+				Description: tmpEntry.Description,
+				SettingsSchema: tmpEntry.SettingsSchema,
+				Available: tmpOnlineCapabilities.hasOwnProperty(tmpEntry.Capability),
+				SourceBeacons: tmpEntry.SourceBeacons
+			});
+		}
+
+		return tmpResult;
+	}
+
+	/**
+	 * Get the action catalog filtered by capability.
+	 *
+	 * @param {string} pCapability - Capability name to filter by
+	 * @returns {Array} Filtered catalog entries
+	 */
+	getActionCatalogForCapability(pCapability)
+	{
+		return this.getActionCatalog().filter(
+			(pEntry) => pEntry.Capability === pCapability
+		);
+	}
+
+	// ================================================================
+	// Beacon Lookup
+	// ================================================================
 
 	/**
 	 * Find a beacon by its Name property.
@@ -300,7 +727,8 @@ class UltravisorBeaconCoordinator extends libPictService
 	enqueueWorkItem(pWorkItemInfo)
 	{
 		let tmpTimestamp = Date.now();
-		let tmpWorkItemHash = `wi-${pWorkItemInfo.RunHash || 'unknown'}-${pWorkItemInfo.NodeHash || 'unknown'}-${tmpTimestamp}`;
+		this._WorkItemCounter++;
+		let tmpWorkItemHash = `wi-${pWorkItemInfo.RunHash || 'unknown'}-${pWorkItemInfo.NodeHash || 'unknown'}-${tmpTimestamp}-${this._WorkItemCounter}`;
 
 		let tmpDefaultTimeout = this.fable.settings.UltravisorBeaconWorkItemTimeoutMs || 300000;
 
@@ -351,6 +779,37 @@ class UltravisorBeaconCoordinator extends libPictService
 
 		this._WorkQueue[tmpWorkItemHash] = tmpWorkItem;
 		this.log.info(`BeaconCoordinator: enqueued work item [${tmpWorkItemHash}] (${tmpWorkItem.Capability}/${tmpWorkItem.Action}) status=${tmpWorkItem.Status}.`);
+
+		// Journal the enqueue
+		let tmpJournal = this._getJournal();
+		if (tmpJournal)
+		{
+			tmpJournal.appendEntry('enqueue', {
+				WorkItemHash: tmpWorkItem.WorkItemHash,
+				RunHash: tmpWorkItem.RunHash,
+				NodeHash: tmpWorkItem.NodeHash,
+				OperationHash: tmpWorkItem.OperationHash,
+				Capability: tmpWorkItem.Capability,
+				Action: tmpWorkItem.Action,
+				Settings: tmpWorkItem.Settings,
+				AffinityKey: tmpWorkItem.AffinityKey,
+				AssignedBeaconID: tmpWorkItem.AssignedBeaconID,
+				Status: tmpWorkItem.Status,
+				TimeoutMs: tmpWorkItem.TimeoutMs,
+				CreatedAt: tmpWorkItem.CreatedAt,
+				ClaimedAt: tmpWorkItem.ClaimedAt
+			});
+
+			// If affinity pre-assigned, journal the binding too
+			if (tmpWorkItem.AffinityKey && tmpWorkItem.Status === 'Assigned')
+			{
+				let tmpBinding = this._AffinityBindings[tmpWorkItem.AffinityKey];
+				if (tmpBinding)
+				{
+					tmpJournal.appendEntry('affinity-create', tmpBinding);
+				}
+			}
+		}
 
 		// Attempt immediate push to a WebSocket-connected beacon
 		if (tmpWorkItem.Status === 'Pending')
@@ -426,6 +885,23 @@ class UltravisorBeaconCoordinator extends libPictService
 			if (tmpPushed)
 			{
 				this.log.info(`BeaconCoordinator: pushed work item [${pWorkItem.WorkItemHash}] to WebSocket beacon [${tmpBeacon.BeaconID}].`);
+
+				// Journal the claim and any affinity binding
+				let tmpJournal = this._getJournal();
+				if (tmpJournal)
+				{
+					tmpJournal.appendEntry('claim', {
+						WorkItemHash: pWorkItem.WorkItemHash,
+						BeaconID: tmpBeacon.BeaconID,
+						ClaimedAt: pWorkItem.ClaimedAt
+					});
+
+					if (pWorkItem.AffinityKey && this._AffinityBindings[pWorkItem.AffinityKey])
+					{
+						tmpJournal.appendEntry('affinity-create', this._AffinityBindings[pWorkItem.AffinityKey]);
+					}
+				}
+
 				return true;
 			}
 			else
@@ -536,6 +1012,23 @@ class UltravisorBeaconCoordinator extends libPictService
 			}
 
 			this.log.info(`BeaconCoordinator: beacon [${pBeaconID}] claimed work item [${tmpWorkItem.WorkItemHash}].`);
+
+			// Journal the claim and any new affinity binding
+			let tmpJournal = this._getJournal();
+			if (tmpJournal)
+			{
+				tmpJournal.appendEntry('claim', {
+					WorkItemHash: tmpWorkItem.WorkItemHash,
+					BeaconID: pBeaconID,
+					ClaimedAt: tmpWorkItem.ClaimedAt
+				});
+
+				if (tmpWorkItem.AffinityKey && this._AffinityBindings[tmpWorkItem.AffinityKey])
+				{
+					tmpJournal.appendEntry('affinity-create', this._AffinityBindings[tmpWorkItem.AffinityKey]);
+				}
+			}
+
 			return this._sanitizeWorkItemForBeacon(tmpWorkItem);
 		}
 
@@ -586,6 +1079,13 @@ class UltravisorBeaconCoordinator extends libPictService
 		tmpWorkItem.Status = 'Complete';
 		tmpWorkItem.CompletedAt = new Date().toISOString();
 
+		// Journal the completion
+		let tmpJournal = this._getJournal();
+		if (tmpJournal)
+		{
+			tmpJournal.appendEntry('complete', { WorkItemHash: pWorkItemHash });
+		}
+
 		// Merge accumulated progress logs with the final completion log
 		let tmpFinalResult = pResult || {};
 		if (tmpWorkItem.AccumulatedLog && tmpWorkItem.AccumulatedLog.length > 0)
@@ -600,6 +1100,19 @@ class UltravisorBeaconCoordinator extends libPictService
 		this._removeWorkItemFromBeacon(tmpWorkItem.AssignedBeaconID, pWorkItemHash);
 
 		this.log.info(`BeaconCoordinator: work item [${pWorkItemHash}] completed by beacon [${tmpWorkItem.AssignedBeaconID}].`);
+
+		// Check for streaming dispatch handler (binary-framed streaming)
+		if (this._resolveStreamDispatch(pWorkItemHash, null, {
+			Success: true,
+			WorkItemHash: pWorkItemHash,
+			Outputs: tmpFinalResult.Outputs || {},
+			Log: tmpFinalResult.Log || []
+		}))
+		{
+			// Streaming dispatch — clean up and done
+			delete this._WorkQueue[pWorkItemHash];
+			return fCallback(null);
+		}
 
 		// Check for direct dispatch callback (synchronous HTTP dispatch)
 		if (this._resolveDirectDispatch(pWorkItemHash, null, {
@@ -681,10 +1194,26 @@ class UltravisorBeaconCoordinator extends libPictService
 		tmpWorkItem.CompletedAt = new Date().toISOString();
 		tmpWorkItem.Result = { Error: pError.ErrorMessage || 'Unknown error', Log: pError.Log || [] };
 
+		// Journal the failure
+		let tmpJournal = this._getJournal();
+		if (tmpJournal)
+		{
+			tmpJournal.appendEntry('fail', { WorkItemHash: pWorkItemHash });
+		}
+
 		// Remove from Beacon's current work list
 		this._removeWorkItemFromBeacon(tmpWorkItem.AssignedBeaconID, pWorkItemHash);
 
 		this.log.warn(`BeaconCoordinator: work item [${pWorkItemHash}] failed: ${pError.ErrorMessage || 'Unknown error'}`);
+
+		// Check for streaming dispatch handler (binary-framed streaming)
+		if (this._resolveStreamDispatch(pWorkItemHash,
+			new Error(pError.ErrorMessage || 'Beacon work item failed.'), null))
+		{
+			// Streaming dispatch — clean up and done
+			delete this._WorkQueue[pWorkItemHash];
+			return fCallback(null);
+		}
 
 		// Check for direct dispatch callback (synchronous HTTP dispatch)
 		if (this._resolveDirectDispatch(pWorkItemHash,
@@ -863,6 +1392,127 @@ class UltravisorBeaconCoordinator extends libPictService
 	}
 
 	// ====================================================================
+	// Streaming Dispatch (binary-framed HTTP streaming)
+	// ====================================================================
+
+	/**
+	 * Dispatch a work item and stream progress/results back via a
+	 * frame writer function.
+	 *
+	 * Used by POST /Beacon/Work/DispatchStream to provide real-time
+	 * progress and binary output streaming to external consumers.
+	 * The frame writer receives typed events:
+	 *   - 'progress': JSON progress data
+	 *   - 'data':     intermediate binary data (decoded from base64)
+	 *   - 'binary':   final binary output (decoded from base64)
+	 *   - 'result':   JSON result metadata
+	 *   - 'error':    JSON error data
+	 *   - 'end':      stream complete (no data)
+	 *
+	 * @param {object} pWorkItemInfo - Work item details (same as dispatchAndWait)
+	 * @param {function} fFrameWriter - function(pType, pData) called for each frame
+	 */
+	dispatchAndStream(pWorkItemInfo, fFrameWriter)
+	{
+		// Direct dispatch — no operation graph
+		pWorkItemInfo.RunHash = '';
+		pWorkItemInfo.NodeHash = '';
+		pWorkItemInfo.OperationHash = '';
+
+		// Enqueue the work item
+		let tmpWorkItem = this.enqueueWorkItem(pWorkItemInfo);
+
+		let tmpTimeoutMs = pWorkItemInfo.TimeoutMs || this.fable.settings.UltravisorBeaconWorkItemTimeoutMs || 300000;
+
+		// Register timeout
+		let tmpTimeoutHandle = setTimeout(
+			() =>
+			{
+				let tmpEntry = this._StreamDispatchHandlers[tmpWorkItem.WorkItemHash];
+				if (tmpEntry)
+				{
+					delete this._StreamDispatchHandlers[tmpWorkItem.WorkItemHash];
+
+					// Clean up the work item from the queue
+					let tmpWI = this._WorkQueue[tmpWorkItem.WorkItemHash];
+					if (tmpWI)
+					{
+						this._removeWorkItemFromBeacon(tmpWI.AssignedBeaconID, tmpWorkItem.WorkItemHash);
+						delete this._WorkQueue[tmpWorkItem.WorkItemHash];
+					}
+
+					this.log.warn(`BeaconCoordinator: streaming dispatch [${tmpWorkItem.WorkItemHash}] timed out after ${tmpTimeoutMs}ms.`);
+					tmpEntry.writeFrame('error', { Error: `Dispatch timed out after ${tmpTimeoutMs}ms.` });
+					tmpEntry.writeFrame('end', null);
+				}
+			},
+			tmpTimeoutMs);
+
+		this._StreamDispatchHandlers[tmpWorkItem.WorkItemHash] =
+		{
+			writeFrame: fFrameWriter,
+			timeoutHandle: tmpTimeoutHandle
+		};
+
+		this.log.info(`BeaconCoordinator: streaming dispatch [${tmpWorkItem.WorkItemHash}] waiting for frames (timeout: ${tmpTimeoutMs}ms).`);
+	}
+
+	/**
+	 * Check if a work item has a streaming dispatch handler registered.
+	 * If so, write the result/error frames, clean up, and return true.
+	 *
+	 * @param {string} pWorkItemHash
+	 * @param {object|null} pError - Error info (for fail path)
+	 * @param {object|null} pResult - Result info (for complete path)
+	 * @returns {boolean} True if a streaming handler was found and resolved
+	 */
+	_resolveStreamDispatch(pWorkItemHash, pError, pResult)
+	{
+		let tmpEntry = this._StreamDispatchHandlers[pWorkItemHash];
+
+		if (!tmpEntry)
+		{
+			return false;
+		}
+
+		// Clear the timeout
+		clearTimeout(tmpEntry.timeoutHandle);
+		delete this._StreamDispatchHandlers[pWorkItemHash];
+
+		if (pError)
+		{
+			tmpEntry.writeFrame('error', { Error: pError.message || 'Unknown error' });
+			tmpEntry.writeFrame('end', null);
+		}
+		else
+		{
+			let tmpOutputs = (pResult && pResult.Outputs) ? pResult.Outputs : {};
+
+			// If there's base64-encoded output data, decode and send as binary
+			// frame before the result metadata (avoids re-encoding for the client)
+			if (tmpOutputs.OutputData)
+			{
+				try
+				{
+					let tmpBinaryData = Buffer.from(tmpOutputs.OutputData, 'base64');
+					tmpEntry.writeFrame('binary', tmpBinaryData);
+					// Remove base64 data from result metadata (already sent as binary)
+					delete tmpOutputs.OutputData;
+				}
+				catch (pDecodeError)
+				{
+					// If decode fails, leave it in the JSON result
+				}
+			}
+
+			tmpEntry.writeFrame('result', pResult);
+			tmpEntry.writeFrame('end', null);
+		}
+
+		return true;
+	}
+
+	// ====================================================================
 	// Progress Reporting
 	// ====================================================================
 
@@ -926,6 +1576,29 @@ class UltravisorBeaconCoordinator extends libPictService
 			}
 		}
 
+		// Forward progress to streaming dispatch handler if one exists
+		let tmpStreamEntry = this._StreamDispatchHandlers[pWorkItemHash];
+		if (tmpStreamEntry)
+		{
+			// Send progress JSON frame
+			tmpStreamEntry.writeFrame('progress', tmpWorkItem.Progress);
+
+			// If the beacon included intermediate binary data (base64-encoded),
+			// decode and send as a binary data frame
+			if (pProgressData.BinaryData)
+			{
+				try
+				{
+					let tmpBinary = Buffer.from(pProgressData.BinaryData, 'base64');
+					tmpStreamEntry.writeFrame('data', tmpBinary);
+				}
+				catch (pDecodeError)
+				{
+					// Ignore decode errors for intermediate data
+				}
+			}
+		}
+
 		return true;
 	}
 
@@ -954,6 +1627,14 @@ class UltravisorBeaconCoordinator extends libPictService
 		if (this._AffinityBindings[pAffinityKey])
 		{
 			delete this._AffinityBindings[pAffinityKey];
+
+			// Journal the clear
+			let tmpJournal = this._getJournal();
+			if (tmpJournal)
+			{
+				tmpJournal.appendEntry('affinity-clear', { AffinityKey: pAffinityKey });
+			}
+
 			return true;
 		}
 		return false;
@@ -1057,12 +1738,18 @@ class UltravisorBeaconCoordinator extends libPictService
 
 		// Clean up expired affinity bindings
 		let tmpAffinityKeys = Object.keys(this._AffinityBindings);
+		let tmpJournalRef = this._getJournal();
 		for (let i = 0; i < tmpAffinityKeys.length; i++)
 		{
 			let tmpBinding = this._AffinityBindings[tmpAffinityKeys[i]];
 			if (new Date(tmpBinding.ExpiresAt).getTime() < tmpNow)
 			{
 				delete this._AffinityBindings[tmpAffinityKeys[i]];
+
+				if (tmpJournalRef)
+				{
+					tmpJournalRef.appendEntry('affinity-clear', { AffinityKey: tmpAffinityKeys[i] });
+				}
 			}
 		}
 	}

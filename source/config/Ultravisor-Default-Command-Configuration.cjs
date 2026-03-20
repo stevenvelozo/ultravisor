@@ -15,5 +15,6 @@ module.exports = (
 		"UltravisorBeaconHeartbeatTimeoutMs": 60000,
 		"UltravisorBeaconWorkItemTimeoutMs": 300000,
 		"UltravisorBeaconAffinityTTLMs": 3600000,
-		"UltravisorBeaconPollIntervalMs": 5000
+		"UltravisorBeaconPollIntervalMs": 5000,
+		"UltravisorBeaconJournalCompactThreshold": 500
 	});

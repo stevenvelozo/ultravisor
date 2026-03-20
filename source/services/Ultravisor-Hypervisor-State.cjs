@@ -33,6 +33,10 @@ class UltravisorHypervisorState extends libPictService
 		// Global state (persists across runs)
 		this._GlobalState = {};
 
+		// Action Catalog — persistent registry of all known Capability:Action pairs
+		// contributed by beacons.  Survives beacon disconnects and coordinator restarts.
+		this._ActionCatalog = {};
+
 		// Auto-hash counters
 		this._TemplateCounters = {};
 		this._OperationCounter = 0;
@@ -66,6 +70,11 @@ class UltravisorHypervisorState extends libPictService
 		if (tmpConfig.GlobalState && typeof(tmpConfig.GlobalState) === 'object')
 		{
 			this._GlobalState = tmpConfig.GlobalState;
+		}
+
+		if (tmpConfig.ActionCatalog && typeof(tmpConfig.ActionCatalog) === 'object')
+		{
+			this._ActionCatalog = tmpConfig.ActionCatalog;
 		}
 
 		if (typeof(tmpConfig.OperationCounter) === 'number')
@@ -157,6 +166,7 @@ class UltravisorHypervisorState extends libPictService
 		tmpStateToPersist.NodeTemplates = this._NodeTemplates;
 		tmpStateToPersist.Operations = this._Operations;
 		tmpStateToPersist.GlobalState = this._GlobalState;
+		tmpStateToPersist.ActionCatalog = this._ActionCatalog;
 		tmpStateToPersist.OperationCounter = this._OperationCounter;
 		tmpStateToPersist.TemplateCounters = this._TemplateCounters;
 
@@ -364,6 +374,34 @@ class UltravisorHypervisorState extends libPictService
 		this.persistState();
 
 		return fCallback(null, true);
+	}
+
+	// ====================================================================
+	// Action Catalog
+	// ====================================================================
+
+	/**
+	 * Get the persistent action catalog.
+	 *
+	 * @returns {object} Map of 'Capability:Action' → catalog entry
+	 */
+	getActionCatalog()
+	{
+		return this._ActionCatalog;
+	}
+
+	/**
+	 * Replace and persist the entire action catalog.
+	 *
+	 * @param {object} pCatalog - Map of 'Capability:Action' → catalog entry
+	 */
+	updateActionCatalog(pCatalog)
+	{
+		if (typeof(pCatalog) === 'object' && pCatalog !== null)
+		{
+			this._ActionCatalog = pCatalog;
+			this.persistState();
+		}
 	}
 
 	// ====================================================================

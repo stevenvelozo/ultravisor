@@ -1256,6 +1256,121 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
+		// --- Streaming Dispatch (binary-framed) ---
+		this._OratorServer.post
+			(
+				'/Beacon/Work/DispatchStream',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send(500, { Success: false, Error: 'BeaconCoordinator service not available.' });
+						return fNext();
+					}
+
+					let tmpBody = pRequest.body || {};
+					if (!tmpBody.Capability)
+					{
+						pResponse.send(400, { Success: false, Error: 'Capability is required.' });
+						return fNext();
+					}
+
+					// Check if any Beacons are registered
+					let tmpBeacons = tmpCoordinator.listBeacons();
+					if (tmpBeacons.length === 0)
+					{
+						pResponse.send(503, { Success: false, Error: 'No Beacon workers are registered.' });
+						return fNext();
+					}
+
+					// Disable request timeout for long-running dispatch
+					if (pRequest.connection)
+					{
+						pRequest.connection.setTimeout(0);
+					}
+
+					// Set up binary streaming response — bypass Restify formatters
+					pResponse.writeHead(200, {
+						'Content-Type': 'application/octet-stream',
+						'Transfer-Encoding': 'chunked',
+						'X-Ultravisor-Protocol': 'binary-frames-v1'
+					});
+
+					// Frame type codes:
+					//   0x01 = Progress  (JSON payload)
+					//   0x02 = Intermediate binary data (raw bytes)
+					//   0x03 = Final binary output (raw bytes)
+					//   0x04 = Result metadata (JSON payload)
+					//   0x05 = Error (JSON payload)
+					// Frame format: [1 byte type][4 bytes payload length (uint32 big-endian)][payload]
+
+					let tmpStreamEnded = false;
+
+					let tmpWriteFrame = function (pType, pData)
+					{
+						if (tmpStreamEnded) { return; }
+
+						if (pType === 'end')
+						{
+							tmpStreamEnded = true;
+							pResponse.end();
+							return;
+						}
+
+						let tmpTypeCode;
+						let tmpPayload;
+
+						switch (pType)
+						{
+							case 'progress':
+								tmpTypeCode = 0x01;
+								tmpPayload = Buffer.from(JSON.stringify(pData));
+								break;
+							case 'data':
+								tmpTypeCode = 0x02;
+								tmpPayload = Buffer.isBuffer(pData) ? pData : Buffer.from(pData);
+								break;
+							case 'binary':
+								tmpTypeCode = 0x03;
+								tmpPayload = Buffer.isBuffer(pData) ? pData : Buffer.from(pData);
+								break;
+							case 'result':
+								tmpTypeCode = 0x04;
+								tmpPayload = Buffer.from(JSON.stringify(pData));
+								break;
+							case 'error':
+								tmpTypeCode = 0x05;
+								tmpPayload = Buffer.from(JSON.stringify(pData));
+								break;
+							default:
+								return;
+						}
+
+						// Write frame: [type (1 byte)][length (4 bytes big-endian)][payload]
+						let tmpHeader = Buffer.alloc(5);
+						tmpHeader.writeUInt8(tmpTypeCode, 0);
+						tmpHeader.writeUInt32BE(tmpPayload.length, 1);
+
+						pResponse.write(tmpHeader);
+						pResponse.write(tmpPayload);
+					};
+
+					let tmpWorkItemInfo = {
+						Capability: tmpBody.Capability || 'Shell',
+						Action: tmpBody.Action || 'Execute',
+						Settings: tmpBody.Settings || {},
+						AffinityKey: tmpBody.AffinityKey || '',
+						TimeoutMs: tmpBody.TimeoutMs || 300000
+					};
+
+					tmpCoordinator.dispatchAndStream(tmpWorkItemInfo, tmpWriteFrame);
+				}.bind(this)
+			);
+
 		// --- Beacon Capabilities (no auth – management UI) ---
 		this._OratorServer.get
 			(
@@ -1283,8 +1398,32 @@ class UltravisorAPIServer extends libPictService
 
 					pResponse.send({
 						Capabilities: Object.keys(tmpCapabilitySet),
-						BeaconCount: tmpBeacons.length
+						BeaconCount: tmpBeacons.length,
+						ActionCatalog: tmpCoordinator.getActionCatalog()
 					});
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- Action Catalog Introspection (no auth – management UI) ---
+		this._OratorServer.get
+			(
+				'/Beacon/Actions',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send({ Actions: [] });
+						return fNext();
+					}
+
+					let tmpCapability = pRequest.query && pRequest.query.Capability;
+					let tmpActions = tmpCapability
+						? tmpCoordinator.getActionCatalogForCapability(tmpCapability)
+						: tmpCoordinator.getActionCatalog();
+
+					pResponse.send({ Actions: tmpActions });
 					return fNext();
 				}.bind(this)
 			);
@@ -1659,6 +1798,8 @@ class UltravisorAPIServer extends libPictService
 		let tmpBeacon = tmpCoordinator.registerBeacon({
 			Name: pData.Name,
 			Capabilities: pData.Capabilities,
+			ActionSchemas: pData.ActionSchemas,
+			Operations: pData.Operations,
 			MaxConcurrent: pData.MaxConcurrent,
 			Tags: pData.Tags
 		});

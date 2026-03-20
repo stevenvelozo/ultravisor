@@ -16,6 +16,7 @@ const libServiceStateManager = require('../services/Ultravisor-StateManager.cjs'
 const libServiceExecutionEngine = require('../services/Ultravisor-ExecutionEngine.cjs');
 const libServiceExecutionManifest = require('../services/Ultravisor-ExecutionManifest.cjs');
 const libServiceBeaconCoordinator = require('../services/Ultravisor-Beacon-Coordinator.cjs');
+const libServiceBeaconQueueJournal = require('../services/persistence/Ultravisor-Beacon-QueueJournal.cjs');
 
 // TODO: Remove this when Restify is fixed.
 process.removeAllListeners('warning')
@@ -140,6 +141,22 @@ if (tmpRegistry)
 
 // --- Beacon coordinator ---
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconCoordinator', libServiceBeaconCoordinator);
+
+// --- Beacon queue journal (persistence) ---
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconQueueJournal', libServiceBeaconQueueJournal);
+let tmpQueueJournal = Object.values(_Ultravisor_Pict.fable.servicesMap['UltravisorBeaconQueueJournal'])[0];
+if (tmpQueueJournal)
+{
+	tmpQueueJournal.initialize(_Ultravisor_Pict.fable.settings.UltravisorFileStorePath);
+}
+
+// Restore persisted work queue from journal (if any)
+let tmpCoordinator = Object.values(_Ultravisor_Pict.fable.servicesMap['UltravisorBeaconCoordinator'])[0];
+if (tmpCoordinator)
+{
+	tmpCoordinator.restoreFromJournal();
+	tmpCoordinator.loadActionCatalog();
+}
 
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorAPIServer', libWebServerAPIServer);
 

@@ -20,6 +20,7 @@ const libUltravisorSchedulePersistenceBase = require('../source/services/Ultravi
 const libUltravisorSchedulePersistenceJSONFile = require('../source/services/persistence/Ultravisor-Schedule-Persistence-JSONFile.cjs');
 
 const libUltravisorBeaconCoordinator = require('../source/services/Ultravisor-Beacon-Coordinator.cjs');
+const libUltravisorBeaconQueueJournal = require('../source/services/persistence/Ultravisor-Beacon-QueueJournal.cjs');
 
 const libBeaconCapabilityProvider = require('../source/beacon/Ultravisor-Beacon-CapabilityProvider.cjs');
 const libBeaconProviderRegistry = require('../source/beacon/Ultravisor-Beacon-ProviderRegistry.cjs');
@@ -4184,6 +4185,571 @@ suite
 
 							let tmpResult = tmpCoordinator.updateProgress('wi-nonexistent', { Percent: 50 });
 							Expect(tmpResult).to.equal(false);
+						}
+					);
+			}
+		);
+
+	// =========================================================================
+	// Beacon Queue Journal (persistence)
+	// =========================================================================
+	suite
+		(
+			'Beacon Queue Journal',
+			function ()
+			{
+				const TEST_JOURNAL_ROOT = libPath.resolve(__dirname, '..', '.test_journal');
+
+				/**
+				 * Helper: create a Pict with Coordinator + Journal for persistence tests.
+				 */
+				function createJournalTestFable()
+				{
+					let tmpFable = new libPict(
+						{
+							Product: 'Ultravisor-JournalTest',
+							LogLevel: 5,
+							UltravisorStagingRoot: TEST_STAGING_ROOT,
+							UltravisorFileStorePath: TEST_JOURNAL_ROOT,
+							UltravisorBeaconJournalCompactThreshold: 5
+						});
+
+					tmpFable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconCoordinator', libUltravisorBeaconCoordinator);
+					tmpFable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconQueueJournal', libUltravisorBeaconQueueJournal);
+
+					// Initialize the journal service
+					let tmpJournal = Object.values(tmpFable.servicesMap['UltravisorBeaconQueueJournal'])[0];
+					tmpJournal.initialize(TEST_JOURNAL_ROOT);
+
+					return tmpFable;
+				}
+
+				/**
+				 * Helper: clean up journal test files.
+				 */
+				function cleanupJournalDir()
+				{
+					let tmpBeaconDir = libPath.join(TEST_JOURNAL_ROOT, 'beacon');
+					if (libFS.existsSync(tmpBeaconDir))
+					{
+						libFS.rmSync(tmpBeaconDir, { recursive: true, force: true });
+					}
+				}
+
+				setup(function()
+				{
+					cleanupJournalDir();
+				});
+
+				teardown(function()
+				{
+					cleanupJournalDir();
+				});
+
+				test
+					(
+						'Journal initializes and creates directory',
+						function ()
+						{
+							let tmpFable = createJournalTestFable();
+							let tmpJournal = Object.values(tmpFable.servicesMap['UltravisorBeaconQueueJournal'])[0];
+
+							Expect(tmpJournal.isEnabled()).to.equal(true);
+							Expect(libFS.existsSync(libPath.join(TEST_JOURNAL_ROOT, 'beacon'))).to.equal(true);
+						}
+					);
+
+				test
+					(
+						'Journal is disabled when no store path is provided',
+						function ()
+						{
+							let tmpFable = new libPict({ Product: 'Ultravisor-JournalDisabledTest', LogLevel: 5 });
+							tmpFable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconQueueJournal', libUltravisorBeaconQueueJournal);
+							let tmpJournal = Object.values(tmpFable.servicesMap['UltravisorBeaconQueueJournal'])[0];
+
+							tmpJournal.initialize(null);
+							Expect(tmpJournal.isEnabled()).to.equal(false);
+
+							// Append should be a no-op
+							tmpJournal.appendEntry('enqueue', { WorkItemHash: 'test' });
+						}
+					);
+
+				test
+					(
+						'enqueueWorkItem writes journal entry',
+						function ()
+						{
+							let tmpFable = createJournalTestFable();
+							let tmpCoordinator = Object.values(tmpFable.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							let tmpWorkItem = tmpCoordinator.enqueueWorkItem({
+								RunHash: 'test-run-1',
+								NodeHash: 'node-1',
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: { Command: 'echo hello' }
+							});
+
+							Expect(tmpWorkItem.WorkItemHash).to.be.a('string');
+
+							// Verify journal file was written
+							let tmpJournalPath = libPath.join(TEST_JOURNAL_ROOT, 'beacon', 'queue-journal.jsonl');
+							Expect(libFS.existsSync(tmpJournalPath)).to.equal(true);
+
+							let tmpContent = libFS.readFileSync(tmpJournalPath, 'utf8');
+							let tmpLines = tmpContent.trim().split('\n');
+							Expect(tmpLines.length).to.equal(1);
+
+							let tmpEntry = JSON.parse(tmpLines[0]);
+							Expect(tmpEntry.op).to.equal('enqueue');
+							Expect(tmpEntry.d.WorkItemHash).to.equal(tmpWorkItem.WorkItemHash);
+							Expect(tmpEntry.d.Capability).to.equal('Shell');
+						}
+					);
+
+				test
+					(
+						'completeWorkItem writes journal entry',
+						function (fDone)
+						{
+							let tmpFable = createJournalTestFable();
+							let tmpCoordinator = Object.values(tmpFable.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							let tmpWorkItem = tmpCoordinator.enqueueWorkItem({
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: { Command: 'echo hello' }
+							});
+
+							// Register a beacon and claim the work
+							let tmpBeacon = tmpCoordinator.registerBeacon({
+								Name: 'test-beacon',
+								Capabilities: ['Shell']
+							});
+							let tmpWork = tmpCoordinator.pollForWork(tmpBeacon.BeaconID);
+							Expect(tmpWork).to.not.equal(null);
+
+							// Complete the work
+							tmpCoordinator.completeWorkItem(tmpWorkItem.WorkItemHash,
+								{ Outputs: { StdOut: 'hello' }, Log: ['done'] },
+								(pError) =>
+								{
+									Expect(pError).to.equal(null);
+
+									// Verify journal has enqueue + claim + complete entries
+									let tmpJournalPath = libPath.join(TEST_JOURNAL_ROOT, 'beacon', 'queue-journal.jsonl');
+									let tmpContent = libFS.readFileSync(tmpJournalPath, 'utf8');
+									let tmpLines = tmpContent.trim().split('\n');
+
+									// Should have: enqueue, claim, complete (at minimum)
+									let tmpOps = tmpLines.map((l) => JSON.parse(l).op);
+									Expect(tmpOps).to.include('enqueue');
+									Expect(tmpOps).to.include('claim');
+									Expect(tmpOps).to.include('complete');
+
+									fDone();
+								});
+						}
+					);
+
+				test
+					(
+						'failWorkItem writes journal entry',
+						function (fDone)
+						{
+							let tmpFable = createJournalTestFable();
+							let tmpCoordinator = Object.values(tmpFable.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							let tmpWorkItem = tmpCoordinator.enqueueWorkItem({
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: { Command: 'exit 1' }
+							});
+
+							// Register a beacon and claim the work
+							let tmpBeacon = tmpCoordinator.registerBeacon({
+								Name: 'test-beacon-fail',
+								Capabilities: ['Shell']
+							});
+							tmpCoordinator.pollForWork(tmpBeacon.BeaconID);
+
+							// Fail the work
+							tmpCoordinator.failWorkItem(tmpWorkItem.WorkItemHash,
+								{ ErrorMessage: 'test failure', Log: ['failed'] },
+								(pError) =>
+								{
+									Expect(pError).to.equal(null);
+
+									let tmpJournalPath = libPath.join(TEST_JOURNAL_ROOT, 'beacon', 'queue-journal.jsonl');
+									let tmpContent = libFS.readFileSync(tmpJournalPath, 'utf8');
+									let tmpLines = tmpContent.trim().split('\n');
+									let tmpOps = tmpLines.map((l) => JSON.parse(l).op);
+
+									Expect(tmpOps).to.include('fail');
+
+									fDone();
+								});
+						}
+					);
+
+				test
+					(
+						'replay restores pending work items',
+						function ()
+						{
+							// Phase 1: create items with journal
+							let tmpFable1 = createJournalTestFable();
+							let tmpCoordinator1 = Object.values(tmpFable1.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							let tmpWI1 = tmpCoordinator1.enqueueWorkItem({
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: { Command: 'echo first' }
+							});
+
+							let tmpWI2 = tmpCoordinator1.enqueueWorkItem({
+								Capability: 'ImageMagick',
+								Action: 'Convert',
+								Settings: { InputPath: '/tmp/test.jpg' }
+							});
+
+							Expect(Object.keys(tmpCoordinator1._WorkQueue).length).to.equal(2);
+
+							// Phase 2: create a fresh fable and replay journal
+							let tmpFable2 = createJournalTestFable();
+							let tmpCoordinator2 = Object.values(tmpFable2.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							// Before restore, queue is empty
+							Expect(Object.keys(tmpCoordinator2._WorkQueue).length).to.equal(0);
+
+							tmpCoordinator2.restoreFromJournal();
+
+							// After restore, both items should be present
+							Expect(Object.keys(tmpCoordinator2._WorkQueue).length).to.equal(2);
+							Expect(tmpCoordinator2._WorkQueue[tmpWI1.WorkItemHash]).to.not.equal(undefined);
+							Expect(tmpCoordinator2._WorkQueue[tmpWI2.WorkItemHash]).to.not.equal(undefined);
+
+							// Both should be Pending
+							Expect(tmpCoordinator2._WorkQueue[tmpWI1.WorkItemHash].Status).to.equal('Pending');
+							Expect(tmpCoordinator2._WorkQueue[tmpWI2.WorkItemHash].Status).to.equal('Pending');
+						}
+					);
+
+				test
+					(
+						'replay resets Running items to Pending',
+						function ()
+						{
+							// Phase 1: enqueue and claim an item
+							let tmpFable1 = createJournalTestFable();
+							let tmpCoordinator1 = Object.values(tmpFable1.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							let tmpWI = tmpCoordinator1.enqueueWorkItem({
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: { Command: 'sleep 100' }
+							});
+
+							let tmpBeacon = tmpCoordinator1.registerBeacon({
+								Name: 'worker-1',
+								Capabilities: ['Shell']
+							});
+							tmpCoordinator1.pollForWork(tmpBeacon.BeaconID);
+							Expect(tmpCoordinator1._WorkQueue[tmpWI.WorkItemHash].Status).to.equal('Running');
+
+							// Phase 2: replay in a new coordinator
+							let tmpFable2 = createJournalTestFable();
+							let tmpCoordinator2 = Object.values(tmpFable2.servicesMap['UltravisorBeaconCoordinator'])[0];
+							tmpCoordinator2.restoreFromJournal();
+
+							// Running items get reset to Pending on replay
+							Expect(tmpCoordinator2._WorkQueue[tmpWI.WorkItemHash].Status).to.equal('Pending');
+							Expect(tmpCoordinator2._WorkQueue[tmpWI.WorkItemHash].AssignedBeaconID).to.equal(null);
+						}
+					);
+
+				test
+					(
+						'replay does not include completed items',
+						function (fDone)
+						{
+							// Phase 1: enqueue, claim, and complete an item
+							let tmpFable1 = createJournalTestFable();
+							let tmpCoordinator1 = Object.values(tmpFable1.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							let tmpWI = tmpCoordinator1.enqueueWorkItem({
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: { Command: 'echo done' }
+							});
+
+							let tmpBeacon = tmpCoordinator1.registerBeacon({
+								Name: 'worker-complete',
+								Capabilities: ['Shell']
+							});
+							tmpCoordinator1.pollForWork(tmpBeacon.BeaconID);
+
+							tmpCoordinator1.completeWorkItem(tmpWI.WorkItemHash,
+								{ Outputs: { StdOut: 'done' }, Log: ['ok'] },
+								(pError) =>
+								{
+									Expect(pError).to.equal(null);
+
+									// Phase 2: replay
+									let tmpFable2 = createJournalTestFable();
+									let tmpCoordinator2 = Object.values(tmpFable2.servicesMap['UltravisorBeaconCoordinator'])[0];
+									tmpCoordinator2.restoreFromJournal();
+
+									// Completed item should NOT be in the restored queue
+									Expect(Object.keys(tmpCoordinator2._WorkQueue).length).to.equal(0);
+
+									fDone();
+								});
+						}
+					);
+
+				test
+					(
+						'replay restores affinity bindings',
+						function ()
+						{
+							// Phase 1: create a work item with affinity
+							let tmpFable1 = createJournalTestFable();
+							let tmpCoordinator1 = Object.values(tmpFable1.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							tmpCoordinator1.enqueueWorkItem({
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: { Command: 'echo test' },
+								AffinityKey: 'project-alpha'
+							});
+
+							// Register a beacon and claim it — this creates an affinity binding
+							let tmpBeacon = tmpCoordinator1.registerBeacon({
+								Name: 'affinity-worker',
+								Capabilities: ['Shell']
+							});
+							tmpCoordinator1.pollForWork(tmpBeacon.BeaconID);
+
+							Expect(tmpCoordinator1._AffinityBindings['project-alpha']).to.not.equal(undefined);
+
+							// Phase 2: replay
+							let tmpFable2 = createJournalTestFable();
+							let tmpCoordinator2 = Object.values(tmpFable2.servicesMap['UltravisorBeaconCoordinator'])[0];
+							tmpCoordinator2.restoreFromJournal();
+
+							// Affinity binding should be restored
+							Expect(tmpCoordinator2._AffinityBindings['project-alpha']).to.not.equal(undefined);
+							Expect(tmpCoordinator2._AffinityBindings['project-alpha'].BeaconID).to.contain('affinity-worker');
+						}
+					);
+
+				test
+					(
+						'compaction writes snapshot and truncates journal',
+						function ()
+						{
+							let tmpFable = createJournalTestFable();
+							let tmpCoordinator = Object.values(tmpFable.servicesMap['UltravisorBeaconCoordinator'])[0];
+							let tmpJournal = Object.values(tmpFable.servicesMap['UltravisorBeaconQueueJournal'])[0];
+
+							// Enqueue a few items
+							tmpCoordinator.enqueueWorkItem({
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: { Command: 'echo one' }
+							});
+
+							tmpCoordinator.enqueueWorkItem({
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: { Command: 'echo two' }
+							});
+
+							// Manually trigger compaction
+							tmpJournal.compact(tmpCoordinator._WorkQueue, tmpCoordinator._AffinityBindings);
+
+							// Snapshot file should exist
+							let tmpSnapshotPath = libPath.join(TEST_JOURNAL_ROOT, 'beacon', 'queue-snapshot.json');
+							Expect(libFS.existsSync(tmpSnapshotPath)).to.equal(true);
+
+							let tmpSnapshot = JSON.parse(libFS.readFileSync(tmpSnapshotPath, 'utf8'));
+							Expect(Object.keys(tmpSnapshot.WorkQueue).length).to.equal(2);
+
+							// Journal should have only the compact marker
+							let tmpJournalPath = libPath.join(TEST_JOURNAL_ROOT, 'beacon', 'queue-journal.jsonl');
+							let tmpJournalContent = libFS.readFileSync(tmpJournalPath, 'utf8').trim();
+							let tmpJournalLines = tmpJournalContent.split('\n');
+							Expect(tmpJournalLines.length).to.equal(1);
+							Expect(JSON.parse(tmpJournalLines[0]).op).to.equal('compact');
+						}
+					);
+
+				test
+					(
+						'replay after compaction restores correct state',
+						function (fDone)
+						{
+							let tmpFable1 = createJournalTestFable();
+							let tmpCoordinator1 = Object.values(tmpFable1.servicesMap['UltravisorBeaconCoordinator'])[0];
+							let tmpJournal1 = Object.values(tmpFable1.servicesMap['UltravisorBeaconQueueJournal'])[0];
+
+							// Enqueue three items
+							let tmpWI1 = tmpCoordinator1.enqueueWorkItem({
+								Capability: 'Shell', Action: 'Execute',
+								Settings: { Command: 'echo one' }
+							});
+							let tmpWI2 = tmpCoordinator1.enqueueWorkItem({
+								Capability: 'Shell', Action: 'Execute',
+								Settings: { Command: 'echo two' }
+							});
+							let tmpWI3 = tmpCoordinator1.enqueueWorkItem({
+								Capability: 'Shell', Action: 'Execute',
+								Settings: { Command: 'echo three' }
+							});
+
+							// Complete the first item
+							let tmpBeacon = tmpCoordinator1.registerBeacon({
+								Name: 'compact-worker',
+								Capabilities: ['Shell']
+							});
+							tmpCoordinator1.pollForWork(tmpBeacon.BeaconID);
+
+							tmpCoordinator1.completeWorkItem(tmpWI1.WorkItemHash,
+								{ Outputs: { StdOut: 'one' }, Log: [] },
+								(pError) =>
+								{
+									Expect(pError).to.equal(null);
+
+									// Compact (state: WI2 + WI3 pending)
+									tmpJournal1.compact(tmpCoordinator1._WorkQueue, tmpCoordinator1._AffinityBindings);
+
+									// Enqueue a fourth item AFTER compaction
+									let tmpWI4 = tmpCoordinator1.enqueueWorkItem({
+										Capability: 'Shell', Action: 'Execute',
+										Settings: { Command: 'echo four' }
+									});
+
+									// Phase 2: replay in a new coordinator
+									let tmpFable2 = createJournalTestFable();
+									let tmpCoordinator2 = Object.values(tmpFable2.servicesMap['UltravisorBeaconCoordinator'])[0];
+									tmpCoordinator2.restoreFromJournal();
+
+									// Should have WI2, WI3 (from snapshot), WI4 (from journal)
+									// WI1 was completed before compaction — should NOT appear
+									Expect(Object.keys(tmpCoordinator2._WorkQueue).length).to.equal(3);
+									Expect(tmpCoordinator2._WorkQueue[tmpWI1.WorkItemHash]).to.equal(undefined);
+									Expect(tmpCoordinator2._WorkQueue[tmpWI2.WorkItemHash]).to.not.equal(undefined);
+									Expect(tmpCoordinator2._WorkQueue[tmpWI3.WorkItemHash]).to.not.equal(undefined);
+									Expect(tmpCoordinator2._WorkQueue[tmpWI4.WorkItemHash]).to.not.equal(undefined);
+
+									fDone();
+								});
+						}
+					);
+
+				test
+					(
+						'auto-compaction triggers when threshold is reached',
+						function ()
+						{
+							// Threshold is set to 5 in createJournalTestFable
+							let tmpFable = createJournalTestFable();
+							let tmpCoordinator = Object.values(tmpFable.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							// Enqueue 5 items (each write = 1 journal entry, so 5 entries triggers compaction)
+							for (let i = 0; i < 5; i++)
+							{
+								tmpCoordinator.enqueueWorkItem({
+									Capability: 'Shell',
+									Action: 'Execute',
+									Settings: { Command: `echo item-${i}` }
+								});
+							}
+
+							// After compaction, snapshot should exist
+							let tmpSnapshotPath = libPath.join(TEST_JOURNAL_ROOT, 'beacon', 'queue-snapshot.json');
+							Expect(libFS.existsSync(tmpSnapshotPath)).to.equal(true);
+
+							let tmpSnapshot = JSON.parse(libFS.readFileSync(tmpSnapshotPath, 'utf8'));
+							Expect(Object.keys(tmpSnapshot.WorkQueue).length).to.equal(5);
+
+							// Journal should be truncated (just compact marker)
+							let tmpJournalPath = libPath.join(TEST_JOURNAL_ROOT, 'beacon', 'queue-journal.jsonl');
+							let tmpJournalContent = libFS.readFileSync(tmpJournalPath, 'utf8').trim();
+							let tmpJournalLines = tmpJournalContent.split('\n');
+							Expect(tmpJournalLines.length).to.equal(1);
+							Expect(JSON.parse(tmpJournalLines[0]).op).to.equal('compact');
+						}
+					);
+
+				test
+					(
+						'clearAffinityBinding writes journal entry',
+						function ()
+						{
+							let tmpFable = createJournalTestFable();
+							let tmpCoordinator = Object.values(tmpFable.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							// Create a work item with affinity and claim it
+							tmpCoordinator.enqueueWorkItem({
+								Capability: 'Shell',
+								Action: 'Execute',
+								Settings: {},
+								AffinityKey: 'clear-test-key'
+							});
+							let tmpBeacon = tmpCoordinator.registerBeacon({
+								Name: 'clear-worker',
+								Capabilities: ['Shell']
+							});
+							tmpCoordinator.pollForWork(tmpBeacon.BeaconID);
+
+							Expect(tmpCoordinator._AffinityBindings['clear-test-key']).to.not.equal(undefined);
+
+							// Clear the affinity
+							let tmpResult = tmpCoordinator.clearAffinityBinding('clear-test-key');
+							Expect(tmpResult).to.equal(true);
+
+							// Verify journal has affinity-clear entry
+							let tmpJournalPath = libPath.join(TEST_JOURNAL_ROOT, 'beacon', 'queue-journal.jsonl');
+							let tmpContent = libFS.readFileSync(tmpJournalPath, 'utf8');
+							let tmpLines = tmpContent.trim().split('\n');
+							let tmpOps = tmpLines.map((l) => JSON.parse(l).op);
+							Expect(tmpOps).to.include('affinity-clear');
+
+							// Replay in new coordinator — affinity should be gone
+							let tmpFable2 = createJournalTestFable();
+							let tmpCoordinator2 = Object.values(tmpFable2.servicesMap['UltravisorBeaconCoordinator'])[0];
+							tmpCoordinator2.restoreFromJournal();
+							Expect(tmpCoordinator2._AffinityBindings['clear-test-key']).to.equal(undefined);
+						}
+					);
+
+				test
+					(
+						'journal replay is idempotent — restoring twice does not duplicate items',
+						function ()
+						{
+							// Phase 1: create items
+							let tmpFable1 = createJournalTestFable();
+							let tmpCoordinator1 = Object.values(tmpFable1.servicesMap['UltravisorBeaconCoordinator'])[0];
+
+							tmpCoordinator1.enqueueWorkItem({
+								Capability: 'Shell', Action: 'Execute',
+								Settings: { Command: 'echo test' }
+							});
+
+							// Phase 2: restore — should have 1 item
+							let tmpFable2 = createJournalTestFable();
+							let tmpCoordinator2 = Object.values(tmpFable2.servicesMap['UltravisorBeaconCoordinator'])[0];
+							tmpCoordinator2.restoreFromJournal();
+							Expect(Object.keys(tmpCoordinator2._WorkQueue).length).to.equal(1);
+
+							// Restore again — still 1 item (not 2)
+							tmpCoordinator2.restoreFromJournal();
+							Expect(Object.keys(tmpCoordinator2._WorkQueue).length).to.equal(1);
 						}
 					);
 			}
