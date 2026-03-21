@@ -21,7 +21,7 @@
 		"pict-section-form": "^1.0.195",
 		"pict-section-markdowneditor": "^1.0.7",
 		"pict-section-modal": "^0.0.1",
-		"pict-section-objecteditor": "file:../../../pict/pict-section-objecteditor",
+		"pict-section-objecteditor": "^1.0.1",
 		"pict-view": "^1.0.67"
 	},
 	"devDependencies": {
