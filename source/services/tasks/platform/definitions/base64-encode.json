@@ -1,0 +1,25 @@
+{
+	"Hash": "base64-encode",
+	"Type": "base64-encode",
+	"Name": "Base64 Encode",
+	"Description": "Read a file from the staging directory and base64-encode its contents. The encoded string is written to the specified state address. Use this when you explicitly need base64 representation (e.g. embedding in JSON, data URIs).",
+	"Category": "platform",
+	"Capability": "Data Transform",
+	"Action": "Base64Encode",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "FilePath", "DataType": "String", "Required": true, "Description": "Path to the file to encode (relative to staging)" },
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to write the encoded string (optional)" }
+	],
+	"StateOutputs": [
+		{ "Name": "EncodedData", "DataType": "String", "Description": "The base64-encoded file contents" },
+		{ "Name": "EncodedLength", "DataType": "Number", "Description": "Length of the encoded string" },
+		{ "Name": "OriginalBytes", "DataType": "Number", "Description": "Original file size in bytes" }
+	],
+	"DefaultSettings": { "FilePath": "", "Destination": "" }
+}

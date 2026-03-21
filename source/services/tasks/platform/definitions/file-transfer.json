@@ -1,0 +1,26 @@
+{
+	"Hash": "file-transfer",
+	"Type": "file-transfer",
+	"Name": "File Transfer",
+	"Description": "Download a file from a URL to the operation's staging directory. Streams the download — no base64 encoding. Logs bytes transferred and duration for visibility in the manifest.",
+	"Category": "platform",
+	"Capability": "Data Transfer",
+	"Action": "Download",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "SourceURL", "DataType": "String", "Required": true, "Description": "URL to download from" },
+		{ "Name": "Filename", "DataType": "String", "Required": true, "Description": "Filename to save as in the staging directory" },
+		{ "Name": "AffinityKey", "DataType": "String", "Required": false, "Description": "Affinity key for caching (same key skips re-download)" }
+	],
+	"StateOutputs": [
+		{ "Name": "LocalPath", "DataType": "String", "Description": "Absolute path to the downloaded file in staging" },
+		{ "Name": "BytesTransferred", "DataType": "Number", "Description": "Size of the downloaded file in bytes" },
+		{ "Name": "DurationMs", "DataType": "Number", "Description": "Download duration in milliseconds" }
+	],
+	"DefaultSettings": { "SourceURL": "", "Filename": "", "AffinityKey": "" }
+}

@@ -1,0 +1,24 @@
+{
+	"Hash": "base64-decode",
+	"Type": "base64-decode",
+	"Name": "Base64 Decode",
+	"Description": "Decode a base64 string and write the binary result to a file in the staging directory. The source string can come from a state address or from a direct value.",
+	"Category": "platform",
+	"Capability": "Data Transform",
+	"Action": "Base64Decode",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "Source", "DataType": "String", "Required": true, "Description": "Base64-encoded string to decode (or state address containing it)" },
+		{ "Name": "FilePath", "DataType": "String", "Required": true, "Description": "Output file path in staging to write decoded binary" }
+	],
+	"StateOutputs": [
+		{ "Name": "LocalPath", "DataType": "String", "Description": "Absolute path to the decoded file" },
+		{ "Name": "DecodedBytes", "DataType": "Number", "Description": "Size of the decoded file in bytes" }
+	],
+	"DefaultSettings": { "Source": "", "FilePath": "" }
+}

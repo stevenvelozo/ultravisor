@@ -701,6 +701,53 @@ class UltravisorExecutionManifest extends libPictService
 	}
 
 	/**
+	 * Wait for a run to reach a terminal state (Complete or Error).
+	 *
+	 * Polls the run's status at a fixed interval and calls back
+	 * when it finishes or the timeout expires.  Used by the sync
+	 * Trigger endpoint to block until the operation completes.
+	 *
+	 * @param {string} pRunHash    - The run hash to wait for
+	 * @param {number} pTimeoutMs  - Maximum wait time in milliseconds
+	 * @param {function} fCallback - function(pError, pExecutionContext)
+	 */
+	waitForCompletion(pRunHash, pTimeoutMs, fCallback)
+	{
+		let tmpSelf = this;
+		let tmpStartTime = Date.now();
+		let tmpPollMs = 250;
+
+		let tmpInterval = setInterval(() =>
+		{
+			let tmpRun = tmpSelf._Runs[pRunHash];
+
+			if (!tmpRun)
+			{
+				clearInterval(tmpInterval);
+				return fCallback(new Error('Run not found: ' + pRunHash));
+			}
+
+			if (tmpRun.Status === 'Complete' || tmpRun.Status === 'Error')
+			{
+				clearInterval(tmpInterval);
+				return fCallback(null, tmpRun);
+			}
+
+			if (Date.now() - tmpStartTime > pTimeoutMs)
+			{
+				clearInterval(tmpInterval);
+				return fCallback(new Error('Trigger timed out after ' + pTimeoutMs + 'ms (run ' + pRunHash + ' status: ' + tmpRun.Status + ')'));
+			}
+		}, tmpPollMs);
+
+		// Don't keep the process alive just for this timer
+		if (tmpInterval.unref)
+		{
+			tmpInterval.unref();
+		}
+	}
+
+	/**
 	 * List all execution runs.
 	 *
 	 * @returns {Array} Array of execution context summaries.

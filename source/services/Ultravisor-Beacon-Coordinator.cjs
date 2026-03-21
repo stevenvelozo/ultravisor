@@ -452,7 +452,7 @@ class UltravisorBeaconCoordinator extends libPictService
 					],
 					DefaultSettings: tmpDefaultSettings
 				},
-				Execute: this._createBeaconDispatchExecutor(tmpEntry.Capability, tmpEntry.Action, tmpBeaconDispatch)
+				Execute: this._createBeaconDispatchExecutor(tmpEntry.Capability, tmpEntry.Action, tmpBeaconDispatch, tmpSettingsInputs)
 			};
 
 			tmpRegistry.registerTaskTypeFromConfig(tmpConfig);
@@ -468,19 +468,57 @@ class UltravisorBeaconCoordinator extends libPictService
 	/**
 	 * Create an Execute function for an auto-generated beacon task type.
 	 *
+	 * Coerces resolved settings to match the schema's DataType so that
+	 * template-resolved strings like "80" become the number 80 when the
+	 * schema says DataType: "Number".  This prevents brittle failures in
+	 * downstream providers that are strict about types.
+	 *
 	 * @param {string} pCapability - The capability name
 	 * @param {string} pAction - The action name
 	 * @param {function} pBeaconDispatch - The beaconDispatch helper
+	 * @param {Array} pSettingsSchema - SettingsInputs array with DataType info
 	 * @returns {function} Execute function matching the task type config interface
 	 */
-	_createBeaconDispatchExecutor(pCapability, pAction, pBeaconDispatch)
+	_createBeaconDispatchExecutor(pCapability, pAction, pBeaconDispatch, pSettingsSchema)
 	{
+		// Build a quick lookup of DataType by setting name
+		let tmpTypeMap = {};
+		if (Array.isArray(pSettingsSchema))
+		{
+			for (let i = 0; i < pSettingsSchema.length; i++)
+			{
+				tmpTypeMap[pSettingsSchema[i].Name] = pSettingsSchema[i].DataType || 'String';
+			}
+		}
+
 		return function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			// Build settings object from resolved settings, excluding beacon dispatch meta-fields
 			let tmpSettings = Object.assign({}, pResolvedSettings);
 			delete tmpSettings.AffinityKey;
 			delete tmpSettings.TimeoutMs;
+
+			// Coerce types based on schema
+			let tmpKeys = Object.keys(tmpSettings);
+			for (let i = 0; i < tmpKeys.length; i++)
+			{
+				let tmpKey = tmpKeys[i];
+				let tmpValue = tmpSettings[tmpKey];
+				let tmpExpectedType = tmpTypeMap[tmpKey];
+
+				if (tmpExpectedType === 'Number' && typeof tmpValue === 'string' && tmpValue.length > 0)
+				{
+					let tmpNum = Number(tmpValue);
+					if (!isNaN(tmpNum))
+					{
+						tmpSettings[tmpKey] = tmpNum;
+					}
+				}
+				else if (tmpExpectedType === 'Boolean' && typeof tmpValue === 'string')
+				{
+					tmpSettings[tmpKey] = (tmpValue === 'true' || tmpValue === '1');
+				}
+			}
 
 			pBeaconDispatch(pTask, {
 				Capability: pCapability,
@@ -710,6 +748,118 @@ class UltravisorBeaconCoordinator extends libPictService
 	getBeacon(pBeaconID)
 	{
 		return this._Beacons[pBeaconID] || null;
+	}
+
+	// ====================================================================
+	// Universal Address Resolution
+	// ====================================================================
+
+	/**
+	 * Resolve a universal data address to a concrete URL.
+	 *
+	 * Universal addresses have the format:  >BeaconName/Context/Path
+	 *
+	 * The beacon is looked up by Name (not full ID) for human readability
+	 * and stability across restarts.  The beacon's registered context
+	 * provides the BaseURL used to build the concrete download URL.
+	 *
+	 * @param {string} pAddress - Universal address (e.g. ">retold-remote/File/Pictures/img.png")
+	 * @returns {object|null} { URL, BeaconID, BeaconName, Context, Path } or null
+	 */
+	resolveUniversalAddress(pAddress)
+	{
+		if (!pAddress || typeof pAddress !== 'string' || pAddress.charAt(0) !== '>')
+		{
+			return null;
+		}
+
+		// Strip the leading '>' and split into parts
+		let tmpParts = pAddress.substring(1).split('/');
+
+		if (tmpParts.length < 3)
+		{
+			return null;
+		}
+
+		let tmpBeaconName = tmpParts[0];
+		let tmpContext = tmpParts[1];
+		let tmpPath = tmpParts.slice(2).join('/');
+
+		// Look up beacon — try by ID first, then by name
+		let tmpBeacon = this._Beacons[tmpBeaconName] || this.findBeaconByName(tmpBeaconName);
+
+		if (!tmpBeacon)
+		{
+			return null;
+		}
+
+		// Look up the context on the beacon
+		let tmpContextDef = tmpBeacon.Contexts ? tmpBeacon.Contexts[tmpContext] : null;
+
+		if (!tmpContextDef || !tmpContextDef.BaseURL)
+		{
+			return null;
+		}
+
+		// Build the concrete URL.
+		// BaseURL is the full reachable prefix, e.g.
+		//   "http://localhost:7827/content/" or just "/content/"
+		let tmpBaseURL = tmpContextDef.BaseURL;
+		// Ensure trailing slash for clean join
+		if (!tmpBaseURL.endsWith('/'))
+		{
+			tmpBaseURL = tmpBaseURL + '/';
+		}
+
+		// Encode path segments for URL safety
+		let tmpEncodedPath = tmpPath.split('/').map(encodeURIComponent).join('/');
+
+		let tmpURL = tmpBaseURL + tmpEncodedPath;
+
+		return {
+			URL: tmpURL,
+			BeaconID: tmpBeacon.BeaconID,
+			BeaconName: tmpBeacon.Name,
+			Context: tmpContext,
+			Path: tmpPath,
+			Filename: tmpParts[tmpParts.length - 1]
+		};
+	}
+
+	/**
+	 * Scan an object for universal addresses and resolve them all.
+	 *
+	 * @param {object} pObject - Object to scan (e.g. work item Settings)
+	 * @returns {object[]} Array of { Key, Address, Resolved } for each found address
+	 */
+	scanAndResolveAddresses(pObject)
+	{
+		let tmpResults = [];
+
+		if (!pObject || typeof pObject !== 'object')
+		{
+			return tmpResults;
+		}
+
+		let tmpKeys = Object.keys(pObject);
+		for (let i = 0; i < tmpKeys.length; i++)
+		{
+			let tmpValue = pObject[tmpKeys[i]];
+			if (typeof tmpValue === 'string' && tmpValue.charAt(0) === '>')
+			{
+				let tmpResolved = this.resolveUniversalAddress(tmpValue);
+				if (tmpResolved)
+				{
+					tmpResults.push({
+						Key: tmpKeys[i],
+						Address: tmpValue,
+						Resolved: tmpResolved
+					});
+				}
+			}
+		}
+
+		return tmpResults;
 	}
 
 	// ====================================================================

@@ -15,6 +15,7 @@ module.exports = [].concat(
 	require('./user-interaction/Ultravisor-TaskConfigs-UserInteraction.cjs'),
 	require('./meadow-api/Ultravisor-TaskConfigs-MeadowApi.cjs'),
 	require('./extension/Ultravisor-TaskConfigs-Extension.cjs'),
+	require('./platform/Ultravisor-TaskConfigs-Platform.cjs'),
 	require('./llm/Ultravisor-TaskConfigs-LLM.cjs'),
 	require('./content-system/Ultravisor-TaskConfigs-ContentSystem.cjs')
 );

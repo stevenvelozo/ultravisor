@@ -46,18 +46,70 @@ module.exports =
 				});
 			}
 
-			// Build work item from resolved settings
+			// Build work item settings from resolved settings
+			let tmpSettings = {
+				Command: pResolvedSettings.Command || '',
+				Parameters: pResolvedSettings.Parameters || '',
+				InputData: pResolvedSettings.InputData || ''
+			};
+
+			// Resolve universal addresses in InputData (JSON string).
+			// Addresses like >retold-remote/File/path become concrete
+			// SourceURL values so the beacon executor can download files.
+			if (tmpSettings.InputData)
+			{
+				try
+				{
+					let tmpInputObj = JSON.parse(tmpSettings.InputData);
+					let tmpResolved = tmpCoordinator.scanAndResolveAddresses(tmpInputObj);
+
+					for (let j = 0; j < tmpResolved.length; j++)
+					{
+						let tmpAddr = tmpResolved[j];
+						// Replace the address with the filename in InputData
+						tmpInputObj[tmpAddr.Key] = tmpAddr.Resolved.Filename;
+						// Set the SourceURL for the beacon executor to download
+						tmpSettings.SourceURL = tmpAddr.Resolved.URL;
+						tmpSettings.SourceFilename = tmpAddr.Resolved.Filename;
+					}
+
+					// Pass all InputData fields as top-level Settings
+					// so the provider receives them directly
+					let tmpInputKeys = Object.keys(tmpInputObj);
+					for (let k = 0; k < tmpInputKeys.length; k++)
+					{
+						tmpSettings[tmpInputKeys[k]] = tmpInputObj[tmpInputKeys[k]];
+					}
+				}
+				catch (pParseError)
+				{
+					// InputData is not valid JSON — check if the raw string is an address
+					if (tmpSettings.InputData.charAt(0) === '>')
+					{
+						let tmpResolved = tmpCoordinator.resolveUniversalAddress(tmpSettings.InputData);
+						if (tmpResolved)
+						{
+							tmpSettings.SourceURL = tmpResolved.URL;
+							tmpSettings.SourceFilename = tmpResolved.Filename;
+						}
+					}
+				}
+			}
+
+			// Also check for OutputFile to enable base64 return
+			if (tmpSettings.OutputFile)
+			{
+				tmpSettings.OutputFilename = tmpSettings.OutputFile;
+				tmpSettings.ReturnOutputAsBase64 = true;
+			}
+
 			let tmpWorkItemInfo = {
 				RunHash: pExecutionContext.RunHash,
 				NodeHash: pExecutionContext.NodeHash,
 				OperationHash: pExecutionContext.OperationHash,
 				Capability: pResolvedSettings.RemoteCapability || 'Shell',
 				Action: pResolvedSettings.RemoteAction || 'Execute',
-				Settings: {
-					Command: pResolvedSettings.Command || '',
-					Parameters: pResolvedSettings.Parameters || '',
-					InputData: pResolvedSettings.InputData || ''
-				},
+				Settings: tmpSettings,
 				AffinityKey: pResolvedSettings.AffinityKey || '',
 				TimeoutMs: pResolvedSettings.TimeoutMs || 300000
 			};

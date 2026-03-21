@@ -1,0 +1,24 @@
+{
+	"Hash": "send-result",
+	"Type": "send-result",
+	"Name": "Send Result",
+	"Description": "Read a file from the operation's staging directory and write it to the operation Output so the trigger caller receives it. The file is stored as a raw Buffer — no base64 encoding in the pipeline.",
+	"Category": "platform",
+	"Capability": "Data Transfer",
+	"Action": "SendResult",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "Trigger" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "FilePath", "DataType": "String", "Required": true, "Description": "Path to the file in staging (relative or absolute)" },
+		{ "Name": "OutputKey", "DataType": "String", "Required": false, "Description": "Key in the operation Output object (default: ResultFile)" }
+	],
+	"StateOutputs": [
+		{ "Name": "BytesSent", "DataType": "Number", "Description": "Size of the result file in bytes" },
+		{ "Name": "DurationMs", "DataType": "Number", "Description": "Time to read and package the result" }
+	],
+	"DefaultSettings": { "FilePath": "", "OutputKey": "ResultFile" }
+}

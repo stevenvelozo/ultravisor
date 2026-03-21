@@ -408,6 +408,90 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
+		// --- Operation Trigger (parameter-seeded execution) ---
+		// Beacons and clients trigger operations by hash with parameters
+		// that seed the operation's initial state.  Sync mode blocks until
+		// the run completes; async mode returns the RunHash immediately.
+		this._OratorServer.post
+			(
+				'/Operation/:Hash/Trigger',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpState = this._getService('UltravisorHypervisorState');
+					let tmpEngine = this._getService('UltravisorExecutionEngine');
+					let tmpManifest = this._getService('UltravisorExecutionManifest');
+
+					tmpState.getOperation(pRequest.params.Hash,
+						function (pError, pOperation)
+						{
+							if (pError)
+							{
+								pResponse.send(404, { Error: pError.message });
+								return fNext();
+							}
+
+							let tmpBody = pRequest.body || {};
+							let tmpParameters = tmpBody.Parameters || {};
+							let tmpAsync = tmpBody.Async === true;
+							let tmpTimeoutMs = tmpBody.TimeoutMs || 600000;
+
+							// Seed operation state from trigger parameters
+							let tmpInitialState = {
+								OperationState: tmpParameters
+							};
+
+							tmpEngine.startOperationAsync(pOperation, tmpInitialState,
+								function (pExecError, pContext)
+								{
+									if (pExecError)
+									{
+										pResponse.send(500, { Error: pExecError.message });
+										return fNext();
+									}
+
+									if (tmpAsync)
+									{
+										pResponse.send({
+											RunHash: pContext.Hash,
+											Status: pContext.Status,
+											OperationHash: pContext.OperationHash
+										});
+										return fNext();
+									}
+
+									// Sync mode — disable socket timeout and wait for completion
+									if (pRequest.connection)
+									{
+										pRequest.connection.setTimeout(0);
+									}
+
+									tmpManifest.waitForCompletion(pContext.Hash, tmpTimeoutMs,
+										function (pWaitError, pCompletedContext)
+										{
+											if (pWaitError)
+											{
+												pResponse.send(504, { Error: pWaitError.message });
+												return fNext();
+											}
+
+											pResponse.send({
+												Success: pCompletedContext.Status === 'Complete',
+												RunHash: pCompletedContext.Hash,
+												Status: pCompletedContext.Status,
+												OperationState: pCompletedContext.OperationState,
+												TaskOutputs: pCompletedContext.TaskOutputs,
+												Output: pCompletedContext.Output,
+												Errors: pCompletedContext.Errors,
+												Log: pCompletedContext.Log,
+												ElapsedMs: pCompletedContext.ElapsedMs
+											});
+											return fNext();
+										});
+								});
+						});
+				}.bind(this)
+			);
+
 		// --- Task Types ---
 		this._OratorServer.get
 			(
@@ -1801,7 +1885,8 @@ class UltravisorAPIServer extends libPictService
 			ActionSchemas: pData.ActionSchemas,
 			Operations: pData.Operations,
 			MaxConcurrent: pData.MaxConcurrent,
-			Tags: pData.Tags
+			Tags: pData.Tags,
+			Contexts: pData.Contexts
 		});
 
 		pWebSocket._BeaconID = tmpBeacon.BeaconID;
