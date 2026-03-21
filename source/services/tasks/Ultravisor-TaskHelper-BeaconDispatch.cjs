@@ -72,14 +72,23 @@ function beaconDispatch(pTask, pWorkInfo, pExecutionContext, fCallback)
 		});
 	}
 
-	// Build work item
+	// Build work item settings
+	let tmpSettings = pWorkInfo.Settings || {};
+
+	// If OutputFile is specified, set OutputFilename so the executor
+	// knows to collect the output file for binary upload
+	if (tmpSettings.OutputFile && !tmpSettings.OutputFilename)
+	{
+		tmpSettings.OutputFilename = tmpSettings.OutputFile;
+	}
+
 	let tmpWorkItemInfo = {
 		RunHash: pExecutionContext.RunHash,
 		NodeHash: pExecutionContext.NodeHash,
 		OperationHash: pExecutionContext.OperationHash,
 		Capability: pWorkInfo.Capability || 'Unknown',
 		Action: pWorkInfo.Action || '',
-		Settings: pWorkInfo.Settings || {},
+		Settings: tmpSettings,
 		AffinityKey: pWorkInfo.AffinityKey || '',
 		TimeoutMs: pWorkInfo.TimeoutMs || 300000
 	};

@@ -233,6 +233,7 @@ class UltravisorExecutionEngine extends libPictService
 		tmpContext.Status = 'Running';
 		tmpContext.StartTime = new Date().toISOString();
 		this._log(tmpContext, `Operation [${pOperationDefinition.Hash}] started (async).`);
+		this.log.info(`[Engine] startOperationAsync: run=${tmpContext.Hash} operation="${pOperationDefinition.Hash}" nodeCount=${pOperationDefinition.Graph.Nodes ? pOperationDefinition.Graph.Nodes.length : 0}`);
 
 		// Find Start node and enqueue its output events
 		let tmpStartNode = this._findStartNode(tmpContext);
@@ -409,6 +410,7 @@ class UltravisorExecutionEngine extends libPictService
 	 */
 	resumeOperation(pRunHash, pNodeHash, pValue, fCallback)
 	{
+		this.log.info(`[Engine] resumeOperation: run=${pRunHash} node=${pNodeHash} valueKeys=${pValue ? Object.keys(pValue).join(',') : '(null)'}`);
 		let tmpManifestService = this.fable.servicesMap['UltravisorExecutionManifest']
 			? Object.values(this.fable.servicesMap['UltravisorExecutionManifest'])[0]
 			: null;
@@ -613,6 +615,7 @@ class UltravisorExecutionEngine extends libPictService
 
 		// Dequeue the next event
 		let tmpEvent = pContext.PendingEvents.shift();
+		this.log.info(`[Engine] processEventQueue: run=${pContext.Hash} dequeued event="${tmpEvent.EventName}" → node=${tmpEvent.TargetNodeHash} (${pContext.PendingEvents.length} remaining)`);
 
 		let tmpDequeueManifest = this._getManifestService();
 		if (tmpDequeueManifest)
@@ -645,6 +648,7 @@ class UltravisorExecutionEngine extends libPictService
 	 */
 	_executeTaskForEvent(pNodeHash, pEventName, pContext, fCallback)
 	{
+		this.log.info(`[Engine] executeTask: run=${pContext.Hash} node=${pNodeHash} event="${pEventName}"`);
 		let tmpNode = pContext._NodeMap[pNodeHash];
 
 		if (!tmpNode)
@@ -786,10 +790,12 @@ class UltravisorExecutionEngine extends libPictService
 		};
 
 		// Execute the task
+		this.log.info(`[Engine] executeTask: running task type="${tmpNode.Type}" node=${pNodeHash}`);
 		tmpTaskInstance.execute(tmpResolvedSettings, tmpTaskContext, (pError, pResult) =>
 		{
 			if (pError)
 			{
+				this.log.warn(`[Engine] executeTask: TASK ERROR node=${pNodeHash}: ${pError.message}`);
 				this._log(pContext, `Task [${pNodeHash}] error: ${pError.message}`, 'error');
 				if (tmpManifestService)
 				{
@@ -808,6 +814,8 @@ class UltravisorExecutionEngine extends libPictService
 				this._log(pContext, `Task [${pNodeHash}] returned no result.`, 'warn');
 				return fCallback(null);
 			}
+
+			this.log.info(`[Engine] executeTask: task completed node=${pNodeHash} event="${pResult.EventToFire || '(none)'}" waitingForInput=${!!pResult.WaitingForInput} outputs=${JSON.stringify(Object.keys(pResult.Outputs || {}))}`);
 
 			// Check for WaitingForInput (value-input or beacon-dispatch task)
 			if (pResult.WaitingForInput)

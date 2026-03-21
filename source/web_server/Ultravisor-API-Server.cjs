@@ -417,6 +417,7 @@ class UltravisorAPIServer extends libPictService
 				'/Operation/:Hash/Trigger',
 				function (pRequest, pResponse, fNext)
 				{
+					this.log.info(`[Trigger] POST /Operation/${pRequest.params.Hash}/Trigger received`);
 					let tmpState = this._getService('UltravisorHypervisorState');
 					let tmpEngine = this._getService('UltravisorExecutionEngine');
 					let tmpManifest = this._getService('UltravisorExecutionManifest');
@@ -426,6 +427,7 @@ class UltravisorAPIServer extends libPictService
 						{
 							if (pError)
 							{
+								this.log.warn(`[Trigger] Operation "${pRequest.params.Hash}" not found: ${pError.message}`);
 								pResponse.send(404, { Error: pError.message });
 								return fNext();
 							}
@@ -434,6 +436,8 @@ class UltravisorAPIServer extends libPictService
 							let tmpParameters = tmpBody.Parameters || {};
 							let tmpAsync = tmpBody.Async === true;
 							let tmpTimeoutMs = tmpBody.TimeoutMs || 600000;
+
+							this.log.info(`[Trigger] Operation found: "${pOperation.Name || pOperation.Hash}" async=${tmpAsync} timeout=${tmpTimeoutMs}ms`);
 
 							// Seed operation state from trigger parameters
 							let tmpInitialState = {
@@ -445,9 +449,12 @@ class UltravisorAPIServer extends libPictService
 								{
 									if (pExecError)
 									{
+										this.log.warn(`[Trigger] startOperationAsync failed: ${pExecError.message}`);
 										pResponse.send(500, { Error: pExecError.message });
 										return fNext();
 									}
+
+									this.log.info(`[Trigger] Operation started: run=${pContext.Hash} status=${pContext.Status}`);
 
 									if (tmpAsync)
 									{
@@ -470,10 +477,61 @@ class UltravisorAPIServer extends libPictService
 										{
 											if (pWaitError)
 											{
+												this.log.warn(`[Trigger] waitForCompletion failed: ${pWaitError.message}`);
 												pResponse.send(504, { Error: pWaitError.message });
 												return fNext();
 											}
 
+											this.log.info(`[Trigger] Run completed: run=${pCompletedContext.Hash} status=${pCompletedContext.Status} elapsed=${pCompletedContext.ElapsedMs}ms errors=${JSON.stringify(pCompletedContext.Errors || [])}`);
+											if (pCompletedContext.Log && pCompletedContext.Log.length > 0)
+											{
+												this.log.info(`[Trigger] Run log: ${JSON.stringify(pCompletedContext.Log)}`);
+											}
+
+											// Check if any task output has a StagingFilePath
+											// for binary streaming (from the send-result card).
+											let tmpStagingFilePath = null;
+											let tmpTaskOutputs = pCompletedContext.TaskOutputs || {};
+											let tmpNodeKeys = Object.keys(tmpTaskOutputs);
+											for (let k = 0; k < tmpNodeKeys.length; k++)
+											{
+												let tmpNodeOut = tmpTaskOutputs[tmpNodeKeys[k]];
+												if (tmpNodeOut && tmpNodeOut.StagingFilePath)
+												{
+													tmpStagingFilePath = tmpNodeOut.StagingFilePath;
+													break;
+												}
+											}
+
+											this.log.info(`[Trigger] StagingFilePath=${tmpStagingFilePath || '(none)'} taskOutputNodes=[${tmpNodeKeys.join(',')}]`);
+
+											// If a result file exists, stream it as binary
+											if (tmpStagingFilePath && pCompletedContext.Status === 'Complete'
+												&& require('fs').existsSync(tmpStagingFilePath))
+											{
+												this.log.info(`[Trigger] Streaming binary result from ${tmpStagingFilePath}`);
+												// Put metadata in headers so the caller
+												// doesn't lose visibility into the run
+												pResponse.setHeader('X-Run-Hash', pCompletedContext.Hash);
+												pResponse.setHeader('X-Status', pCompletedContext.Status);
+												pResponse.setHeader('X-Elapsed-Ms', String(pCompletedContext.ElapsedMs || 0));
+												pResponse.setHeader('Content-Type', 'application/octet-stream');
+
+												let tmpReadStream = require('fs').createReadStream(tmpStagingFilePath);
+												tmpReadStream.pipe(pResponse);
+												tmpReadStream.on('end', function ()
+												{
+													return fNext();
+												});
+												tmpReadStream.on('error', function (pStreamError)
+												{
+													pResponse.send(500, { Error: 'Failed to stream result: ' + pStreamError.message });
+													return fNext();
+												});
+												return;
+											}
+
+											// No binary result — return JSON metadata
 											pResponse.send({
 												Success: pCompletedContext.Status === 'Complete',
 												RunHash: pCompletedContext.Hash,
@@ -486,9 +544,9 @@ class UltravisorAPIServer extends libPictService
 												ElapsedMs: pCompletedContext.ElapsedMs
 											});
 											return fNext();
-										});
-								});
-						});
+										}.bind(this));
+								}.bind(this));
+						}.bind(this));
 				}.bind(this)
 			);
 
@@ -1074,6 +1132,50 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
+		// --- Beacon Reachability Matrix (no auth – management UI) ---
+		this._OratorServer.get
+			(
+				'/Beacon/Reachability',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpReachability = this._getService('UltravisorBeaconReachability');
+					if (!tmpReachability)
+					{
+						pResponse.send([]);
+						return fNext();
+					}
+
+					pResponse.send(tmpReachability.getMatrix());
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- Probe Beacon Reachability (no auth – management UI) ---
+		this._OratorServer.post
+			(
+				'/Beacon/Reachability/Probe',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpReachability = this._getService('UltravisorBeaconReachability');
+					if (!tmpReachability)
+					{
+						pResponse.send(500, { Error: 'BeaconReachability service not available.' });
+						return fNext();
+					}
+
+					tmpReachability.probeAllPairs(function (pError, pMatrix)
+					{
+						if (pError)
+						{
+							pResponse.send(500, { Error: pError.message });
+							return fNext();
+						}
+						pResponse.send(pMatrix);
+						return fNext();
+					});
+				}.bind(this)
+			);
+
 		// --- List Work Items (no auth – management UI) ---
 		this._OratorServer.get
 			(
@@ -1212,6 +1314,10 @@ class UltravisorAPIServer extends libPictService
 					}
 
 					let tmpWorkItem = tmpCoordinator.pollForWork(tmpBody.BeaconID);
+					if (tmpWorkItem)
+					{
+						this.log.info(`[Coordinator] Poll: beacon=${tmpBody.BeaconID} claimed work=${tmpWorkItem.WorkItemHash} capability=${tmpWorkItem.Capability} action=${tmpWorkItem.Action}`);
+					}
 					pResponse.send({ WorkItem: tmpWorkItem });
 					return fNext();
 				}.bind(this)
@@ -1247,6 +1353,46 @@ class UltravisorAPIServer extends libPictService
 							pResponse.send({ Status: 'Completed', WorkItemHash: pRequest.params.WorkItemHash });
 							return fNext();
 						});
+				}.bind(this)
+			);
+
+		// --- Upload Binary Result ---
+		this._OratorServer.post
+			(
+				'/Beacon/Work/:WorkItemHash/Upload',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send(500, { Error: 'BeaconCoordinator service not available.' });
+						return fNext();
+					}
+
+					let tmpFilename = pRequest.headers['x-output-filename'] || 'output.bin';
+					let tmpBody = pRequest.body;
+
+					if (!tmpBody || !Buffer.isBuffer(tmpBody))
+					{
+						pResponse.send(400, { Error: 'Binary body required (Content-Type: application/octet-stream).' });
+						return fNext();
+					}
+
+					this.log.info(`[Coordinator] Upload: work=${pRequest.params.WorkItemHash} filename=${tmpFilename} size=${tmpBody.length}`);
+
+					let tmpResult = tmpCoordinator.recordResultUpload(pRequest.params.WorkItemHash, tmpFilename, tmpBody);
+
+					if (!tmpResult)
+					{
+						pResponse.send(404, { Error: `Could not store upload for work item [${pRequest.params.WorkItemHash}].` });
+						return fNext();
+					}
+
+					pResponse.send({ Success: true, FilePath: tmpResult.FilePath });
+					return fNext();
 				}.bind(this)
 			);
 
@@ -1719,8 +1865,28 @@ class UltravisorAPIServer extends libPictService
 				pWebSocket._SubscribedRunHash = null;
 
 				pWebSocket.on('message',
-					function (pMessage)
+					function (pMessage, pIsBinary)
 					{
+						// Handle binary frames (result file uploads)
+						if (pIsBinary && pWebSocket._PendingUpload)
+						{
+							let tmpUpload = pWebSocket._PendingUpload;
+							pWebSocket._PendingUpload = null;
+
+							let tmpBuffer = Buffer.isBuffer(pMessage) ? pMessage : Buffer.from(pMessage);
+							let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+							if (tmpCoordinator)
+							{
+								let tmpResult = tmpCoordinator.recordResultUpload(tmpUpload.WorkItemHash, tmpUpload.OutputFilename, tmpBuffer);
+								pWebSocket.send(JSON.stringify({
+									Action: 'WorkResultUploadAck',
+									WorkItemHash: tmpUpload.WorkItemHash,
+									Success: !!tmpResult
+								}));
+							}
+							return;
+						}
+
 						let tmpData;
 						try
 						{
@@ -1767,6 +1933,16 @@ class UltravisorAPIServer extends libPictService
 						else if (tmpData.Action === 'WorkProgress')
 						{
 							this._handleBeaconWSWorkProgress(tmpData);
+						}
+						else if (tmpData.Action === 'WorkResultUpload')
+						{
+							// Expect the next binary frame to be the file data
+							pWebSocket._PendingUpload = {
+								WorkItemHash: tmpData.WorkItemHash,
+								OutputFilename: tmpData.OutputFilename,
+								OutputSize: tmpData.OutputSize
+							};
+							this.log.info(`[Coordinator] WS: expecting binary upload for [${tmpData.WorkItemHash}] filename=${tmpData.OutputFilename} size=${tmpData.OutputSize}`);
 						}
 						else if (tmpData.Action === 'Deregister')
 						{

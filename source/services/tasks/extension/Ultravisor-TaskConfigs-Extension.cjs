@@ -96,11 +96,10 @@ module.exports =
 				}
 			}
 
-			// Also check for OutputFile to enable base64 return
-			if (tmpSettings.OutputFile)
+			// Set OutputFilename so the executor collects the output for binary upload
+			if (tmpSettings.OutputFile && !tmpSettings.OutputFilename)
 			{
 				tmpSettings.OutputFilename = tmpSettings.OutputFile;
-				tmpSettings.ReturnOutputAsBase64 = true;
 			}
 
 			let tmpWorkItemInfo = {

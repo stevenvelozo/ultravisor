@@ -227,6 +227,10 @@ class UltravisorBeaconCoordinator extends libPictService
 			{
 				tmpExistingBeacon.Contexts = pBeaconInfo.Contexts;
 			}
+			if (Array.isArray(pBeaconInfo.BindAddresses))
+			{
+				tmpExistingBeacon.BindAddresses = pBeaconInfo.BindAddresses;
+			}
 
 			this.log.info(`BeaconCoordinator: reconnected beacon [${tmpExistingBeacon.BeaconID}] "${tmpName}" with session [${tmpExistingBeacon.SessionID}].`);
 
@@ -241,6 +245,13 @@ class UltravisorBeaconCoordinator extends libPictService
 			if (Array.isArray(pBeaconInfo.Operations) && pBeaconInfo.Operations.length > 0)
 			{
 				this._registerBeaconOperations(tmpExistingBeacon.BeaconID, pBeaconInfo.Operations);
+			}
+
+			// Probe reachability against other online beacons
+			let tmpReachability = this._getService('UltravisorBeaconReachability');
+			if (tmpReachability)
+			{
+				tmpReachability.onBeaconRegistered(tmpExistingBeacon.BeaconID);
 			}
 
 			return tmpExistingBeacon;
@@ -260,6 +271,7 @@ class UltravisorBeaconCoordinator extends libPictService
 			MaxConcurrent: pBeaconInfo.MaxConcurrent || 1,
 			Tags: pBeaconInfo.Tags || {},
 			Contexts: pBeaconInfo.Contexts || {},
+			BindAddresses: Array.isArray(pBeaconInfo.BindAddresses) ? pBeaconInfo.BindAddresses : [],
 			RegisteredAt: new Date().toISOString()
 		};
 
@@ -277,6 +289,13 @@ class UltravisorBeaconCoordinator extends libPictService
 		if (Array.isArray(pBeaconInfo.Operations) && pBeaconInfo.Operations.length > 0)
 		{
 			this._registerBeaconOperations(tmpBeaconID, pBeaconInfo.Operations);
+		}
+
+		// Probe reachability against other online beacons
+		let tmpReachability = this._getService('UltravisorBeaconReachability');
+		if (tmpReachability)
+		{
+			tmpReachability.onBeaconRegistered(tmpBeaconID);
 		}
 
 		return tmpBeacon;
@@ -790,6 +809,8 @@ class UltravisorBeaconCoordinator extends libPictService
 
 		if (!tmpBeacon)
 		{
+			let tmpRegistered = Object.values(this._Beacons).map((pB) => pB.Name);
+			this.log.warn(`[Coordinator] resolveUniversalAddress: beacon "${tmpBeaconName}" not found. Registered beacons: [${tmpRegistered.join(', ')}]`);
 			return null;
 		}
 
@@ -798,6 +819,7 @@ class UltravisorBeaconCoordinator extends libPictService
 
 		if (!tmpContextDef || !tmpContextDef.BaseURL)
 		{
+			this.log.warn(`[Coordinator] resolveUniversalAddress: context "${tmpContext}" not found on beacon "${tmpBeaconName}". Available contexts: [${Object.keys(tmpBeacon.Contexts || {}).join(', ')}]`);
 			return null;
 		}
 
@@ -876,6 +898,7 @@ class UltravisorBeaconCoordinator extends libPictService
 	 */
 	enqueueWorkItem(pWorkItemInfo)
 	{
+		this.log.info(`[Coordinator] enqueueWorkItem: capability=${pWorkItemInfo.Capability} action=${pWorkItemInfo.Action} run=${pWorkItemInfo.RunHash} node=${pWorkItemInfo.NodeHash}`);
 		let tmpTimestamp = Date.now();
 		this._WorkItemCounter++;
 		let tmpWorkItemHash = `wi-${pWorkItemInfo.RunHash || 'unknown'}-${pWorkItemInfo.NodeHash || 'unknown'}-${tmpTimestamp}-${this._WorkItemCounter}`;
@@ -1212,8 +1235,69 @@ class UltravisorBeaconCoordinator extends libPictService
 	 * @param {object} pResult - { Outputs, Log }
 	 * @param {function} fCallback - function(pError)
 	 */
+	/**
+	 * Record a binary result file uploaded by a beacon.
+	 *
+	 * Writes the file to the operation's staging directory so downstream
+	 * tasks (like send-result) can find it.
+	 *
+	 * @param {string} pWorkItemHash - The work item hash
+	 * @param {string} pFilename - Output filename (e.g. 'thumbnail.jpg')
+	 * @param {Buffer} pFileBuffer - Raw file bytes
+	 * @returns {object|null} { StagingPath, FilePath } on success, or null
+	 */
+	recordResultUpload(pWorkItemHash, pFilename, pFileBuffer)
+	{
+		let tmpWorkItem = this._WorkQueue[pWorkItemHash];
+		if (!tmpWorkItem)
+		{
+			this.log.warn(`[Coordinator] recordResultUpload: work item [${pWorkItemHash}] not found.`);
+			return null;
+		}
+
+		if (!tmpWorkItem.RunHash)
+		{
+			this.log.warn(`[Coordinator] recordResultUpload: work item [${pWorkItemHash}] has no RunHash.`);
+			return null;
+		}
+
+		// Look up the operation's staging directory from the manifest
+		let tmpManifest = this._getService('UltravisorExecutionManifest');
+		if (!tmpManifest)
+		{
+			this.log.warn('[Coordinator] recordResultUpload: UltravisorExecutionManifest service not found.');
+			return null;
+		}
+
+		let tmpContext = tmpManifest.getRun(tmpWorkItem.RunHash);
+		if (!tmpContext || !tmpContext.StagingPath)
+		{
+			this.log.warn(`[Coordinator] recordResultUpload: run [${tmpWorkItem.RunHash}] not found or has no staging path.`);
+			return null;
+		}
+
+		let tmpFilePath = require('path').join(tmpContext.StagingPath, pFilename);
+
+		try
+		{
+			require('fs').writeFileSync(tmpFilePath, pFileBuffer);
+			this.log.info(`[Coordinator] recordResultUpload: wrote ${pFileBuffer.length} bytes → ${tmpFilePath}`);
+
+			// Store the uploaded file path on the work item so completeWorkItem can reference it
+			tmpWorkItem.UploadedResultPath = tmpFilePath;
+
+			return { StagingPath: tmpContext.StagingPath, FilePath: tmpFilePath };
+		}
+		catch (pWriteError)
+		{
+			this.log.error(`[Coordinator] recordResultUpload: write failed: ${pWriteError.message}`);
+			return null;
+		}
+	}
+
 	completeWorkItem(pWorkItemHash, pResult, fCallback)
 	{
+		this.log.info(`[Coordinator] completeWorkItem: ${pWorkItemHash} resultKeys=${pResult ? Object.keys(pResult).join(',') : '(null)'}`);
 		let tmpWorkItem = this._WorkQueue[pWorkItemHash];
 
 		if (!tmpWorkItem)
@@ -1328,6 +1412,7 @@ class UltravisorBeaconCoordinator extends libPictService
 	 */
 	failWorkItem(pWorkItemHash, pError, fCallback)
 	{
+		this.log.warn(`[Coordinator] failWorkItem: ${pWorkItemHash} error=${pError ? pError.message || JSON.stringify(pError) : '(null)'}`);
 		let tmpWorkItem = this._WorkQueue[pWorkItemHash];
 
 		if (!tmpWorkItem)

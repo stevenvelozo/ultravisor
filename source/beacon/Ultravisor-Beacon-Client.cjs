@@ -341,7 +341,8 @@ class UltravisorBeaconClient
 			Capabilities: this._Executor.providerRegistry.getCapabilities(),
 			ActionSchemas: this._Executor.providerRegistry.getActionSchemas(),
 			MaxConcurrent: this._Config.MaxConcurrent,
-			Tags: this._Config.Tags
+			Tags: this._Config.Tags,
+			BindAddresses: this._Config.BindAddresses || []
 		};
 
 		// Include contexts if any are defined

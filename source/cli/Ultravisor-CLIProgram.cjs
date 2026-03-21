@@ -16,6 +16,7 @@ const libServiceStateManager = require('../services/Ultravisor-StateManager.cjs'
 const libServiceExecutionEngine = require('../services/Ultravisor-ExecutionEngine.cjs');
 const libServiceExecutionManifest = require('../services/Ultravisor-ExecutionManifest.cjs');
 const libServiceBeaconCoordinator = require('../services/Ultravisor-Beacon-Coordinator.cjs');
+const libServiceBeaconReachability = require('../services/Ultravisor-Beacon-Reachability.cjs');
 const libServiceBeaconQueueJournal = require('../services/persistence/Ultravisor-Beacon-QueueJournal.cjs');
 
 // TODO: Remove this when Restify is fixed.
@@ -25,6 +26,8 @@ const libWebServerAPIServer = require('../web_server/Ultravisor-API-Server.cjs')
 
 // Check for an optional --config / -c command line parameter to load a config file
 let _ConfigFileOverride = false;
+// Check for an optional --logfile / -l command line parameter
+let _LogFilePath = false;
 for (let i = 0; i < process.argv.length; i++)
 {
 	if ((process.argv[i] === '--config' || process.argv[i] === '-c') && process.argv[i + 1])
@@ -40,7 +43,18 @@ for (let i = 0; i < process.argv.length; i++)
 			console.error(`Error loading configuration file [${tmpConfigFilePath}]: ${pError.message}`);
 			process.exit(1);
 		}
-		break;
+	}
+	if (process.argv[i] === '--logfile' || process.argv[i] === '-l')
+	{
+		if (process.argv[i + 1] && !process.argv[i + 1].startsWith('-'))
+		{
+			_LogFilePath = libPath.resolve(process.argv[++i]);
+		}
+		else
+		{
+			// Generate a timestamped logfile name
+			_LogFilePath = libPath.resolve(`ultravisor-${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
+		}
 	}
 }
 
@@ -58,7 +72,13 @@ let _Ultravisor_Pict = new libCLIProgram(
 					"level": "trace",
 					"streamtype": "process.stdout"
 				}
-			],
+			].concat(_LogFilePath ? [{
+				"loggertype": "simpleflatfile",
+				"level": "info",
+				"path": _LogFilePath,
+				"outputloglinestoconsole": false,
+				"outputobjectstoconsole": false
+			}] : []),
 
 		"Command": "ultravisor",
 
@@ -87,8 +107,14 @@ let _Ultravisor_Pict = new libCLIProgram(
 		require('./commands/Ultravisor-Command-Stop.cjs')
 	]);
 
-// Register --config / -c as a known global option so Commander doesn't reject it.
+// Register --config / -c and --logfile / -l as known global options so Commander doesn't reject them.
 _Ultravisor_Pict.CommandLineUtility.command.option('-c, --config <path>', 'Load configuration from a JSON file');
+_Ultravisor_Pict.CommandLineUtility.command.option('-l, --logfile [path]', 'Write logs to a file (auto-generates timestamped name if path omitted)');
+
+if (_LogFilePath)
+{
+	console.log(`[Ultravisor] Logging to file: ${_LogFilePath}`);
+}
 
 // If a config file override was passed via --config / -c, apply it on top of the gathered config
 if (_ConfigFileOverride)
@@ -141,6 +167,9 @@ if (tmpRegistry)
 
 // --- Beacon coordinator ---
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconCoordinator', libServiceBeaconCoordinator);
+
+// --- Beacon reachability ---
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconReachability', libServiceBeaconReachability);
 
 // --- Beacon queue journal (persistence) ---
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconQueueJournal', libServiceBeaconQueueJournal);

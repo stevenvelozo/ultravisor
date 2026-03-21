@@ -71,8 +71,59 @@ module.exports =
 				BeaconName: tmpResolved.BeaconName,
 				Context: tmpResolved.Context,
 				Path: tmpResolved.Path,
-				Filename: tmpResolved.Filename
+				Filename: tmpResolved.Filename,
+				Strategy: 'direct',
+				DirectURL: '',
+				ProxyURL: ''
 			};
+
+			// Resolve transfer strategy when a requesting beacon is specified
+			let tmpRequestingBeaconID = pResolvedSettings.RequestingBeaconID;
+			if (tmpRequestingBeaconID)
+			{
+				let tmpReachability = _getService(pTask, 'UltravisorBeaconReachability');
+				if (tmpReachability)
+				{
+					let tmpStrategyResult = tmpReachability.resolveStrategy(tmpResolved.BeaconID, tmpRequestingBeaconID);
+					tmpOutputs.Strategy = tmpStrategyResult.Strategy;
+
+					if (tmpStrategyResult.Strategy === 'direct' && tmpStrategyResult.DirectURL)
+					{
+						// Build full direct URL using bind address + context path
+						let tmpContextDef = tmpCoordinator.getBeacon(tmpResolved.BeaconID);
+						let tmpCtx = tmpContextDef && tmpContextDef.Contexts ? tmpContextDef.Contexts[tmpResolved.Context] : null;
+						let tmpContextPath = tmpCtx && tmpCtx.BaseURL ? tmpCtx.BaseURL : '/';
+						if (!tmpContextPath.endsWith('/'))
+						{
+							tmpContextPath = tmpContextPath + '/';
+						}
+						// Strip protocol+host from BaseURL if it's absolute, keep just the path
+						try
+						{
+							let tmpParsed = new URL(tmpContextPath);
+							tmpContextPath = tmpParsed.pathname;
+							if (!tmpContextPath.endsWith('/'))
+							{
+								tmpContextPath = tmpContextPath + '/';
+							}
+						}
+						catch (pParseError)
+						{
+							// Already a relative path — use as-is
+						}
+						let tmpEncodedPath = tmpResolved.Path.split('/').map(encodeURIComponent).join('/');
+						tmpOutputs.DirectURL = tmpStrategyResult.DirectURL.replace(/\/$/, '') + tmpContextPath + tmpEncodedPath;
+						tmpOutputs.URL = tmpOutputs.DirectURL;
+					}
+					else if (tmpStrategyResult.Strategy === 'proxy')
+					{
+						// Proxy URL: Ultravisor's own endpoint serves the file
+						tmpOutputs.ProxyURL = tmpResolved.URL;
+						tmpOutputs.URL = tmpResolved.URL;
+					}
+					// 'local' strategy: URL stays as the context BaseURL (same host)
+				}
+			}
 
 			let tmpStateWrites = {};
 			if (pResolvedSettings.Destination)
@@ -80,7 +131,7 @@ module.exports =
 				tmpStateWrites[pResolvedSettings.Destination] = tmpOutputs;
 			}
 
-			pTask.log.info(`Resolve Address: ${tmpAddress} → ${tmpResolved.URL} (beacon: ${tmpResolved.BeaconName})`);
+			pTask.log.info(`Resolve Address: ${tmpAddress} → ${tmpOutputs.URL} [${tmpOutputs.Strategy}] (beacon: ${tmpResolved.BeaconName})`);
 
 			return fCallback(null, {
 				EventToFire: 'Complete',
@@ -88,7 +139,8 @@ module.exports =
 				StateWrites: tmpStateWrites,
 				Log: [
 					`Resolved: ${tmpAddress}`,
-					`URL: ${tmpResolved.URL}`,
+					`URL: ${tmpOutputs.URL}`,
+					`Strategy: ${tmpOutputs.Strategy}`,
 					`Beacon: ${tmpResolved.BeaconName} (${tmpResolved.BeaconID})`,
 					`Context: ${tmpResolved.Context}, Path: ${tmpResolved.Path}`
 				]
@@ -209,20 +261,20 @@ module.exports =
 
 			try
 			{
-				let tmpBuffer = libFS.readFileSync(tmpFilePath);
+				let tmpStat = libFS.statSync(tmpFilePath);
 				let tmpDuration = Date.now() - tmpStartTime;
 
-				// Write the buffer to the operation's Output object
-				pExecutionContext.Output[tmpOutputKey] = tmpBuffer;
+				pTask.log.info(`Send Result: ${tmpStat.size} bytes ready at ${tmpFilePath} (${tmpDuration}ms)`);
 
-				pTask.log.info(`Send Result: ${tmpBuffer.length} bytes from ${pResolvedSettings.FilePath} → Output.${tmpOutputKey} (${tmpDuration}ms)`);
-
+				// Record the staging file path so the trigger endpoint
+				// can stream it as binary.  No encoding — the file stays
+				// on disk until the HTTP response streams it out.
 				return fCallback(null, {
 					EventToFire: 'Complete',
-					Outputs: { BytesSent: tmpBuffer.length, DurationMs: tmpDuration },
+					Outputs: { StagingFilePath: tmpFilePath, BytesSent: tmpStat.size, DurationMs: tmpDuration },
 					Log: [
-						`Read ${tmpBuffer.length} bytes from ${pResolvedSettings.FilePath}`,
-						`Written to Output.${tmpOutputKey} (${tmpDuration}ms)`
+						`Result file: ${pResolvedSettings.FilePath} (${tmpStat.size} bytes)`,
+						`Staging path: ${tmpFilePath}`
 					]
 				});
 			}

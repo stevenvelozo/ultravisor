@@ -28,6 +28,7 @@ const libViewFlowEditor = require('./views/PictView-Ultravisor-FlowEditor.js');
 const libViewPendingInput = require('./views/PictView-Ultravisor-PendingInput.js');
 const libViewDocumentation = require('./views/PictView-Ultravisor-Documentation.js');
 const libViewBeaconList = require('./views/PictView-Ultravisor-BeaconList.js');
+const libViewReachabilityMap = require('./views/PictView-Ultravisor-ReachabilityMap.js');
 const libViewOperationDescriptionEditor = require('./views/PictView-Ultravisor-OperationDescriptionEditor.js');
 const libPictSectionModal = require('pict-section-modal');
 
@@ -63,6 +64,7 @@ class UltravisorApplication extends libPictApplication
 		this.pict.addView('Ultravisor-PendingInput', libViewPendingInput.default_configuration, libViewPendingInput);
 		this.pict.addView('Ultravisor-Documentation', libViewDocumentation.default_configuration, libViewDocumentation);
 		this.pict.addView('Ultravisor-BeaconList', libViewBeaconList.default_configuration, libViewBeaconList);
+		this.pict.addView('Ultravisor-ReachabilityMap', libViewReachabilityMap.default_configuration, libViewReachabilityMap);
 		this.pict.addView('Ultravisor-OperationDescriptionEditor', libViewOperationDescriptionEditor.default_configuration, libViewOperationDescriptionEditor);
 
 		// Modal/toast notification system (replaces browser alert/confirm)
@@ -102,6 +104,7 @@ class UltravisorApplication extends libPictApplication
 			WorkItems: [],
 			BeaconCapabilities: {},
 			AffinityBindings: [],
+			ReachabilityMatrix: [],
 			CurrentEditOperation: null,
 			Flows: {},
 			OperationDescriptionSegments: [{ Content: '' }],
@@ -687,6 +690,38 @@ class UltravisorApplication extends libPictApplication
 				if (!pError && pData)
 				{
 					this.pict.AppData.Ultravisor.AffinityBindings = Array.isArray(pData) ? pData : [];
+				}
+				if (typeof fCallback === 'function')
+				{
+					fCallback(pError, pData);
+				}
+			}.bind(this));
+	}
+
+	loadReachabilityMatrix(fCallback)
+	{
+		this.apiCall('GET', '/Beacon/Reachability', null,
+			function (pError, pData)
+			{
+				if (!pError && pData)
+				{
+					this.pict.AppData.Ultravisor.ReachabilityMatrix = Array.isArray(pData) ? pData : [];
+				}
+				if (typeof fCallback === 'function')
+				{
+					fCallback(pError, pData);
+				}
+			}.bind(this));
+	}
+
+	probeReachability(fCallback)
+	{
+		this.apiCall('POST', '/Beacon/Reachability/Probe', null,
+			function (pError, pData)
+			{
+				if (!pError && pData)
+				{
+					this.pict.AppData.Ultravisor.ReachabilityMatrix = Array.isArray(pData) ? pData : [];
 				}
 				if (typeof fCallback === 'function')
 				{

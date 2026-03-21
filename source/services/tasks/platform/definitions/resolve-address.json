@@ -2,7 +2,7 @@
 	"Hash": "resolve-address",
 	"Type": "resolve-address",
 	"Name": "Resolve Address",
-	"Description": "Resolve a universal address (>beacon/context/path) to a concrete URL and metadata. Pure lookup — no network I/O. The resolved URL, beacon ID, context, path, and filename are written to state outputs and optionally to a state address.",
+	"Description": "Resolve a universal address (>beacon/context/path) to a concrete URL and metadata, with optional transfer strategy resolution (local/direct/proxy) when a requesting beacon is specified.",
 	"Category": "platform",
 	"Capability": "Address Resolution",
 	"Action": "Resolve",
@@ -14,15 +14,19 @@
 	],
 	"SettingsInputs": [
 		{ "Name": "Address", "DataType": "String", "Required": true, "Description": "Universal address to resolve (e.g. >retold-remote/File/Pictures/image.png)" },
-		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to write the resolved result object (optional)" }
+		{ "Name": "Destination", "DataType": "String", "Required": false, "Description": "State address to write the resolved result object (optional)" },
+		{ "Name": "RequestingBeaconID", "DataType": "String", "Required": false, "Description": "BeaconID of the requesting beacon (enables transfer strategy resolution)" }
 	],
 	"StateOutputs": [
-		{ "Name": "URL", "DataType": "String", "Description": "Concrete URL for the resolved address" },
+		{ "Name": "URL", "DataType": "String", "Description": "Best URL for the resolved address (chosen by strategy)" },
 		{ "Name": "BeaconID", "DataType": "String", "Description": "ID of the beacon that owns the resource" },
 		{ "Name": "BeaconName", "DataType": "String", "Description": "Human-readable name of the beacon" },
 		{ "Name": "Context", "DataType": "String", "Description": "Context name (e.g. File, Cache)" },
 		{ "Name": "Path", "DataType": "String", "Description": "Path within the context" },
-		{ "Name": "Filename", "DataType": "String", "Description": "Filename portion of the path" }
+		{ "Name": "Filename", "DataType": "String", "Description": "Filename portion of the path" },
+		{ "Name": "Strategy", "DataType": "String", "Description": "Transfer strategy: local, direct, or proxy" },
+		{ "Name": "DirectURL", "DataType": "String", "Description": "Direct beacon-to-beacon URL (when strategy is direct)" },
+		{ "Name": "ProxyURL", "DataType": "String", "Description": "Proxy URL through Ultravisor (when strategy is proxy)" }
 	],
-	"DefaultSettings": { "Address": "", "Destination": "" }
+	"DefaultSettings": { "Address": "", "Destination": "", "RequestingBeaconID": "" }
 }

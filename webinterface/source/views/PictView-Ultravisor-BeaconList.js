@@ -311,6 +311,13 @@ const _ViewConfiguration =
 	<div id="Ultravisor-BeaconList-Summary"></div>
 	<div id="Ultravisor-BeaconList-Body"></div>
 	<div id="Ultravisor-BeaconList-Detail"></div>
+	<div class="ultravisor-beacon-section">
+		<div class="ultravisor-beacon-section-header">
+			<h2>Reachability Map</h2>
+			<button class="ultravisor-btn ultravisor-btn-secondary" onclick="{~P~}.views['Ultravisor-BeaconList'].probeAll()">Probe All</button>
+		</div>
+		<div id="Ultravisor-BeaconList-ReachabilityMap"></div>
+	</div>
 	<div class="ultravisor-beacon-section" id="Ultravisor-BeaconList-WorkQueue-Section">
 		<div class="ultravisor-beacon-section-header">
 			<h2>Work Queue</h2>
@@ -380,7 +387,7 @@ class UltravisorBeaconListView extends libPictView
 
 	refreshAll()
 	{
-		let tmpPendingCalls = 3;
+		let tmpPendingCalls = 4;
 		let tmpDone = function ()
 		{
 			tmpPendingCalls--;
@@ -388,6 +395,7 @@ class UltravisorBeaconListView extends libPictView
 			{
 				this.renderBeaconSummary();
 				this.renderBeaconTable();
+				this.renderReachabilityMap();
 				this.renderWorkQueue();
 				this.renderAffinityTable();
 			}
@@ -396,12 +404,13 @@ class UltravisorBeaconListView extends libPictView
 		this.pict.PictApplication.loadBeacons(tmpDone);
 		this.pict.PictApplication.loadWorkItems(tmpDone);
 		this.pict.PictApplication.loadAffinityBindings(tmpDone);
+		this.pict.PictApplication.loadReachabilityMatrix(tmpDone);
 	}
 
 	_silentRefresh()
 	{
 		// Same as refreshAll but doesn't clear the detail panel
-		let tmpPendingCalls = 3;
+		let tmpPendingCalls = 4;
 		let tmpDone = function ()
 		{
 			tmpPendingCalls--;
@@ -409,6 +418,7 @@ class UltravisorBeaconListView extends libPictView
 			{
 				this.renderBeaconSummary();
 				this.renderBeaconTable();
+				this.renderReachabilityMap();
 				this.renderWorkQueue();
 				this.renderAffinityTable();
 			}
@@ -417,6 +427,7 @@ class UltravisorBeaconListView extends libPictView
 		this.pict.PictApplication.loadBeacons(tmpDone);
 		this.pict.PictApplication.loadWorkItems(tmpDone);
 		this.pict.PictApplication.loadAffinityBindings(tmpDone);
+		this.pict.PictApplication.loadReachabilityMatrix(tmpDone);
 	}
 
 	renderBeaconSummary()
@@ -609,6 +620,29 @@ class UltravisorBeaconListView extends libPictView
 							this.pict.ContentAssignment.assignContent('#Ultravisor-BeaconList-Detail', '');
 							this.refreshAll();
 						}.bind(this));
+				}
+			}.bind(this));
+	}
+
+	renderReachabilityMap()
+	{
+		let tmpMapView = this.pict.views['Ultravisor-ReachabilityMap'];
+		if (tmpMapView)
+		{
+			// render() injects the template; onAfterRender calls renderMap()
+			tmpMapView.render();
+		}
+	}
+
+	probeAll()
+	{
+		this.pict.PictApplication.probeReachability(
+			function ()
+			{
+				let tmpMapView = this.pict.views['Ultravisor-ReachabilityMap'];
+				if (tmpMapView)
+				{
+					tmpMapView.renderMap();
 				}
 			}.bind(this));
 	}
