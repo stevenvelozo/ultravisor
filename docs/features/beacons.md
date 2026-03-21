@@ -121,6 +121,7 @@ Register a new Beacon worker with the coordinator.
 | `Capabilities` | array | yes | List of capability strings |
 | `MaxConcurrent` | number | no | Maximum concurrent work items (default: 1) |
 | `Tags` | object | no | Arbitrary key-value metadata |
+| `BindAddresses` | array | no | Network interfaces the Beacon is listening on. Each entry is `{ IP, Port, Protocol }`. Used by the reachability service to probe connectivity between Beacons. |
 
 **Response:** The created Beacon record including the assigned `BeaconID`.
 
@@ -223,6 +224,57 @@ List all active affinity bindings.
 
 **Response:** Array of affinity binding records, each containing
 `AffinityKey`, `BeaconID`, `CreatedAt`, and `ExpiresAt`.
+
+---
+
+### GET /Beacon/Reachability
+
+Returns the connectivity matrix between all beacon pairs. No auth
+required (management UI).
+
+**Response:** Array of reachability records:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `SourceBeaconID` | string | Beacon that initiated the probe |
+| `TargetBeaconID` | string | Beacon that was probed |
+| `Status` | string | Connectivity status (e.g. `Reachable`, `Unreachable`) |
+| `ProbeLatencyMs` | number | Round-trip latency of the probe in milliseconds |
+| `LastProbeAt` | string | ISO timestamp of the last probe |
+| `ProbeURL` | string | URL that was probed |
+
+---
+
+### POST /Beacon/Reachability/Probe
+
+Triggers connectivity probes between all online beacon pairs. Returns
+the updated reachability matrix after probes complete. No auth required
+(management UI).
+
+**Response:** Array of reachability records (same shape as
+`GET /Beacon/Reachability`).
+
+---
+
+### POST /Beacon/Work/:WorkItemHash/Upload
+
+Uploads a binary result file for a work item. The Beacon sends raw file
+bytes with `Content-Type: application/octet-stream` and an
+`X-Output-Filename` header specifying the file name. The file is written
+to the operation's staging directory.
+
+Requires session auth.
+
+**Request headers:**
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `Content-Type` | yes | Must be `application/octet-stream` |
+| `X-Output-Filename` | yes | Target file name for the uploaded file |
+
+**Request body:** Raw binary file bytes.
+
+**Response:** `{ Status: "Uploaded", WorkItemHash: "...", FilePath: "..." }`
 
 ## Custom Capability Providers
 

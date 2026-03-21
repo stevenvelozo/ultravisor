@@ -10,6 +10,10 @@
   - [Capabilities](features/capabilities.md)
   - [Beacons](features/beacons.md)
   - [Building Beacon Providers](features/beacon-providers.md)
+  - [Beacon Authentication](features/beacon-authentication.md)
+  - [Universal Addressing](features/universal-addressing.md)
+  - [Reachability Matrix](features/reachability-matrix.md)
+  - [Platform Cards](features/platform-cards.md)
   - [LLM Integration](features/llm.md)
   - [LLM Model Setup Guide](features/llm-model-setup.md)
   - [Operations](features/operations.md)
@@ -33,3 +37,7 @@
   - [API Server](features/api.md)
   - [CLI Commands](features/cli.md)
   - [Configuration](features/configuration.md)
+
+- Case Studies
+
+  - [retold-remote + orator-conversion](features/case-study-retold-remote.md)

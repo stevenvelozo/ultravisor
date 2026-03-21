@@ -210,6 +210,148 @@ Returns an array of all operation manifests from the current session.
 }
 ```
 
+### Beacons
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/Beacon/Register` | Register a new Beacon worker |
+| `GET` | `/Beacon` | List all registered Beacons |
+| `GET` | `/Beacon/:BeaconID` | Get a specific Beacon |
+| `DELETE` | `/Beacon/:BeaconID` | Deregister a Beacon |
+| `POST` | `/Beacon/:BeaconID/Heartbeat` | Send a Beacon heartbeat |
+| `POST` | `/Beacon/Work/Poll` | Poll for available work |
+| `POST` | `/Beacon/Work/:WorkItemHash/Complete` | Report work item completion |
+| `POST` | `/Beacon/Work/:WorkItemHash/Error` | Report work item failure |
+| `POST` | `/Beacon/Work/:WorkItemHash/Progress` | Report work item progress |
+| `POST` | `/Beacon/Work/:WorkItemHash/Upload` | Upload a binary result file for a work item |
+| `GET` | `/Beacon/Work` | List all work items |
+| `GET` | `/Beacon/Affinity` | List active affinity bindings |
+| `GET` | `/Beacon/Reachability` | Get the connectivity matrix between all beacon pairs |
+| `POST` | `/Beacon/Reachability/Probe` | Trigger connectivity probes between all online beacon pairs |
+
+#### POST /Beacon/Register
+
+Register a new Beacon worker with the coordinator.
+
+```bash
+curl -X POST http://localhost:54321/Beacon/Register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Name": "GPU-Worker-1",
+    "Capabilities": ["Shell", "FileSystem"],
+    "MaxConcurrent": 4
+  }'
+```
+
+Response:
+
+```json
+{
+    "BeaconID": "beacon-abc123",
+    "Name": "GPU-Worker-1",
+    "Capabilities": ["Shell", "FileSystem"],
+    "MaxConcurrent": 4,
+    "Status": "Online"
+}
+```
+
+#### POST /Beacon/Work/Poll
+
+Poll for available work matching the Beacon's capabilities.
+
+```bash
+curl -X POST http://localhost:54321/Beacon/Work/Poll \
+  -H "Content-Type: application/json" \
+  -d '{ "BeaconID": "beacon-abc123" }'
+```
+
+Response:
+
+```json
+{
+    "WorkItem": {
+        "WorkItemHash": "wi-xyz789",
+        "Capability": "Shell",
+        "Action": "Execute",
+        "Settings": { "Command": "echo hello" }
+    }
+}
+```
+
+#### POST /Beacon/Work/:WorkItemHash/Complete
+
+Report successful completion of a work item.
+
+```bash
+curl -X POST http://localhost:54321/Beacon/Work/wi-xyz789/Complete \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Outputs": { "StdOut": "hello\n", "ExitCode": 0 },
+    "Log": ["Command executed successfully"]
+  }'
+```
+
+#### POST /Beacon/Work/:WorkItemHash/Upload
+
+Upload a binary result file for a work item. The Beacon sends raw file
+bytes with `Content-Type: application/octet-stream` and an
+`X-Output-Filename` header. The file is written to the operation's
+staging directory. Requires session auth.
+
+```bash
+curl -X POST http://localhost:54321/Beacon/Work/wi-xyz789/Upload \
+  -H "Content-Type: application/octet-stream" \
+  -H "X-Output-Filename: result.bin" \
+  --data-binary @result.bin
+```
+
+Response:
+
+```json
+{
+    "Status": "Uploaded",
+    "WorkItemHash": "wi-xyz789",
+    "FilePath": "/data/staging/my-pipeline/result.bin"
+}
+```
+
+#### GET /Beacon/Reachability
+
+Returns the connectivity matrix between all beacon pairs. No auth
+required (management UI).
+
+```bash
+curl http://localhost:54321/Beacon/Reachability
+```
+
+Response:
+
+```json
+[
+    {
+        "SourceBeaconID": "beacon-abc123",
+        "TargetBeaconID": "beacon-def456",
+        "Status": "Reachable",
+        "ProbeLatencyMs": 12,
+        "LastProbeAt": "2026-03-21T10:00:00.000Z",
+        "ProbeURL": "http://192.168.1.10:54322/probe"
+    }
+]
+```
+
+#### POST /Beacon/Reachability/Probe
+
+Triggers connectivity probes between all online beacon pairs. Returns
+the updated reachability matrix after probes complete. No auth required
+(management UI).
+
+```bash
+curl -X POST http://localhost:54321/Beacon/Reachability/Probe
+```
+
+Response: Array of reachability records (same shape as
+`GET /Beacon/Reachability`).
+
 ## Error Responses
 
 All error responses follow this format:

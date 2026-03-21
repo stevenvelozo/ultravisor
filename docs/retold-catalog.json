@@ -1,8 +1,25 @@
 {
-	"Generated": "2026-03-12T00:32:41.527Z",
+	"Generated": "2026-03-21T22:11:31.751Z",
 	"GitHubOrg": "stevenvelozo",
 	"DefaultBranch": "master",
 	"Groups": [
+		{
+			"Name": "Debug",
+			"Key": "debug",
+			"Description": "",
+			"Modules": [
+				{
+					"Name": "dist",
+					"Repo": "dist",
+					"Group": "debug",
+					"Branch": "master",
+					"HasDocs": false,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": []
+				}
+			]
+		},
 		{
 			"Name": "Dist",
 			"Key": "dist",
@@ -12,6 +29,425 @@
 					"Name": "indoctrinate_content_staging",
 					"Repo": "indoctrinate_content_staging",
 					"Group": "dist",
+					"Branch": "master",
+					"HasDocs": false,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": []
+				},
+				{
+					"Name": "ultravisor_staging",
+					"Repo": "ultravisor_staging",
+					"Group": "dist",
+					"Branch": "master",
+					"HasDocs": false,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": []
+				}
+			]
+		},
+		{
+			"Name": "Docs",
+			"Key": "docs",
+			"Description": "",
+			"Modules": [
+				{
+					"Name": "css",
+					"Repo": "css",
+					"Group": "docs",
+					"Branch": "master",
+					"HasDocs": true,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": [
+						"css/docuserve.css"
+					]
+				},
+				{
+					"Name": "features",
+					"Repo": "features",
+					"Group": "docs",
+					"Branch": "master",
+					"HasDocs": true,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": [
+						"features/api.md",
+						"features/beacon-authentication.md",
+						"features/beacon-providers.md",
+						"features/beacons.md",
+						"features/capabilities.md",
+						"features/case-study-retold-remote.md",
+						"features/cli.md",
+						"features/configuration.md",
+						"features/llm-model-setup.md",
+						"features/llm.md",
+						"features/manifests.md",
+						"features/operations.md",
+						"features/platform-cards.md",
+						"features/reachability-matrix.md",
+						"features/scheduling.md",
+						"features/tasks-content-system.md",
+						"features/tasks-data-transform.md",
+						"features/tasks-extension.md",
+						"features/tasks-file-system.md",
+						"features/tasks-flow-control.md",
+						"features/tasks-http-client.md",
+						"features/tasks-llm.md",
+						"features/tasks-meadow-api.md",
+						"features/tasks-user-interaction.md",
+						"features/tasks.md",
+						"features/universal-addressing.md"
+					]
+				}
+			]
+		},
+		{
+			"Name": "Modules",
+			"Key": "modules",
+			"Description": "",
+			"Modules": [
+				{
+					"Name": "dist",
+					"Repo": "dist",
+					"Group": "modules",
+					"Branch": "master",
+					"HasDocs": false,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": []
+				}
+			]
+		},
+		{
+			"Name": "Source",
+			"Key": "source",
+			"Description": "",
+			"Modules": [
+				{
+					"Name": "beacon",
+					"Repo": "beacon",
+					"Group": "source",
+					"Branch": "master",
+					"HasDocs": false,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": []
+				},
+				{
+					"Name": "cli",
+					"Repo": "cli",
+					"Group": "source",
+					"Branch": "master",
+					"HasDocs": false,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": []
+				},
+				{
+					"Name": "config",
+					"Repo": "config",
+					"Group": "source",
+					"Branch": "master",
+					"HasDocs": false,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": []
+				},
+				{
+					"Name": "services",
+					"Repo": "services",
+					"Group": "source",
+					"Branch": "master",
+					"HasDocs": false,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": []
+				},
+				{
+					"Name": "web_server",
+					"Repo": "web_server",
+					"Group": "source",
+					"Branch": "master",
+					"HasDocs": false,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": []
+				}
+			]
+		},
+		{
+			"Name": "Test",
+			"Key": "test",
+			"Description": "",
+			"Modules": [
+				{
+					"Name": "workflows",
+					"Repo": "workflows",
+					"Group": "test",
+					"Branch": "master",
+					"HasDocs": false,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": []
+				}
+			]
+		},
+		{
+			"Name": "Webinterface",
+			"Key": "webinterface",
+			"Description": "",
+			"Modules": [
+				{
+					"Name": "build",
+					"Repo": "build",
+					"Group": "webinterface",
+					"Branch": "master",
+					"HasDocs": false,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": []
+				},
+				{
+					"Name": "css",
+					"Repo": "css",
+					"Group": "webinterface",
+					"Branch": "master",
+					"HasDocs": false,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": []
+				},
+				{
+					"Name": "dist",
+					"Repo": "dist",
+					"Group": "webinterface",
+					"Branch": "master",
+					"HasDocs": true,
+					"HasCover": false,
+					"Sidebar": [
+						{
+							"Title": "Getting Started",
+							"Children": [
+								{
+									"Title": "Overview",
+									"Path": "overview.md"
+								},
+								{
+									"Title": "Quick Start",
+									"Path": "quickstart.md"
+								},
+								{
+									"Title": "Architecture",
+									"Path": "architecture.md"
+								}
+							]
+						},
+						{
+							"Title": "Features",
+							"Children": [
+								{
+									"Title": "Tasks",
+									"Path": "features/tasks.md"
+								},
+								{
+									"Title": "Capabilities",
+									"Path": "features/capabilities.md"
+								},
+								{
+									"Title": "Beacons",
+									"Path": "features/beacons.md"
+								},
+								{
+									"Title": "Building Beacon Providers",
+									"Path": "features/beacon-providers.md"
+								},
+								{
+									"Title": "LLM Integration",
+									"Path": "features/llm.md"
+								},
+								{
+									"Title": "LLM Model Setup Guide",
+									"Path": "features/llm-model-setup.md"
+								},
+								{
+									"Title": "Operations",
+									"Path": "features/operations.md"
+								},
+								{
+									"Title": "Scheduling",
+									"Path": "features/scheduling.md"
+								},
+								{
+									"Title": "Manifests",
+									"Path": "features/manifests.md"
+								}
+							]
+						},
+						{
+							"Title": "Task Reference",
+							"Children": [
+								{
+									"Title": "Data Transform",
+									"Path": "features/tasks-data-transform.md"
+								},
+								{
+									"Title": "File System",
+									"Path": "features/tasks-file-system.md"
+								},
+								{
+									"Title": "Flow Control",
+									"Path": "features/tasks-flow-control.md"
+								},
+								{
+									"Title": "HTTP Client",
+									"Path": "features/tasks-http-client.md"
+								},
+								{
+									"Title": "LLM",
+									"Path": "features/tasks-llm.md"
+								},
+								{
+									"Title": "Meadow API",
+									"Path": "features/tasks-meadow-api.md"
+								},
+								{
+									"Title": "Content System",
+									"Path": "features/tasks-content-system.md"
+								},
+								{
+									"Title": "Extension",
+									"Path": "features/tasks-extension.md"
+								},
+								{
+									"Title": "User Interaction",
+									"Path": "features/tasks-user-interaction.md"
+								}
+							]
+						},
+						{
+							"Title": "Reference",
+							"Children": [
+								{
+									"Title": "API Server",
+									"Path": "features/api.md"
+								},
+								{
+									"Title": "CLI Commands",
+									"Path": "features/cli.md"
+								},
+								{
+									"Title": "Configuration",
+									"Path": "features/configuration.md"
+								}
+							]
+						}
+					],
+					"DocFiles": [
+						".nojekyll",
+						"README.md",
+						"_cover.md",
+						"_sidebar.md",
+						"_topbar.md",
+						"architecture.md",
+						"css/docuserve.css",
+						"features/api.md",
+						"features/beacon-authentication.md",
+						"features/beacon-providers.md",
+						"features/beacons.md",
+						"features/capabilities.md",
+						"features/cli.md",
+						"features/configuration.md",
+						"features/llm-model-setup.md",
+						"features/llm.md",
+						"features/manifests.md",
+						"features/operations.md",
+						"features/scheduling.md",
+						"features/tasks-content-system.md",
+						"features/tasks-data-transform.md",
+						"features/tasks-extension.md",
+						"features/tasks-file-system.md",
+						"features/tasks-flow-control.md",
+						"features/tasks-http-client.md",
+						"features/tasks-llm.md",
+						"features/tasks-meadow-api.md",
+						"features/tasks-user-interaction.md",
+						"features/tasks.md",
+						"index.html",
+						"overview.md",
+						"quickstart.md",
+						"retold-catalog.json",
+						"retold-keyword-index.json"
+					]
+				},
+				{
+					"Name": "docs",
+					"Repo": "docs",
+					"Group": "webinterface",
+					"Branch": "master",
+					"HasDocs": true,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": [
+						"card-help/beacon-dispatch.md",
+						"card-help/command.md",
+						"card-help/comprehension-intersect.md",
+						"card-help/content-create-folder.md",
+						"card-help/content-list-files.md",
+						"card-help/content-read-file.md",
+						"card-help/content-save-file.md",
+						"card-help/copy-file.md",
+						"card-help/csv-transform.md",
+						"card-help/end.md",
+						"card-help/error-message.md",
+						"card-help/expression-solver.md",
+						"card-help/get-json.md",
+						"card-help/get-text.md",
+						"card-help/histogram.md",
+						"card-help/if-conditional.md",
+						"card-help/launch-operation.md",
+						"card-help/list-files.md",
+						"card-help/llm-chat-completion.md",
+						"card-help/llm-embedding.md",
+						"card-help/llm-tool-use.md",
+						"card-help/meadow-count.md",
+						"card-help/meadow-create.md",
+						"card-help/meadow-delete.md",
+						"card-help/meadow-read.md",
+						"card-help/meadow-reads.md",
+						"card-help/meadow-update.md",
+						"card-help/parse-csv.md",
+						"card-help/read-file-buffered.md",
+						"card-help/read-file.md",
+						"card-help/read-json.md",
+						"card-help/replace-string.md",
+						"card-help/rest-request.md",
+						"card-help/send-json.md",
+						"card-help/set-values.md",
+						"card-help/split-execute.md",
+						"card-help/start.md",
+						"card-help/string-appender.md",
+						"card-help/template-string.md",
+						"card-help/value-input.md",
+						"card-help/write-file.md",
+						"card-help/write-json.md"
+					]
+				},
+				{
+					"Name": "html",
+					"Repo": "html",
+					"Group": "webinterface",
+					"Branch": "master",
+					"HasDocs": false,
+					"HasCover": false,
+					"Sidebar": [],
+					"DocFiles": []
+				},
+				{
+					"Name": "source",
+					"Repo": "source",
+					"Group": "webinterface",
 					"Branch": "master",
 					"HasDocs": false,
 					"HasCover": false,

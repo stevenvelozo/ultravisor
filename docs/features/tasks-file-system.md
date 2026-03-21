@@ -201,3 +201,106 @@ Lists files in a directory with optional glob pattern filtering.
 ### Tips
 
 Use with **Split Execute** to iterate over the file list and process each file individually. Combine Recursive mode with a specific Pattern to find files deep in a directory tree.
+
+---
+
+## File Transfer
+
+Downloads a file from a URL to the local staging directory.
+
+### Settings
+
+- **SourceURL** — URL to download the file from (required). Supports Pict template expressions.
+- **Filename** — Name for the downloaded file in the staging directory (required).
+
+### Outputs
+
+- **LocalPath** — The fully resolved path to the downloaded file.
+- **BytesTransferred** — Number of bytes downloaded.
+- **DurationMs** — Time taken for the download in milliseconds.
+
+### Events
+
+- **Complete** — Fires after a successful download.
+- **Error** — Fires if the download fails or the URL is unreachable.
+
+### Tips
+
+Use in combination with **Send Result** to download a remote file and then mark it as the operation's binary output. SourceURL supports template expressions, making it easy to construct download URLs from upstream task outputs.
+
+---
+
+## Send Result
+
+Marks a staging file as the operation's binary output. The file is uploaded to the server via the work item upload endpoint.
+
+### Settings
+
+- **FilePath** — Path to the file in the staging directory (required).
+- **OutputKey** — Optional key to identify the output when an operation produces multiple result files.
+
+### Outputs
+
+- **StagingFilePath** — The resolved path of the file that was sent.
+- **BytesSent** — Number of bytes uploaded.
+- **DurationMs** — Time taken for the upload in milliseconds.
+
+### Events
+
+- **Complete** — Fires after the file is successfully uploaded.
+- **Error** — Fires if the file cannot be read or the upload fails.
+
+### Tips
+
+Pair with **File Transfer** or **Write File** to produce a file and then ship it back to the orchestrator. Use OutputKey when a pipeline produces multiple result files that need to be distinguished downstream.
+
+---
+
+## Base64 Encode
+
+Encodes a staging file to a base64 string.
+
+### Settings
+
+- **FilePath** — Path to the file to encode (required).
+- **Destination** — State address to store the encoded string. If empty, uses the default output address.
+
+### Outputs
+
+- **EncodedData** — The base64-encoded string.
+- **EncodedLength** — Length of the encoded string in characters.
+- **OriginalBytes** — Size of the original file in bytes.
+
+### Events
+
+- **Complete** — Fires after successful encoding.
+- **Error** — Fires if the file cannot be read.
+
+### Tips
+
+Useful for embedding binary content (images, small binaries) into JSON payloads or operation state. For large files, prefer **File Transfer** and **Send Result** instead of base64 to avoid excessive memory usage.
+
+---
+
+## Base64 Decode
+
+Decodes a base64 string and writes the result to a file in the staging directory.
+
+### Settings
+
+- **Source** — The base64-encoded string to decode (required). Supports Pict template expressions to pull from operation state.
+- **FilePath** — Path for the output file in the staging directory (required).
+
+### Outputs
+
+- **LocalPath** — The fully resolved path to the decoded file.
+- **DecodedBytes** — Number of bytes written to the file.
+
+### Events
+
+- **Complete** — Fires after successful decoding and write.
+- **Error** — Fires if the input is not valid base64 or the file cannot be written.
+
+### Tips
+
+Pair with **Base64 Encode** to round-trip binary data through operation state. Use Source with a template expression to pull encoded data from an upstream task's output.
