@@ -20,7 +20,6 @@ module.exports = (
 		{
 			ReadFile: require('./services/tasks/file-system/Ultravisor-TaskType-ReadFile.cjs'),
 			WriteFile: require('./services/tasks/file-system/Ultravisor-TaskType-WriteFile.cjs'),
-			SetValues: require('./services/tasks/data-transform/Ultravisor-TaskType-SetValues.cjs'),
 			ReplaceString: require('./services/tasks/data-transform/Ultravisor-TaskType-ReplaceString.cjs'),
 			StringAppender: require('./services/tasks/data-transform/Ultravisor-TaskType-StringAppender.cjs'),
 			IfConditional: require('./services/tasks/flow-control/Ultravisor-TaskType-IfConditional.cjs'),
