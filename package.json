@@ -33,7 +33,7 @@
         "pict": "^1.0.359",
         "pict-service-commandlineutility": "^1.0.19",
         "pict-serviceproviderbase": "^1.0.4",
-        "ultravisor-beacon": "^0.0.6",
+        "ultravisor-beacon": "^0.0.7",
         "ws": "^8.20.0"
     },
     "devDependencies": {
