@@ -1,6 +1,6 @@
 {
     "name": "ultravisor",
-    "version": "1.0.13",
+    "version": "1.0.14",
     "description": "Cyclic process execution with ai integration.",
     "main": "source/Ultravisor.cjs",
     "bin": {
@@ -11,6 +11,7 @@
         "test": "npx quack test",
         "tests": "npx mocha -u tdd --exit -R spec --grep",
         "coverage": "npx quack coverage",
+        "postinstall": "cd webinterface && npm install && npm run build && cd ..",
         "build": "npx quack build && cd webinterface && npm install && npm run build && cd ..",
         "docs": "npx quack prepare-docs ./docs -d ./modules",
         "docs-serve": "npx quack docs-serve ./docs"

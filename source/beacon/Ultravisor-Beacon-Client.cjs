@@ -433,10 +433,32 @@ class UltravisorBeaconClient
 			if (tmpOutputs.ExitCode && tmpOutputs.ExitCode !== 0)
 			{
 				console.warn(`[Beacon] Work item [${pWorkItem.WorkItemHash}] completed with exit code ${tmpOutputs.ExitCode}`);
+				this._reportComplete(pWorkItem.WorkItemHash, tmpOutputs, pResult.Log || []);
+				return;
 			}
-			else
+
+			console.log(`[Beacon] Work item [${pWorkItem.WorkItemHash}] completed successfully.`);
+
+			// If the result contains a file, upload it to the coordinator before reporting completion
+			if (tmpOutputs.Result && tmpOutputs.OutputSize > 0)
 			{
-				console.log(`[Beacon] Work item [${pWorkItem.WorkItemHash}] completed successfully.`);
+				let tmpResultPath = tmpOutputs.Result;
+				let tmpOutputFile = pWorkItem.Settings && pWorkItem.Settings.OutputFile;
+				let tmpFilename = tmpOutputFile || require('path').basename(tmpResultPath);
+
+				this._uploadResultFile(pWorkItem.WorkItemHash, tmpResultPath, tmpFilename, (pUploadError) =>
+				{
+					if (pUploadError)
+					{
+						console.warn(`[Beacon] File upload failed for [${pWorkItem.WorkItemHash}]: ${pUploadError.message} — reporting completion without file`);
+					}
+					else
+					{
+						console.log(`[Beacon] Uploaded result file [${tmpFilename}] for [${pWorkItem.WorkItemHash}]`);
+					}
+					this._reportComplete(pWorkItem.WorkItemHash, tmpOutputs, pResult.Log || []);
+				});
+				return;
 			}
 
 			this._reportComplete(pWorkItem.WorkItemHash, tmpOutputs, pResult.Log || []);
@@ -446,6 +468,58 @@ class UltravisorBeaconClient
 	// ================================================================
 	// Reporting
 	// ================================================================
+
+	_uploadResultFile(pWorkItemHash, pFilePath, pFilename, fCallback)
+	{
+		let tmpFS = require('fs');
+
+		if (!tmpFS.existsSync(pFilePath))
+		{
+			return fCallback(new Error(`File not found: ${pFilePath}`));
+		}
+
+		let tmpFileBuffer = tmpFS.readFileSync(pFilePath);
+		let tmpParsedURL = new URL(this._Config.ServerURL);
+
+		let tmpOptions = {
+			hostname: tmpParsedURL.hostname,
+			port: tmpParsedURL.port || 80,
+			path: `/Beacon/Work/${pWorkItemHash}/Upload`,
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/octet-stream',
+				'Content-Length': tmpFileBuffer.length,
+				'X-Output-Filename': pFilename
+			}
+		};
+
+		if (this._SessionCookie)
+		{
+			tmpOptions.headers['Cookie'] = this._SessionCookie;
+		}
+
+		let tmpReq = libHTTP.request(tmpOptions, (pResponse) =>
+		{
+			let tmpData = '';
+			pResponse.on('data', (pChunk) => { tmpData += pChunk; });
+			pResponse.on('end', () =>
+			{
+				if (pResponse.statusCode >= 400)
+				{
+					return fCallback(new Error(`Upload failed: HTTP ${pResponse.statusCode}`));
+				}
+				return fCallback(null);
+			});
+		});
+
+		tmpReq.on('error', (pError) =>
+		{
+			return fCallback(pError);
+		});
+
+		tmpReq.write(tmpFileBuffer);
+		tmpReq.end();
+	}
 
 	_reportComplete(pWorkItemHash, pOutputs, pLog)
 	{
