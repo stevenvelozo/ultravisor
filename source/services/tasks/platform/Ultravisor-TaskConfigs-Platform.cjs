@@ -135,14 +135,20 @@ module.exports =
 			if (tmpOutputs.URL && !tmpOutputs.URL.startsWith('http'))
 			{
 				let tmpBeaconDef = tmpCoordinator.getBeacon(tmpResolved.BeaconID);
+				pTask.log.info(`Resolve Address: URL is relative, looking up BindAddresses for beacon ${tmpResolved.BeaconID}. getBeacon returned: ${tmpBeaconDef ? 'found' : 'null'}, BindAddresses: ${JSON.stringify(tmpBeaconDef && tmpBeaconDef.BindAddresses)}`);
 				let tmpBindAddresses = tmpBeaconDef && tmpBeaconDef.BindAddresses ? tmpBeaconDef.BindAddresses : [];
 				// Prefer non-loopback addresses
 				let tmpBind = tmpBindAddresses.find(function (pB) { return pB.IP !== '127.0.0.1' && pB.IP !== '::1'; }) || tmpBindAddresses[0];
 				if (tmpBind)
 				{
 					let tmpBaseURL = (tmpBind.Protocol || 'http') + '://' + tmpBind.IP + ':' + tmpBind.Port;
+					pTask.log.info(`Resolve Address: using bind address ${tmpBaseURL}`);
 					tmpOutputs.DirectURL = _buildDirectURL(tmpBaseURL);
 					tmpOutputs.URL = tmpOutputs.DirectURL;
+				}
+				else
+				{
+					pTask.log.warn(`Resolve Address: no BindAddresses available for beacon ${tmpResolved.BeaconID} — URL will remain relative`);
 				}
 			}
 
