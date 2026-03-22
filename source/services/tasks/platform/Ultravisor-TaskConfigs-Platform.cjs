@@ -77,6 +77,34 @@ module.exports =
 				ProxyURL: ''
 			};
 
+			// Helper: build a full URL from a beacon's bind address + context path + resource path
+			let _buildDirectURL = function (pDirectBaseURL)
+			{
+				let tmpContextDef = tmpCoordinator.getBeacon(tmpResolved.BeaconID);
+				let tmpCtx = tmpContextDef && tmpContextDef.Contexts ? tmpContextDef.Contexts[tmpResolved.Context] : null;
+				let tmpContextPath = tmpCtx && tmpCtx.BaseURL ? tmpCtx.BaseURL : '/';
+				if (!tmpContextPath.endsWith('/'))
+				{
+					tmpContextPath = tmpContextPath + '/';
+				}
+				// Strip protocol+host from BaseURL if it's absolute, keep just the path
+				try
+				{
+					let tmpParsed = new URL(tmpContextPath);
+					tmpContextPath = tmpParsed.pathname;
+					if (!tmpContextPath.endsWith('/'))
+					{
+						tmpContextPath = tmpContextPath + '/';
+					}
+				}
+				catch (pParseError)
+				{
+					// Already a relative path — use as-is
+				}
+				let tmpEncodedPath = tmpResolved.Path.split('/').map(encodeURIComponent).join('/');
+				return pDirectBaseURL.replace(/\/$/, '') + tmpContextPath + tmpEncodedPath;
+			};
+
 			// Resolve transfer strategy when a requesting beacon is specified
 			let tmpRequestingBeaconID = pResolvedSettings.RequestingBeaconID;
 			if (tmpRequestingBeaconID)
@@ -89,30 +117,7 @@ module.exports =
 
 					if (tmpStrategyResult.Strategy === 'direct' && tmpStrategyResult.DirectURL)
 					{
-						// Build full direct URL using bind address + context path
-						let tmpContextDef = tmpCoordinator.getBeacon(tmpResolved.BeaconID);
-						let tmpCtx = tmpContextDef && tmpContextDef.Contexts ? tmpContextDef.Contexts[tmpResolved.Context] : null;
-						let tmpContextPath = tmpCtx && tmpCtx.BaseURL ? tmpCtx.BaseURL : '/';
-						if (!tmpContextPath.endsWith('/'))
-						{
-							tmpContextPath = tmpContextPath + '/';
-						}
-						// Strip protocol+host from BaseURL if it's absolute, keep just the path
-						try
-						{
-							let tmpParsed = new URL(tmpContextPath);
-							tmpContextPath = tmpParsed.pathname;
-							if (!tmpContextPath.endsWith('/'))
-							{
-								tmpContextPath = tmpContextPath + '/';
-							}
-						}
-						catch (pParseError)
-						{
-							// Already a relative path — use as-is
-						}
-						let tmpEncodedPath = tmpResolved.Path.split('/').map(encodeURIComponent).join('/');
-						tmpOutputs.DirectURL = tmpStrategyResult.DirectURL.replace(/\/$/, '') + tmpContextPath + tmpEncodedPath;
+						tmpOutputs.DirectURL = _buildDirectURL(tmpStrategyResult.DirectURL);
 						tmpOutputs.URL = tmpOutputs.DirectURL;
 					}
 					else if (tmpStrategyResult.Strategy === 'proxy')
@@ -122,6 +127,22 @@ module.exports =
 						tmpOutputs.URL = tmpResolved.URL;
 					}
 					// 'local' strategy: URL stays as the context BaseURL (same host)
+				}
+			}
+
+			// If the URL is still relative (no protocol), use the beacon's first
+			// bind address to make it absolute so file-transfer can fetch it.
+			if (tmpOutputs.URL && !tmpOutputs.URL.startsWith('http'))
+			{
+				let tmpBeaconDef = tmpCoordinator.getBeacon(tmpResolved.BeaconID);
+				let tmpBindAddresses = tmpBeaconDef && tmpBeaconDef.BindAddresses ? tmpBeaconDef.BindAddresses : [];
+				// Prefer non-loopback addresses
+				let tmpBind = tmpBindAddresses.find(function (pB) { return pB.IP !== '127.0.0.1' && pB.IP !== '::1'; }) || tmpBindAddresses[0];
+				if (tmpBind)
+				{
+					let tmpBaseURL = (tmpBind.Protocol || 'http') + '://' + tmpBind.IP + ':' + tmpBind.Port;
+					tmpOutputs.DirectURL = _buildDirectURL(tmpBaseURL);
+					tmpOutputs.URL = tmpOutputs.DirectURL;
 				}
 			}
 
