@@ -40,6 +40,9 @@ class UltravisorBeaconClient
 		this._ActiveWorkItems = 0;
 		this._SessionCookie = null;
 		this._Authenticating = false;
+		this._ReconnectPending = false;
+		this._ReconnectAttempts = 0;
+		this._MaxReconnectDelayMs = 300000; // Cap at 5 minutes
 
 		this._Executor = new libBeaconExecutor({
 			StagingPath: this._Config.StagingPath
