@@ -215,7 +215,9 @@ module.exports =
 				// Already exists — fine
 			}
 
-			pTask.log.info(`File Transfer: downloading ${tmpSourceURL} → ${tmpFilename}`);
+			let tmpTimeoutMs = parseInt(pResolvedSettings.TimeoutMs, 10) || 300000;
+
+			pTask.log.info(`File Transfer: downloading ${tmpSourceURL} → ${tmpFilename} (timeout ${Math.round(tmpTimeoutMs / 1000)}s)`);
 
 			// Validate URL before attempting request
 			if (!tmpSourceURL.startsWith('http://') && !tmpSourceURL.startsWith('https://'))
@@ -269,10 +271,10 @@ module.exports =
 				});
 			});
 
-			// Set a 5-minute timeout on the request
-			tmpRequest.setTimeout(300000, function ()
+			// Set timeout on the request (configurable via TimeoutMs setting, default 5 min)
+			tmpRequest.setTimeout(tmpTimeoutMs, function ()
 			{
-				tmpRequest.destroy(new Error('File Transfer: download timed out after 5 minutes'));
+				tmpRequest.destroy(new Error(`File Transfer: download timed out after ${Math.round(tmpTimeoutMs / 1000)} seconds`));
 			});
 		}
 	},
