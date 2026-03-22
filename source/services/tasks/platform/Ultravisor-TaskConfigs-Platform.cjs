@@ -211,6 +211,16 @@ module.exports =
 
 			pTask.log.info(`File Transfer: downloading ${tmpSourceURL} → ${tmpFilename}`);
 
+			// Validate URL before attempting request
+			if (!tmpSourceURL.startsWith('http://') && !tmpSourceURL.startsWith('https://'))
+			{
+				return fCallback(null, {
+					EventToFire: 'Error',
+					Outputs: { LocalPath: '', BytesTransferred: 0, DurationMs: 0 },
+					Log: [`File Transfer: invalid URL (no protocol): ${tmpSourceURL}`]
+				});
+			}
+
 			let tmpLib = tmpSourceURL.startsWith('https') ? libHTTPS : libHTTP;
 			let tmpRequest = tmpLib.get(tmpSourceURL, function (pResponse)
 			{
