@@ -37,10 +37,6 @@
 	},
 	"copyFiles": [
 		{
-			"from": "./ultravisor-webinterface*",
-			"to": "./dist/"
-		},
-		{
 			"from": "./html/*",
 			"to": "./dist/"
 		},

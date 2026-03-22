@@ -989,6 +989,23 @@ class UltravisorBeaconCoordinator extends libPictService
 		{
 			this._tryPushToWebSocketBeacon(tmpWorkItem);
 		}
+		else if (tmpWorkItem.Status === 'Assigned' && tmpWorkItem.AssignedBeaconID && this._WorkItemPushHandler)
+		{
+			// Affinity pre-assigned — push directly to the assigned beacon via WebSocket
+			tmpWorkItem.Status = 'Running';
+			let tmpPushed = this._WorkItemPushHandler(tmpWorkItem.AssignedBeaconID,
+				this._sanitizeWorkItemForBeacon(tmpWorkItem));
+
+			if (tmpPushed)
+			{
+				this.log.info(`BeaconCoordinator: pushed affinity-assigned work item [${tmpWorkItemHash}] to WebSocket beacon [${tmpWorkItem.AssignedBeaconID}].`);
+			}
+			else
+			{
+				// WebSocket push failed — revert to Assigned for HTTP poll pickup
+				tmpWorkItem.Status = 'Assigned';
+			}
+		}
 
 		return tmpWorkItem;
 	}
