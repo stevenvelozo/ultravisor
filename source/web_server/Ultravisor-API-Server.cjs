@@ -2062,7 +2062,8 @@ class UltravisorAPIServer extends libPictService
 			Operations: pData.Operations,
 			MaxConcurrent: pData.MaxConcurrent,
 			Tags: pData.Tags,
-			Contexts: pData.Contexts
+			Contexts: pData.Contexts,
+			BindAddresses: pData.BindAddresses
 		});
 
 		pWebSocket._BeaconID = tmpBeacon.BeaconID;
