@@ -1005,6 +1005,20 @@ class UltravisorExecutionEngine extends libPictService
 
 			if (typeof(tmpVal) === 'string' && tmpVal.indexOf('{~') >= 0)
 			{
+				// When the entire value is a single {~D:Record.X~} expression,
+				// resolve via StateManager to preserve non-scalar types
+				// (arrays, objects).  parseTemplate always returns strings.
+				let tmpDataMatch = tmpVal.match(/^\{~D:Record\.(.+?)~\}$/);
+				if (tmpDataMatch)
+				{
+					let tmpAddress = tmpDataMatch[1];
+					let tmpResolved = tmpStateManager.resolveAddress(tmpAddress, pContext);
+					if (tmpResolved !== undefined)
+					{
+						tmpSettings[tmpKey] = tmpResolved;
+						continue;
+					}
+				}
 				tmpSettings[tmpKey] = this._resolveTemplate(tmpVal, tmpTemplateContext);
 			}
 		}
