@@ -190,7 +190,7 @@ suite
 						Expect(tmpInstance.definition.Hash).to.equal('read-file');
 
 						let tmpDefs = tmpRegistry.listDefinitions();
-						Expect(tmpDefs.length).to.equal(53);
+						Expect(tmpDefs.length).to.equal(54);
 
 						// Verify all registered definitions have Capability, Action, and Tier
 						for (let i = 0; i < tmpDefs.length; i++)
@@ -1806,7 +1806,7 @@ suite
 						let tmpBuiltInConfigs = require('../source/services/tasks/Ultravisor-BuiltIn-TaskConfigs.cjs');
 						let tmpCount = tmpRegistry.registerTaskTypesFromConfigArray(tmpBuiltInConfigs);
 
-						Expect(tmpCount).to.equal(53);
+						Expect(tmpCount).to.equal(54);
 
 						// Spot-check a few
 						Expect(tmpRegistry.hasTaskType('error-message')).to.equal(true);
@@ -1991,7 +1991,7 @@ suite
 
 						// Configs already registered by createTestFable — verify all present
 						let tmpDefs = tmpRegistry.listDefinitions();
-						Expect(tmpDefs.length).to.equal(53);
+						Expect(tmpDefs.length).to.equal(54);
 					}
 				);
 			}

@@ -174,6 +174,24 @@ function _handleStepComplete(pContext, fCallback)
 }
 
 
+/**
+ * Flatten a parameter set object into string-valued output fields.
+ * { seed: 42, guidance: 5.0 } → { seed: "42", guidance: "5.0" }
+ * This allows direct state wiring: ParameterSweep.seed → Denoise.seed
+ */
+function _flattenParams(pObj)
+{
+	let tmpResult = {};
+	let tmpKeys = Object.keys(pObj || {});
+	for (let i = 0; i < tmpKeys.length; i++)
+	{
+		let tmpVal = pObj[tmpKeys[i]];
+		tmpResult[tmpKeys[i]] = (tmpVal === null || tmpVal === undefined) ? '' : String(tmpVal);
+	}
+	return tmpResult;
+}
+
+
 // ═══════════════════════════════════════════════════════════════════
 //  FLOW CONTROL TASK CONFIGS
 // ═══════════════════════════════════════════════════════════════════
@@ -241,6 +259,104 @@ module.exports =
 			}
 
 			return _handlePerformSplit(pResolvedSettings, pExecutionContext, fCallback);
+		}
+	},
+
+	// ── parameter-sweep ───────────────────────────────────────
+	{
+		Definition: require('./definitions/parameter-sweep.json'),
+		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
+		{
+			if (pExecutionContext.TriggeringEventName === 'StepComplete')
+			{
+				// Read stored iteration state from prior invocations
+				let tmpStoredState = pExecutionContext.TaskOutputs[pExecutionContext.NodeHash] || {};
+				let tmpSets = tmpStoredState._ParameterSets;
+
+				if (!Array.isArray(tmpSets))
+				{
+					return fCallback(null, {
+						EventToFire: 'Error',
+						Outputs: { CurrentParameters: '{}', CurrentIndex: 0, TotalCount: 0, CompletedCount: 0 },
+						Log: ['StepComplete fired but no stored parameter sets found. Was BeginSweep called?']
+					});
+				}
+
+				let tmpCurrentIndex = tmpStoredState.CurrentIndex || 0;
+				let tmpCompletedCount = (tmpStoredState.CompletedCount || 0) + 1;
+				let tmpNextIndex = tmpCurrentIndex + 1;
+				let tmpTotalCount = tmpSets.length;
+
+				if (tmpNextIndex >= tmpTotalCount)
+				{
+					let tmpLast = tmpSets[tmpTotalCount - 1] || {};
+					let tmpOutputs = Object.assign(
+						{ _ParameterSets: tmpSets, CurrentParameters: JSON.stringify(tmpLast), CurrentIndex: tmpTotalCount - 1, TotalCount: tmpTotalCount, CompletedCount: tmpCompletedCount },
+						_flattenParams(tmpLast));
+					return fCallback(null, {
+						EventToFire: 'SweepComplete',
+						Outputs: tmpOutputs,
+						Log: ['Parameter sweep complete. Processed ' + tmpCompletedCount + '/' + tmpTotalCount + ' set(s).']
+					});
+				}
+
+				let tmpNext = tmpSets[tmpNextIndex] || {};
+				let tmpOutputs = Object.assign(
+					{ _ParameterSets: tmpSets, CurrentParameters: JSON.stringify(tmpNext), CurrentIndex: tmpNextIndex, TotalCount: tmpTotalCount, CompletedCount: tmpCompletedCount },
+					_flattenParams(tmpNext));
+				return fCallback(null, {
+					EventToFire: 'ParameterSetReady',
+					Outputs: tmpOutputs,
+					Log: ['Emitting parameter set ' + (tmpNextIndex + 1) + '/' + tmpTotalCount + '.']
+				});
+			}
+
+			// BeginSweep — parse the array and emit the first set
+			let tmpRawSets = pResolvedSettings.ParameterSets;
+			let tmpSets;
+			if (typeof tmpRawSets === 'string')
+			{
+				try { tmpSets = JSON.parse(tmpRawSets); }
+				catch (pErr)
+				{
+					return fCallback(null, {
+						EventToFire: 'Error',
+						Outputs: { CurrentParameters: '{}', CurrentIndex: 0, TotalCount: 0, CompletedCount: 0 },
+						Log: ['ParameterSets is not valid JSON: ' + pErr.message]
+					});
+				}
+			}
+			else if (Array.isArray(tmpRawSets))
+			{
+				tmpSets = tmpRawSets;
+			}
+			else
+			{
+				return fCallback(null, {
+					EventToFire: 'Error',
+					Outputs: { CurrentParameters: '{}', CurrentIndex: 0, TotalCount: 0, CompletedCount: 0 },
+					Log: ['ParameterSets must be a JSON array.']
+				});
+			}
+
+			if (!Array.isArray(tmpSets) || tmpSets.length === 0)
+			{
+				return fCallback(null, {
+					EventToFire: 'SweepComplete',
+					Outputs: { CurrentParameters: '{}', CurrentIndex: 0, TotalCount: 0, CompletedCount: 0 },
+					Log: ['ParameterSets is empty. Nothing to sweep.']
+				});
+			}
+
+			let tmpFirst = tmpSets[0] || {};
+			let tmpOutputs = Object.assign(
+				{ _ParameterSets: tmpSets, CurrentParameters: JSON.stringify(tmpFirst), CurrentIndex: 0, TotalCount: tmpSets.length, CompletedCount: 0 },
+				_flattenParams(tmpFirst));
+			return fCallback(null, {
+				EventToFire: 'ParameterSetReady',
+				Outputs: tmpOutputs,
+				Log: ['Parameter sweep started: ' + tmpSets.length + ' set(s). Emitting set 1/' + tmpSets.length + '.']
+			});
 		}
 	},
 

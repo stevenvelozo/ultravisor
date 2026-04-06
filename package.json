@@ -1,6 +1,6 @@
 {
     "name": "ultravisor",
-    "version": "1.0.15",
+    "version": "1.0.16",
     "description": "Cyclic process execution with ai integration.",
     "main": "source/Ultravisor.cjs",
     "bin": {
@@ -30,8 +30,8 @@
         "cron": "^4.4.0",
         "orator": "^6.0.4",
         "orator-authentication": "^1.0.0",
-        "orator-serviceserver-restify": "^2.0.9",
-        "pict": "^1.0.359",
+        "orator-serviceserver-restify": "^2.0.10",
+        "pict": "^1.0.361",
         "pict-service-commandlineutility": "^1.0.19",
         "pict-serviceproviderbase": "^1.0.4",
         "ultravisor-beacon": "^0.0.8",

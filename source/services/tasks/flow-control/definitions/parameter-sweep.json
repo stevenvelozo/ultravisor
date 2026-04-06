@@ -1,0 +1,36 @@
+{
+	"Hash": "parameter-sweep",
+	"Type": "parameter-sweep",
+	"Name": "Parameter Sweep",
+	"Description": "Iterates over a JSON array of parameter sets, firing one execution per entry. Each entry's fields are exposed as state outputs for downstream cards. Use for batch experiments with different seeds, models, LoRAs, guidance scales, etc.",
+	"Category": "flow-control",
+	"Capability": "Flow Control",
+	"Action": "ParameterSweep",
+	"Tier": "Engine",
+
+	"EventInputs": [
+		{ "Name": "BeginSweep", "Description": "Start iterating through the parameter array" },
+		{ "Name": "StepComplete", "Description": "Signal that the current parameter set has been fully processed by downstream tasks" }
+	],
+
+	"EventOutputs": [
+		{ "Name": "ParameterSetReady", "Description": "Fired for each parameter set in the array. Downstream tasks receive the current parameters via state connections." },
+		{ "Name": "SweepComplete", "Description": "Fired after all parameter sets have been processed." },
+		{ "Name": "Error", "Description": "Fired if the parameter array is invalid or empty.", "IsError": true }
+	],
+
+	"SettingsInputs": [
+		{ "Name": "ParameterSets", "DataType": "String", "Required": true, "Default": "[{\"seed\": 42}, {\"seed\": 123}, {\"seed\": 456}]", "Description": "JSON array of objects. Each object is one set of parameters to sweep through. Example: [{\"seed\": 42, \"guidance\": 5.0}, {\"seed\": 123, \"guidance\": 7.0}]" }
+	],
+
+	"StateOutputs": [
+		{ "Name": "CurrentParameters", "DataType": "String", "Description": "JSON string of the current parameter set object (e.g., {\"seed\": 42, \"guidance\": 5.0})" },
+		{ "Name": "CurrentIndex", "DataType": "Number", "Description": "0-based index of the current parameter set" },
+		{ "Name": "TotalCount", "DataType": "Number", "Description": "Total number of parameter sets in the array" },
+		{ "Name": "CompletedCount", "DataType": "Number", "Description": "Number of parameter sets fully processed so far" }
+	],
+
+	"DefaultSettings": {
+		"ParameterSets": "[{\"seed\": 42}, {\"seed\": 123}, {\"seed\": 456}]"
+	}
+}
