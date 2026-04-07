@@ -2,7 +2,7 @@
 	"Hash": "resolve-address",
 	"Type": "resolve-address",
 	"Name": "Resolve Address",
-	"Description": "Resolve a universal address (>beacon/context/path) to a concrete URL and metadata, with optional transfer strategy resolution (local/direct/proxy) when a requesting beacon is specified.",
+	"Description": "Resolve a universal address (>beacon/context/path) to a concrete URL and metadata, with optional transfer strategy resolution (local/shared-fs/direct/proxy) when a requesting beacon is specified.",
 	"Category": "platform",
 	"Capability": "Address Resolution",
 	"Action": "Resolve",
@@ -24,9 +24,10 @@
 		{ "Name": "Context", "DataType": "String", "Description": "Context name (e.g. File, Cache)" },
 		{ "Name": "Path", "DataType": "String", "Description": "Path within the context" },
 		{ "Name": "Filename", "DataType": "String", "Description": "Filename portion of the path" },
-		{ "Name": "Strategy", "DataType": "String", "Description": "Transfer strategy: local, direct, or proxy" },
+		{ "Name": "Strategy", "DataType": "String", "Description": "Transfer strategy: local, shared-fs, direct, or proxy" },
 		{ "Name": "DirectURL", "DataType": "String", "Description": "Direct beacon-to-beacon URL (when strategy is direct)" },
-		{ "Name": "ProxyURL", "DataType": "String", "Description": "Proxy URL through Ultravisor (when strategy is proxy)" }
+		{ "Name": "ProxyURL", "DataType": "String", "Description": "Proxy URL through Ultravisor (when strategy is proxy)" },
+		{ "Name": "LocalPath", "DataType": "String", "Description": "Absolute path to the resource on the shared filesystem (when strategy is shared-fs); empty otherwise" }
 	],
 	"DefaultSettings": { "Address": "", "Destination": "", "RequestingBeaconID": "" }
 }

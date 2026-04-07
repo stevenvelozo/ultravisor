@@ -2,7 +2,7 @@
 	"Hash": "file-transfer",
 	"Type": "file-transfer",
 	"Name": "File Transfer",
-	"Description": "Download a file from a URL to the operation's staging directory. Streams the download — no base64 encoding. Logs bytes transferred and duration for visibility in the manifest.",
+	"Description": "Download a file from a URL to the operation's staging directory. Streams the download — no base64 encoding. When SourceLocalPath is provided (set by resolve-address with a shared-fs strategy), the task short-circuits and returns that path directly without copying anything. Logs bytes transferred and duration for visibility in the manifest.",
 	"Category": "platform",
 	"Capability": "Data Transfer",
 	"Action": "Download",
@@ -13,14 +13,17 @@
 		{ "Name": "Error", "IsError": true }
 	],
 	"SettingsInputs": [
-		{ "Name": "SourceURL", "DataType": "String", "Required": true, "Description": "URL to download from" },
-		{ "Name": "Filename", "DataType": "String", "Required": true, "Description": "Filename to save as in the staging directory" },
-		{ "Name": "AffinityKey", "DataType": "String", "Required": false, "Description": "Affinity key for caching (same key skips re-download)" }
+		{ "Name": "SourceURL", "DataType": "String", "Required": false, "Description": "URL to download from. Required unless SourceLocalPath is provided." },
+		{ "Name": "SourceLocalPath", "DataType": "String", "Required": false, "Description": "Absolute filesystem path to read directly. When set and the file exists, the HTTP download is skipped entirely and BytesTransferred reports 0. Used by the shared-fs reachability strategy." },
+		{ "Name": "Filename", "DataType": "String", "Required": false, "Description": "Filename to save as in the staging directory. Required unless SourceLocalPath is provided." },
+		{ "Name": "AffinityKey", "DataType": "String", "Required": false, "Description": "Affinity key for caching (same key skips re-download)" },
+		{ "Name": "TimeoutMs", "DataType": "Number", "Required": false, "Description": "HTTP download timeout in milliseconds (default 300000)" }
 	],
 	"StateOutputs": [
-		{ "Name": "LocalPath", "DataType": "String", "Description": "Absolute path to the downloaded file in staging" },
-		{ "Name": "BytesTransferred", "DataType": "Number", "Description": "Size of the downloaded file in bytes" },
-		{ "Name": "DurationMs", "DataType": "Number", "Description": "Download duration in milliseconds" }
+		{ "Name": "LocalPath", "DataType": "String", "Description": "Absolute path to the file (downloaded to staging, or pointing at the shared-fs source when no copy was needed)" },
+		{ "Name": "BytesTransferred", "DataType": "Number", "Description": "Size of the downloaded file in bytes (0 when shared-fs zero-copy was used)" },
+		{ "Name": "DurationMs", "DataType": "Number", "Description": "Download duration in milliseconds" },
+		{ "Name": "Strategy", "DataType": "String", "Description": "Which path was taken: 'shared-fs' (zero-copy) or 'http' (downloaded)" }
 	],
-	"DefaultSettings": { "SourceURL": "", "Filename": "", "AffinityKey": "" }
+	"DefaultSettings": { "SourceURL": "", "SourceLocalPath": "", "Filename": "", "AffinityKey": "", "TimeoutMs": 300000 }
 }

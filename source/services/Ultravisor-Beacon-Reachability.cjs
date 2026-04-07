@@ -362,9 +362,17 @@ class UltravisorBeaconReachability extends libPictService
 	 * Determine the transfer strategy between a source beacon (file
 	 * owner) and a requesting beacon (the one that needs the file).
 	 *
+	 * Strategy ordering (most efficient first):
+	 *   local      — same beacon, no transport at all
+	 *   shared-fs  — different beacons but on the same host with overlapping
+	 *                filesystem mounts, so the requesting beacon can read the
+	 *                source's file path directly with no copy
+	 *   direct     — HTTP fetch from the source beacon's bind address
+	 *   proxy      — HTTP fetch via the coordinator
+	 *
 	 * @param {string} pSourceBeaconID - Beacon that owns the resource
 	 * @param {string} pRequestingBeaconID - Beacon that wants the resource
-	 * @returns {object} { Strategy, DirectURL }
+	 * @returns {object} { Strategy, DirectURL, SharedMountRoot? }
 	 */
 	resolveStrategy(pSourceBeaconID, pRequestingBeaconID)
 	{
@@ -386,6 +394,28 @@ class UltravisorBeaconReachability extends libPictService
 			return { Strategy: 'proxy', DirectURL: '' };
 		}
 
+		// Shared-fs detection — check whether both beacons live on the same host
+		// AND advertise at least one shared filesystem mount in common. When they
+		// do, the requesting beacon can read the source file directly from the
+		// shared mount without an HTTP transfer.
+		let tmpRequestingBeacon = tmpCoordinator.getBeacon(pRequestingBeaconID);
+		if (tmpRequestingBeacon
+			&& tmpSourceBeacon.HostID
+			&& tmpRequestingBeacon.HostID
+			&& tmpSourceBeacon.HostID === tmpRequestingBeacon.HostID)
+		{
+			let tmpSharedMount = this._findSharedMount(
+				tmpSourceBeacon.SharedMounts, tmpRequestingBeacon.SharedMounts);
+			if (tmpSharedMount)
+			{
+				return {
+					Strategy: 'shared-fs',
+					DirectURL: '',
+					SharedMountRoot: tmpSharedMount.Root
+				};
+			}
+		}
+
 		// Check matrix
 		let tmpEntry = this.getReachability(pRequestingBeaconID, pSourceBeaconID);
 
@@ -397,6 +427,52 @@ class UltravisorBeaconReachability extends libPictService
 
 		// unreachable or untested — fall back to proxy
 		return { Strategy: 'proxy', DirectURL: '' };
+	}
+
+	/**
+	 * Find the first MountID that appears in both beacons' SharedMounts arrays.
+	 *
+	 * The MountID is derived from `stat.dev` + the resolved root path on the
+	 * beacon side, so two beacons that bind-mount the same host directory get
+	 * the same ID, while two unrelated /media directories on different machines
+	 * (or in different containers without shared mounts) get different IDs.
+	 *
+	 * @param {Array} pSourceMounts - SharedMounts reported by the source beacon
+	 * @param {Array} pRequestingMounts - SharedMounts reported by the requester
+	 * @returns {object|null} The matching mount entry from the source beacon,
+	 *                        or null if no overlap exists
+	 */
+	_findSharedMount(pSourceMounts, pRequestingMounts)
+	{
+		if (!Array.isArray(pSourceMounts) || pSourceMounts.length === 0)
+		{
+			return null;
+		}
+		if (!Array.isArray(pRequestingMounts) || pRequestingMounts.length === 0)
+		{
+			return null;
+		}
+		for (let i = 0; i < pSourceMounts.length; i++)
+		{
+			let tmpSrc = pSourceMounts[i];
+			if (!tmpSrc || !tmpSrc.MountID)
+			{
+				continue;
+			}
+			for (let j = 0; j < pRequestingMounts.length; j++)
+			{
+				let tmpReq = pRequestingMounts[j];
+				if (!tmpReq || !tmpReq.MountID)
+				{
+					continue;
+				}
+				if (tmpSrc.MountID === tmpReq.MountID)
+				{
+					return tmpSrc;
+				}
+			}
+		}
+		return null;
 	}
 }
 

@@ -60,7 +60,7 @@ module.exports =
 			{
 				return fCallback(null, {
 					EventToFire: 'Error',
-					Outputs: { URL: '', BeaconID: '', BeaconName: '', Context: '', Path: '', Filename: '' },
+					Outputs: { URL: '', BeaconID: '', BeaconName: '', Context: '', Path: '', Filename: '', LocalPath: '' },
 					Log: [`Resolve Address: could not resolve "${tmpAddress}". Beacon may be offline or context not registered.`]
 				});
 			}
@@ -74,7 +74,8 @@ module.exports =
 				Filename: tmpResolved.Filename,
 				Strategy: 'direct',
 				DirectURL: '',
-				ProxyURL: ''
+				ProxyURL: '',
+				LocalPath: ''
 			};
 
 			// Helper: build a full URL from a beacon's bind address + context path + resource path
@@ -115,7 +116,33 @@ module.exports =
 					let tmpStrategyResult = tmpReachability.resolveStrategy(tmpResolved.BeaconID, tmpRequestingBeaconID);
 					tmpOutputs.Strategy = tmpStrategyResult.Strategy;
 
-					if (tmpStrategyResult.Strategy === 'direct' && tmpStrategyResult.DirectURL)
+					if (tmpStrategyResult.Strategy === 'shared-fs')
+					{
+						// Both beacons see the same filesystem mount.  Look up the
+						// source beacon's context BasePath and join it with the inner
+						// resource path to get an absolute path that's also valid on
+						// the requesting beacon (because they share the mount).
+						let tmpSourceBeacon = tmpCoordinator.getBeacon(tmpResolved.BeaconID);
+						let tmpCtx = tmpSourceBeacon && tmpSourceBeacon.Contexts
+							? tmpSourceBeacon.Contexts[tmpResolved.Context]
+							: null;
+						if (tmpCtx && tmpCtx.BasePath)
+						{
+							let tmpAbsPath = libPath.join(tmpCtx.BasePath, tmpResolved.Path);
+							tmpOutputs.LocalPath = tmpAbsPath;
+							// URL is intentionally left as the original (relative) URL
+							// — file-transfer will see LocalPath and short-circuit, so
+							// the URL is never actually fetched.
+						}
+						else
+						{
+							// No BasePath available — fall back to direct so the
+							// transfer still works via HTTP.
+							pTask.log.warn(`Resolve Address: shared-fs strategy chosen but no BasePath available for context [${tmpResolved.Context}] on beacon [${tmpResolved.BeaconID}], falling back to direct.`);
+							tmpOutputs.Strategy = 'direct';
+						}
+					}
+					else if (tmpStrategyResult.Strategy === 'direct' && tmpStrategyResult.DirectURL)
 					{
 						tmpOutputs.DirectURL = _buildDirectURL(tmpStrategyResult.DirectURL);
 						tmpOutputs.URL = tmpOutputs.DirectURL;
@@ -158,19 +185,26 @@ module.exports =
 				tmpStateWrites[pResolvedSettings.Destination] = tmpOutputs;
 			}
 
-			pTask.log.info(`Resolve Address: ${tmpAddress} → ${tmpOutputs.URL} [${tmpOutputs.Strategy}] (beacon: ${tmpResolved.BeaconName})`);
+			let tmpResolvedDest = tmpOutputs.LocalPath || tmpOutputs.URL;
+			pTask.log.info(`Resolve Address: ${tmpAddress} → ${tmpResolvedDest} [${tmpOutputs.Strategy}] (beacon: ${tmpResolved.BeaconName})`);
+
+			let tmpLogLines = [
+				`Resolved: ${tmpAddress}`,
+				`URL: ${tmpOutputs.URL}`,
+				`Strategy: ${tmpOutputs.Strategy}`,
+				`Beacon: ${tmpResolved.BeaconName} (${tmpResolved.BeaconID})`,
+				`Context: ${tmpResolved.Context}, Path: ${tmpResolved.Path}`
+			];
+			if (tmpOutputs.LocalPath)
+			{
+				tmpLogLines.push(`LocalPath: ${tmpOutputs.LocalPath} (shared filesystem — no transfer needed)`);
+			}
 
 			return fCallback(null, {
 				EventToFire: 'Complete',
 				Outputs: tmpOutputs,
 				StateWrites: tmpStateWrites,
-				Log: [
-					`Resolved: ${tmpAddress}`,
-					`URL: ${tmpOutputs.URL}`,
-					`Strategy: ${tmpOutputs.Strategy}`,
-					`Beacon: ${tmpResolved.BeaconName} (${tmpResolved.BeaconID})`,
-					`Context: ${tmpResolved.Context}, Path: ${tmpResolved.Path}`
-				]
+				Log: tmpLogLines
 			});
 		}
 	},
@@ -182,13 +216,56 @@ module.exports =
 		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
 		{
 			let tmpSourceURL = pResolvedSettings.SourceURL;
+			let tmpSourceLocalPath = pResolvedSettings.SourceLocalPath;
 			let tmpFilename = pResolvedSettings.Filename;
+
+			// Shared-filesystem fast path: if the source beacon and the requesting
+			// beacon both report the same MountID, resolve-address will populate
+			// SourceLocalPath with the absolute on-disk path.  Both beacons see the
+			// same file at the same path because they share the mount, so we hand
+			// it back as the LocalPath without copying anything.  This is the
+			// difference between "instant" and "374 MB download to staging" on a
+			// stack-mode deployment where retold-remote and orator-conversion live
+			// in the same container.
+			if (tmpSourceLocalPath)
+			{
+				if (libFS.existsSync(tmpSourceLocalPath))
+				{
+					let tmpStat;
+					try
+					{
+						tmpStat = libFS.statSync(tmpSourceLocalPath);
+					}
+					catch (pStatError)
+					{
+						tmpStat = null;
+					}
+					pTask.log.info(`File Transfer: shared-fs hit, using ${tmpSourceLocalPath} directly (${tmpStat ? tmpStat.size : '?'} bytes, no copy).`);
+					return fCallback(null, {
+						EventToFire: 'Complete',
+						Outputs: {
+							LocalPath: tmpSourceLocalPath,
+							BytesTransferred: 0,
+							DurationMs: 0,
+							Strategy: 'shared-fs'
+						},
+						Log: [
+							`Shared filesystem detected — no transfer needed.`,
+							`Source path: ${tmpSourceLocalPath}`,
+							`Bytes transferred: 0 (zero-copy)`
+						]
+					});
+				}
+				// Path was provided but doesn't exist on this beacon — log and fall
+				// through to the HTTP path so we still satisfy the request.
+				pTask.log.warn(`File Transfer: SourceLocalPath [${tmpSourceLocalPath}] does not exist on this beacon, falling back to HTTP transfer.`);
+			}
 
 			if (!tmpSourceURL)
 			{
 				return fCallback(null, {
 					EventToFire: 'Error',
-					Outputs: { LocalPath: '', BytesTransferred: 0, DurationMs: 0 },
+					Outputs: { LocalPath: '', BytesTransferred: 0, DurationMs: 0, Strategy: '' },
 					Log: ['File Transfer: no SourceURL provided.']
 				});
 			}
@@ -197,7 +274,7 @@ module.exports =
 			{
 				return fCallback(null, {
 					EventToFire: 'Error',
-					Outputs: { LocalPath: '', BytesTransferred: 0, DurationMs: 0 },
+					Outputs: { LocalPath: '', BytesTransferred: 0, DurationMs: 0, Strategy: '' },
 					Log: ['File Transfer: no Filename provided.']
 				});
 			}
@@ -467,7 +544,7 @@ function _pipeToFile(pResponse, pOutputPath, pStartTime, pFilename, pTask, fCall
 
 		return fCallback(null, {
 			EventToFire: 'Complete',
-			Outputs: { LocalPath: pOutputPath, BytesTransferred: tmpBytes, DurationMs: tmpDuration },
+			Outputs: { LocalPath: pOutputPath, BytesTransferred: tmpBytes, DurationMs: tmpDuration, Strategy: 'http' },
 			Log: [
 				`Downloaded: ${pFilename}`,
 				`Size: ${tmpBytes} bytes`,

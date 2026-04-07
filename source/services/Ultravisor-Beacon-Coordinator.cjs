@@ -231,6 +231,16 @@ class UltravisorBeaconCoordinator extends libPictService
 			{
 				tmpExistingBeacon.BindAddresses = pBeaconInfo.BindAddresses;
 			}
+			// Refresh shared-fs identity on reconnect — host id can change between
+			// container restarts and a reconnecting beacon may have new mounts.
+			if (typeof pBeaconInfo.HostID === 'string' && pBeaconInfo.HostID.length > 0)
+			{
+				tmpExistingBeacon.HostID = pBeaconInfo.HostID;
+			}
+			if (Array.isArray(pBeaconInfo.SharedMounts))
+			{
+				tmpExistingBeacon.SharedMounts = pBeaconInfo.SharedMounts;
+			}
 
 			this.log.info(`BeaconCoordinator: reconnected beacon [${tmpExistingBeacon.BeaconID}] "${tmpName}" with session [${tmpExistingBeacon.SessionID}].`);
 
@@ -272,6 +282,11 @@ class UltravisorBeaconCoordinator extends libPictService
 			Tags: pBeaconInfo.Tags || {},
 			Contexts: pBeaconInfo.Contexts || {},
 			BindAddresses: Array.isArray(pBeaconInfo.BindAddresses) ? pBeaconInfo.BindAddresses : [],
+			// Shared-fs identity. Both fields are optional for backwards compatibility:
+			// older beacons that don't send them just get null/[] and the shared-fs
+			// strategy is silently skipped for them.
+			HostID: (typeof pBeaconInfo.HostID === 'string' && pBeaconInfo.HostID.length > 0) ? pBeaconInfo.HostID : null,
+			SharedMounts: Array.isArray(pBeaconInfo.SharedMounts) ? pBeaconInfo.SharedMounts : [],
 			RegisteredAt: new Date().toISOString()
 		};
 
