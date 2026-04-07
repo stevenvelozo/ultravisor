@@ -94,7 +94,26 @@ module.exports =
 			let tmpPromptMessage = pResolvedSettings.PromptMessage || 'Please provide a value:';
 			let tmpOutputAddress = pResolvedSettings.OutputAddress || '';
 
-			// Options: accept array (accumulator pattern) or JSON string (legacy)
+			// Auto-resolve: if the output address already has a value in state
+			// (e.g., pre-seeded via /Operation/:Hash/Trigger with Parameters),
+			// skip the pause and fire immediately. This lets operations work both
+			// interactively (flow editor — pauses for input) and programmatically
+			// (API trigger / retold-labs experiment runner — runs straight through).
+			if (tmpOutputAddress && pExecutionContext.StateManager)
+			{
+				let tmpExistingValue = pExecutionContext.StateManager.resolveAddress(
+					tmpOutputAddress, pExecutionContext, pExecutionContext.NodeHash);
+				if (tmpExistingValue !== undefined && tmpExistingValue !== null && tmpExistingValue !== '')
+				{
+					return fCallback(null, {
+						EventToFire: 'ValueInputComplete',
+						Outputs: { InputValue: tmpExistingValue },
+						Log: [`Auto-resolved from pre-seeded state: "${tmpOutputAddress}" = "${String(tmpExistingValue).substring(0, 100)}"`]
+					});
+				}
+			}
+
+			// No pre-seeded value — pause and wait for interactive input
 			let tmpOptions = pResolvedSettings.Options || '';
 			if (Array.isArray(tmpOptions))
 			{
