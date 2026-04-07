@@ -116,6 +116,34 @@ if (_LogFilePath)
 	console.log(`[Ultravisor] Logging to file: ${_LogFilePath}`);
 }
 
+// Apply LogNoisiness from RETOLD_LOG_NOISINESS env var. Pict-style log
+// noisiness is a 0-5 scale where 0 is silent (production default) and 5 shows
+// everything. Diagnostic log statements throughout Ultravisor (especially the
+// shared-fs reachability auto-detect path and the platform tasks) are gated
+// with `if (this.fable.LogNoisiness >= N)` so they're free at level 0 and
+// explosively detailed at level 4-5.
+//
+// Useful values:
+//   1 — high-level decisions (auto-detected shared-fs peer X)
+//   2 — entry points and decisions in shared-fs / dispatch paths
+//   3 — per-candidate iteration in reachability
+//   4 — per-mount comparison details
+//   5 — everything
+//
+// In stack-mode the launcher inherits process.env into the child Ultravisor
+// process automatically, so setting RETOLD_LOG_NOISINESS once on the host
+// (or in the docker-compose `environment:` block) lights up both processes.
+let _LogNoisiness = parseInt(process.env.RETOLD_LOG_NOISINESS, 10);
+if (!isNaN(_LogNoisiness) && _LogNoisiness > 0)
+{
+	_Ultravisor_Pict.LogNoisiness = _LogNoisiness;
+	if (_Ultravisor_Pict.fable && _Ultravisor_Pict.fable !== _Ultravisor_Pict)
+	{
+		_Ultravisor_Pict.fable.LogNoisiness = _LogNoisiness;
+	}
+	console.log(`[Ultravisor] LogNoisiness=${_LogNoisiness} (verbose diagnostics enabled).`);
+}
+
 // If a config file override was passed via --config / -c, apply it on top of the gathered config
 if (_ConfigFileOverride)
 {

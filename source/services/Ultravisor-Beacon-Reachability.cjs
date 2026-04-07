@@ -474,6 +474,135 @@ class UltravisorBeaconReachability extends libPictService
 		}
 		return null;
 	}
+
+	/**
+	 * Walk all online beacons looking for one that shares a filesystem with
+	 * the given source beacon. Returns the first peer that:
+	 *   1. is not the source beacon itself
+	 *   2. has the same HostID as the source
+	 *   3. has at least one MountID overlap with the source
+	 *
+	 * This is used by the resolve-address task to auto-detect when a shared-fs
+	 * fast path is available even when the caller did not explicitly identify
+	 * a "requesting beacon". The typical case: retold-remote dispatches a media
+	 * operation, the file lives on retold-remote, and orator-conversion (which
+	 * will eventually consume the file) runs in the same process / on the same
+	 * host with the same content mount. The auto-detection finds orator-conversion
+	 * as a peer of retold-remote and reports the shared-fs strategy so the
+	 * file-transfer task can short-circuit.
+	 *
+	 * Diagnostic logging is gated by Fable.LogNoisiness (set via the
+	 * RETOLD_LOG_NOISINESS env var, 0-5):
+	 *   >= 2: log entry, source beacon summary, final decision
+	 *   >= 3: per-candidate iteration with rejection reasons
+	 *   >= 4: per-mount comparison details
+	 *
+	 * @param {string} pSourceBeaconID
+	 * @returns {object|null} { Peer, Mount } or null if no shared-fs peer exists
+	 */
+	findSharedFsPeer(pSourceBeaconID)
+	{
+		let tmpNoisy = (this.fable && this.fable.LogNoisiness) || 0;
+
+		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+		if (!tmpCoordinator)
+		{
+			if (tmpNoisy >= 2)
+			{
+				this.log.info(`[Reachability] findSharedFsPeer(${pSourceBeaconID}): no UltravisorBeaconCoordinator service registered, returning null.`);
+			}
+			return null;
+		}
+
+		let tmpSource = tmpCoordinator.getBeacon(pSourceBeaconID);
+		if (!tmpSource)
+		{
+			if (tmpNoisy >= 2)
+			{
+				this.log.info(`[Reachability] findSharedFsPeer(${pSourceBeaconID}): source beacon not in coordinator registry, returning null.`);
+			}
+			return null;
+		}
+		if (!tmpSource.HostID)
+		{
+			if (tmpNoisy >= 2)
+			{
+				this.log.info(`[Reachability] findSharedFsPeer(${pSourceBeaconID}): source beacon has no HostID (legacy beacon), returning null.`);
+			}
+			return null;
+		}
+		if (!Array.isArray(tmpSource.SharedMounts) || tmpSource.SharedMounts.length === 0)
+		{
+			if (tmpNoisy >= 2)
+			{
+				this.log.info(`[Reachability] findSharedFsPeer(${pSourceBeaconID}): source beacon advertises no SharedMounts, returning null.`);
+			}
+			return null;
+		}
+
+		if (tmpNoisy >= 2)
+		{
+			this.log.info(`[Reachability] findSharedFsPeer(${pSourceBeaconID}): source HostID=${tmpSource.HostID}, ${tmpSource.SharedMounts.length} mount(s)=${JSON.stringify(tmpSource.SharedMounts.map((m) => m.MountID))}`);
+		}
+
+		let tmpAllBeacons = tmpCoordinator.listBeacons();
+		if (tmpNoisy >= 2)
+		{
+			this.log.info(`[Reachability] findSharedFsPeer(${pSourceBeaconID}): scanning ${tmpAllBeacons.length} registered beacon(s) for shared-fs peers...`);
+		}
+
+		for (let i = 0; i < tmpAllBeacons.length; i++)
+		{
+			let tmpPeer = tmpAllBeacons[i];
+			if (!tmpPeer || tmpPeer.BeaconID === pSourceBeaconID)
+			{
+				if (tmpNoisy >= 3)
+				{
+					this.log.info(`[Reachability]   skip [${tmpPeer ? tmpPeer.BeaconID : '(null)'}]: ${tmpPeer ? 'self' : 'null entry'}`);
+				}
+				continue;
+			}
+			if (tmpPeer.Status && tmpPeer.Status !== 'Online')
+			{
+				if (tmpNoisy >= 3)
+				{
+					this.log.info(`[Reachability]   skip [${tmpPeer.BeaconID}]: status=${tmpPeer.Status} (not Online)`);
+				}
+				continue;
+			}
+			if (!tmpPeer.HostID || tmpPeer.HostID !== tmpSource.HostID)
+			{
+				if (tmpNoisy >= 3)
+				{
+					this.log.info(`[Reachability]   skip [${tmpPeer.BeaconID}]: HostID=${tmpPeer.HostID || '(none)'} != source ${tmpSource.HostID}`);
+				}
+				continue;
+			}
+			if (tmpNoisy >= 4)
+			{
+				this.log.info(`[Reachability]   compare mounts for [${tmpPeer.BeaconID}]: source=${JSON.stringify(tmpSource.SharedMounts.map((m) => m.MountID))} vs peer=${JSON.stringify((tmpPeer.SharedMounts || []).map((m) => m.MountID))}`);
+			}
+			let tmpSharedMount = this._findSharedMount(tmpSource.SharedMounts, tmpPeer.SharedMounts);
+			if (tmpSharedMount)
+			{
+				if (tmpNoisy >= 2)
+				{
+					this.log.info(`[Reachability] findSharedFsPeer(${pSourceBeaconID}): MATCH peer=[${tmpPeer.BeaconID}] mount=[${tmpSharedMount.MountID}] root=${tmpSharedMount.Root}`);
+				}
+				return { Peer: tmpPeer, Mount: tmpSharedMount };
+			}
+			if (tmpNoisy >= 3)
+			{
+				this.log.info(`[Reachability]   skip [${tmpPeer.BeaconID}]: same HostID but no overlapping MountID`);
+			}
+		}
+
+		if (tmpNoisy >= 2)
+		{
+			this.log.info(`[Reachability] findSharedFsPeer(${pSourceBeaconID}): no shared-fs peer found among ${tmpAllBeacons.length} beacon(s).`);
+		}
+		return null;
+	}
 }
 
 module.exports = UltravisorBeaconReachability;

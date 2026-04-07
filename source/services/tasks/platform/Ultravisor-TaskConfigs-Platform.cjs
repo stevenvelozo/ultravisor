@@ -25,6 +25,18 @@ function _getService(pTask, pTypeName)
 		: null;
 }
 
+/**
+ * Get the LogNoisiness level (0-5) from the Fable instance attached to a task.
+ * Used to gate verbose diagnostic logging in the platform tasks. The user
+ * controls this via the RETOLD_LOG_NOISINESS environment variable, which the
+ * stack launcher applies to both the retold-remote Fable and the Ultravisor
+ * Pict instance at startup.
+ */
+function _getNoisiness(pTask)
+{
+	return (pTask && pTask.fable && pTask.fable.LogNoisiness) || 0;
+}
+
 
 module.exports =
 [
@@ -106,55 +118,115 @@ module.exports =
 				return pDirectBaseURL.replace(/\/$/, '') + tmpContextPath + tmpEncodedPath;
 			};
 
+			// Helper: compute the absolute path on the source beacon's filesystem
+			// for the resolved resource. Returns null if the source beacon does
+			// not have a BasePath registered for this context.
+			let _computeSharedFsLocalPath = function ()
+			{
+				let tmpSourceBeacon = tmpCoordinator.getBeacon(tmpResolved.BeaconID);
+				let tmpCtx = tmpSourceBeacon && tmpSourceBeacon.Contexts
+					? tmpSourceBeacon.Contexts[tmpResolved.Context]
+					: null;
+				if (tmpCtx && tmpCtx.BasePath)
+				{
+					return libPath.join(tmpCtx.BasePath, tmpResolved.Path);
+				}
+				return null;
+			};
+
+			let tmpReachability = _getService(pTask, 'UltravisorBeaconReachability');
+			let tmpNoisy = _getNoisiness(pTask);
+
+			if (tmpNoisy >= 2)
+			{
+				pTask.log.info(`[ResolveAddress] entry: address=${tmpAddress} sourceBeacon=${tmpResolved.BeaconID} requestingBeacon=${pResolvedSettings.RequestingBeaconID || '(none)'} reachability=${tmpReachability ? 'present' : 'missing'}`);
+			}
+
 			// Resolve transfer strategy when a requesting beacon is specified
 			let tmpRequestingBeaconID = pResolvedSettings.RequestingBeaconID;
-			if (tmpRequestingBeaconID)
+			if (tmpRequestingBeaconID && tmpReachability)
 			{
-				let tmpReachability = _getService(pTask, 'UltravisorBeaconReachability');
-				if (tmpReachability)
+				if (tmpNoisy >= 2)
 				{
-					let tmpStrategyResult = tmpReachability.resolveStrategy(tmpResolved.BeaconID, tmpRequestingBeaconID);
-					tmpOutputs.Strategy = tmpStrategyResult.Strategy;
-
-					if (tmpStrategyResult.Strategy === 'shared-fs')
-					{
-						// Both beacons see the same filesystem mount.  Look up the
-						// source beacon's context BasePath and join it with the inner
-						// resource path to get an absolute path that's also valid on
-						// the requesting beacon (because they share the mount).
-						let tmpSourceBeacon = tmpCoordinator.getBeacon(tmpResolved.BeaconID);
-						let tmpCtx = tmpSourceBeacon && tmpSourceBeacon.Contexts
-							? tmpSourceBeacon.Contexts[tmpResolved.Context]
-							: null;
-						if (tmpCtx && tmpCtx.BasePath)
-						{
-							let tmpAbsPath = libPath.join(tmpCtx.BasePath, tmpResolved.Path);
-							tmpOutputs.LocalPath = tmpAbsPath;
-							// URL is intentionally left as the original (relative) URL
-							// — file-transfer will see LocalPath and short-circuit, so
-							// the URL is never actually fetched.
-						}
-						else
-						{
-							// No BasePath available — fall back to direct so the
-							// transfer still works via HTTP.
-							pTask.log.warn(`Resolve Address: shared-fs strategy chosen but no BasePath available for context [${tmpResolved.Context}] on beacon [${tmpResolved.BeaconID}], falling back to direct.`);
-							tmpOutputs.Strategy = 'direct';
-						}
-					}
-					else if (tmpStrategyResult.Strategy === 'direct' && tmpStrategyResult.DirectURL)
-					{
-						tmpOutputs.DirectURL = _buildDirectURL(tmpStrategyResult.DirectURL);
-						tmpOutputs.URL = tmpOutputs.DirectURL;
-					}
-					else if (tmpStrategyResult.Strategy === 'proxy')
-					{
-						// Proxy URL: Ultravisor's own endpoint serves the file
-						tmpOutputs.ProxyURL = tmpResolved.URL;
-						tmpOutputs.URL = tmpResolved.URL;
-					}
-					// 'local' strategy: URL stays as the context BaseURL (same host)
+					pTask.log.info(`[ResolveAddress] explicit RequestingBeaconID=${tmpRequestingBeaconID} provided — calling resolveStrategy directly.`);
 				}
+				let tmpStrategyResult = tmpReachability.resolveStrategy(tmpResolved.BeaconID, tmpRequestingBeaconID);
+				tmpOutputs.Strategy = tmpStrategyResult.Strategy;
+
+				if (tmpStrategyResult.Strategy === 'shared-fs')
+				{
+					// Both beacons see the same filesystem mount.  Look up the
+					// source beacon's context BasePath and join it with the inner
+					// resource path to get an absolute path that's also valid on
+					// the requesting beacon (because they share the mount).
+					let tmpAbsPath = _computeSharedFsLocalPath();
+					if (tmpAbsPath)
+					{
+						tmpOutputs.LocalPath = tmpAbsPath;
+						// URL is intentionally left as the original (relative) URL
+						// — file-transfer will see LocalPath and short-circuit, so
+						// the URL is never actually fetched.
+					}
+					else
+					{
+						// No BasePath available — fall back to direct so the
+						// transfer still works via HTTP.
+						pTask.log.warn(`Resolve Address: shared-fs strategy chosen but no BasePath available for context [${tmpResolved.Context}] on beacon [${tmpResolved.BeaconID}], falling back to direct.`);
+						tmpOutputs.Strategy = 'direct';
+					}
+				}
+				else if (tmpStrategyResult.Strategy === 'direct' && tmpStrategyResult.DirectURL)
+				{
+					tmpOutputs.DirectURL = _buildDirectURL(tmpStrategyResult.DirectURL);
+					tmpOutputs.URL = tmpOutputs.DirectURL;
+				}
+				else if (tmpStrategyResult.Strategy === 'proxy')
+				{
+					// Proxy URL: Ultravisor's own endpoint serves the file
+					tmpOutputs.ProxyURL = tmpResolved.URL;
+					tmpOutputs.URL = tmpResolved.URL;
+				}
+				// 'local' strategy: URL stays as the context BaseURL (same host)
+			}
+			else if (tmpReachability)
+			{
+				// Auto-detect a shared-fs peer when no RequestingBeaconID was passed.
+				// This is the common case for retold-remote: it dispatches a media
+				// operation, the file lives on the retold-remote beacon, and an
+				// orator-conversion beacon on the same host shares the mount. The
+				// auto-detection finds the orator-conversion peer and lets us
+				// short-circuit the file-transfer entirely.
+				if (tmpNoisy >= 2)
+				{
+					pTask.log.info(`[ResolveAddress] no RequestingBeaconID — entering auto-detect path for source ${tmpResolved.BeaconID}`);
+				}
+				let tmpPeerInfo = tmpReachability.findSharedFsPeer(tmpResolved.BeaconID);
+				if (tmpPeerInfo)
+				{
+					let tmpAbsPath = _computeSharedFsLocalPath();
+					if (tmpAbsPath)
+					{
+						tmpOutputs.Strategy = 'shared-fs';
+						tmpOutputs.LocalPath = tmpAbsPath;
+						pTask.log.info(`Resolve Address: auto-detected shared-fs peer [${tmpPeerInfo.Peer.BeaconID}] for source [${tmpResolved.BeaconID}] via mount [${tmpPeerInfo.Mount.MountID}].`);
+						if (tmpNoisy >= 2)
+						{
+							pTask.log.info(`[ResolveAddress] auto-detect SUCCESS: LocalPath=${tmpAbsPath} (peer=${tmpPeerInfo.Peer.BeaconID}, mount=${tmpPeerInfo.Mount.MountID})`);
+						}
+					}
+					else if (tmpNoisy >= 2)
+					{
+						pTask.log.info(`[ResolveAddress] auto-detect found peer [${tmpPeerInfo.Peer.BeaconID}] but source beacon has no BasePath for context [${tmpResolved.Context}] — cannot use shared-fs.`);
+					}
+				}
+				else if (tmpNoisy >= 2)
+				{
+					pTask.log.info(`[ResolveAddress] auto-detect found NO shared-fs peer for source ${tmpResolved.BeaconID} — falling through to default direct/proxy strategy.`);
+				}
+			}
+			else if (tmpNoisy >= 2)
+			{
+				pTask.log.info(`[ResolveAddress] reachability service not available — skipping auto-detect, default strategy will be used.`);
 			}
 
 			// If the URL is still relative (no protocol), use the beacon's first
@@ -218,6 +290,12 @@ module.exports =
 			let tmpSourceURL = pResolvedSettings.SourceURL;
 			let tmpSourceLocalPath = pResolvedSettings.SourceLocalPath;
 			let tmpFilename = pResolvedSettings.Filename;
+			let tmpNoisy = _getNoisiness(pTask);
+
+			if (tmpNoisy >= 2)
+			{
+				pTask.log.info(`[FileTransfer] entry: SourceURL=${tmpSourceURL ? tmpSourceURL.substring(0, 80) : '(none)'} SourceLocalPath=${tmpSourceLocalPath || '(none)'} Filename=${tmpFilename || '(none)'}`);
+			}
 
 			// Shared-filesystem fast path: if the source beacon and the requesting
 			// beacon both report the same MountID, resolve-address will populate
@@ -259,6 +337,14 @@ module.exports =
 				// Path was provided but doesn't exist on this beacon — log and fall
 				// through to the HTTP path so we still satisfy the request.
 				pTask.log.warn(`File Transfer: SourceLocalPath [${tmpSourceLocalPath}] does not exist on this beacon, falling back to HTTP transfer.`);
+				if (tmpNoisy >= 2)
+				{
+					pTask.log.info(`[FileTransfer] SourceLocalPath was set but file is missing on this beacon — the requesting beacon doesn't actually share this filesystem at the expected path.`);
+				}
+			}
+			else if (tmpNoisy >= 2)
+			{
+				pTask.log.info(`[FileTransfer] no SourceLocalPath in settings — running standard HTTP download path. (Either resolve-address chose 'direct'/'proxy', or the operation graph isn't wiring resolve.LocalPath → transfer.SourceLocalPath.)`);
 			}
 
 			if (!tmpSourceURL)
