@@ -2055,6 +2055,11 @@ class UltravisorAPIServer extends libPictService
 			return;
 		}
 
+		// IMPORTANT: this enumeration must include every field the coordinator
+		// cares about, including HostID and SharedMounts (used by the shared-fs
+		// reachability auto-detect). Forgetting to forward a field here means
+		// the WebSocket-registered beacon record will have that field set to
+		// null/empty in the coordinator, even though the client sent the value.
 		let tmpBeacon = tmpCoordinator.registerBeacon({
 			Name: pData.Name,
 			Capabilities: pData.Capabilities,
@@ -2063,7 +2068,9 @@ class UltravisorAPIServer extends libPictService
 			MaxConcurrent: pData.MaxConcurrent,
 			Tags: pData.Tags,
 			Contexts: pData.Contexts,
-			BindAddresses: pData.BindAddresses
+			BindAddresses: pData.BindAddresses,
+			HostID: pData.HostID,
+			SharedMounts: pData.SharedMounts
 		});
 
 		pWebSocket._BeaconID = tmpBeacon.BeaconID;
