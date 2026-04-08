@@ -2055,6 +2055,16 @@ class UltravisorAPIServer extends libPictService
 			return;
 		}
 
+		// Diagnostic: log what we RECEIVED from the client before forwarding
+		// to registerBeacon. If the client sent HostID but we're storing null,
+		// this log line pins down exactly where the drop happens (client vs
+		// server). Gated on LogNoisiness>=2 to stay quiet in production.
+		let tmpNoisy = (this.fable && this.fable.LogNoisiness) || 0;
+		if (tmpNoisy >= 2)
+		{
+			this.log.info(`[WSRegister] received from client: Name=${pData.Name} HostID=${pData.HostID || '(none)'} SharedMounts=${JSON.stringify(pData.SharedMounts || [])} Ops=${(pData.Operations || []).length}`);
+		}
+
 		// IMPORTANT: this enumeration must include every field the coordinator
 		// cares about, including HostID and SharedMounts (used by the shared-fs
 		// reachability auto-detect). Forgetting to forward a field here means
@@ -2072,6 +2082,12 @@ class UltravisorAPIServer extends libPictService
 			HostID: pData.HostID,
 			SharedMounts: pData.SharedMounts
 		});
+
+		// Diagnostic: confirm what was actually STORED on the beacon record.
+		if (tmpNoisy >= 2)
+		{
+			this.log.info(`[WSRegister] stored beacon ${tmpBeacon.BeaconID}: HostID=${tmpBeacon.HostID || '(null)'} SharedMounts=${JSON.stringify(tmpBeacon.SharedMounts || [])}`);
+		}
 
 		pWebSocket._BeaconID = tmpBeacon.BeaconID;
 		this._BeaconWebSockets[tmpBeacon.BeaconID] = pWebSocket;
