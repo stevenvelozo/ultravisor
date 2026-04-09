@@ -1,5 +1,5 @@
 {
-	"Generated": "2026-03-21T22:11:31.751Z",
+	"Generated": "2026-04-09T23:24:46.739Z",
 	"GitHubOrg": "stevenvelozo",
 	"DefaultBranch": "master",
 	"Groups": [
@@ -264,6 +264,22 @@
 									"Path": "features/beacon-providers.md"
 								},
 								{
+									"Title": "Beacon Authentication",
+									"Path": "features/beacon-authentication.md"
+								},
+								{
+									"Title": "Universal Addressing",
+									"Path": "features/universal-addressing.md"
+								},
+								{
+									"Title": "Reachability Matrix",
+									"Path": "features/reachability-matrix.md"
+								},
+								{
+									"Title": "Platform Cards",
+									"Path": "features/platform-cards.md"
+								},
+								{
 									"Title": "LLM Integration",
 									"Path": "features/llm.md"
 								},
@@ -342,6 +358,15 @@
 									"Path": "features/configuration.md"
 								}
 							]
+						},
+						{
+							"Title": "Case Studies",
+							"Children": [
+								{
+									"Title": "retold-remote + orator-conversion",
+									"Path": "features/case-study-retold-remote.md"
+								}
+							]
 						}
 					],
 					"DocFiles": [
@@ -357,12 +382,15 @@
 						"features/beacon-providers.md",
 						"features/beacons.md",
 						"features/capabilities.md",
+						"features/case-study-retold-remote.md",
 						"features/cli.md",
 						"features/configuration.md",
 						"features/llm-model-setup.md",
 						"features/llm.md",
 						"features/manifests.md",
 						"features/operations.md",
+						"features/platform-cards.md",
+						"features/reachability-matrix.md",
 						"features/scheduling.md",
 						"features/tasks-content-system.md",
 						"features/tasks-data-transform.md",
@@ -374,6 +402,7 @@
 						"features/tasks-meadow-api.md",
 						"features/tasks-user-interaction.md",
 						"features/tasks.md",
+						"features/universal-addressing.md",
 						"index.html",
 						"overview.md",
 						"quickstart.md",
