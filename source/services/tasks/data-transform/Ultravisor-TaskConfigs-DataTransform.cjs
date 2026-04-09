@@ -745,5 +745,77 @@ module.exports =
 				Log: [`Histogram: analyzed ${tmpData.length} records, ${Object.keys(tmpFrequency).length} unique values`]
 			});
 		}
+	},
+
+	// ── random-number ──────────────────────────────────────────────────
+	{
+		Definition: require('./definitions/random-number.json'),
+		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
+		{
+			let tmpMin = Number(pResolvedSettings.Min);
+			let tmpMax = Number(pResolvedSettings.Max);
+			let tmpInteger = pResolvedSettings.Integer !== false && pResolvedSettings.Integer !== 'false';
+
+			if (isNaN(tmpMin)) tmpMin = 0;
+			if (isNaN(tmpMax)) tmpMax = 2147483647;
+			if (tmpMin >= tmpMax)
+			{
+				return fCallback(null, {
+					EventToFire: 'Error',
+					Outputs: { Value: 0 },
+					Log: [`RandomNumber: Min (${tmpMin}) must be less than Max (${tmpMax})`]
+				});
+			}
+
+			let tmpValue = Math.random() * (tmpMax - tmpMin) + tmpMin;
+			if (tmpInteger)
+			{
+				tmpValue = Math.floor(tmpValue);
+			}
+
+			return fCallback(null, {
+				EventToFire: 'Complete',
+				Outputs: { Value: tmpValue },
+				Log: [`RandomNumber: generated ${tmpValue} in range [${tmpMin}, ${tmpMax})${tmpInteger ? ' (integer)' : ''}`]
+			});
+		}
+	},
+
+	// ── random-string ──────────────────────────────────────────────────
+	{
+		Definition: require('./definitions/random-string.json'),
+		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
+		{
+			let tmpLength = parseInt(pResolvedSettings.Length, 10) || 16;
+			let tmpFormat = (pResolvedSettings.Format || 'hex').toLowerCase();
+			let tmpValue = '';
+
+			if (tmpFormat === 'uuid')
+			{
+				// RFC 4122 v4 UUID
+				tmpValue = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,
+					(c) =>
+					{
+						let r = Math.random() * 16 | 0;
+						return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+					});
+			}
+			else
+			{
+				let tmpChars = tmpFormat === 'alphanumeric'
+					? 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+					: '0123456789abcdef';
+				for (let i = 0; i < tmpLength; i++)
+				{
+					tmpValue += tmpChars.charAt(Math.floor(Math.random() * tmpChars.length));
+				}
+			}
+
+			return fCallback(null, {
+				EventToFire: 'Complete',
+				Outputs: { Value: tmpValue },
+				Log: [`RandomString: generated ${tmpFormat} string (${tmpValue.length} chars)`]
+			});
+		}
 	}
 ];

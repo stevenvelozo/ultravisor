@@ -955,11 +955,16 @@ class UltravisorExecutionEngine extends libPictService
 	_resolveStateConnections(pNodeHash, pNode, pContext)
 	{
 		// Start with a copy of the node's static settings
+		// Nodes may store config in Settings or Data (flow editor uses Data)
 		let tmpSettings = {};
 
+		if (pNode.Data && typeof(pNode.Data) === 'object')
+		{
+			tmpSettings = JSON.parse(JSON.stringify(pNode.Data));
+		}
 		if (pNode.Settings && typeof(pNode.Settings) === 'object')
 		{
-			tmpSettings = JSON.parse(JSON.stringify(pNode.Settings));
+			Object.assign(tmpSettings, JSON.parse(JSON.stringify(pNode.Settings)));
 		}
 
 		// Find all incoming State connections targeting this node
@@ -1081,7 +1086,8 @@ class UltravisorExecutionEngine extends libPictService
 			let tmpType = tmpConn.ConnectionType
 				|| this._inferConnectionType(tmpConn, pNodeMap, pPortLabelMap);
 
-			if (tmpType === 'Event')
+			let tmpTypeLower = (tmpType || '').toLowerCase();
+			if (tmpTypeLower === 'event')
 			{
 				if (!tmpMap.eventSources[tmpConn.SourceNodeHash])
 				{
@@ -1089,7 +1095,7 @@ class UltravisorExecutionEngine extends libPictService
 				}
 				tmpMap.eventSources[tmpConn.SourceNodeHash].push(tmpConn);
 			}
-			else if (tmpType === 'State')
+			else if (tmpTypeLower === 'state')
 			{
 				if (!tmpMap.stateTargets[tmpConn.TargetNodeHash])
 				{

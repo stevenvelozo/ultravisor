@@ -1,0 +1,23 @@
+{
+	"Hash": "random-string",
+	"Type": "random-string",
+	"Name": "Random String",
+	"Description": "Generates a random string. Useful for unique filenames, run IDs, and identifiers.",
+	"Category": "data",
+	"Capability": "Data Transform",
+	"Action": "GenerateRandomString",
+	"Tier": "Engine",
+	"EventInputs": [{ "Name": "Generate" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "Length", "DataType": "Number", "Required": false, "Description": "Length of the generated string. Default: 16" },
+		{ "Name": "Format", "DataType": "String", "Required": false, "Description": "Format: hex, alphanumeric, uuid. Default: hex" }
+	],
+	"StateOutputs": [
+		{ "Name": "Value", "DataType": "String", "Description": "The generated random string" }
+	],
+	"DefaultSettings": { "Length": 16, "Format": "hex" }
+}

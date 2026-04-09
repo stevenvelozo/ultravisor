@@ -46,12 +46,24 @@ module.exports =
 				});
 			}
 
-			// Build work item settings from resolved settings
-			let tmpSettings = {
-				Command: pResolvedSettings.Command || '',
-				Parameters: pResolvedSettings.Parameters || '',
-				InputData: pResolvedSettings.InputData || ''
-			};
+			// Build work item settings from ALL resolved settings
+			// (includes node Data fields + state connection values)
+			let tmpSettings = {};
+			let tmpResolvedKeys = Object.keys(pResolvedSettings);
+			for (let rk = 0; rk < tmpResolvedKeys.length; rk++)
+			{
+				let tmpKey = tmpResolvedKeys[rk];
+				// Skip internal/meta fields that aren't work item settings
+				if (tmpKey === 'RemoteCapability' || tmpKey === 'RemoteAction'
+					|| tmpKey === 'AffinityKey' || tmpKey === 'TimeoutMs'
+					|| tmpKey === 'PromptMessage' || tmpKey === 'OutputAddress'
+					|| tmpKey === 'InputSchema') continue;
+				tmpSettings[tmpKey] = pResolvedSettings[tmpKey];
+			}
+			// Ensure legacy fields exist for backward compat
+			if (!tmpSettings.Command) tmpSettings.Command = '';
+			if (!tmpSettings.Parameters) tmpSettings.Parameters = '';
+			if (!tmpSettings.InputData) tmpSettings.InputData = '';
 
 			// Resolve universal addresses in InputData (JSON string).
 			// Addresses like >retold-remote/File/path become concrete
@@ -122,7 +134,7 @@ module.exports =
 			// Pause execution — the BeaconCoordinator will call resumeOperation when the Beacon reports back
 			return fCallback(null, {
 				WaitingForInput: true,
-				ResumeEventName: 'Complete',
+				ResumeEventName: 'complete',
 				PromptMessage: `Waiting for Beacon worker (${tmpWorkItemInfo.Capability}/${tmpWorkItemInfo.Action})`,
 				OutputAddress: '',
 				Outputs: {},

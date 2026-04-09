@@ -106,14 +106,42 @@ module.exports =
 				if (tmpExistingValue !== undefined && tmpExistingValue !== null && tmpExistingValue !== '')
 				{
 					return fCallback(null, {
-						EventToFire: 'ValueInputComplete',
+						EventToFire: 'complete',
 						Outputs: { InputValue: tmpExistingValue },
 						Log: [`Auto-resolved from pre-seeded state: "${tmpOutputAddress}" = "${String(tmpExistingValue).substring(0, 100)}"`]
 					});
 				}
 			}
 
-			// No pre-seeded value — pause and wait for interactive input
+			// If the operation was triggered programmatically (has pre-seeded params),
+			// use the DefaultValue so the whole chain runs without pausing
+			let tmpIsProgrammatic = pExecutionContext.OperationState
+				&& Object.keys(pExecutionContext.OperationState).length > 0;
+			let tmpDefaultValue = pResolvedSettings.DefaultValue
+				|| (pResolvedSettings.InputSchema && pResolvedSettings.InputSchema.Default !== undefined
+					? String(pResolvedSettings.InputSchema.Default) : undefined);
+			if (tmpIsProgrammatic && tmpDefaultValue !== undefined && tmpDefaultValue !== null && tmpDefaultValue !== '')
+			{
+				return fCallback(null, {
+					EventToFire: 'complete',
+					Outputs: { InputValue: tmpDefaultValue },
+					Log: [`Auto-resolved from default: "${tmpOutputAddress}" = "${String(tmpDefaultValue).substring(0, 100)}"`]
+				});
+			}
+
+			// For optional fields with no default in programmatic mode, pass empty string
+			let tmpIsOptional = pResolvedSettings.InputSchema
+				&& pResolvedSettings.InputSchema.Required === false;
+			if (tmpIsProgrammatic && tmpIsOptional)
+			{
+				return fCallback(null, {
+					EventToFire: 'complete',
+					Outputs: { InputValue: '' },
+					Log: [`Auto-resolved optional field: "${tmpOutputAddress}" = "" (no value provided)`]
+				});
+			}
+
+			// No pre-seeded value and no default — pause and wait for interactive input
 			let tmpOptions = pResolvedSettings.Options || '';
 			if (Array.isArray(tmpOptions))
 			{

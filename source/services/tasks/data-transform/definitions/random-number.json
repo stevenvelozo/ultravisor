@@ -1,0 +1,24 @@
+{
+	"Hash": "random-number",
+	"Type": "random-number",
+	"Name": "Random Number",
+	"Description": "Generates a random number within a specified range. Use Integer=true for whole numbers (e.g., seeds), false for decimals.",
+	"Category": "data",
+	"Capability": "Data Transform",
+	"Action": "GenerateRandomNumber",
+	"Tier": "Engine",
+	"EventInputs": [{ "Name": "Generate" }],
+	"EventOutputs": [
+		{ "Name": "Complete" },
+		{ "Name": "Error", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "Min", "DataType": "Number", "Required": false, "Description": "Minimum value (inclusive). Default: 0" },
+		{ "Name": "Max", "DataType": "Number", "Required": false, "Description": "Maximum value (exclusive for float, inclusive for integer). Default: 2147483647" },
+		{ "Name": "Integer", "DataType": "Boolean", "Required": false, "Description": "If true, generate a whole number. Default: true" }
+	],
+	"StateOutputs": [
+		{ "Name": "Value", "DataType": "Number", "Description": "The generated random number" }
+	],
+	"DefaultSettings": { "Min": 0, "Max": 2147483647, "Integer": true }
+}

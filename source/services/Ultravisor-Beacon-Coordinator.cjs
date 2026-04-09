@@ -1521,7 +1521,7 @@ class UltravisorBeaconCoordinator extends libPictService
 			let tmpContext = tmpManifest.getRun(tmpWorkItem.RunHash);
 			if (tmpContext && tmpContext.WaitingTasks[tmpWorkItem.NodeHash])
 			{
-				tmpContext.WaitingTasks[tmpWorkItem.NodeHash].ResumeEventName = 'Error';
+				tmpContext.WaitingTasks[tmpWorkItem.NodeHash].ResumeEventName = 'error';
 			}
 		}
 
