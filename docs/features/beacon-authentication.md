@@ -2,7 +2,7 @@
 
 ## Overview
 
-Ultravisor uses Orator Authentication to manage beacon identity and connectivity. Beacons authenticate with the server before registering, receive a session cookie, and use it on all subsequent requests. If a session expires or the server restarts, beacons automatically re-authenticate and re-register — eliminating "unknown beacon" errors and providing graceful reconnection.
+Ultravisor uses Orator Authentication to manage beacon identity and connectivity. Beacons authenticate with the server before registering, receive a session cookie, and use it on all subsequent requests. If a session expires or the server restarts, beacons automatically re-authenticate and re-register -- eliminating "unknown beacon" errors and providing graceful reconnection.
 
 ## Architecture
 
@@ -111,10 +111,10 @@ node Ultravisor-Beacon-CLI.cjs --password <password>
 
 The system is designed for incremental security hardening:
 
-**Level 0 — Open (default):**
+**Level 0 -- Open (default):**
 No credentials required. Any beacon name is accepted. Suitable for development and trusted networks.
 
-**Level 1 — Shared secret:**
+**Level 1 -- Shared secret:**
 Set a custom authenticator that checks passwords against a configured secret or API key list:
 
 ```javascript
@@ -128,7 +128,7 @@ tmpAuth.setAuthenticator((pUsername, pPassword, fCallback) =>
 });
 ```
 
-**Level 2 — Per-beacon credentials:**
+**Level 2 -- Per-beacon credentials:**
 Validate each beacon's name and password against a database or config:
 
 ```javascript
@@ -144,7 +144,7 @@ tmpAuth.setAuthenticator((pUsername, pPassword, fCallback) =>
 });
 ```
 
-**Level 3 — OAuth/OIDC:**
+**Level 3 -- OAuth/OIDC:**
 For beacons on remote networks, use Orator Authentication's built-in OIDC provider to authenticate against an identity provider (Azure AD, Okta, etc.).
 
 ## HTTP Endpoints
@@ -188,10 +188,10 @@ For beacons on remote networks, use Orator Authentication's built-in OIDC provid
 
 ### Session Lifecycle
 
-1. **Creation:** Beacon POSTs to `/1.0/Authenticate` → session created in-memory Map → `Set-Cookie` header returned
-2. **Validation:** Every beacon request → `getSessionForRequest()` parses cookie, looks up session, checks TTL, updates `LastAccess`
-3. **Expiry:** Session TTL exceeded (default 24h) → next request returns 401 → beacon reconnects
-4. **Server restart:** All sessions lost (in-memory) → all beacons get 401 → all reconnect automatically
+1. **Creation:** Beacon POSTs to `/1.0/Authenticate` -> session created in-memory Map -> `Set-Cookie` header returned
+2. **Validation:** Every beacon request -> `getSessionForRequest()` parses cookie, looks up session, checks TTL, updates `LastAccess`
+3. **Expiry:** Session TTL exceeded (default 24h) -> next request returns 401 -> beacon reconnects
+4. **Server restart:** All sessions lost (in-memory) -> all beacons get 401 -> all reconnect automatically
 
 ### Timeout Interactions
 

@@ -8,15 +8,15 @@ supported task type.
 
 For detailed documentation on each built-in task type, see the per-category reference pages:
 
-- [Data Transform](tasks-data-transform.md) — Set values, string manipulation, templates, expressions, CSV parsing, and dataset operations
-- [File System](tasks-file-system.md) — Read, write, copy, and list files on the local file system
-- [Flow Control](tasks-flow-control.md) — Conditionals, loops, sub-operations, and shell commands
-- [HTTP Client](tasks-http-client.md) — GET/POST requests, JSON APIs, and fully configurable REST calls
-- [LLM](tasks-llm.md) — Chat completions, embeddings, and tool use with large language models
-- [Meadow API](tasks-meadow-api.md) — CRUD operations against Meadow REST API endpoints
-- [Content System](tasks-content-system.md) — Remote file operations on Content System beacon workers
-- [Extension](tasks-extension.md) — Low-level Beacon dispatch for remote worker execution
-- [User Interaction](tasks-user-interaction.md) — User input prompts and diagnostic logging
+- [Data Transform](tasks-data-transform.md) -- Set values, string manipulation, templates, expressions, CSV parsing, and dataset operations
+- [File System](tasks-file-system.md) -- Read, write, copy, and list files on the local file system
+- [Flow Control](tasks-flow-control.md) -- Conditionals, loops, sub-operations, and shell commands
+- [HTTP Client](tasks-http-client.md) -- GET/POST requests, JSON APIs, and fully configurable REST calls
+- [LLM](tasks-llm.md) -- Chat completions, embeddings, and tool use with large language models
+- [Meadow API](tasks-meadow-api.md) -- CRUD operations against Meadow REST API endpoints
+- [Content System](tasks-content-system.md) -- Remote file operations on Content System beacon workers
+- [Extension](tasks-extension.md) -- Low-level Beacon dispatch for remote worker execution
+- [User Interaction](tasks-user-interaction.md) -- User input prompts and diagnostic logging
 
 ## Task Model
 
@@ -82,8 +82,8 @@ is not set.
 ```
 
 Default execution limits (configurable in `.ultravisor.json`):
-- Timeout: 5 minutes (300,000 ms) — `UltravisorCommandTimeoutMilliseconds`
-- Max output buffer: 10 MB — `UltravisorCommandMaxBufferBytes`
+- Timeout: 5 minutes (300,000 ms) -- `UltravisorCommandTimeoutMilliseconds`
+- Max output buffer: 10 MB -- `UltravisorCommandMaxBufferBytes`
 
 ### Request
 
@@ -246,7 +246,7 @@ Reads a text file from the staging folder and returns its content in
 
 Writes an XML string to a file in the staging folder.
 Creates intermediate directories automatically. No XML validation is
-performed — the caller is responsible for providing well-formed XML.
+performed -- the caller is responsible for providing well-formed XML.
 
 | Field | Required | Description |
 |-------|----------|-------------|
@@ -270,7 +270,7 @@ the XML content is resolved from `pContext.GlobalState`.
 ### ReadXML
 
 Reads an XML file from the staging folder and returns its content as a
-raw string in `Output`. No XML parsing is performed — the caller is
+raw string in `Output`. No XML parsing is performed -- the caller is
 responsible for interpreting the XML structure.
 
 | Field | Required | Description |
@@ -376,7 +376,7 @@ Use `Address` to copy a file whose path was determined by a previous task:
 ```
 
 The source must be an existing regular file (not a directory). Path
-traversal is blocked in the destination — file paths containing `..`
+traversal is blocked in the destination -- file paths containing `..`
 are rejected.
 
 ### GetJSON
@@ -463,7 +463,7 @@ The raw response text is available in `pManifestEntry.Output`. The
 
 Performs a native HTTP/HTTPS GET request and returns the response body as
 raw XML text. Uses Node.js built-in `http`/`https` modules (no curl
-dependency). No XML parsing is performed — the caller is responsible
+dependency). No XML parsing is performed -- the caller is responsible
 for interpreting the XML structure.
 
 | Field | Required | Description |
@@ -572,7 +572,7 @@ The `JSON` field is only present when the response body is valid JSON.
 When a response includes `Set-Cookie` headers, the name/value pairs are
 automatically parsed and stored at `pContext.GlobalState.Cookies`. Every
 subsequent `RestRequest` task running in the same operation will
-automatically include those cookies in its request — no extra
+automatically include those cookies in its request -- no extra
 configuration needed.
 
 Task-level `Cookies` merge on top of the shared jar, so explicit values
@@ -688,7 +688,7 @@ name to store the value under):
 If the response body is `{"Session": {"ID": "xyz789"}}`, then
 `GlobalState.Cookies.SessionID` is set to `"xyz789"`.
 
-Nested paths are supported — the address walks the JSON structure
+Nested paths are supported -- the address walks the JSON structure
 using dot-separated keys.
 
 #### CaptureHeader
@@ -1267,9 +1267,9 @@ Tasks within a set execute sequentially in array order.
 ```
 1. onBefore[0], onBefore[1], ...     (always runs)
 2. Core task execution
-3. If success  → onCompletion[0], onCompletion[1], ...
-   If failure  → onFailure[0], onFailure[1], ...
-   If error    → onError[0], onError[1], ...
+3. If success  -> onCompletion[0], onCompletion[1], ...
+   If failure  -> onFailure[0], onFailure[1], ...
+   If error    -> onError[0], onError[1], ...
 4. onSubsequent[0], onSubsequent[1], ... (always runs)
 ```
 

@@ -14,7 +14,7 @@ bridge between Ultravisor's operation engine and the outside world.
 
 The Beacon system uses the same **WaitingForInput** pause/resume mechanism
 that powers interactive tasks like `value-input`. When a `beacon-dispatch`
-node executes, it does not block the engine — instead it enqueues a work
+node executes, it does not block the engine -- instead it enqueues a work
 item and returns `WaitingForInput`. The operation pauses at that node until
 a Beacon picks up the work, executes it remotely, and reports results.
 
@@ -47,7 +47,7 @@ channel without changing the core dispatch logic.
 
 Many real-world pipelines require that related tasks execute on the same
 worker. For example, a video processing pipeline might split a file across
-multiple encoding passes — each pass needs access to the same local copy of
+multiple encoding passes -- each pass needs access to the same local copy of
 the source footage.
 
 The **AffinityKey** setting on `beacon-dispatch` nodes solves this.
@@ -56,7 +56,7 @@ The **AffinityKey** setting on `beacon-dispatch` nodes solves this.
 
 1. The first `beacon-dispatch` task with a given AffinityKey is claimed by
    whichever Beacon picks it up. The coordinator records a binding:
-   `AffinityKey → BeaconID`.
+   `AffinityKey -> BeaconID`.
 2. Subsequent tasks with the **same** AffinityKey are pre-assigned to that
    same Beacon. When the Beacon polls, it receives affinity-assigned items
    first.
@@ -103,7 +103,7 @@ Common capability names:
 | `MLInference` | Run machine-learning model inference |
 | `MediaProcessing` | Transcode video/audio, generate thumbnails |
 
-You can define any capability string you like — the coordinator treats them
+You can define any capability string you like -- the coordinator treats them
 as opaque labels for matching purposes.
 
 ## API Reference
@@ -438,7 +438,7 @@ these optional fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `Percent` | number | Completion percentage (0–100) |
+| `Percent` | number | Completion percentage (0-100) |
 | `Message` | string | Human-readable status message |
 | `Step` | number | Current step number |
 | `TotalSteps` | number | Total number of steps |
@@ -479,7 +479,7 @@ Report progress on an in-flight work item.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `Percent` | number | no | Completion percentage (0–100) |
+| `Percent` | number | no | Completion percentage (0-100) |
 | `Message` | string | no | Human-readable status message |
 | `Step` | number | no | Current step number |
 | `TotalSteps` | number | no | Total number of steps |
@@ -487,7 +487,7 @@ Report progress on an in-flight work item.
 
 **Response:** `{ Success: true }`
 
-Progress is fire-and-forget from the Beacon's perspective — failures to
+Progress is fire-and-forget from the Beacon's perspective -- failures to
 report progress do not affect work item execution.
 
 ## Running a Beacon

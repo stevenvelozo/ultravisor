@@ -1,8 +1,8 @@
 # LLM Integration
 
 Ultravisor can send requests to large language models (LLMs) through the
-Beacon system. An LLM Beacon wraps an API — OpenAI, Anthropic, a local
-Ollama instance, or any OpenAI-compatible endpoint — and exposes it as a
+Beacon system. An LLM Beacon wraps an API -- OpenAI, Anthropic, a local
+Ollama instance, or any OpenAI-compatible endpoint -- and exposes it as a
 capability that operation graphs can use like any other task.
 
 This means you can build workflows that read data, send it to an LLM for
@@ -13,13 +13,13 @@ Ultravisor operation graph.
 
 The LLM functionality has two layers:
 
-1. **Beacon Provider** (`LLM`) — runs on the Beacon worker, wraps the
+1. **Beacon Provider** (`LLM`) -- runs on the Beacon worker, wraps the
    actual HTTP calls to the LLM API. This is the "thin wrapper" that
    handles authentication, request formatting, and response normalization
    across different backends.
 
 2. **Graph Task Types** (`llm-chat-completion`, `llm-embedding`,
-   `llm-tool-use`) — run on the Ultravisor server, dispatch work to an
+   `llm-tool-use`) -- run on the Ultravisor server, dispatch work to an
    LLM Beacon, manage conversation history, and route results back into
    the operation state.
 
@@ -52,7 +52,7 @@ sequenceDiagram
 The provider normalizes differences between backends automatically. For
 example, Anthropic uses `x-api-key` headers and a different message
 format; Ollama puts parameters in an `options` object. You don't need to
-worry about these details — just set the `Backend` config value and
+worry about these details -- just set the `Backend` config value and
 provide your messages.
 
 ## Actions
@@ -159,7 +159,7 @@ The primary task for using LLMs in operation graphs.
 | Name               | Description                                              |
 |--------------------|----------------------------------------------------------|
 | UserPrompt         | User message text (builds Messages for you)              |
-| InputAddress       | State address to read context data from — appended to UserPrompt |
+| InputAddress       | State address to read context data from -- appended to UserPrompt |
 | Destination        | State address to write the completion content to         |
 | AffinityKey        | Route to a specific Beacon                               |
 | TimeoutMs          | Override timeout (default: 120000)                       |
@@ -186,8 +186,8 @@ stored in operation or global state.
 |----------------------------|--------------------------------------------------------|
 | ConversationAddress        | State address for the message history array            |
 | AppendToConversation       | Append this exchange to history (default: true)        |
-| ConversationMaxMessages    | Sliding window — keep only the N most recent messages  |
-| ConversationMaxTokens      | Token budget — trim oldest messages when exceeded      |
+| ConversationMaxMessages    | Sliding window -- keep only the N most recent messages  |
+| ConversationMaxTokens      | Token budget -- trim oldest messages when exceeded      |
 | PersistConversation        | Copy history to GlobalState on completion              |
 | ConversationPersistAddress | GlobalState address for cross-operation persistence    |
 
@@ -203,17 +203,17 @@ When `ConversationAddress` is set, the task:
 6. Appends the assistant response to the history
 7. Writes updated history back to the state address
 
-**Within a single operation** — use `Operation.` addresses:
+**Within a single operation** -- use `Operation.` addresses:
 
 ```
 llm-node-1 (ConversationAddress: "Operation.Chat")
-    → llm-node-2 (ConversationAddress: "Operation.Chat")
-    → llm-node-3 (ConversationAddress: "Operation.Chat")
+    -> llm-node-2 (ConversationAddress: "Operation.Chat")
+    -> llm-node-3 (ConversationAddress: "Operation.Chat")
 ```
 
 Each node sees the full conversation so far and adds to it.
 
-**Across operations** — use `Global.` addresses:
+**Across operations** -- use `Global.` addresses:
 
 Set `ConversationAddress: "Global.Sessions.MyAgent"` to store history in
 GlobalState, which persists across operation runs.
@@ -254,11 +254,11 @@ it up. Subsequent requests with the same key go to the same Beacon.
 
 Two example operations are included in `operation-library/`:
 
-- **llm-summarize.json** — Reads a file, sends it to an LLM for
+- **llm-summarize.json** -- Reads a file, sends it to an LLM for
   summarization, writes the result. Demonstrates single-turn usage with
   `InputAddress` and `Destination`.
 
-- **llm-multi-turn-analysis.json** — Three chained LLM calls sharing
+- **llm-multi-turn-analysis.json** -- Three chained LLM calls sharing
   a `ConversationAddress`: initial analysis, follow-up question, and
   final synthesis. Demonstrates multi-turn conversation with persistence
   to GlobalState.

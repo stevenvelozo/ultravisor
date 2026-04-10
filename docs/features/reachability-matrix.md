@@ -50,23 +50,23 @@ sequenceDiagram
     UV->>UV: registerBeacon() stores BindAddresses
     UV->>UV: onBeaconRegistered("bcn-orator-conversion-...")
 
-    Note over UV: Probe orator-conversion → retold-remote
+    Note over UV: Probe orator-conversion -> retold-remote
     UV->>RR: HTTP GET http://127.0.0.1:7827/
     RR-->>UV: 200 OK (any response = reachable)
-    UV->>UV: Matrix: orator-conversion→retold-remote = REACHABLE (12ms)
+    UV->>UV: Matrix: orator-conversion->retold-remote = REACHABLE (12ms)
 
-    Note over UV: Probe retold-remote → orator-conversion
+    Note over UV: Probe retold-remote -> orator-conversion
     UV->>OC: HTTP GET http://127.0.0.1:8765/
     OC-->>UV: 200 OK
-    UV->>UV: Matrix: retold-remote→orator-conversion = REACHABLE (8ms)
+    UV->>UV: Matrix: retold-remote->orator-conversion = REACHABLE (8ms)
 ```
 
 ### Probe Details
 
 - **Method**: HTTP GET to the beacon's first BindAddress (`{Protocol}://{IP}:{Port}/`)
-- **Success criteria**: Any HTTP response (even 404) counts as reachable — we're testing network connectivity, not service correctness
+- **Success criteria**: Any HTTP response (even 404) counts as reachable -- we're testing network connectivity, not service correctness
 - **Timeout**: 5 seconds per probe
-- **Cache TTL**: 15 minutes — entries older than this are re-probed on next use
+- **Cache TTL**: 15 minutes -- entries older than this are re-probed on next use
 - **Trigger**: Probes fire on beacon registration and can be triggered manually via the API
 
 ### BindAddresses
@@ -79,7 +79,7 @@ BindAddresses: [
 ]
 ```
 
-These are IP addresses, not DNS hostnames — this avoids NAT/split-horizon DNS complications. The reachability service uses the first BindAddress to construct probe URLs.
+These are IP addresses, not DNS hostnames -- this avoids NAT/split-horizon DNS complications. The reachability service uses the first BindAddress to construct probe URLs.
 
 ## Matrix Storage
 
@@ -97,7 +97,7 @@ Value: {
 }
 ```
 
-Probing is **directional** — A reaching B doesn't guarantee B can reach A (asymmetric firewalls, NAT).
+Probing is **directional** -- A reaching B doesn't guarantee B can reach A (asymmetric firewalls, NAT).
 
 ## How resolve-address Uses the Matrix
 
@@ -107,7 +107,7 @@ When the resolve-address card receives a `RequestingBeaconID`, it consults the r
 flowchart TD
     A[resolve-address receives Address + RequestingBeaconID] --> B{Same beacon?}
     B -->|Yes| C["Strategy: local<br/>URL: context BaseURL"]
-    B -->|No| D{Check matrix:<br/>requesting → source}
+    B -->|No| D{Check matrix:<br/>requesting -> source}
     D -->|reachable| E["Strategy: direct<br/>URL: source BindAddress + context path"]
     D -->|unreachable / untested| F["Strategy: proxy<br/>URL: Ultravisor proxy endpoint"]
 ```
@@ -138,8 +138,8 @@ The Beacons screen includes a visual reachability map (SVG) showing:
 - Beacons as labeled circles arranged in a ring
 - Ultravisor as a center hub
 - Lines between beacon pairs, color-coded:
-  - **Green solid** — Direct connectivity confirmed
-  - **Red dashed** — Unreachable
-  - **Grey dotted** — Untested
+  - **Green solid** -- Direct connectivity confirmed
+  - **Red dashed** -- Unreachable
+  - **Grey dotted** -- Untested
 - Hover tooltip with latency and last probe time
 - "Probe All" button to trigger a fresh probe sweep

@@ -1,6 +1,6 @@
 # Platform Cards & Task Types
 
-Ultravisor's operation graphs are built from cards (task types). Platform cards handle the infrastructure layer — address resolution, file transfer, and result delivery. Extension cards handle beacon dispatch. Beacon cards are auto-generated from registered beacon capabilities.
+Ultravisor's operation graphs are built from cards (task types). Platform cards handle the infrastructure layer -- address resolution, file transfer, and result delivery. Extension cards handle beacon dispatch. Beacon cards are auto-generated from registered beacon capabilities.
 
 ## Platform Cards
 
@@ -52,7 +52,7 @@ Encode a staging file to a base64 string or decode a base64 string to a staging 
 
 ### beacon-dispatch
 
-The generic card for dispatching work to beacon workers. Most users won't use this directly — catalog-generated beacon cards provide typed wrappers.
+The generic card for dispatching work to beacon workers. Most users won't use this directly -- catalog-generated beacon cards provide typed wrappers.
 
 | Setting | Type | Required | Description |
 |---------|------|----------|-------------|
@@ -79,7 +79,7 @@ When a beacon registers with action schemas, Ultravisor auto-generates typed tas
 ```mermaid
 flowchart LR
     A[Action Schema<br/>from beacon registration] --> B[_registerCatalogTaskTypes]
-    B --> C["Task type: beacon-mediaconversion-imageresize<br/>Settings: InputFile, OutputFile, Width, Height, Format, Quality<br/>Execute: beaconDispatch → enqueueWorkItem → WaitingForInput"]
+    B --> C["Task type: beacon-mediaconversion-imageresize<br/>Settings: InputFile, OutputFile, Width, Height, Format, Quality<br/>Execute: beaconDispatch -> enqueueWorkItem -> WaitingForInput"]
 ```
 
 The naming convention is: `beacon-{capability}-{action}` (lowercased, non-alphanumeric replaced with hyphens).
@@ -90,10 +90,10 @@ The naming convention is: `beacon-{capability}-{action}` (lowercased, non-alphan
 2. Coordinator's `_updateActionCatalog()` stores them persistently
 3. `_registerCatalogTaskTypes()` iterates the catalog and creates a task type config for each entry
 4. Each config gets an `Execute` function via `_createBeaconDispatchExecutor()` that:
-   - Coerces setting types (template-resolved strings → numbers/booleans per schema)
+   - Coerces setting types (template-resolved strings -> numbers/booleans per schema)
    - Calls `beaconDispatch()` helper to enqueue the work item
    - Returns `WaitingForInput` with `ResumeEventName: 'Complete'`
-5. Built-in task types take precedence — catalog types are only registered if no type with the same hash exists
+5. Built-in task types take precedence -- catalog types are only registered if no type with the same hash exists
 
 ### Current orator-conversion Actions
 
@@ -116,7 +116,7 @@ The naming convention is: `beacon-{capability}-{action}` (lowercased, non-alphan
 
 ## Binary Output Return
 
-When a beacon processes a work item that produces a file output, the result is transferred back to Ultravisor's staging directory as raw binary — no base64 encoding.
+When a beacon processes a work item that produces a file output, the result is transferred back to Ultravisor's staging directory as raw binary -- no base64 encoding.
 
 ```mermaid
 sequenceDiagram
@@ -129,17 +129,17 @@ sequenceDiagram
     Exec->>Exec: Download source file
     Exec->>Beacon: provider.execute(action, workItem, context)
     Beacon-->>Exec: { Outputs: { Result: outputPath }, Log }
-    Exec->>Exec: _collectOutputFiles → set OutputFilePath
+    Exec->>Exec: _collectOutputFiles -> set OutputFilePath
 
     alt HTTP Transport
         Client->>UV: POST /Beacon/Work/{hash}/Upload<br/>Content-Type: application/octet-stream<br/>X-Output-Filename: thumbnail.jpg<br/>Body: raw bytes
-        UV->>UV: recordResultUpload → write to operation staging
+        UV->>UV: recordResultUpload -> write to operation staging
     else WebSocket Transport
         Client->>UV: JSON: { Action: "WorkResultUpload", WorkItemHash, OutputFilename, OutputSize }
         Client->>UV: Binary frame: raw file bytes
-        UV->>UV: recordResultUpload → write to operation staging
+        UV->>UV: recordResultUpload -> write to operation staging
     end
 
     Client->>UV: JSON completion: { Outputs, Log }
-    UV->>UV: resumeOperation → send-result finds file in staging
+    UV->>UV: resumeOperation -> send-result finds file in staging
 ```

@@ -10,12 +10,12 @@ Sets one or more values in operation state at specified addresses. This is the p
 
 ### Settings
 
-- **Mappings** — An array of mapping objects. Each mapping has a `To` address (where to write) and either a `Value` (literal) or `From` address (copy from state).
+- **Mappings** -- An array of mapping objects. Each mapping has a `To` address (where to write) and either a `Value` (literal) or `From` address (copy from state).
 
 ### Events
 
-- **Complete** — Fires after all mappings are applied.
-- **Error** — Fires if a mapping fails.
+- **Complete** -- Fires after all mappings are applied.
+- **Error** -- Fires if a mapping fails.
 
 ### Tips
 
@@ -29,21 +29,21 @@ Replaces all occurrences of a search string within the input text.
 
 ### Settings
 
-- **InputString** — The source text to search within. Supports Pict template expressions.
-- **SearchString** — The text or pattern to find.
-- **ReplaceString** — The replacement text (empty string to delete matches).
-- **UseRegex** — When `true`, treats SearchString as a regular expression.
-- **CaseSensitive** — Case-sensitive matching (default `true`).
+- **InputString** -- The source text to search within. Supports Pict template expressions.
+- **SearchString** -- The text or pattern to find.
+- **ReplaceString** -- The replacement text (empty string to delete matches).
+- **UseRegex** -- When `true`, treats SearchString as a regular expression.
+- **CaseSensitive** -- Case-sensitive matching (default `true`).
 
 ### Outputs
 
-- **ReplacedString** — The result after all replacements.
-- **ReplacementCount** — Number of replacements made.
+- **ReplacedString** -- The result after all replacements.
+- **ReplacementCount** -- Number of replacements made.
 
 ### Events
 
-- **ReplaceComplete** — Fires after replacement.
-- **Error** — Fires on failure (e.g. invalid regex).
+- **ReplaceComplete** -- Fires after replacement.
+- **Error** -- Fires on failure (e.g. invalid regex).
 
 ### Tips
 
@@ -57,18 +57,18 @@ Appends a string to an existing value at a specified state address. Useful for b
 
 ### Settings
 
-- **InputString** — The text to append. Supports Pict template expressions.
-- **OutputAddress** — State address of the string to append to.
-- **AppendNewline** — When `true`, appends a newline character after the input string.
-- **Separator** — String inserted between the existing content and new content. Overrides AppendNewline when set.
+- **InputString** -- The text to append. Supports Pict template expressions.
+- **OutputAddress** -- State address of the string to append to.
+- **AppendNewline** -- When `true`, appends a newline character after the input string.
+- **Separator** -- String inserted between the existing content and new content. Overrides AppendNewline when set.
 
 ### Outputs
 
-- **AppendedString** — The full accumulated string after appending.
+- **AppendedString** -- The full accumulated string after appending.
 
 ### Events
 
-- **Completed** — Fires after the append.
+- **Completed** -- Fires after the append.
 
 ### Tips
 
@@ -82,17 +82,17 @@ Processes a Pict template string against the current operation state, resolving 
 
 ### Settings
 
-- **Template** — A Pict template string containing `{~D:...~}` expressions that reference state addresses.
-- **Destination** — State address to store the rendered result. If empty, the result is available at the default output.
+- **Template** -- A Pict template string containing `{~D:...~}` expressions that reference state addresses.
+- **Destination** -- State address to store the rendered result. If empty, the result is available at the default output.
 
 ### Outputs
 
-- **Result** — The fully rendered template output.
+- **Result** -- The fully rendered template output.
 
 ### Events
 
-- **Complete** — Fires after rendering.
-- **Error** — Fires if template parsing fails.
+- **Complete** -- Fires after rendering.
+- **Error** -- Fires if template parsing fails.
 
 ### Tips
 
@@ -106,17 +106,17 @@ Evaluates a mathematical or logical expression using the Fable ExpressionParser 
 
 ### Settings
 
-- **Expression** — The expression to evaluate. Can reference state values by address.
-- **Destination** — State address to store the evaluation result.
+- **Expression** -- The expression to evaluate. Can reference state values by address.
+- **Destination** -- State address to store the evaluation result.
 
 ### Outputs
 
-- **Result** — The computed result as a string.
+- **Result** -- The computed result as a string.
 
 ### Events
 
-- **Complete** — Fires after evaluation.
-- **Error** — Fires on parse or evaluation failure.
+- **Complete** -- Fires after evaluation.
+- **Error** -- Fires on parse or evaluation failure.
 
 ### Tips
 
@@ -130,27 +130,27 @@ Parses CSV text into an array of records (objects with field names as keys).
 
 ### Settings
 
-- **SourceAddress** — State address containing the CSV text to parse.
-- **Delimiter** — Column delimiter character (default `,`).
-- **HasHeaders** — When `true`, the first row provides field names. When `false`, fields are indexed numerically.
-- **Destination** — State address to store the parsed records array.
-- **QuoteCharacter** — Character used to quote fields that contain the delimiter (default `"`).
-- **TrimFields** — Trim leading/trailing whitespace from field values.
-- **SkipEmptyLines** — Skip blank lines in the input.
+- **SourceAddress** -- State address containing the CSV text to parse.
+- **Delimiter** -- Column delimiter character (default `,`).
+- **HasHeaders** -- When `true`, the first row provides field names. When `false`, fields are indexed numerically.
+- **Destination** -- State address to store the parsed records array.
+- **QuoteCharacter** -- Character used to quote fields that contain the delimiter (default `"`).
+- **TrimFields** -- Trim leading/trailing whitespace from field values.
+- **SkipEmptyLines** -- Skip blank lines in the input.
 
 ### Outputs
 
-- **Records** — Array of parsed row objects.
-- **ColumnCount** — Number of columns detected.
-- **Headers** — Array of header names from the first row.
+- **Records** -- Array of parsed row objects.
+- **ColumnCount** -- Number of columns detected.
+- **Headers** -- Array of header names from the first row.
 
 ### Events
 
-- **Complete** — Fires after parsing.
+- **Complete** -- Fires after parsing.
 
 ### Tips
 
-Chain **Read File** → **Parse CSV** → **CSV Transform** for a complete data import pipeline. Use TrimFields and SkipEmptyLines to handle messy real-world CSV exports cleanly.
+Chain **Read File** -> **Parse CSV** -> **CSV Transform** for a complete data import pipeline. Use TrimFields and SkipEmptyLines to handle messy real-world CSV exports cleanly.
 
 ---
 
@@ -160,20 +160,20 @@ Transforms an array of parsed CSV records by applying field mappings, filters, a
 
 ### Settings
 
-- **SourceAddress** — State address of the records array to transform.
-- **Destination** — State address to store the transformed records.
-- **Delimiter** — Delimiter for re-serialization (default `,`).
-- **FieldMapping** — JSON array of mapping objects with `From`, `To`, and optional `Template` properties for field renaming and transformation.
-- **FilterExpression** — An expression to filter rows. Only rows where the expression evaluates to true are included.
-- **OutputFields** — JSON array of field names to include in the output. Omit to include all fields.
+- **SourceAddress** -- State address of the records array to transform.
+- **Destination** -- State address to store the transformed records.
+- **Delimiter** -- Delimiter for re-serialization (default `,`).
+- **FieldMapping** -- JSON array of mapping objects with `From`, `To`, and optional `Template` properties for field renaming and transformation.
+- **FilterExpression** -- An expression to filter rows. Only rows where the expression evaluates to true are included.
+- **OutputFields** -- JSON array of field names to include in the output. Omit to include all fields.
 
 ### Outputs
 
-- **Records** — The transformed records array.
+- **Records** -- The transformed records array.
 
 ### Events
 
-- **Complete** — Fires after transformation.
+- **Complete** -- Fires after transformation.
 
 ### Tips
 
@@ -187,19 +187,19 @@ Computes a frequency distribution over a specific field in a dataset array.
 
 ### Settings
 
-- **SourceAddress** — State address of the data array to analyze.
-- **Field** — Field name to compute frequencies for (default `score`).
-- **Bins** — Number of bins for numeric data (default `5`).
-- **Destination** — State address to store the statistics object.
-- **SortBy** — Sort frequency results by `count` or `key`.
+- **SourceAddress** -- State address of the data array to analyze.
+- **Field** -- Field name to compute frequencies for (default `score`).
+- **Bins** -- Number of bins for numeric data (default `5`).
+- **Destination** -- State address to store the statistics object.
+- **SortBy** -- Sort frequency results by `count` or `key`.
 
 ### Outputs
 
-- **Stats** — An object containing the frequency distribution, bin boundaries, and summary statistics.
+- **Stats** -- An object containing the frequency distribution, bin boundaries, and summary statistics.
 
 ### Events
 
-- **Complete** — Fires after computation.
+- **Complete** -- Fires after computation.
 
 ### Tips
 
@@ -213,21 +213,21 @@ Intersects two arrays by matching records on a common field, similar to an SQL i
 
 ### Settings
 
-- **SourceAddressA** — State address of the first array.
-- **SourceAddressB** — State address of the second array.
-- **MatchField** — Field name to match records on. Records from both arrays with the same value in this field are merged.
-- **Destination** — State address to store the intersected results.
-- **JoinType** — Join type (default `inner`). Inner join returns only records that match in both arrays.
+- **SourceAddressA** -- State address of the first array.
+- **SourceAddressB** -- State address of the second array.
+- **MatchField** -- Field name to match records on. Records from both arrays with the same value in this field are merged.
+- **Destination** -- State address to store the intersected results.
+- **JoinType** -- Join type (default `inner`). Inner join returns only records that match in both arrays.
 
 ### Outputs
 
-- **Result** — Array of merged record objects.
-- **MatchCount** — Number of matched records.
+- **Result** -- Array of merged record objects.
+- **MatchCount** -- Number of matched records.
 
 ### Events
 
-- **Complete** — Fires after intersection.
+- **Complete** -- Fires after intersection.
 
 ### Tips
 
-Use Comprehension Intersect to combine data from two different sources — for example, joining a list of user IDs from one API with user details from another. The matched records are merged into single objects containing fields from both sources.
+Use Comprehension Intersect to combine data from two different sources -- for example, joining a list of user IDs from one API with user details from another. The matched records are merged into single objects containing fields from both sources.

@@ -10,20 +10,20 @@ Creates a new record via a Meadow REST API endpoint.
 
 ### Settings
 
-- **Entity** — Entity (table) name.
-- **Endpoint** — Base URL of the Meadow API server.
-- **DataAddress** — State address of the object containing the record data to create.
-- **Headers** — JSON string of request headers for authentication.
-- **Destination** — State address to store the created record (includes server-generated fields like ID).
+- **Entity** -- Entity (table) name.
+- **Endpoint** -- Base URL of the Meadow API server.
+- **DataAddress** -- State address of the object containing the record data to create.
+- **Headers** -- JSON string of request headers for authentication.
+- **Destination** -- State address to store the created record (includes server-generated fields like ID).
 
 ### Outputs
 
-- **Created** — The newly created record object with its assigned ID.
+- **Created** -- The newly created record object with its assigned ID.
 
 ### Events
 
-- **Complete** — Fires after the record is created.
-- **Error** — Fires on failure.
+- **Complete** -- Fires after the record is created.
+- **Error** -- Fires on failure.
 
 ### Tips
 
@@ -37,20 +37,20 @@ Reads a single record by its ID from a Meadow REST API endpoint.
 
 ### Settings
 
-- **Entity** — Entity (table) name to query.
-- **Endpoint** — Base URL of the Meadow API server.
-- **RecordID** — The ID of the record to retrieve.
-- **Destination** — State address to store the retrieved record.
-- **Headers** — JSON string of additional request headers for authentication.
+- **Entity** -- Entity (table) name to query.
+- **Endpoint** -- Base URL of the Meadow API server.
+- **RecordID** -- The ID of the record to retrieve.
+- **Destination** -- State address to store the retrieved record.
+- **Headers** -- JSON string of additional request headers for authentication.
 
 ### Outputs
 
-- **Record** — The retrieved record object.
+- **Record** -- The retrieved record object.
 
 ### Events
 
-- **Complete** — Fires after the record is retrieved.
-- **Error** — Fires if the record is not found or the request fails.
+- **Complete** -- Fires after the record is retrieved.
+- **Error** -- Fires if the record is not found or the request fails.
 
 ### Tips
 
@@ -64,23 +64,23 @@ Reads multiple records from a Meadow REST API endpoint, with optional filtering 
 
 ### Settings
 
-- **Entity** — Entity (table) name to query.
-- **Endpoint** — Base URL of the Meadow API server.
-- **Filter** — Meadow filter expression to narrow the result set (e.g. `FBV~IDUser~EQ~42~0~`).
-- **Destination** — State address to store the records array.
-- **Headers** — JSON string of request headers for authentication.
-- **PageSize** — Number of records per page (default `100`).
-- **PageNumber** — Zero-based page number (default `0`).
+- **Entity** -- Entity (table) name to query.
+- **Endpoint** -- Base URL of the Meadow API server.
+- **Filter** -- Meadow filter expression to narrow the result set (e.g. `FBV~IDUser~EQ~42~0~`).
+- **Destination** -- State address to store the records array.
+- **Headers** -- JSON string of request headers for authentication.
+- **PageSize** -- Number of records per page (default `100`).
+- **PageNumber** -- Zero-based page number (default `0`).
 
 ### Outputs
 
-- **Records** — Array of retrieved record objects.
-- **RecordCount** — Number of records returned.
+- **Records** -- Array of retrieved record objects.
+- **RecordCount** -- Number of records returned.
 
 ### Events
 
-- **Complete** — Fires after records are retrieved.
-- **Error** — Fires on request failure.
+- **Complete** -- Fires after records are retrieved.
+- **Error** -- Fires on request failure.
 
 ### Tips
 
@@ -94,20 +94,20 @@ Updates an existing record via a Meadow REST API endpoint.
 
 ### Settings
 
-- **Entity** — Entity (table) name.
-- **Endpoint** — Base URL of the Meadow API server.
-- **DataAddress** — State address of the record data to update. Must include the record's ID field.
-- **Headers** — JSON string of request headers for authentication.
-- **Destination** — State address to store the updated record.
+- **Entity** -- Entity (table) name.
+- **Endpoint** -- Base URL of the Meadow API server.
+- **DataAddress** -- State address of the record data to update. Must include the record's ID field.
+- **Headers** -- JSON string of request headers for authentication.
+- **Destination** -- State address to store the updated record.
 
 ### Outputs
 
-- **Updated** — The updated record object.
+- **Updated** -- The updated record object.
 
 ### Events
 
-- **Complete** — Fires after the update.
-- **Error** — Fires on failure.
+- **Complete** -- Fires after the update.
+- **Error** -- Fires on failure.
 
 ### Tips
 
@@ -121,19 +121,19 @@ Deletes a record by its ID via a Meadow REST API endpoint.
 
 ### Settings
 
-- **Entity** — Entity (table) name.
-- **Endpoint** — Base URL of the Meadow API server.
-- **RecordID** — The ID of the record to delete.
-- **Headers** — JSON string of request headers for authentication.
+- **Entity** -- Entity (table) name.
+- **Endpoint** -- Base URL of the Meadow API server.
+- **RecordID** -- The ID of the record to delete.
+- **Headers** -- JSON string of request headers for authentication.
 
 ### Events
 
-- **Done** — Fires after the record is deleted.
-- **Error** — Fires on failure.
+- **Done** -- Fires after the record is deleted.
+- **Error** -- Fires on failure.
 
 ### Tips
 
-Meadow Delete is permanent — consider adding a **Value Input** confirmation step before deleting records in user-facing workflows. Build the RecordID dynamically with template expressions when deleting records identified by earlier processing steps.
+Meadow Delete is permanent -- consider adding a **Value Input** confirmation step before deleting records in user-facing workflows. Build the RecordID dynamically with template expressions when deleting records identified by earlier processing steps.
 
 ---
 
@@ -143,20 +143,20 @@ Counts records for an entity via a Meadow REST API endpoint, with optional filte
 
 ### Settings
 
-- **Entity** — Entity (table) name.
-- **Endpoint** — Base URL of the Meadow API server.
-- **Destination** — State address to store the count value.
-- **Headers** — JSON string of request headers for authentication.
-- **Filter** — Meadow filter expression to count only matching records.
+- **Entity** -- Entity (table) name.
+- **Endpoint** -- Base URL of the Meadow API server.
+- **Destination** -- State address to store the count value.
+- **Headers** -- JSON string of request headers for authentication.
+- **Filter** -- Meadow filter expression to count only matching records.
 
 ### Outputs
 
-- **Count** — Number of records matching the criteria.
+- **Count** -- Number of records matching the criteria.
 
 ### Events
 
-- **Complete** — Fires after the count is retrieved.
-- **Error** — Fires on failure.
+- **Complete** -- Fires after the count is retrieved.
+- **Error** -- Fires on failure.
 
 ### Tips
 

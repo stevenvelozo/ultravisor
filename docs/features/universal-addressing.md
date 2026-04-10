@@ -8,10 +8,10 @@ Ultravisor's universal addressing system provides a single, human-readable schem
 >BeaconName/Context/Path/to/resource
 ```
 
-- **`>`** — Prefix indicating a universal address
-- **BeaconName** — Human-readable beacon name (e.g., `retold-remote`, `orator-conversion`)
-- **Context** — A named namespace on the beacon (e.g., `File`, `Cache`, `Staging`)
-- **Path** — Resource path within the context
+- **`>`** -- Prefix indicating a universal address
+- **BeaconName** -- Human-readable beacon name (e.g., `retold-remote`, `orator-conversion`)
+- **Context** -- A named namespace on the beacon (e.g., `File`, `Cache`, `Staging`)
+- **Path** -- Resource path within the context
 
 ### Examples
 
@@ -36,7 +36,7 @@ sequenceDiagram
     RA->>BC: resolveUniversalAddress(address)
     BC->>BC: Parse: beacon="retold-remote", context="File", path="photo.jpg"
     BC->>BC: findBeaconByName("retold-remote")
-    BC->>BC: Look up Context "File" → BaseURL
+    BC->>BC: Look up Context "File" -> BaseURL
     BC-->>RA: { URL, BeaconID, BeaconName, Context, Path, Filename }
 
     alt RequestingBeaconID provided
@@ -50,11 +50,11 @@ sequenceDiagram
 
 ### Resolution Steps
 
-1. **Parse** — Strip the `>` prefix, split into `BeaconName/Context/Path`
-2. **Beacon Lookup** — Find the beacon by name (or ID) in the coordinator's registry
-3. **Context Lookup** — Retrieve the context definition from the beacon record (contains `BaseURL`, `BasePath`, `Writable`, `Description`)
-4. **URL Construction** — Combine `BaseURL` with URL-encoded path segments
-5. **Strategy Resolution** (optional) — If `RequestingBeaconID` is provided, consult the reachability matrix to determine the best transfer strategy
+1. **Parse** -- Strip the `>` prefix, split into `BeaconName/Context/Path`
+2. **Beacon Lookup** -- Find the beacon by name (or ID) in the coordinator's registry
+3. **Context Lookup** -- Retrieve the context definition from the beacon record (contains `BaseURL`, `BasePath`, `Writable`, `Description`)
+4. **URL Construction** -- Combine `BaseURL` with URL-encoded path segments
+5. **Strategy Resolution** (optional) -- If `RequestingBeaconID` is provided, consult the reachability matrix to determine the best transfer strategy
 
 ## Contexts
 
@@ -79,7 +79,7 @@ beacon.registerContext('File', {
 
 ## Operations as Universal Data Locators
 
-Operation pipelines use universal addresses as their primary input mechanism. When a caller triggers an operation, it passes addresses as parameters — the operation graph handles resolution, transfer, processing, and result delivery automatically.
+Operation pipelines use universal addresses as their primary input mechanism. When a caller triggers an operation, it passes addresses as parameters -- the operation graph handles resolution, transfer, processing, and result delivery automatically.
 
 ```mermaid
 graph LR
@@ -90,7 +90,7 @@ graph LR
     E -->|Binary stream| F[Caller]
 ```
 
-This decouples the caller from knowing where files are or how to reach them. The address `>retold-remote/File/photo.jpg` works whether the beacon is on localhost, across a LAN, or behind a proxy — the resolve-address card and reachability matrix handle the routing.
+This decouples the caller from knowing where files are or how to reach them. The address `>retold-remote/File/photo.jpg` works whether the beacon is on localhost, across a LAN, or behind a proxy -- the resolve-address card and reachability matrix handle the routing.
 
 ## resolve-address Card Reference
 

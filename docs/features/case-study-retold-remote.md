@@ -64,26 +64,26 @@ sequenceDiagram
 
     RR->>UV: WebSocket: BeaconRegister<br/>{Name: "retold-remote", Contexts: {File: {BaseURL: "http://localhost:7827/content/"}},<br/>BindAddresses: [{IP: "127.0.0.1", Port: 7827}],<br/>Operations: [rr-image-thumbnail, rr-video-thumbnail, ...]}
     UV->>UV: Register beacon, store 9 operation definitions
-    UV->>UV: Probe: retold-remote ↔ orator-conversion = REACHABLE
+    UV->>UV: Probe: retold-remote <-> orator-conversion = REACHABLE
 
     Note over UV: Both beacons registered.<br/>14 beacon task types available.<br/>9 operations from retold-remote.<br/>Reachability: all pairs reachable.
 ```
 
 ### 3. Auto-Generated Operations
 
-retold-remote registers 9 operation definitions during beacon connection. These are complete operation graphs with nodes, connections, and state wiring — built programmatically by `_buildPipelineOperation()`:
+retold-remote registers 9 operation definitions during beacon connection. These are complete operation graphs with nodes, connections, and state wiring -- built programmatically by `_buildPipelineOperation()`:
 
 | Operation | Trigger Parameters | Pipeline |
 |-----------|-------------------|----------|
-| `rr-image-thumbnail` | ImageAddress, Width, Height, Format, Quality | resolve → transfer → resize → send-result |
-| `rr-video-thumbnail` | VideoAddress, Timestamp, Width | resolve → transfer → extract frame → send-result |
-| `rr-video-frame-extraction` | VideoAddress, Timestamp, Width | resolve → transfer → probe → extract → send-result |
-| `rr-audio-waveform` | AudioAddress, SampleRate, Samples | resolve → transfer → waveform → send-result |
-| `rr-audio-segment` | AudioAddress, Start, Duration, Codec | resolve → transfer → extract → send-result |
-| `rr-pdf-page-render` | PdfAddress, Page, LongSidePixels | resolve → transfer → render → send-result |
-| `rr-image-convert` | ImageAddress, Format, Quality | resolve → transfer → convert → send-result |
-| `rr-ebook-convert` | EbookAddress | resolve → transfer → ebook-convert → send-result |
-| `rr-media-probe` | MediaAddress | resolve → transfer → ffprobe → send-result |
+| `rr-image-thumbnail` | ImageAddress, Width, Height, Format, Quality | resolve -> transfer -> resize -> send-result |
+| `rr-video-thumbnail` | VideoAddress, Timestamp, Width | resolve -> transfer -> extract frame -> send-result |
+| `rr-video-frame-extraction` | VideoAddress, Timestamp, Width | resolve -> transfer -> probe -> extract -> send-result |
+| `rr-audio-waveform` | AudioAddress, SampleRate, Samples | resolve -> transfer -> waveform -> send-result |
+| `rr-audio-segment` | AudioAddress, Start, Duration, Codec | resolve -> transfer -> extract -> send-result |
+| `rr-pdf-page-render` | PdfAddress, Page, LongSidePixels | resolve -> transfer -> render -> send-result |
+| `rr-image-convert` | ImageAddress, Format, Quality | resolve -> transfer -> convert -> send-result |
+| `rr-ebook-convert` | EbookAddress | resolve -> transfer -> ebook-convert -> send-result |
+| `rr-media-probe` | MediaAddress | resolve -> transfer -> ffprobe -> send-result |
 
 Each pipeline follows the same pattern:
 
@@ -102,9 +102,9 @@ graph LR
 ```
 
 State connections wire outputs from earlier nodes into inputs of later nodes:
-- `resolve.URL` → `transfer.SourceURL`
-- `resolve.Filename` → `transfer.Filename`
-- `transfer.LocalPath` → `process.InputFile`
+- `resolve.URL` -> `transfer.SourceURL`
+- `resolve.Filename` -> `transfer.Filename`
+- `transfer.LocalPath` -> `process.InputFile`
 
 ## End-to-End: Image Thumbnail Generation
 
@@ -119,13 +119,13 @@ sequenceDiagram
 
     Browser->>RR: GET /content/preview/photo.jpg?w=400&h=300
 
-    Note over RR: Check cache → miss
+    Note over RR: Check cache -> miss
 
     RR->>UV: POST /Operation/rr-image-thumbnail/Trigger<br/>{Parameters: {ImageAddress: ">retold-remote/File/photo.jpg",<br/>Width: 400, Height: 300, Format: "webp", Quality: 80}}
 
     Note over UV: Start operation (sync mode)
 
-    UV->>UV: resolve-address<br/>>retold-remote/File/photo.jpg<br/>→ http://localhost:7827/content/photo.jpg
+    UV->>UV: resolve-address<br/>>retold-remote/File/photo.jpg<br/>-> http://localhost:7827/content/photo.jpg
 
     UV->>RR: HTTP GET http://localhost:7827/content/photo.jpg
     RR-->>UV: 200 OK (image bytes)
@@ -136,12 +136,12 @@ sequenceDiagram
     OC->>UV: POST /Beacon/Work/Poll
     UV-->>OC: WorkItem: {Action: "ImageResize",<br/>Settings: {InputFile: "/.../photo.jpg",<br/>OutputFile: "/.../thumbnail.jpg", Width: 400, ...}}
 
-    OC->>OC: Sharp: resize photo.jpg → thumbnail.jpg
+    OC->>OC: Sharp: resize photo.jpg -> thumbnail.jpg
     OC->>UV: POST /Beacon/Work/{hash}/Upload<br/>(raw binary: thumbnail.jpg)
     UV->>UV: Write to operation staging
 
     OC->>UV: POST /Beacon/Work/{hash}/Complete
-    UV->>UV: resumeOperation → send-result<br/>finds thumbnail.jpg in staging
+    UV->>UV: resumeOperation -> send-result<br/>finds thumbnail.jpg in staging
 
     UV-->>RR: 200 OK<br/>Content-Type: application/octet-stream<br/>Body: (thumbnail bytes)
 
@@ -184,9 +184,9 @@ this._dispatcher.triggerOperation('rr-image-thumbnail',
 orator-conversion handles arbitrarily large images (including 256MB+ scans):
 
 - **File-path mode**: Sharp receives the file path directly instead of loading the entire file into a buffer
-- **No pixel limit**: `sharp(filePath, { limitInputPixels: false })` — disables Sharp's default pixel limit
+- **No pixel limit**: `sharp(filePath, { limitInputPixels: false })` -- disables Sharp's default pixel limit
 - **Streaming**: File transfer uses Node.js streams, avoiding full-file buffering
-- **Binary upload**: Result files transfer as raw bytes over HTTP or WebSocket — no base64 encoding
+- **Binary upload**: Result files transfer as raw bytes over HTTP or WebSocket -- no base64 encoding
 
 ## Error Handling
 
@@ -197,9 +197,9 @@ flowchart TD
     A[Beacon processes work item] --> B{ExitCode == 0?}
     B -->|Yes| C[Upload output file]
     C --> D[Report completion]
-    D --> E[Operation resumes → send-result → binary stream]
+    D --> E[Operation resumes -> send-result -> binary stream]
     B -->|No| F[Report error]
-    F --> G[Operation resumes → Error event → End node]
+    F --> G[Operation resumes -> Error event -> End node]
     G --> H[Trigger returns JSON with Success: false]
     H --> I[retold-remote falls back to local processing]
 ```
@@ -215,9 +215,9 @@ npm start -- -u -l                     # orator-conversion-2026-03-21T...log
 ```
 
 Key log prefixes for tracing the pipeline:
-- `[TriggerOp]` — retold-remote dispatcher
-- `[Trigger]` — Ultravisor trigger endpoint
-- `[Engine]` — Ultravisor execution engine
-- `[Coordinator]` — Beacon coordinator (work queue, uploads)
-- `[OratorConversion]` — orator-conversion provider
-- `[Beacon]` — Beacon client (execution, upload, completion)
+- `[TriggerOp]` -- retold-remote dispatcher
+- `[Trigger]` -- Ultravisor trigger endpoint
+- `[Engine]` -- Ultravisor execution engine
+- `[Coordinator]` -- Beacon coordinator (work queue, uploads)
+- `[OratorConversion]` -- orator-conversion provider
+- `[Beacon]` -- Beacon client (execution, upload, completion)

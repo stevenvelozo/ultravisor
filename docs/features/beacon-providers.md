@@ -92,7 +92,7 @@ cd /path/to/config && node /path/to/Ultravisor-Beacon-CLI.cjs
 ## Anatomy of a Provider
 
 Every provider is a plain JavaScript class that extends
-`UltravisorBeaconCapabilityProvider`. There is no Fable dependency — keep
+`UltravisorBeaconCapabilityProvider`. There is no Fable dependency -- keep
 providers lightweight and self-contained.
 
 ```mermaid
@@ -687,10 +687,10 @@ class FFmpegTranscodeProvider extends libBeaconCapabilityProvider
 		this._FFmpegPath = this._ProviderConfig.FFmpegPath || 'ffmpeg';
 		this._FFprobePath = this._ProviderConfig.FFprobePath || 'ffprobe';
 
-		// Preset library — each preset is an array of FFmpeg arguments
+		// Preset library -- each preset is an array of FFmpeg arguments
 		this._Presets =
 		{
-			// H.264 + AAC in MP4 — plays in all modern browsers
+			// H.264 + AAC in MP4 -- plays in all modern browsers
 			'browser-mp4':
 			[
 				'-c:v', 'libx264',
@@ -702,7 +702,7 @@ class FFmpegTranscodeProvider extends libBeaconCapabilityProvider
 				'-pix_fmt', 'yuv420p'         // broad compatibility
 			],
 
-			// VP9 + Opus in WebM — smaller files, good for web
+			// VP9 + Opus in WebM -- smaller files, good for web
 			'browser-webm':
 			[
 				'-c:v', 'libvpx-vp9',
@@ -712,7 +712,7 @@ class FFmpegTranscodeProvider extends libBeaconCapabilityProvider
 				'-b:a', '96k'
 			],
 
-			// H.264 Low — mobile-friendly, small file
+			// H.264 Low -- mobile-friendly, small file
 			'browser-mobile':
 			[
 				'-c:v', 'libx264',
@@ -725,14 +725,14 @@ class FFmpegTranscodeProvider extends libBeaconCapabilityProvider
 				'-pix_fmt', 'yuv420p'
 			],
 
-			// Thumbnail extraction — single frame to JPEG
+			// Thumbnail extraction -- single frame to JPEG
 			'thumbnail':
 			[
 				'-vframes', '1',
 				'-q:v', '2'
 			],
 
-			// Audio extraction — AAC in M4A container
+			// Audio extraction -- AAC in M4A container
 			'audio-only':
 			[
 				'-vn',
@@ -781,7 +781,7 @@ class FFmpegTranscodeProvider extends libBeaconCapabilityProvider
 	}
 
 	// -------------------------------------------------------------------
-	// Lifecycle — validate FFmpeg is installed
+	// Lifecycle -- validate FFmpeg is installed
 	// -------------------------------------------------------------------
 
 	initialize(fCallback)
@@ -981,7 +981,7 @@ class FFmpegTranscodeProvider extends libBeaconCapabilityProvider
 	}
 
 	// -------------------------------------------------------------------
-	// Probe — return media metadata as JSON
+	// Probe -- return media metadata as JSON
 	// -------------------------------------------------------------------
 
 	_executeProbe(pWorkItem, pContext, fCallback, fReportProgress)
@@ -1157,7 +1157,7 @@ Probe file metadata before deciding how to transcode:
 ### Full Pipeline Manifest
 
 A complete manifest that probes a file, then transcodes it into browser-MP4,
-mobile-MP4, and thumbnail — distributed across media workers:
+mobile-MP4, and thumbnail -- distributed across media workers:
 
 ```json
 {
@@ -1266,28 +1266,28 @@ up the first task. This avoids copying the source file across workers.
 
 Use this as a reference when building your own provider:
 
-- [ ] **Extend `CapabilityProvider`** — set `Name` and `Capability` in the
+- [ ] **Extend `CapabilityProvider`** -- set `Name` and `Capability` in the
   constructor.
-- [ ] **Declare actions** — implement `get actions()` returning the action
+- [ ] **Declare actions** -- implement `get actions()` returning the action
   map. Each action should have a `Description` and optionally a
   `SettingsSchema` array.
-- [ ] **Implement `execute`** — dispatch on `pAction`, read from
+- [ ] **Implement `execute`** -- dispatch on `pAction`, read from
   `pWorkItem.Settings`, resolve paths against `pContext.StagingPath`, call
   `fCallback` when done.
-- [ ] **Return structured results** — always include `Outputs.ExitCode`
+- [ ] **Return structured results** -- always include `Outputs.ExitCode`
   (0 = success), `Outputs.StdOut` (summary), and `Outputs.Result` (data).
-- [ ] **Use `fReportProgress`** — for any operation that takes more than a
+- [ ] **Use `fReportProgress`** -- for any operation that takes more than a
   few seconds, report progress so the orchestrator can track it.
-- [ ] **Implement `initialize`** — validate prerequisites (is the binary
+- [ ] **Implement `initialize`** -- validate prerequisites (is the binary
   installed? can we connect to the service?). Return an error to prevent
   the Beacon from starting if the provider cannot function.
-- [ ] **Implement `shutdown`** — release resources (close browser, disconnect
+- [ ] **Implement `shutdown`** -- release resources (close browser, disconnect
   from service, clean up temp files).
-- [ ] **Handle errors gracefully** — catch exceptions and return them as
+- [ ] **Handle errors gracefully** -- catch exceptions and return them as
   `ExitCode: 1` results rather than throwing. The Beacon must stay alive
   even if individual work items fail.
-- [ ] **Resolve paths** — use `pContext.StagingPath` to resolve relative file
+- [ ] **Resolve paths** -- use `pContext.StagingPath` to resolve relative file
   paths. This keeps file operations predictable across machines.
-- [ ] **Guard external access** — if the provider makes network requests or
+- [ ] **Guard external access** -- if the provider makes network requests or
   accesses the filesystem, add configuration to restrict what it can reach
   (e.g. `AllowedDomains`, `AllowedPaths`).

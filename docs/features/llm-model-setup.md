@@ -5,7 +5,7 @@ Each section covers installation, configuration, and verification for a
 specific backend.
 
 You do not need machine learning expertise to set this up. Each LLM
-provider has its own API that the Beacon wraps — you just need the
+provider has its own API that the Beacon wraps -- you just need the
 provider running and a configuration file pointing the Beacon at it.
 
 ## Prerequisites
@@ -64,7 +64,7 @@ Download the installer from https://ollama.com/download
 # Start the Ollama server (runs in background)
 ollama serve
 
-# Pull a model — this downloads the model weights (may take a few minutes)
+# Pull a model -- this downloads the model weights (may take a few minutes)
 ollama pull llama3.2
 
 # Verify it works
@@ -135,7 +135,7 @@ You should see:
 [Beacon CLI] Loaded config from /path/to/.ultravisor-beacon.json
 [LLM] Provider initialized: backend=ollama, model=llama3.2
 [LLM] Ollama server reachable at localhost:11434
-[ProviderRegistry] Registered "LLM" → LLM [ChatCompletion, Embedding, ToolUse]
+[ProviderRegistry] Registered "LLM" -> LLM [ChatCompletion, Embedding, ToolUse]
 [Beacon] Loaded 1 capability provider(s).
 [Beacon] Capabilities: LLM
 [Beacon] Registered as bcn-llm-ollama-...
@@ -144,12 +144,12 @@ You should see:
 
 ### Troubleshooting
 
-- **"Ollama server not reachable"** — Make sure `ollama serve` is running.
+- **"Ollama server not reachable"** -- Make sure `ollama serve` is running.
   Check with `curl http://localhost:11434/api/tags`.
-- **Slow responses** — First request after pulling a model is slower
+- **Slow responses** -- First request after pulling a model is slower
   (loading into memory). Subsequent requests are faster. On CPU-only
   machines, expect 5-30 seconds per response depending on model size.
-- **Out of memory** — Use a smaller model. `llama3.2:3b` or `phi3` work
+- **Out of memory** -- Use a smaller model. `llama3.2:3b` or `phi3` work
   well on machines with 8GB RAM. The 70B models need 48GB+ RAM or a GPU
   with equivalent VRAM.
 
@@ -166,7 +166,7 @@ an API key with billing set up.
 2. Create an account or sign in
 3. Navigate to API Keys
 4. Create a new key
-5. Copy the key — it starts with `sk-ant-`
+5. Copy the key -- it starts with `sk-ant-`
 
 ### Step 2: Set the API key as an environment variable
 
@@ -232,12 +232,12 @@ node source/beacon/Ultravisor-Beacon-CLI.cjs
 
 ### Troubleshooting
 
-- **"401 Unauthorized"** — Your API key is missing or invalid. Check
+- **"401 Unauthorized"** -- Your API key is missing or invalid. Check
   `echo $ANTHROPIC_API_KEY` to verify it's set.
-- **"429 Too Many Requests"** — You've hit rate limits. Anthropic has
+- **"429 Too Many Requests"** -- You've hit rate limits. Anthropic has
   per-minute and per-day limits that vary by plan. Reduce `MaxConcurrent`
   or add delays between requests.
-- **"400 max_tokens"** — Anthropic requires `max_tokens` on every
+- **"400 max_tokens"** -- Anthropic requires `max_tokens` on every
   request. The provider defaults to 4096 if not set, but some models
   support higher values.
 
@@ -250,7 +250,7 @@ node source/beacon/Ultravisor-Beacon-CLI.cjs
 1. Go to https://platform.openai.com/
 2. Sign in and navigate to API Keys
 3. Create a new secret key
-4. Copy the key — it starts with `sk-`
+4. Copy the key -- it starts with `sk-`
 
 ### Step 2: Set the API key
 
@@ -311,9 +311,9 @@ node source/beacon/Ultravisor-Beacon-CLI.cjs
 
 ### Troubleshooting
 
-- **"401" or "invalid_api_key"** — Check that `OPENAI_API_KEY` is set
+- **"401" or "invalid_api_key"** -- Check that `OPENAI_API_KEY` is set
   and has billing enabled. Free-tier keys have very limited access.
-- **"model_not_found"** — Make sure you have access to the model. Some
+- **"model_not_found"** -- Make sure you have access to the model. Some
   models require specific account tiers.
 
 ---
@@ -444,7 +444,7 @@ source/beacon/
       └── Ultravisor-Beacon-Provider-LLM.cjs
 ```
 
-These files have zero npm dependencies — they use only Node.js built-in
+These files have zero npm dependencies -- they use only Node.js built-in
 modules. Copy the `source/beacon/` directory to your remote machine,
 create a `.ultravisor-beacon.json` config file, and run:
 
@@ -482,7 +482,7 @@ Or use the CLI:
 node source/cli/Ultravisor-Run.cjs execute --operation llm-summarize
 ```
 
-Watch the Beacon terminal — you should see it pick up the work item,
+Watch the Beacon terminal -- you should see it pick up the work item,
 make the LLM API call, and report back.
 
 ---
