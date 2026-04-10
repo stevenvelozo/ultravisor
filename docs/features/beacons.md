@@ -20,18 +20,19 @@ a Beacon picks up the work, executes it remotely, and reports results.
 
 The full cycle looks like this:
 
-```
-┌──────────────────┐           ┌──────────────────────┐          ┌──────────────┐
-│  Operation Graph │           │  BeaconCoordinator   │          │    Beacon    │
-│                  │           │  (server-side)       │          │   (remote)   │
-│  beacon-dispatch │──enqueue──▶  Work Queue          │          │              │
-│  returns         │           │                      │◀──poll───│  poll loop   │
-│  WaitingForInput │           │  assign work item    │──work──▶ │  execute     │
-│       ⋮          │           │                      │          │  locally     │
-│  (paused)        │           │                      │◀─result──│  report back │
-│       ⋮          │           │  resumeOperation()   │          │              │
-│  graph continues │◀──resume──│                      │          │              │
-└──────────────────┘           └──────────────────────┘          └──────────────┘
+```mermaid
+sequenceDiagram
+    participant OG as Operation Graph
+    participant BC as BeaconCoordinator<br/>(server-side)
+    participant B as Beacon<br/>(remote)
+    OG->>BC: beacon-dispatch (enqueue)
+    Note left of OG: Returns WaitingForInput<br/>(graph paused)
+    B->>BC: poll loop
+    BC->>B: assign work item
+    B->>B: execute locally
+    B->>BC: report result
+    BC->>OG: resumeOperation()
+    Note left of OG: Graph continues
 ```
 
 ### Transport Agnostic

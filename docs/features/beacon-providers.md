@@ -95,23 +95,17 @@ Every provider is a plain JavaScript class that extends
 `UltravisorBeaconCapabilityProvider`. There is no Fable dependency — keep
 providers lightweight and self-contained.
 
-```
-┌──────────────────────────────────────────┐
-│         CapabilityProvider               │
-│                                          │
-│  Name          "MyProvider"              │
-│  Capability    "SomeCapability"          │
-│                                          │
-│  get actions() → { ActionA, ActionB }    │
-│                                          │
-│  initialize(fCallback)     ← optional    │
-│  shutdown(fCallback)       ← optional    │
-│                                          │
-│  execute(pAction, pWorkItem, pContext,   │
-│          fCallback, fReportProgress)     │
-│                                          │
-│  _ProviderConfig   ← per-provider cfg   │
-└──────────────────────────────────────────┘
+```mermaid
+classDiagram
+    class CapabilityProvider {
+        +String Name = "MyProvider"
+        +String Capability = "SomeCapability"
+        +Object _ProviderConfig
+        +get actions() Map~String, Action~
+        +initialize(fCallback) optional
+        +shutdown(fCallback) optional
+        +execute(pAction, pWorkItem, pContext, fCallback, fReportProgress)
+    }
 ```
 
 ### The `execute` Contract

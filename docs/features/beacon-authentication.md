@@ -10,28 +10,21 @@ Ultravisor uses Orator Authentication to manage beacon identity and connectivity
 
 Rather than a custom identity scheme, beacons use Orator's cookie-based session system:
 
-```
-Beacon Client                          Ultravisor Server
-    │                                        │
-    │  POST /1.0/Authenticate                │
-    │  { UserName: "gpu-worker-1" }          │
-    │───────────────────────────────────────▸ │
-    │                                        │  Create session
-    │  ◂─── 200 { LoggedIn: true }           │  Set-Cookie: SessionID=<uuid>
-    │                                        │
-    │  POST /Beacon/Register                 │
-    │  Cookie: SessionID=<uuid>              │
-    │  { Capabilities, MaxConcurrent, Tags } │
-    │───────────────────────────────────────▸ │
-    │                                        │  Create/reclaim beacon record
-    │  ◂─── 200 { BeaconID: "bcn-..." }      │  Associate with session
-    │                                        │
-    │  POST /Beacon/Work/Poll                │
-    │  Cookie: SessionID=<uuid>              │  (every 5s)
-    │───────────────────────────────────────▸ │
-    │                                        │  Validate session → OK
-    │  ◂─── 200 { WorkItem } or null         │
-    │                                        │
+```mermaid
+sequenceDiagram
+    participant BC as Beacon Client
+    participant UV as Ultravisor Server
+    BC->>UV: POST /1.0/Authenticate<br/>{ UserName: "gpu-worker-1" }
+    Note right of UV: Create session
+    UV-->>BC: 200 { LoggedIn: true }<br/>Set-Cookie: SessionID
+    BC->>UV: POST /Beacon/Register<br/>Cookie: SessionID<br/>{ Capabilities, MaxConcurrent, Tags }
+    Note right of UV: Create/reclaim beacon record<br/>Associate with session
+    UV-->>BC: 200 { BeaconID: "bcn-..." }
+    loop Every 5s
+        BC->>UV: POST /Beacon/Work/Poll<br/>Cookie: SessionID
+        Note right of UV: Validate session
+        UV-->>BC: 200 { WorkItem } or null
+    end
 ```
 
 ### Separation of Concerns
