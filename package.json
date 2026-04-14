@@ -31,7 +31,7 @@
         "orator": "^6.0.4",
         "orator-authentication": "^1.0.0",
         "orator-serviceserver-restify": "^2.0.10",
-        "pict": "^1.0.362",
+        "pict": "^1.0.363",
         "pict-service-commandlineutility": "^1.0.19",
         "pict-serviceproviderbase": "^1.0.4",
         "ultravisor-beacon": "^0.0.11",

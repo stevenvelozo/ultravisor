@@ -1923,6 +1923,13 @@ class UltravisorBeaconCoordinator extends libPictService
 
 	/**
 	 * Remove a work item hash from a Beacon's CurrentWorkItems array.
+	 *
+	 * After freeing the slot, any still-Pending work items that match
+	 * the Beacon's capabilities get a fresh push attempt. This is
+	 * important for WebSocket beacons: they only receive work via
+	 * `_tryPushToWebSocketBeacon`, and without this re-dispatch a
+	 * parallel work item enqueued while the beacon was full would sit
+	 * Pending forever (nobody polls for WebSocket beacons).
 	 */
 	_removeWorkItemFromBeacon(pBeaconID, pWorkItemHash)
 	{
@@ -1948,6 +1955,38 @@ class UltravisorBeaconCoordinator extends libPictService
 		if (tmpBeacon.CurrentWorkItems.length < tmpBeacon.MaxConcurrent)
 		{
 			tmpBeacon.Status = 'Online';
+		}
+
+		// Re-attempt dispatch of any pending work items. The beacon may
+		// now have capacity for items that were enqueued while it was
+		// busy. _tryPushToWebSocketBeacon iterates all registered
+		// beacons so this also covers the case where a different beacon
+		// came online mid-run.
+		this._dispatchPendingWorkItems();
+	}
+
+	/**
+	 * Walk the work queue and attempt to push any Pending,
+	 * unassigned work items via the WebSocket dispatch path.
+	 *
+	 * Safe to call any time — the push helper re-checks beacon
+	 * capacity, capability match, and state. This is the single
+	 * entry point for "something changed that might let a parked
+	 * work item move" (slot freed, new beacon registered, etc.).
+	 */
+	_dispatchPendingWorkItems()
+	{
+		// No WebSocket dispatch handler means nothing to push to.
+		if (!this._WorkItemPushHandler) return;
+
+		let tmpHashes = Object.keys(this._WorkQueue);
+		for (let i = 0; i < tmpHashes.length; i++)
+		{
+			let tmpWI = this._WorkQueue[tmpHashes[i]];
+			if (!tmpWI) continue;
+			if (tmpWI.Status !== 'Pending') continue;
+			if (tmpWI.AssignedBeaconID) continue; // affinity-assigned, leave it
+			this._tryPushToWebSocketBeacon(tmpWI);
 		}
 	}
 

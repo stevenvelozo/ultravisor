@@ -253,6 +253,60 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
+		// --- Operation Audit ---
+		// Static port-mapping audit across all registered operations.
+		// Cross-references beacon-dispatch nodes' state connections and
+		// Data keys against the beacon action catalog's SettingsSchema.
+		this._OratorServer.get
+			(
+				'/OperationAudit',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpAuditor = this._getService('UltravisorOperationAuditor');
+					if (!tmpAuditor)
+					{
+						pResponse.send(503, { Error: 'UltravisorOperationAuditor service not available.' });
+						return fNext();
+					}
+					tmpAuditor.auditAll(
+						function (pError, pReport)
+						{
+							if (pError)
+							{
+								pResponse.send(500, { Error: pError.message });
+								return fNext();
+							}
+							pResponse.send(pReport);
+							return fNext();
+						});
+				}.bind(this)
+			);
+
+		this._OratorServer.get
+			(
+				'/OperationAudit/:Hash',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpAuditor = this._getService('UltravisorOperationAuditor');
+					if (!tmpAuditor)
+					{
+						pResponse.send(503, { Error: 'UltravisorOperationAuditor service not available.' });
+						return fNext();
+					}
+					tmpAuditor.auditByHash(pRequest.params.Hash,
+						function (pError, pResult)
+						{
+							if (pError)
+							{
+								pResponse.send(404, { Error: pError.message });
+								return fNext();
+							}
+							pResponse.send(pResult);
+							return fNext();
+						});
+				}.bind(this)
+			);
+
 		this._OratorServer.post
 			(
 				'/Operation',
