@@ -991,10 +991,23 @@ class UltravisorExecutionEngine extends libPictService
 				tmpSourceValue = this._resolveTemplate(tmpConn.Data.Template, tmpTemplateContext);
 			}
 
+			// Determine which settings key to write under. When a
+			// state connection explicitly declares `Data.StateKey`,
+			// honor it — this lets operations fan state into a
+			// setting whose name doesn't match any physical port
+			// (e.g. the storyboard's parameter-sweep connection
+			// routes a value-input's InputValue into the sweep
+			// task's `ParameterSets` setting even though the sweep
+			// only exposes event trigger ports). Falls through to
+			// the target port name for backward compatibility.
+			let tmpSettingsKey = (tmpConn.Data && typeof(tmpConn.Data.StateKey) === 'string' && tmpConn.Data.StateKey)
+				? tmpConn.Data.StateKey
+				: tmpTargetPortName;
+
 			// Write the resolved value into settings
-			if (tmpTargetPortName && tmpSourceValue !== undefined)
+			if (tmpSettingsKey && tmpSourceValue !== undefined)
 			{
-				tmpSettings[tmpTargetPortName] = tmpSourceValue;
+				tmpSettings[tmpSettingsKey] = tmpSourceValue;
 			}
 		}
 

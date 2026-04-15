@@ -760,6 +760,138 @@ suite
 							});
 					}
 				);
+
+				test
+				(
+					'State connection Data.StateKey should override target port name when resolving settings.',
+					function()
+					{
+						// The storyboard — long-form video operation wires
+						// a value-input's InputValue state output into a
+						// parameter-sweep task's `ParameterSets` setting
+						// via an event-trigger target port. The target
+						// port name can't match the setting name in that
+						// shape, so the connection declares
+						// `Data.StateKey: "ParameterSets"` and the engine
+						// has to honor it. Without the StateKey override,
+						// the value would land on `tmpSettings[<port name>]`
+						// and the sweep task's `pResolvedSettings.ParameterSets`
+						// would be undefined, causing "ParameterSets must be
+						// a JSON array." at runtime.
+						let tmpFable = createTestFable();
+						let tmpEngine = Object.values(tmpFable.servicesMap['UltravisorExecutionEngine'])[0];
+
+						let tmpNode = {
+							Hash: 'sweep-node',
+							Type: 'parameter-sweep',
+							Data: {},
+							Settings: {},
+							Ports:
+							[
+								{ Direction: 'input', Hash: 'sweep-node-ei-begin', Label: 'BeginSweep', Side: 'left-bottom' }
+							]
+						};
+
+						let tmpContext = {
+							TaskOutputs: {
+								'value-input-node': { InputValue: [ { prompt: 'beat 1' }, { prompt: 'beat 2' } ] }
+							},
+							_ConnectionMap: {
+								stateTargets:
+								{
+									'sweep-node':
+									[
+										{
+											Hash: 'state-conn',
+											ConnectionType: 'state',
+											SourceNodeHash: 'value-input-node',
+											SourcePortHash: 'value-input-node-so-InputValue',
+											TargetNodeHash: 'sweep-node',
+											TargetPortHash: 'sweep-node-ei-begin',
+											Data: { StateKey: 'ParameterSets' }
+										}
+									]
+								}
+							},
+							_PortLabelMap:
+							{
+								'value-input-node-so-InputValue': 'InputValue',
+								'sweep-node-ei-begin': 'begin'
+							}
+						};
+
+						let tmpResolved = tmpEngine._resolveStateConnections('sweep-node', tmpNode, tmpContext);
+
+						// The StateKey override routes InputValue into the
+						// setting named ParameterSets, not into the target
+						// port's label ("begin").
+						Expect(Array.isArray(tmpResolved.ParameterSets)).to.equal(true);
+						Expect(tmpResolved.ParameterSets.length).to.equal(2);
+						Expect(tmpResolved.ParameterSets[0].prompt).to.equal('beat 1');
+						// The target port's label-named key should NOT
+						// have been populated when StateKey is present.
+						Expect(tmpResolved.begin).to.equal(undefined);
+					}
+				);
+
+				test
+				(
+					'State connection without Data.StateKey should still route by target port name.',
+					function()
+					{
+						// Regression guard for the StateKey fallback: when
+						// the state connection has no StateKey, the engine
+						// must continue to use the target port name as the
+						// settings key (backward compatibility for every
+						// operation wired the old way, including the
+						// template-transform test above).
+						let tmpFable = createTestFable();
+						let tmpEngine = Object.values(tmpFable.servicesMap['UltravisorExecutionEngine'])[0];
+
+						let tmpNode = {
+							Hash: 'write-node',
+							Type: 'write-file',
+							Data: {},
+							Settings: {},
+							Ports:
+							[
+								{ Direction: 'input', Hash: 'write-node-si-Content', Label: 'Content', Side: 'left-top' }
+							]
+						};
+
+						let tmpContext = {
+							TaskOutputs: {
+								'read-node': { FileContent: 'hello world' }
+							},
+							_ConnectionMap: {
+								stateTargets:
+								{
+									'write-node':
+									[
+										{
+											Hash: 'legacy-state-conn',
+											ConnectionType: 'state',
+											SourceNodeHash: 'read-node',
+											SourcePortHash: 'read-node-so-FileContent',
+											TargetNodeHash: 'write-node',
+											TargetPortHash: 'write-node-si-Content'
+											// No Data.StateKey — fall through
+										}
+									]
+								}
+							},
+							_PortLabelMap:
+							{
+								'read-node-so-FileContent': 'FileContent',
+								'write-node-si-Content': 'Content'
+							}
+						};
+
+						let tmpResolved = tmpEngine._resolveStateConnections('write-node', tmpNode, tmpContext);
+
+						Expect(tmpResolved.Content).to.equal('hello world');
+					}
+				);
 			}
 		);
 
