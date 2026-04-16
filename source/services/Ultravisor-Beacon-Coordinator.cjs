@@ -920,6 +920,7 @@ class UltravisorBeaconCoordinator extends libPictService
 
 		let tmpDefaultTimeout = this.fable.settings.UltravisorBeaconWorkItemTimeoutMs || 300000;
 
+		let tmpSettings = pWorkItemInfo.Settings || {};
 		let tmpWorkItem = {
 			WorkItemHash: tmpWorkItemHash,
 			RunHash: pWorkItemInfo.RunHash || '',
@@ -927,7 +928,7 @@ class UltravisorBeaconCoordinator extends libPictService
 			OperationHash: pWorkItemInfo.OperationHash || '',
 			Capability: pWorkItemInfo.Capability || 'Shell',
 			Action: pWorkItemInfo.Action || 'Execute',
-			Settings: pWorkItemInfo.Settings || {},
+			Settings: tmpSettings,
 			AffinityKey: pWorkItemInfo.AffinityKey || '',
 			AssignedBeaconID: null,
 			Status: 'Pending',
@@ -935,7 +936,14 @@ class UltravisorBeaconCoordinator extends libPictService
 			CreatedAt: new Date(tmpTimestamp).toISOString(),
 			ClaimedAt: null,
 			CompletedAt: null,
-			Result: null
+			Result: null,
+			// Retry support: configurable per-action via Settings.
+			// maxRetries=1 means no retry (single attempt, current behavior).
+			AttemptNumber: 0,
+			MaxAttempts: parseInt(tmpSettings.maxRetries, 10) || 1,
+			RetryBackoffMs: parseInt(tmpSettings.retryBackoffMs, 10) || 5000,
+			RetryAfter: null,
+			LastError: null
 		};
 
 		// Check for affinity binding — pre-assign to a specific Beacon
@@ -1455,6 +1463,37 @@ class UltravisorBeaconCoordinator extends libPictService
 		if (tmpWorkItem.Status === 'Complete' || tmpWorkItem.Status === 'Error' || tmpWorkItem.Status === 'Timeout')
 		{
 			return fCallback(new Error(`BeaconCoordinator: work item [${pWorkItemHash}] already finalized (${tmpWorkItem.Status}).`));
+		}
+
+		// ── Retry check: if attempts remain, schedule a retry instead
+		// of routing to the error path. The retry scheduler in
+		// _checkTimeouts() will re-enqueue the item after the backoff.
+		if (tmpWorkItem.AttemptNumber < tmpWorkItem.MaxAttempts - 1)
+		{
+			tmpWorkItem.AttemptNumber++;
+			tmpWorkItem.LastError = (pError && pError.ErrorMessage) || 'Unknown error';
+			tmpWorkItem.Status = 'RetryScheduled';
+			tmpWorkItem.RetryAfter = Date.now() + (tmpWorkItem.RetryBackoffMs * tmpWorkItem.AttemptNumber);
+			tmpWorkItem.ClaimedAt = null;
+			tmpWorkItem.AssignedBeaconID = null;
+
+			// Remove from the beacon's active list so it can accept new work
+			this._removeWorkItemFromBeacon(tmpWorkItem.AssignedBeaconID, pWorkItemHash);
+
+			let tmpJournal = this._getJournal();
+			if (tmpJournal)
+			{
+				tmpJournal.appendEntry('retry-scheduled', {
+					WorkItemHash: pWorkItemHash,
+					AttemptNumber: tmpWorkItem.AttemptNumber,
+					MaxAttempts: tmpWorkItem.MaxAttempts,
+					RetryAfterMs: tmpWorkItem.RetryBackoffMs * tmpWorkItem.AttemptNumber,
+					LastError: tmpWorkItem.LastError
+				});
+			}
+
+			this.log.info(`BeaconCoordinator: scheduling retry ${tmpWorkItem.AttemptNumber}/${tmpWorkItem.MaxAttempts} for [${pWorkItemHash}] in ${tmpWorkItem.RetryBackoffMs * tmpWorkItem.AttemptNumber}ms (error: ${tmpWorkItem.LastError.slice(0, 100)})`);
+			return fCallback(null);
 		}
 
 		tmpWorkItem.Status = 'Error';
@@ -2023,6 +2062,19 @@ class UltravisorBeaconCoordinator extends libPictService
 							this.log.error(`BeaconCoordinator: error handling timeout for [${tmpWorkItem.WorkItemHash}]: ${pError.message}`);
 						}
 					});
+			}
+		}
+
+		// Re-enqueue retry-scheduled work items whose backoff has elapsed
+		for (let j = 0; j < tmpWorkItemHashes.length; j++)
+		{
+			let tmpRetryItem = this._WorkQueue[tmpWorkItemHashes[j]];
+			if (tmpRetryItem.Status === 'RetryScheduled' && tmpRetryItem.RetryAfter && tmpNow >= tmpRetryItem.RetryAfter)
+			{
+				tmpRetryItem.Status = 'Pending';
+				tmpRetryItem.RetryAfter = null;
+				this.log.info(`BeaconCoordinator: re-enqueuing [${tmpRetryItem.WorkItemHash}] for retry attempt ${tmpRetryItem.AttemptNumber + 1}/${tmpRetryItem.MaxAttempts}`);
+				this._tryPushToWebSocketBeacon(tmpRetryItem);
 			}
 		}
 
