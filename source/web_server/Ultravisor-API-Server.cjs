@@ -956,6 +956,42 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
+		// --- Retry from checkpoint ---
+		// Re-dispatches the failed node in a completed/errored operation.
+		// All prior node outputs are preserved; only the failed node re-runs.
+		this._OratorServer.post
+			(
+				'/Operation/:RunHash/Retry',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpBody = pRequest.body || {};
+					let tmpEngine = this._getService('UltravisorExecutionEngine');
+					let tmpRunHash = pRequest.params.RunHash;
+
+					tmpEngine.retryFromCheckpoint(tmpRunHash,
+						{
+							NodeHash: tmpBody.NodeHash || null,
+							SettingsOverrides: tmpBody.SettingsOverrides || {}
+						},
+						function (pError, pContext)
+						{
+							if (pError)
+							{
+								pResponse.send(400, { Error: pError.message });
+								return fNext();
+							}
+							pResponse.send({
+								Success: true,
+								Status: pContext.Status,
+								Hash: pContext.Hash,
+								RetryNode: tmpBody.NodeHash || '(auto-detected)',
+								WaitingTasks: Object.keys(pContext.WaitingTasks || {})
+							});
+							return fNext();
+						});
+				}.bind(this)
+			);
+
 		// --- Operation Resume (for value-input tasks) ---
 		this._OratorServer.post
 			(

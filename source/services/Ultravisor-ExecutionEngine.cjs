@@ -590,6 +590,191 @@ class UltravisorExecutionEngine extends libPictService
 			});
 	}
 
+	/**
+	 * Retry a completed/errored operation from its last failed node.
+	 *
+	 * Reads the persisted manifest, finds the node that errored, resets
+	 * it to WaitingForInput, rebuilds the graph, and re-dispatches the
+	 * work item through the coordinator. All prior node outputs
+	 * (materialized files, state writes) are preserved — only the
+	 * failed node re-runs.
+	 *
+	 * @param {string} pRunHash - The execution run hash to retry
+	 * @param {object} [pOptions] - Optional overrides
+	 *        - NodeHash: retry a specific node (default: auto-detect failed node)
+	 *        - SettingsOverrides: merge into the re-dispatched Settings
+	 * @param {function} fCallback - function(pError, pExecutionContext)
+	 */
+	retryFromCheckpoint(pRunHash, pOptions, fCallback)
+	{
+		if (typeof pOptions === 'function')
+		{
+			fCallback = pOptions;
+			pOptions = {};
+		}
+		pOptions = pOptions || {};
+
+		let tmpManifestService = this._getManifestService();
+		if (!tmpManifestService)
+		{
+			return fCallback(new Error('ExecutionEngine: UltravisorExecutionManifest service not found.'));
+		}
+
+		let tmpContext = tmpManifestService.getRun(pRunHash);
+		if (!tmpContext)
+		{
+			return fCallback(new Error(`ExecutionEngine: run [${pRunHash}] not found.`));
+		}
+
+		if (tmpContext.Status === 'Running' || tmpContext.Status === 'WaitingForInput')
+		{
+			return fCallback(new Error(`ExecutionEngine: run [${pRunHash}] is still active (${tmpContext.Status}). Cannot retry.`));
+		}
+
+		// Find the failed node — either specified or auto-detected from TaskManifests
+		let tmpTargetNode = pOptions.NodeHash || null;
+		if (!tmpTargetNode)
+		{
+			for (let tmpNodeHash of Object.keys(tmpContext.TaskManifests || {}))
+			{
+				let tmpManifest = tmpContext.TaskManifests[tmpNodeHash];
+				if (tmpManifest.Executions && tmpManifest.Executions.length > 0)
+				{
+					let tmpLastExec = tmpManifest.Executions[tmpManifest.Executions.length - 1];
+					if (tmpLastExec.Status === 'Error')
+					{
+						tmpTargetNode = tmpNodeHash;
+						break;
+					}
+				}
+			}
+		}
+
+		// Also check TaskOutputs for _BeaconError flag (beacon-dispatch failures)
+		if (!tmpTargetNode)
+		{
+			for (let tmpNodeHash of Object.keys(tmpContext.TaskOutputs || {}))
+			{
+				if (tmpContext.TaskOutputs[tmpNodeHash]._BeaconError)
+				{
+					tmpTargetNode = tmpNodeHash;
+					break;
+				}
+			}
+		}
+
+		if (!tmpTargetNode)
+		{
+			return fCallback(new Error(`ExecutionEngine: no failed node found in run [${pRunHash}].`));
+		}
+
+		this.log.info(`[Engine] retryFromCheckpoint: run=${pRunHash} node=${tmpTargetNode}`);
+		this._log(tmpContext, `Retrying from checkpoint: re-dispatching node [${tmpTargetNode}]`);
+
+		// Look up the operation definition to rebuild the graph
+		let tmpStateService = this.fable.servicesMap['UltravisorHypervisorState']
+			? Object.values(this.fable.servicesMap['UltravisorHypervisorState'])[0]
+			: null;
+		if (!tmpStateService)
+		{
+			return fCallback(new Error('ExecutionEngine: UltravisorHypervisorState service not found.'));
+		}
+		let tmpOperation = tmpStateService.getOperationSync(tmpContext.OperationHash);
+		if (!tmpOperation || !tmpOperation.Graph)
+		{
+			return fCallback(new Error(`ExecutionEngine: operation [${tmpContext.OperationHash}] not found.`));
+		}
+
+		// Rebuild the graph context so traversal works
+		this._rebuildGraphContext(tmpContext, tmpOperation);
+
+		// Clear the failed node's error state
+		delete tmpContext.TaskOutputs[tmpTargetNode];
+		if (tmpContext.TaskManifests[tmpTargetNode])
+		{
+			// Keep the execution history but mark the new attempt
+			tmpContext.TaskManifests[tmpTargetNode].Executions.push({
+				Status: 'Retrying',
+				AttemptNumber: tmpContext.TaskManifests[tmpTargetNode].Executions.length,
+				StartTime: new Date().toISOString(),
+				StartTimeMs: Date.now()
+			});
+		}
+
+		// Re-add the node as WaitingForInput so the coordinator
+		// picks it up. Use the same ResumeEventName the original
+		// beacon-dispatch used ('Complete' for successful retry).
+		tmpContext.WaitingTasks[tmpTargetNode] = {
+			PromptMessage: '',
+			OutputAddress: '',
+			ResumeEventName: 'Complete',
+			Timestamp: new Date().toISOString()
+		};
+		tmpContext.Status = 'WaitingForInput';
+		tmpContext.StopTime = null;
+
+		// Clear operation-level errors from the previous run
+		tmpContext.Errors = tmpContext.Errors.filter(
+			(e) => e.NodeHash !== tmpTargetNode);
+
+		// Persist the updated manifest
+		if (tmpContext.StagingPath)
+		{
+			tmpManifestService._writeManifest(tmpContext, tmpContext.StagingPath);
+		}
+
+		this.log.info(`ExecutionEngine: run [${pRunHash}] reset to WaitingForInput at node [${tmpTargetNode}]. Re-dispatch the work item to continue.`);
+
+		// Now re-dispatch the beacon work item through the coordinator.
+		// The node's original Settings are in the operation graph.
+		let tmpCoordinator = this.fable.servicesMap['UltravisorBeaconCoordinator']
+			? Object.values(this.fable.servicesMap['UltravisorBeaconCoordinator'])[0]
+			: null;
+
+		if (tmpCoordinator && tmpContext._NodeMap && tmpContext._NodeMap[tmpTargetNode])
+		{
+			let tmpNodeDef = tmpContext._NodeMap[tmpTargetNode];
+			let tmpSettings = Object.assign({}, tmpNodeDef.Settings || {}, pOptions.SettingsOverrides || {});
+
+			// Resolve state addresses in Settings (same as original dispatch)
+			let tmpStateManager = this._getStateManager();
+			if (tmpStateManager)
+			{
+				for (let tmpKey of Object.keys(tmpSettings))
+				{
+					let tmpVal = tmpSettings[tmpKey];
+					if (typeof tmpVal === 'string' && tmpVal.indexOf('.') !== -1)
+					{
+						let tmpResolved = tmpStateManager.getAddress(tmpVal, tmpContext, tmpTargetNode);
+						if (tmpResolved !== undefined && tmpResolved !== tmpVal)
+						{
+							tmpSettings[tmpKey] = tmpResolved;
+						}
+					}
+				}
+			}
+
+			let tmpWorkItemInfo = {
+				RunHash: pRunHash,
+				NodeHash: tmpTargetNode,
+				OperationHash: tmpContext.OperationHash,
+				Capability: tmpNodeDef.Capability || tmpSettings.Capability || '',
+				Action: tmpNodeDef.Action || tmpSettings.Action || '',
+				Settings: tmpSettings,
+				TimeoutMs: tmpNodeDef.TimeoutMs || 600000
+			};
+
+			tmpCoordinator.enqueueWorkItem(tmpWorkItemInfo);
+			this.log.info(`ExecutionEngine: re-dispatched work item for node [${tmpTargetNode}]`);
+		}
+		else
+		{
+			this.log.warn(`ExecutionEngine: could not re-dispatch — coordinator or node definition not available. Run is waiting; resume manually.`);
+		}
+
+		return fCallback(null, tmpContext);
+	}
+
 	// ====================================================================
 	// Internal: Event Queue Processing
 	// ====================================================================
