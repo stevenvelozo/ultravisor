@@ -687,8 +687,8 @@ class UltravisorExecutionEngine extends libPictService
 			return fCallback(null);
 		}
 
-		// Resolve incoming state connections
-		let tmpResolvedSettings = this._resolveStateConnections(pNodeHash, tmpNode, pContext);
+		// Resolve incoming state connections (pass definition for type-aware resolution)
+		let tmpResolvedSettings = this._resolveStateConnections(pNodeHash, tmpNode, pContext, tmpDefinition);
 
 		// Get the manifest service for recording
 		let tmpManifestService = this._getManifestService();
@@ -952,7 +952,7 @@ class UltravisorExecutionEngine extends libPictService
 	 * @param {object} pContext - The execution context.
 	 * @returns {object} The resolved settings object.
 	 */
-	_resolveStateConnections(pNodeHash, pNode, pContext)
+	_resolveStateConnections(pNodeHash, pNode, pContext, pDefinition)
 	{
 		// Start with a copy of the node's static settings
 		// Nodes may store config in Settings or Data (flow editor uses Data)
@@ -1015,11 +1015,34 @@ class UltravisorExecutionEngine extends libPictService
 		// (e.g. "{~D:Record.Operation.InputFilePath~}" -> actual value from state)
 		let tmpTemplateContext = tmpStateManager.buildTemplateContext(pContext);
 
+		// Build a type lookup from the task definition's SettingsInputs.
+		// Object and Array typed settings should NOT have their contents
+		// template-resolved — they carry configuration (like MappingConfiguration)
+		// whose {~D:Record.Field~} expressions are meant for downstream consumers
+		// (e.g. TabularTransform), not for the execution engine.
+		let tmpSettingsTypeMap = {};
+		if (pDefinition && Array.isArray(pDefinition.SettingsInputs))
+		{
+			for (let s = 0; s < pDefinition.SettingsInputs.length; s++)
+			{
+				tmpSettingsTypeMap[pDefinition.SettingsInputs[s].Name] = pDefinition.SettingsInputs[s].DataType || 'String';
+			}
+		}
+
 		let tmpSettingsKeys = Object.keys(tmpSettings);
 		for (let i = 0; i < tmpSettingsKeys.length; i++)
 		{
 			let tmpKey = tmpSettingsKeys[i];
 			let tmpVal = tmpSettings[tmpKey];
+
+			// Skip template resolution for Object and Array typed settings.
+			// These carry opaque configuration (e.g. mapping rules) whose
+			// template expressions belong to the consuming service, not the engine.
+			let tmpDeclaredType = tmpSettingsTypeMap[tmpKey];
+			if (tmpDeclaredType === 'Object' || tmpDeclaredType === 'Array')
+			{
+				continue;
+			}
 
 			if (typeof(tmpVal) === 'string' && tmpVal.indexOf('{~') >= 0)
 			{
