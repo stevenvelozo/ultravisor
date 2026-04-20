@@ -541,6 +541,7 @@ class UltravisorExecutionManifest extends libPictService
 
 		this._emitExecutionEvent('ExecutionComplete', pExecutionContext.Hash,
 		{
+			OperationHash: pExecutionContext.OperationHash,
 			Status: pExecutionContext.Status,
 			ElapsedMs: pExecutionContext.ElapsedMs,
 			ErrorCount: pExecutionContext.Errors.length

@@ -28,6 +28,9 @@ class UltravisorAPIServer extends libPictService
 		this._WebSocketSubscriptions = {};
 		// Map of BeaconID -> WebSocket for beacon worker connections
 		this._BeaconWebSockets = {};
+		// Set of WebSocket clients subscribed to the queue.* topic
+		// (broadcast by UltravisorBeaconScheduler).
+		this._QueueSubscribers = new Set();
 	}
 
 	/**
@@ -1516,6 +1519,267 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
+		// --- Run Lifecycle: Start a hub-owned run ---
+		this._OratorServer.post
+			(
+				'/Beacon/Run/Start',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
+					let tmpRunManager = this._getService('UltravisorBeaconRunManager');
+					if (!tmpRunManager)
+					{
+						pResponse.send(500, { Error: 'BeaconRunManager service not available.' });
+						return fNext();
+					}
+
+					let tmpBody = pRequest.body || {};
+					let tmpIdempotency = pRequest.headers['x-idempotency-key'] || tmpBody.IdempotencyKey || '';
+
+					let tmpRun = tmpRunManager.startRun({
+						IdempotencyKey: tmpIdempotency,
+						SubmitterTag: tmpBody.SubmitterTag || '',
+						Metadata: tmpBody.Metadata || {}
+					});
+
+					pResponse.send({
+						Success: true,
+						RunID: tmpRun.RunID,
+						State: tmpRun.State,
+						StartedAt: tmpRun.StartedAt,
+						IdempotencyKey: tmpRun.IdempotencyKey || ''
+					});
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- Run Lifecycle: End a run explicitly ---
+		this._OratorServer.post
+			(
+				'/Beacon/Run/:RunID/End',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
+					let tmpRunManager = this._getService('UltravisorBeaconRunManager');
+					if (!tmpRunManager)
+					{
+						pResponse.send(500, { Error: 'BeaconRunManager service not available.' });
+						return fNext();
+					}
+
+					let tmpBody = pRequest.body || {};
+					let tmpState = tmpBody.State || 'Ended';
+					let tmpOK = tmpRunManager.endRun(pRequest.params.RunID, tmpState);
+					if (!tmpOK)
+					{
+						pResponse.send(404, { Error: `Run [${pRequest.params.RunID}] not found.` });
+						return fNext();
+					}
+					pResponse.send({ Success: true, RunID: pRequest.params.RunID, State: tmpState });
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- Async Enqueue: returns the WorkItemHash immediately ---
+		this._OratorServer.post
+			(
+				'/Beacon/Work/Enqueue',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send(500, { Error: 'BeaconCoordinator service not available.' });
+						return fNext();
+					}
+
+					let tmpBody = pRequest.body || {};
+					if (!tmpBody.Capability)
+					{
+						pResponse.send(400, { Error: 'Capability is required.' });
+						return fNext();
+					}
+
+					// If the client didn't supply a RunID, mint one on the fly so
+					// every enqueue ends up attached to a durable run record.
+					let tmpRunID = tmpBody.RunID || '';
+					if (!tmpRunID)
+					{
+						let tmpRunManager = this._getService('UltravisorBeaconRunManager');
+						if (tmpRunManager)
+						{
+							let tmpIdempotency = pRequest.headers['x-idempotency-key'] || '';
+							let tmpRun = tmpRunManager.startRun({
+								IdempotencyKey: tmpIdempotency,
+								SubmitterTag: tmpBody.SubmitterTag || '',
+								Metadata: tmpBody.Metadata || {}
+							});
+							tmpRunID = tmpRun.RunID;
+						}
+					}
+
+					let tmpWorkItemInfo = {
+						RunID: tmpRunID,
+						RunHash: tmpBody.RunHash || '',
+						NodeHash: tmpBody.NodeHash || '',
+						OperationHash: tmpBody.OperationHash || '',
+						Capability: tmpBody.Capability,
+						Action: tmpBody.Action || 'Execute',
+						Settings: tmpBody.Settings || {},
+						AffinityKey: tmpBody.AffinityKey || '',
+						TimeoutMs: parseInt(tmpBody.TimeoutMs, 10) || 0,
+						Priority: (tmpBody.Priority != null) ? parseInt(tmpBody.Priority, 10) : null
+					};
+
+					let tmpWorkItem = tmpCoordinator.enqueueWorkItem(tmpWorkItemInfo);
+					pResponse.send({
+						Success: true,
+						RunID: tmpRunID,
+						WorkItemHash: tmpWorkItem.WorkItemHash,
+						Status: tmpWorkItem.Status,
+						EnqueuedAt: tmpWorkItem.EnqueuedAt,
+						Priority: tmpWorkItem.Priority
+					});
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- Work Item Cancellation ---
+		this._OratorServer.post
+			(
+				'/Beacon/Work/:WorkItemHash/Cancel',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
+					let tmpScheduler = this._getService('UltravisorBeaconScheduler');
+					if (!tmpScheduler)
+					{
+						pResponse.send(500, { Error: 'BeaconScheduler service not available.' });
+						return fNext();
+					}
+					let tmpBody = pRequest.body || {};
+					let tmpResult = tmpScheduler.requestCancel(pRequest.params.WorkItemHash,
+						tmpBody.Reason || 'cancel requested');
+					if (tmpResult.Error === 'not found')
+					{
+						pResponse.send(404, { Error: `Work item [${pRequest.params.WorkItemHash}] not found.` });
+						return fNext();
+					}
+					pResponse.send(Object.assign({ Success: !tmpResult.Error, WorkItemHash: pRequest.params.WorkItemHash }, tmpResult));
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- Work Item Reorder (Upcoming bucket) ---
+		this._OratorServer.post
+			(
+				'/Beacon/Work/:WorkItemHash/Reorder',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
+					let tmpScheduler = this._getService('UltravisorBeaconScheduler');
+					if (!tmpScheduler)
+					{
+						pResponse.send(500, { Error: 'BeaconScheduler service not available.' });
+						return fNext();
+					}
+					let tmpBody = pRequest.body || {};
+					let tmpDirection = tmpBody.Direction;
+					if (tmpDirection !== 'up' && tmpDirection !== 'down')
+					{
+						pResponse.send(400, { Error: 'Direction must be "up" or "down".' });
+						return fNext();
+					}
+					let tmpResult = tmpScheduler.reorderWorkItem(pRequest.params.WorkItemHash, tmpDirection);
+					if (tmpResult.Error === 'not found')
+					{
+						pResponse.send(404, { Error: `Work item [${pRequest.params.WorkItemHash}] not found.` });
+						return fNext();
+					}
+					if (!tmpResult.Reordered)
+					{
+						// 409 for "can't reorder in this state" (at edge, not Upcoming, etc.)
+						pResponse.send(409, tmpResult);
+						return fNext();
+					}
+					pResponse.send(Object.assign({ Success: true }, tmpResult));
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- Per-Work-Item Event Log ---
+		this._OratorServer.get
+			(
+				'/Beacon/Work/:WorkItemHash/Events',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
+					let tmpStore = this._getService('UltravisorBeaconQueueStore');
+					if (!tmpStore || !tmpStore.isEnabled || !tmpStore.isEnabled())
+					{
+						pResponse.send(503, { Error: 'BeaconQueueStore service not available.' });
+						return fNext();
+					}
+
+					let tmpHash = pRequest.params.WorkItemHash;
+					let tmpLimit = pRequest.query ? parseInt(pRequest.query.limit, 10) || 500 : 500;
+					let tmpItem = tmpStore.getWorkItemByHash(tmpHash);
+					if (!tmpItem)
+					{
+						pResponse.send(404, { Error: `Work item [${tmpHash}] not found.` });
+						return fNext();
+					}
+
+					let tmpEvents = tmpStore.listEventsForWorkItem(tmpHash, tmpLimit);
+					pResponse.send({
+						WorkItemHash: tmpHash,
+						Events: tmpEvents
+					});
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- Queue Snapshot (buckets + summary + items) ---
+		this._OratorServer.get
+			(
+				'/Beacon/Queue',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpScheduler = this._getService('UltravisorBeaconScheduler');
+					let tmpStore = this._getService('UltravisorBeaconQueueStore');
+					let tmpSummary = tmpScheduler ? tmpScheduler.summarize() : null;
+					let tmpBucket = pRequest.query ? pRequest.query.bucket : null;
+					let tmpLimit = pRequest.query ? parseInt(pRequest.query.limit, 10) || 200 : 200;
+
+					let tmpItems = tmpScheduler ? tmpScheduler.listBuckets(tmpBucket, tmpLimit) : [];
+					let tmpHistorical = null;
+					if (tmpStore && tmpStore.isEnabled && tmpStore.isEnabled()
+						&& pRequest.query && pRequest.query.include === 'history')
+					{
+						tmpHistorical = tmpStore.listWorkItems({ Limit: tmpLimit, OrderBy: 'IDBeaconWorkItem DESC' });
+					}
+					pResponse.send({
+						Summary: tmpSummary,
+						Items: tmpItems,
+						History: tmpHistorical
+					});
+					return fNext();
+				}.bind(this)
+			);
+
 		// --- Direct Dispatch (synchronous) ---
 		this._OratorServer.post
 			(
@@ -2038,6 +2302,30 @@ class UltravisorAPIServer extends libPictService
 						{
 							this._handleBeaconWSDeregister(pWebSocket, tmpData);
 						}
+						else if (tmpData.Action === 'QueueSubscribe')
+						{
+							this._QueueSubscribers.add(pWebSocket);
+							pWebSocket._QueueSubscribed = true;
+							// Send current summary immediately so the UI
+							// doesn't wait a full tick to populate.
+							let tmpSched = this._getService('UltravisorBeaconScheduler');
+							if (tmpSched && typeof tmpSched.summarize === 'function')
+							{
+								try
+								{
+									pWebSocket.send(JSON.stringify({
+										Topic: 'queue.summary',
+										Payload: tmpSched.summarize()
+									}));
+								}
+								catch (pErr) { /* ignore */ }
+							}
+						}
+						else if (tmpData.Action === 'QueueUnsubscribe')
+						{
+							this._QueueSubscribers.delete(pWebSocket);
+							pWebSocket._QueueSubscribed = false;
+						}
 					}.bind(this));
 
 				pWebSocket.on('close',
@@ -2045,6 +2333,7 @@ class UltravisorAPIServer extends libPictService
 					{
 						this._unsubscribeClient(pWebSocket);
 						this._cleanupBeaconWS(pWebSocket);
+						this._QueueSubscribers.delete(pWebSocket);
 					}.bind(this));
 			}.bind(this));
 
@@ -2065,7 +2354,36 @@ class UltravisorAPIServer extends libPictService
 				this.pushWorkItemToBeacon.bind(this));
 		}
 
+		// Wire the scheduler's broadcast hook to the queue.* WebSocket topic.
+		let tmpScheduler = this._getService('UltravisorBeaconScheduler');
+		if (tmpScheduler && typeof tmpScheduler.setBroadcastHandler === 'function')
+		{
+			tmpScheduler.setBroadcastHandler(
+				this._broadcastQueueTopic.bind(this));
+		}
+
 		this.log.info('Ultravisor WebSocket: execution event WebSocket server initialized.');
+	}
+
+	/**
+	 * Fan out a queue.* topic payload to all subscribed WebSocket clients.
+	 *
+	 * @param {string} pTopic - e.g. "queue.enqueued" / "queue.dispatched" / ...
+	 * @param {object} pPayload - topic-specific JSON body
+	 */
+	_broadcastQueueTopic(pTopic, pPayload)
+	{
+		if (!this._QueueSubscribers || this._QueueSubscribers.size === 0) return;
+		let tmpMessage = JSON.stringify({ Topic: pTopic, Payload: pPayload });
+		this._QueueSubscribers.forEach(
+			function (pClient)
+			{
+				if (pClient.readyState === libWebSocket.OPEN)
+				{
+					try { pClient.send(tmpMessage); }
+					catch (pErr) { /* best effort */ }
+				}
+			});
 	}
 
 	/**

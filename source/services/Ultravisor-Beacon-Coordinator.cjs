@@ -99,6 +99,45 @@ class UltravisorBeaconCoordinator extends libPictService
 	}
 
 	/**
+	 * Get the SQLite-backed queue store (lazy lookup, not cached so
+	 * late-bound services are picked up after initialization order
+	 * finishes settling).
+	 *
+	 * @returns {object|null}
+	 */
+	_getQueueStore()
+	{
+		let tmpMap = this.fable.servicesMap && this.fable.servicesMap.UltravisorBeaconQueueStore;
+		if (!tmpMap) return null;
+		let tmpStore = Object.values(tmpMap)[0];
+		return (tmpStore && tmpStore.isEnabled && tmpStore.isEnabled()) ? tmpStore : null;
+	}
+
+	/**
+	 * Get the scheduler service (lazy lookup).
+	 *
+	 * @returns {object|null}
+	 */
+	_getScheduler()
+	{
+		let tmpMap = this.fable.servicesMap && this.fable.servicesMap.UltravisorBeaconScheduler;
+		if (!tmpMap) return null;
+		return Object.values(tmpMap)[0];
+	}
+
+	/**
+	 * Get the action defaults service (lazy lookup).
+	 *
+	 * @returns {object|null}
+	 */
+	_getActionDefaults()
+	{
+		let tmpMap = this.fable.servicesMap && this.fable.servicesMap.UltravisorBeaconActionDefaults;
+		if (!tmpMap) return null;
+		return Object.values(tmpMap)[0];
+	}
+
+	/**
 	 * Restore work queue and affinity bindings from the journal.
 	 *
 	 * Called once at startup after the journal service is initialized.
@@ -921,9 +960,11 @@ class UltravisorBeaconCoordinator extends libPictService
 		let tmpDefaultTimeout = this.fable.settings.UltravisorBeaconWorkItemTimeoutMs || 300000;
 
 		let tmpSettings = pWorkItemInfo.Settings || {};
+		let tmpCreatedIso = new Date(tmpTimestamp).toISOString();
 		let tmpWorkItem = {
 			WorkItemHash: tmpWorkItemHash,
 			RunHash: pWorkItemInfo.RunHash || '',
+			RunID: pWorkItemInfo.RunID || '',
 			NodeHash: pWorkItemInfo.NodeHash || '',
 			OperationHash: pWorkItemInfo.OperationHash || '',
 			Capability: pWorkItemInfo.Capability || 'Shell',
@@ -933,9 +974,23 @@ class UltravisorBeaconCoordinator extends libPictService
 			AssignedBeaconID: null,
 			Status: 'Pending',
 			TimeoutMs: pWorkItemInfo.TimeoutMs || tmpDefaultTimeout,
-			CreatedAt: new Date(tmpTimestamp).toISOString(),
+			CreatedAt: tmpCreatedIso,
+			EnqueuedAt: pWorkItemInfo.EnqueuedAt || tmpCreatedIso,
+			AssignedAt: null,
+			DispatchedAt: null,
+			StartedAt: null,
 			ClaimedAt: null,
 			CompletedAt: null,
+			CanceledAt: null,
+			CancelRequested: false,
+			CancelReason: '',
+			LastEventAt: tmpCreatedIso,
+			QueueWaitMs: 0,
+			Priority: (pWorkItemInfo.Priority != null) ? pWorkItemInfo.Priority : (parseInt(tmpSettings.priority, 10) || 0),
+			Health: null,
+			HealthLabel: 'Unknown',
+			HealthReason: '',
+			HealthComputedAt: null,
 			Result: null,
 			// Retry support: configurable per-action via Settings.
 			// maxRetries=1 means no retry (single attempt, current behavior).
@@ -945,6 +1000,15 @@ class UltravisorBeaconCoordinator extends libPictService
 			RetryAfter: null,
 			LastError: null
 		};
+
+		// Apply action defaults (timeout, retry, priority) if the
+		// BeaconActionDefaults service is available.  Per-request
+		// Settings still override, handled inside applyToWorkItem.
+		let tmpDefaults = this._getActionDefaults();
+		if (tmpDefaults)
+		{
+			tmpDefaults.applyToWorkItem(tmpWorkItem, tmpSettings);
+		}
 
 		// Check for affinity binding — pre-assign to a specific Beacon
 		if (tmpWorkItem.AffinityKey)
@@ -1005,6 +1069,41 @@ class UltravisorBeaconCoordinator extends libPictService
 					tmpJournal.appendEntry('affinity-create', tmpBinding);
 				}
 			}
+		}
+
+		// Persist the full record to the SQLite-backed queue store so
+		// the /queue view + historical queries + cross-restart recovery
+		// have a canonical source of truth.
+		let tmpQueueStore = this._getQueueStore();
+		if (tmpQueueStore)
+		{
+			try { tmpQueueStore.upsertWorkItem(tmpWorkItem); }
+			catch (pStoreErr) { this.log.warn(`BeaconCoordinator: queue store upsert failed: ${pStoreErr.message}`); }
+			try
+			{
+				tmpQueueStore.appendEvent({
+					WorkItemHash: tmpWorkItem.WorkItemHash,
+					RunID: tmpWorkItem.RunID,
+					EventType: 'enqueued',
+					FromStatus: '',
+					ToStatus: tmpWorkItem.Status,
+					Payload: {
+						Capability: tmpWorkItem.Capability,
+						Action: tmpWorkItem.Action,
+						Priority: tmpWorkItem.Priority,
+						AffinityKey: tmpWorkItem.AffinityKey
+					}
+				});
+			}
+			catch (pStoreErr2) { /* best effort */ }
+		}
+
+		// Broadcast the enqueue event.  Scheduler owns the ws envelope.
+		let tmpScheduler = this._getScheduler();
+		if (tmpScheduler)
+		{
+			try { tmpScheduler.notifyEnqueued(tmpWorkItem); }
+			catch (pErr) { /* best effort */ }
 		}
 
 		// Attempt immediate push to a WebSocket-connected beacon
@@ -1172,7 +1271,49 @@ class UltravisorBeaconCoordinator extends libPictService
 			if (tmpWorkItem.Status === 'Assigned' && tmpWorkItem.AssignedBeaconID === pBeaconID)
 			{
 				// This item was pre-assigned to us via affinity
+				let tmpPollNowIso = new Date().toISOString();
 				tmpWorkItem.Status = 'Running';
+				tmpWorkItem.StartedAt = tmpWorkItem.StartedAt || tmpPollNowIso;
+				tmpWorkItem.DispatchedAt = tmpWorkItem.DispatchedAt || tmpPollNowIso;
+				tmpWorkItem.LastEventAt = tmpPollNowIso;
+				if (!tmpWorkItem.QueueWaitMs && tmpWorkItem.EnqueuedAt)
+				{
+					let tmpEnqMs = Date.parse(tmpWorkItem.EnqueuedAt);
+					if (!isNaN(tmpEnqMs)) tmpWorkItem.QueueWaitMs = Math.max(0, Date.now() - tmpEnqMs);
+				}
+				tmpWorkItem.AttemptNumber = (tmpWorkItem.AttemptNumber || 0) + 1;
+				let tmpPollStoreA = this._getQueueStore();
+				if (tmpPollStoreA)
+				{
+					try
+					{
+						tmpPollStoreA.updateWorkItem(tmpWorkItem.WorkItemHash, {
+							Status: 'Running',
+							StartedAt: tmpWorkItem.StartedAt,
+							DispatchedAt: tmpWorkItem.DispatchedAt,
+							LastEventAt: tmpPollNowIso,
+							QueueWaitMs: tmpWorkItem.QueueWaitMs || 0,
+							AttemptNumber: tmpWorkItem.AttemptNumber
+						});
+						tmpPollStoreA.appendEvent({
+							WorkItemHash: tmpWorkItem.WorkItemHash,
+							RunID: tmpWorkItem.RunID,
+							EventType: 'dispatched',
+							FromStatus: 'Assigned',
+							ToStatus: 'Running',
+							BeaconID: pBeaconID,
+							Payload: { QueueWaitMs: tmpWorkItem.QueueWaitMs || 0, Path: 'poll' }
+						});
+						tmpPollStoreA.insertAttempt({
+							WorkItemHash: tmpWorkItem.WorkItemHash,
+							AttemptNumber: tmpWorkItem.AttemptNumber,
+							BeaconID: pBeaconID,
+							DispatchedAt: tmpWorkItem.DispatchedAt,
+							Outcome: 'Dispatched'
+						});
+					}
+					catch (pErr) { /* best effort */ }
+				}
 				this.log.info(`BeaconCoordinator: beacon [${pBeaconID}] picked up affinity-assigned work item [${tmpWorkItem.WorkItemHash}].`);
 				return this._sanitizeWorkItemForBeacon(tmpWorkItem);
 			}
@@ -1201,9 +1342,55 @@ class UltravisorBeaconCoordinator extends libPictService
 			}
 
 			// Claim this work item
+			let tmpPollClaimIso = new Date().toISOString();
+			let tmpPollFromStatus = tmpWorkItem.Status;
 			tmpWorkItem.Status = 'Running';
 			tmpWorkItem.AssignedBeaconID = pBeaconID;
-			tmpWorkItem.ClaimedAt = new Date().toISOString();
+			tmpWorkItem.ClaimedAt = tmpPollClaimIso;
+			tmpWorkItem.AssignedAt = tmpWorkItem.AssignedAt || tmpPollClaimIso;
+			tmpWorkItem.DispatchedAt = tmpWorkItem.DispatchedAt || tmpPollClaimIso;
+			tmpWorkItem.StartedAt = tmpWorkItem.StartedAt || tmpPollClaimIso;
+			tmpWorkItem.LastEventAt = tmpPollClaimIso;
+			if (!tmpWorkItem.QueueWaitMs && tmpWorkItem.EnqueuedAt)
+			{
+				let tmpEnqMs2 = Date.parse(tmpWorkItem.EnqueuedAt);
+				if (!isNaN(tmpEnqMs2)) tmpWorkItem.QueueWaitMs = Math.max(0, Date.now() - tmpEnqMs2);
+			}
+			tmpWorkItem.AttemptNumber = (tmpWorkItem.AttemptNumber || 0) + 1;
+			let tmpPollStoreB = this._getQueueStore();
+			if (tmpPollStoreB)
+			{
+				try
+				{
+					tmpPollStoreB.updateWorkItem(tmpWorkItem.WorkItemHash, {
+						Status: 'Running',
+						AssignedBeaconID: pBeaconID,
+						AssignedAt: tmpWorkItem.AssignedAt,
+						DispatchedAt: tmpWorkItem.DispatchedAt,
+						StartedAt: tmpWorkItem.StartedAt,
+						LastEventAt: tmpPollClaimIso,
+						QueueWaitMs: tmpWorkItem.QueueWaitMs || 0,
+						AttemptNumber: tmpWorkItem.AttemptNumber
+					});
+					tmpPollStoreB.appendEvent({
+						WorkItemHash: tmpWorkItem.WorkItemHash,
+						RunID: tmpWorkItem.RunID,
+						EventType: 'dispatched',
+						FromStatus: tmpPollFromStatus,
+						ToStatus: 'Running',
+						BeaconID: pBeaconID,
+						Payload: { QueueWaitMs: tmpWorkItem.QueueWaitMs || 0, Path: 'poll' }
+					});
+					tmpPollStoreB.insertAttempt({
+						WorkItemHash: tmpWorkItem.WorkItemHash,
+						AttemptNumber: tmpWorkItem.AttemptNumber,
+						BeaconID: pBeaconID,
+						DispatchedAt: tmpWorkItem.DispatchedAt,
+						Outcome: 'Dispatched'
+					});
+				}
+				catch (pErr) { /* best effort */ }
+			}
 
 			if (tmpBeacon.CurrentWorkItems.indexOf(tmpWorkItem.WorkItemHash) === -1)
 			{
@@ -1256,13 +1443,34 @@ class UltravisorBeaconCoordinator extends libPictService
 	 */
 	_sanitizeWorkItemForBeacon(pWorkItem)
 	{
+		// Populate QueueMetadata on the Settings envelope if the scheduler
+		// hasn't done it yet (direct poll path bypasses the scheduler).
+		let tmpSettings = pWorkItem.Settings || {};
+		if (!tmpSettings.QueueMetadata && pWorkItem.EnqueuedAt)
+		{
+			let tmpNowIso = new Date().toISOString();
+			let tmpEnqMs = Date.parse(pWorkItem.EnqueuedAt);
+			let tmpWaitMs = isNaN(tmpEnqMs) ? 0 : Math.max(0, Date.now() - tmpEnqMs);
+			tmpSettings.QueueMetadata = {
+				RunID: pWorkItem.RunID || '',
+				WorkItemHash: pWorkItem.WorkItemHash,
+				EnqueuedAt: pWorkItem.EnqueuedAt,
+				DispatchedAt: pWorkItem.DispatchedAt || tmpNowIso,
+				QueueWaitMs: pWorkItem.QueueWaitMs || tmpWaitMs,
+				AttemptNumber: pWorkItem.AttemptNumber || 1,
+				HubInstanceID: (this.fable.settings && this.fable.settings.UltravisorHubInstanceID) || ''
+			};
+		}
 		return {
 			WorkItemHash: pWorkItem.WorkItemHash,
+			RunID: pWorkItem.RunID || '',
 			Capability: pWorkItem.Capability,
 			Action: pWorkItem.Action,
-			Settings: pWorkItem.Settings,
+			Settings: tmpSettings,
 			OperationHash: pWorkItem.OperationHash,
-			TimeoutMs: pWorkItem.TimeoutMs
+			TimeoutMs: pWorkItem.TimeoutMs,
+			AttemptNumber: pWorkItem.AttemptNumber || 1,
+			QueueMetadata: tmpSettings.QueueMetadata
 		};
 	}
 
@@ -1350,14 +1558,63 @@ class UltravisorBeaconCoordinator extends libPictService
 			return fCallback(new Error(`BeaconCoordinator: work item [${pWorkItemHash}] already finalized (${tmpWorkItem.Status}).`));
 		}
 
+		let tmpFromStatus = tmpWorkItem.Status;
 		tmpWorkItem.Status = 'Complete';
 		tmpWorkItem.CompletedAt = new Date().toISOString();
+		tmpWorkItem.LastEventAt = tmpWorkItem.CompletedAt;
+
+		let tmpDurationMs = 0;
+		if (tmpWorkItem.DispatchedAt)
+		{
+			let tmpStartMs = Date.parse(tmpWorkItem.DispatchedAt);
+			if (!isNaN(tmpStartMs))
+			{
+				tmpDurationMs = Math.max(0, Date.now() - tmpStartMs);
+			}
+		}
 
 		// Journal the completion
 		let tmpJournal = this._getJournal();
 		if (tmpJournal)
 		{
 			tmpJournal.appendEntry('complete', { WorkItemHash: pWorkItemHash });
+		}
+
+		// Persist to the new queue store + append event + update attempt.
+		let tmpQueueStore = this._getQueueStore();
+		if (tmpQueueStore)
+		{
+			try
+			{
+				tmpQueueStore.updateWorkItem(pWorkItemHash, {
+					Status: 'Complete',
+					CompletedAt: tmpWorkItem.CompletedAt,
+					LastEventAt: tmpWorkItem.LastEventAt,
+					Result: pResult || null
+				});
+				tmpQueueStore.appendEvent({
+					WorkItemHash: pWorkItemHash,
+					RunID: tmpWorkItem.RunID,
+					EventType: 'completed',
+					FromStatus: tmpFromStatus,
+					ToStatus: 'Complete',
+					BeaconID: tmpWorkItem.AssignedBeaconID,
+					Payload: { DurationMs: tmpDurationMs }
+				});
+				tmpQueueStore.updateAttemptOutcome(pWorkItemHash, tmpWorkItem.AttemptNumber || 1, {
+					CompletedAt: tmpWorkItem.CompletedAt,
+					Outcome: 'Complete',
+					DurationMs: tmpDurationMs
+				});
+			}
+			catch (pStoreErr) { /* best effort */ }
+		}
+
+		let tmpScheduler = this._getScheduler();
+		if (tmpScheduler)
+		{
+			try { tmpScheduler.notifyCompleted(tmpWorkItem, tmpDurationMs); }
+			catch (pErr) { /* best effort */ }
 		}
 
 		// Merge accumulated progress logs with the final completion log
@@ -1496,15 +1753,67 @@ class UltravisorBeaconCoordinator extends libPictService
 			return fCallback(null);
 		}
 
+		let tmpFromStatus = tmpWorkItem.Status;
 		tmpWorkItem.Status = 'Error';
 		tmpWorkItem.CompletedAt = new Date().toISOString();
+		tmpWorkItem.LastEventAt = tmpWorkItem.CompletedAt;
+		tmpWorkItem.LastError = (pError && pError.ErrorMessage) || 'Unknown error';
 		tmpWorkItem.Result = { Error: pError.ErrorMessage || 'Unknown error', Log: pError.Log || [] };
+
+		let tmpFailDurationMs = 0;
+		if (tmpWorkItem.DispatchedAt)
+		{
+			let tmpFailStartMs = Date.parse(tmpWorkItem.DispatchedAt);
+			if (!isNaN(tmpFailStartMs))
+			{
+				tmpFailDurationMs = Math.max(0, Date.now() - tmpFailStartMs);
+			}
+		}
 
 		// Journal the failure
 		let tmpJournal = this._getJournal();
 		if (tmpJournal)
 		{
 			tmpJournal.appendEntry('fail', { WorkItemHash: pWorkItemHash });
+		}
+
+		// Persist to the new queue store + event + attempt outcome.
+		let tmpFailStore = this._getQueueStore();
+		if (tmpFailStore)
+		{
+			try
+			{
+				tmpFailStore.updateWorkItem(pWorkItemHash, {
+					Status: 'Error',
+					CompletedAt: tmpWorkItem.CompletedAt,
+					LastEventAt: tmpWorkItem.LastEventAt,
+					LastError: tmpWorkItem.LastError,
+					Result: tmpWorkItem.Result
+				});
+				tmpFailStore.appendEvent({
+					WorkItemHash: pWorkItemHash,
+					RunID: tmpWorkItem.RunID,
+					EventType: 'failed',
+					FromStatus: tmpFromStatus,
+					ToStatus: 'Error',
+					BeaconID: tmpWorkItem.AssignedBeaconID,
+					Payload: { Error: tmpWorkItem.LastError, DurationMs: tmpFailDurationMs }
+				});
+				tmpFailStore.updateAttemptOutcome(pWorkItemHash, tmpWorkItem.AttemptNumber || 1, {
+					CompletedAt: tmpWorkItem.CompletedAt,
+					Outcome: 'Error',
+					ErrorMessage: tmpWorkItem.LastError,
+					DurationMs: tmpFailDurationMs
+				});
+			}
+			catch (pStoreErr) { /* best effort */ }
+		}
+
+		let tmpFailScheduler = this._getScheduler();
+		if (tmpFailScheduler)
+		{
+			try { tmpFailScheduler.notifyFailed(tmpWorkItem, tmpWorkItem.LastError); }
+			catch (pErr) { /* best effort */ }
 		}
 
 		// Remove from Beacon's current work list
@@ -1856,6 +2165,21 @@ class UltravisorBeaconCoordinator extends libPictService
 			TotalSteps: (pProgressData.TotalSteps !== undefined) ? pProgressData.TotalSteps : (tmpWorkItem.Progress ? tmpWorkItem.Progress.TotalSteps : undefined),
 			UpdatedAt: new Date().toISOString()
 		};
+		// Mark the item as freshly heard-from for health scoring.
+		tmpWorkItem.LastEventAt = tmpWorkItem.Progress.UpdatedAt;
+		if (!tmpWorkItem.StartedAt) tmpWorkItem.StartedAt = tmpWorkItem.Progress.UpdatedAt;
+		let tmpProgressStore = this._getQueueStore();
+		if (tmpProgressStore)
+		{
+			try
+			{
+				tmpProgressStore.updateWorkItem(pWorkItemHash, {
+					LastEventAt: tmpWorkItem.LastEventAt,
+					StartedAt: tmpWorkItem.StartedAt
+				});
+			}
+			catch (pErr) { /* best effort */ }
+		}
 
 		// Accumulate log entries
 		if (Array.isArray(pProgressData.Log) && pProgressData.Log.length > 0)

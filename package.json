@@ -27,6 +27,7 @@
     },
     "homepage": "https://github.com/stevenvelozo/ultravisor#readme",
     "dependencies": {
+        "better-sqlite3": "^11.10.0",
         "cron": "^4.4.0",
         "orator": "^6.0.4",
         "orator-authentication": "^1.0.0",

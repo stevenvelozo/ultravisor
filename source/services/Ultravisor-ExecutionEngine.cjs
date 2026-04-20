@@ -793,7 +793,22 @@ class UltravisorExecutionEngine extends libPictService
 			if (Object.keys(pContext.WaitingTasks).length > 0)
 			{
 				pContext.Status = 'WaitingForInput';
-				this._log(pContext, 'Operation paused: waiting for user input.');
+				// Use each waiting task's PromptMessage — set by the task
+				// when it returned {WaitingForInput:true, ...}. That's
+				// where tasks already describe what they're waiting for
+				// ("Waiting for Beacon (...)", "Waiting for LLM response",
+				// "Please provide a value"). A hardcoded "user input"
+				// log misled operators for beacon/LLM waits that never
+				// involve the user.
+				let tmpWaitHashes = Object.keys(pContext.WaitingTasks);
+				let tmpReasons = [];
+				for (let i = 0; i < tmpWaitHashes.length; i++)
+				{
+					let tmpWait = pContext.WaitingTasks[tmpWaitHashes[i]];
+					if (tmpWait && tmpWait.PromptMessage) tmpReasons.push(tmpWait.PromptMessage);
+				}
+				let tmpReason = tmpReasons.length ? tmpReasons.join('; ') : 'waiting for input';
+				this._log(pContext, 'Operation paused: ' + tmpReason + '.');
 			}
 			return fCallback(null);
 		}

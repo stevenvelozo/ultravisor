@@ -1,0 +1,165 @@
+{
+	"Tables":
+	{
+		"BeaconRun":
+		{
+			"TableName": "BeaconRun",
+			"Domain": "Default",
+			"Description": "Hub-owned run lifecycle record. One row per submitter-visible run; work items link back via RunID.",
+			"Columns":
+			[
+				{ "Column": "IDBeaconRun", "DataType": "ID" },
+				{ "Column": "GUIDBeaconRun", "DataType": "GUID", "Size": "36" },
+				{ "Column": "CreateDate", "DataType": "DateTime" },
+				{ "Column": "CreatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "UpdateDate", "DataType": "DateTime" },
+				{ "Column": "UpdatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "Deleted", "DataType": "Boolean" },
+				{ "Column": "DeleteDate", "DataType": "DateTime" },
+				{ "Column": "DeletingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "RunID", "DataType": "String", "Size": "128" },
+				{ "Column": "IdempotencyKey", "DataType": "String", "Size": "256" },
+				{ "Column": "SubmitterTag", "DataType": "String", "Size": "256" },
+				{ "Column": "State", "DataType": "String", "Size": "32" },
+				{ "Column": "StartedAt", "DataType": "DateTime" },
+				{ "Column": "EndedAt", "DataType": "DateTime" },
+				{ "Column": "CanceledAt", "DataType": "DateTime" },
+				{ "Column": "CancelReason", "DataType": "String", "Size": "512" },
+				{ "Column": "Metadata", "DataType": "String", "Size": "8192" }
+			]
+		},
+		"BeaconWorkItem":
+		{
+			"TableName": "BeaconWorkItem",
+			"Domain": "Default",
+			"Description": "Mutable work item state — one row per dispatchable unit of work. Event history lives in BeaconWorkItemEvent.",
+			"Columns":
+			[
+				{ "Column": "IDBeaconWorkItem", "DataType": "ID" },
+				{ "Column": "GUIDBeaconWorkItem", "DataType": "GUID", "Size": "36" },
+				{ "Column": "CreateDate", "DataType": "DateTime" },
+				{ "Column": "CreatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "UpdateDate", "DataType": "DateTime" },
+				{ "Column": "UpdatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "Deleted", "DataType": "Boolean" },
+				{ "Column": "DeleteDate", "DataType": "DateTime" },
+				{ "Column": "DeletingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "WorkItemHash", "DataType": "String", "Size": "256" },
+				{ "Column": "RunID", "DataType": "String", "Size": "128" },
+				{ "Column": "RunHash", "DataType": "String", "Size": "256" },
+				{ "Column": "NodeHash", "DataType": "String", "Size": "256" },
+				{ "Column": "OperationHash", "DataType": "String", "Size": "256" },
+				{ "Column": "Capability", "DataType": "String", "Size": "128" },
+				{ "Column": "Action", "DataType": "String", "Size": "128" },
+				{ "Column": "Settings", "DataType": "String", "Size": "65535" },
+				{ "Column": "AffinityKey", "DataType": "String", "Size": "256" },
+				{ "Column": "Priority", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "Status", "DataType": "String", "Size": "32" },
+				{ "Column": "AssignedBeaconID", "DataType": "String", "Size": "128" },
+				{ "Column": "TimeoutMs", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "MaxAttempts", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "AttemptNumber", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "RetryBackoffMs", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "EnqueuedAt", "DataType": "DateTime" },
+				{ "Column": "AssignedAt", "DataType": "DateTime" },
+				{ "Column": "DispatchedAt", "DataType": "DateTime" },
+				{ "Column": "StartedAt", "DataType": "DateTime" },
+				{ "Column": "CompletedAt", "DataType": "DateTime" },
+				{ "Column": "CanceledAt", "DataType": "DateTime" },
+				{ "Column": "CancelRequested", "DataType": "Boolean" },
+				{ "Column": "CancelReason", "DataType": "String", "Size": "512" },
+				{ "Column": "LastError", "DataType": "String", "Size": "4096" },
+				{ "Column": "LastEventAt", "DataType": "DateTime" },
+				{ "Column": "QueueWaitMs", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "Health", "DataType": "String", "Size": "32" },
+				{ "Column": "HealthLabel", "DataType": "String", "Size": "16" },
+				{ "Column": "HealthReason", "DataType": "String", "Size": "128" },
+				{ "Column": "HealthComputedAt", "DataType": "DateTime" },
+				{ "Column": "Result", "DataType": "String", "Size": "65535" }
+			]
+		},
+		"BeaconWorkItemEvent":
+		{
+			"TableName": "BeaconWorkItemEvent",
+			"Domain": "Default",
+			"Description": "Append-only audit trail of state transitions for a work item. Each row is one transition.",
+			"Columns":
+			[
+				{ "Column": "IDBeaconWorkItemEvent", "DataType": "ID" },
+				{ "Column": "CreateDate", "DataType": "DateTime" },
+				{ "Column": "CreatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "WorkItemHash", "DataType": "String", "Size": "256" },
+				{ "Column": "RunID", "DataType": "String", "Size": "128" },
+				{ "Column": "EventType", "DataType": "String", "Size": "32" },
+				{ "Column": "FromStatus", "DataType": "String", "Size": "32" },
+				{ "Column": "ToStatus", "DataType": "String", "Size": "32" },
+				{ "Column": "BeaconID", "DataType": "String", "Size": "128" },
+				{ "Column": "Payload", "DataType": "String", "Size": "8192" }
+			]
+		},
+		"BeaconWorkItemAttempt":
+		{
+			"TableName": "BeaconWorkItemAttempt",
+			"Domain": "Default",
+			"Description": "One row per execution attempt. On retry a new attempt row is created and WorkItem.AttemptNumber increments.",
+			"Columns":
+			[
+				{ "Column": "IDBeaconWorkItemAttempt", "DataType": "ID" },
+				{ "Column": "CreateDate", "DataType": "DateTime" },
+				{ "Column": "CreatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "UpdateDate", "DataType": "DateTime" },
+				{ "Column": "UpdatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "WorkItemHash", "DataType": "String", "Size": "256" },
+				{ "Column": "AttemptNumber", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "BeaconID", "DataType": "String", "Size": "128" },
+				{ "Column": "DispatchedAt", "DataType": "DateTime" },
+				{ "Column": "StartedAt", "DataType": "DateTime" },
+				{ "Column": "CompletedAt", "DataType": "DateTime" },
+				{ "Column": "Outcome", "DataType": "String", "Size": "32" },
+				{ "Column": "ErrorMessage", "DataType": "String", "Size": "4096" },
+				{ "Column": "DurationMs", "DataType": "Numeric", "Size": "int" }
+			]
+		},
+		"BeaconAffinityBinding":
+		{
+			"TableName": "BeaconAffinityBinding",
+			"Domain": "Default",
+			"Description": "Affinity lock — routes future work with the same AffinityKey to a specific beacon until TTL expires.",
+			"Columns":
+			[
+				{ "Column": "IDBeaconAffinityBinding", "DataType": "ID" },
+				{ "Column": "CreateDate", "DataType": "DateTime" },
+				{ "Column": "CreatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "UpdateDate", "DataType": "DateTime" },
+				{ "Column": "UpdatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "AffinityKey", "DataType": "String", "Size": "256" },
+				{ "Column": "BeaconID", "DataType": "String", "Size": "128" },
+				{ "Column": "ExpiresAt", "DataType": "DateTime" },
+				{ "Column": "ClearedAt", "DataType": "DateTime" }
+			]
+		},
+		"BeaconActionDefault":
+		{
+			"TableName": "BeaconActionDefault",
+			"Domain": "Default",
+			"Description": "Per-capability/action defaults — timeout, retry, priority, expected-wait baseline. Replaces scattered Fable settings.",
+			"Columns":
+			[
+				{ "Column": "IDBeaconActionDefault", "DataType": "ID" },
+				{ "Column": "CreateDate", "DataType": "DateTime" },
+				{ "Column": "CreatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "UpdateDate", "DataType": "DateTime" },
+				{ "Column": "UpdatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "Capability", "DataType": "String", "Size": "128" },
+				{ "Column": "Action", "DataType": "String", "Size": "128" },
+				{ "Column": "TimeoutMs", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "MaxAttempts", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "RetryBackoffMs", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "DefaultPriority", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "ExpectedWaitP95Ms", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "HeartbeatExpectedMs", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "MinSamplesForBaseline", "DataType": "Numeric", "Size": "int" }
+			]
+		}
+	}
+}
