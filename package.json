@@ -36,6 +36,7 @@
         "pict-service-commandlineutility": "^1.0.19",
         "pict-serviceproviderbase": "^1.0.4",
         "ultravisor-beacon": "^0.0.11",
+        "ultravisor-file-stream": "^0.0.1",
         "ws": "^8.20.0"
     },
     "devDependencies": {

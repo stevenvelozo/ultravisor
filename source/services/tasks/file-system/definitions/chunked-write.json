@@ -1,0 +1,38 @@
+{
+	"Hash": "chunked-write",
+	"Type": "chunked-write",
+	"Name": "Chunked Write",
+	"Description": "Writes one chunk of a large file at a given byte offset. Intended for multi-chunk transfers (e.g. multi-GB model pushes across the beacon mesh). Chunks are written to a .part sidecar file; the final chunk triggers fsync, optional sha256 verification, and atomic rename to the target path.",
+	"Category": "file-io",
+	"Capability": "File System",
+	"Action": "ChunkedWrite",
+	"Tier": "Platform",
+	"EventInputs": [{ "Name": "BeginChunkWrite", "Description": "Triggers writing this chunk" }],
+	"EventOutputs": [
+		{ "Name": "ChunkWritten", "Description": "Fires after a non-final chunk is written" },
+		{ "Name": "WriteComplete", "Description": "Fires after the final chunk is written, fsynced, verified, and the .part file has been renamed to the target path" },
+		{ "Name": "Sha256Mismatch", "Description": "Fires when IsFinal=true and the computed sha256 of the completed .part file does not match the Sha256 input", "IsError": true },
+		{ "Name": "Error", "Description": "Fires on write/fsync/rename failure", "IsError": true }
+	],
+	"SettingsInputs": [
+		{ "Name": "FilePath", "DataType": "String", "Required": true, "Description": "Final path the completed file will live at. Chunks are written to <FilePath>.part until the final chunk renames it." },
+		{ "Name": "Content", "DataType": "String", "Required": true, "Description": "This chunk's bytes. If ContentEncoding=\"base64\", interpreted as base64 (for binary transport over JSON). Otherwise written as-is per Encoding." },
+		{ "Name": "ContentEncoding", "DataType": "String", "Required": false, "Default": "base64", "Description": "How to interpret Content on the wire. \"base64\" (default) is safe for binary; \"utf8\" for text." },
+		{ "Name": "Offset", "DataType": "Number", "Required": true, "Description": "Byte offset where this chunk begins in the final file. Zero for the first chunk; subsequent chunks advance by the decoded byte length of the prior chunk's content." },
+		{ "Name": "ChunkIndex", "DataType": "Number", "Required": false, "Description": "Zero-based index of this chunk in the sequence (informational; used in logs)" },
+		{ "Name": "TotalChunks", "DataType": "Number", "Required": false, "Description": "Total chunk count the sender expects to send (informational; used in logs)" },
+		{ "Name": "IsFinal", "DataType": "Boolean", "Required": false, "Description": "True for the last chunk in the sequence. Triggers fsync, optional sha256 verify, and atomic rename <FilePath>.part -> <FilePath>." },
+		{ "Name": "Sha256", "DataType": "String", "Required": false, "Description": "Hex-encoded sha256 of the complete final file. When set and IsFinal=true, the task verifies before renaming; mismatch fires Sha256Mismatch and deletes the .part file." },
+		{ "Name": "CreateDirectory", "DataType": "Boolean", "Required": false, "Default": true, "Description": "If true (default), the target directory is created recursively when missing." }
+	],
+	"StateOutputs": [
+		{ "Name": "FilePath", "DataType": "String", "Description": "The fully resolved absolute final path" },
+		{ "Name": "PartialFilePath", "DataType": "String", "Description": "The <FilePath>.part file in progress (or the finalized file after IsFinal)" },
+		{ "Name": "BytesWritten", "DataType": "Number", "Description": "Bytes written for this chunk" },
+		{ "Name": "TotalBytesOnDisk", "DataType": "Number", "Description": "Current size of the .part file (or the final file if complete)" },
+		{ "Name": "IsComplete", "DataType": "Boolean", "Description": "True only after the final chunk successfully renamed the .part file to FilePath" },
+		{ "Name": "Sha256Verified", "DataType": "Boolean", "Description": "True if IsFinal=true, Sha256 was provided, and verification passed" },
+		{ "Name": "ChunkIndex", "DataType": "Number", "Description": "Echo of input ChunkIndex, for convenience in downstream wiring" }
+	],
+	"DefaultSettings": { "FilePath": "", "Content": "", "ContentEncoding": "base64", "Offset": 0, "ChunkIndex": 0, "TotalChunks": 0, "IsFinal": false, "Sha256": "", "CreateDirectory": true }
+}

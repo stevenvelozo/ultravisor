@@ -11,6 +11,7 @@
 
 const libFS = require('fs');
 const libPath = require('path');
+const libFileStream = require('ultravisor-file-stream');
 
 /**
  * Recursively sort all object keys alphabetically (deep).
@@ -421,6 +422,86 @@ module.exports =
 			{
 				return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: [`CopyFile: failed: ${pError.message}`] });
 			}
+		}
+	},
+
+	// ── chunked-write ─────────────────────────────────────────
+	// Multi-chunk file writer for large transfers (model pushes across
+	// the beacon mesh). Thin adapter over `ultravisor-file-stream`'s
+	// writeChunk primitive — this task type just resolves the staging
+	// path, delegates to the library, and translates the return value
+	// into task-event shape.
+	{
+		Definition: require('./definitions/chunked-write.json'),
+		Execute: function (pTask, pResolvedSettings, pExecutionContext, fCallback)
+		{
+			let tmpFileLocation = pResolvedSettings.FilePath || '';
+			if (!tmpFileLocation)
+			{
+				return fCallback(null, { EventToFire: 'Error', Outputs: {}, Log: ['ChunkedWrite: no FilePath specified.'] });
+			}
+
+			let tmpFilePath = pTask.resolveFilePath(tmpFileLocation, pExecutionContext.StagingPath);
+
+			let tmpResult = libFileStream.writeChunk(
+				Object.assign({}, pResolvedSettings, { TargetPath: tmpFilePath }));
+
+			let tmpChunkIndex = parseInt(pResolvedSettings.ChunkIndex, 10) || 0;
+			let tmpTotalChunks = parseInt(pResolvedSettings.TotalChunks, 10) || 0;
+			let tmpOffset = parseInt(pResolvedSettings.Offset, 10) || 0;
+
+			if (tmpResult.Status === 'Sha256Mismatch')
+			{
+				return fCallback(null, {
+					EventToFire: 'Sha256Mismatch',
+					Outputs:
+					{
+						FilePath: tmpFilePath,
+						PartialFilePath: tmpResult.Result ? tmpResult.Result.PartialFilePath : tmpFilePath + '.part',
+						BytesWritten: tmpResult.Result ? tmpResult.Result.BytesWritten : 0,
+						TotalBytesOnDisk: tmpResult.Result ? tmpResult.Result.TotalBytesOnDisk : 0,
+						IsComplete: false,
+						Sha256Verified: false,
+						ChunkIndex: tmpChunkIndex
+					},
+					Log: [ `ChunkedWrite: ${tmpResult.Error}` ]
+				});
+			}
+			if (tmpResult.Status !== 'Success')
+			{
+				return fCallback(null, {
+					EventToFire: 'Error',
+					Outputs: {},
+					Log: [ `ChunkedWrite: ${tmpResult.Error || 'unknown error'}` ]
+				});
+			}
+
+			let tmpR = tmpResult.Result;
+			let tmpEvent = tmpR.IsComplete ? 'WriteComplete' : 'ChunkWritten';
+			let tmpLogSuffix = tmpR.IsComplete
+				? `final chunk ${tmpChunkIndex}`
+					+ (tmpTotalChunks ? `/${tmpTotalChunks}` : '')
+					+ ` @ offset ${tmpOffset} (${tmpR.BytesWritten} B); ${tmpR.TotalBytesOnDisk} B total; `
+					+ (pResolvedSettings.Sha256 ? `sha256 ${tmpR.Sha256Verified ? 'verified' : 'unverified'}; ` : '')
+					+ `renamed ${tmpFilePath}.part -> ${tmpFilePath}`
+				: `chunk ${tmpChunkIndex}`
+					+ (tmpTotalChunks ? `/${tmpTotalChunks}` : '')
+					+ ` @ offset ${tmpOffset} (${tmpR.BytesWritten} B, ${tmpR.TotalBytesOnDisk} B total on disk)`;
+
+			return fCallback(null, {
+				EventToFire: tmpEvent,
+				Outputs:
+				{
+					FilePath: tmpR.TargetPath,
+					PartialFilePath: tmpR.PartialFilePath,
+					BytesWritten: tmpR.BytesWritten,
+					TotalBytesOnDisk: tmpR.TotalBytesOnDisk,
+					IsComplete: tmpR.IsComplete,
+					Sha256Verified: tmpR.Sha256Verified,
+					ChunkIndex: tmpChunkIndex
+				},
+				Log: [ `ChunkedWrite: ${tmpLogSuffix}` ]
+			});
 		}
 	},
 
