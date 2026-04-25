@@ -2045,6 +2045,240 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
+		// ────────────────────────────────────────────────────────────
+		// Fleet management — per-(beacon, model) install/enable state
+		// ────────────────────────────────────────────────────────────
+
+		// GET /Fleet — full snapshot for the operator UI: beacons,
+		// available models from registered catalogs, current
+		// installations, runtime states, registered runtimes/catalogs.
+		this._OratorServer.get
+			(
+				'/Fleet',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpFleet = this._getService('UltravisorFleetManager');
+					if (!tmpFleet)
+					{
+						pResponse.send(500, { Error: 'FleetManager service not available.' });
+						return fNext();
+					}
+					try
+					{
+						pResponse.send(tmpFleet.getFleetSnapshot());
+					}
+					catch (pErr)
+					{
+						this.log.warn(`GET /Fleet failed: ${pErr.message}`);
+						pResponse.send(500, { Error: pErr.message });
+					}
+					return fNext();
+				}.bind(this)
+			);
+
+		// GET /Fleet/AvailableModels — just the model catalog, no beacons.
+		this._OratorServer.get
+			(
+				'/Fleet/AvailableModels',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpFleet = this._getService('UltravisorFleetManager');
+					if (!tmpFleet)
+					{
+						pResponse.send(500, { Error: 'FleetManager service not available.' });
+						return fNext();
+					}
+					try
+					{
+						let tmpMap = tmpFleet.scanAvailableModels();
+						let tmpList = [];
+						for (let tmpM of tmpMap.values())
+						{
+							tmpList.push({
+								ModelKey: tmpM.ModelKey,
+								ModelName: tmpM.ModelName,
+								DisplayName: tmpM.DisplayName,
+								CatalogName: tmpM.CatalogName,
+								ModelSourceDir: tmpM.ModelSourceDir
+							});
+						}
+						pResponse.send({ Models: tmpList });
+					}
+					catch (pErr)
+					{
+						pResponse.send(500, { Error: pErr.message });
+					}
+					return fNext();
+				}.bind(this)
+			);
+
+		// GET /Fleet/Beacons/:BeaconID/Installations — per-beacon view.
+		this._OratorServer.get
+			(
+				'/Fleet/Beacons/:BeaconID/Installations',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpFleetStore = this._getService('UltravisorBeaconFleetStore');
+					if (!tmpFleetStore)
+					{
+						pResponse.send(500, { Error: 'FleetStore service not available.' });
+						return fNext();
+					}
+					try
+					{
+						let tmpBeaconID = pRequest.params.BeaconID;
+						pResponse.send({
+							BeaconID: tmpBeaconID,
+							ModelInstallations: tmpFleetStore.listModelInstallations({ BeaconID: tmpBeaconID }),
+							RuntimeInstallations: tmpFleetStore.listRuntimeInstallations({ BeaconID: tmpBeaconID })
+						});
+					}
+					catch (pErr)
+					{
+						pResponse.send(500, { Error: pErr.message });
+					}
+					return fNext();
+				}.bind(this)
+			);
+
+		// POST /Fleet/Install — body: { BeaconID, ModelKey, EnableAfterInstall? }
+		this._OratorServer.post
+			(
+				'/Fleet/Install',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpFleet = this._getService('UltravisorFleetManager');
+					if (!tmpFleet)
+					{
+						pResponse.send(500, { Error: 'FleetManager service not available.' });
+						return fNext();
+					}
+					let tmpBody = pRequest.body || {};
+					if (!tmpBody.BeaconID || !tmpBody.ModelKey)
+					{
+						pResponse.send(400, { Error: 'BeaconID and ModelKey required.' });
+						return fNext();
+					}
+					// Async fire-and-forget — operator polls the snapshot
+					// for progress. Return immediately so the UI doesn't
+					// block on a multi-GB push.
+					tmpFleet.installModel(
+						tmpBody.BeaconID, tmpBody.ModelKey,
+						{ EnableAfterInstall: !!tmpBody.EnableAfterInstall })
+						.catch((pErr) =>
+						{
+							this.log.warn(
+								`POST /Fleet/Install threw async: ${pErr.message}`);
+						});
+					pResponse.send({
+						Success: true,
+						BeaconID: tmpBody.BeaconID,
+						ModelKey: tmpBody.ModelKey,
+						Status: 'queued',
+						Message: 'Install initiated. Poll GET /Fleet for progress.'
+					});
+					return fNext();
+				}.bind(this)
+			);
+
+		// POST /Fleet/Uninstall — body: { BeaconID, ModelKey }
+		this._OratorServer.post
+			(
+				'/Fleet/Uninstall',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpFleet = this._getService('UltravisorFleetManager');
+					if (!tmpFleet)
+					{
+						pResponse.send(500, { Error: 'FleetManager service not available.' });
+						return fNext();
+					}
+					let tmpBody = pRequest.body || {};
+					if (!tmpBody.BeaconID || !tmpBody.ModelKey)
+					{
+						pResponse.send(400, { Error: 'BeaconID and ModelKey required.' });
+						return fNext();
+					}
+					tmpFleet.uninstallModel(tmpBody.BeaconID, tmpBody.ModelKey)
+						.then((pResult) =>
+						{
+							pResponse.send(Object.assign({
+								Success: !pResult || pResult.Status === 'Success',
+								BeaconID: tmpBody.BeaconID,
+								ModelKey: tmpBody.ModelKey
+							}, pResult || {}));
+							return fNext();
+						})
+						.catch((pErr) =>
+						{
+							pResponse.send(500, { Error: pErr.message });
+							return fNext();
+						});
+				}.bind(this)
+			);
+
+		// POST /Fleet/Enable — body: { BeaconID, ModelKey }
+		this._OratorServer.post
+			(
+				'/Fleet/Enable',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpFleet = this._getService('UltravisorFleetManager');
+					if (!tmpFleet)
+					{
+						pResponse.send(500, { Error: 'FleetManager service not available.' });
+						return fNext();
+					}
+					let tmpBody = pRequest.body || {};
+					if (!tmpBody.BeaconID || !tmpBody.ModelKey)
+					{
+						pResponse.send(400, { Error: 'BeaconID and ModelKey required.' });
+						return fNext();
+					}
+					try
+					{
+						let tmpRow = tmpFleet.enableModel(tmpBody.BeaconID, tmpBody.ModelKey);
+						pResponse.send({ Success: true, Installation: tmpRow });
+					}
+					catch (pErr)
+					{
+						pResponse.send(500, { Error: pErr.message });
+					}
+					return fNext();
+				}.bind(this)
+			);
+
+		// POST /Fleet/Disable — body: { BeaconID, ModelKey }
+		this._OratorServer.post
+			(
+				'/Fleet/Disable',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpFleet = this._getService('UltravisorFleetManager');
+					if (!tmpFleet)
+					{
+						pResponse.send(500, { Error: 'FleetManager service not available.' });
+						return fNext();
+					}
+					let tmpBody = pRequest.body || {};
+					if (!tmpBody.BeaconID || !tmpBody.ModelKey)
+					{
+						pResponse.send(400, { Error: 'BeaconID and ModelKey required.' });
+						return fNext();
+					}
+					try
+					{
+						let tmpRow = tmpFleet.disableModel(tmpBody.BeaconID, tmpBody.ModelKey);
+						pResponse.send({ Success: true, Installation: tmpRow });
+					}
+					catch (pErr)
+					{
+						pResponse.send(500, { Error: pErr.message });
+					}
+					return fNext();
+				}.bind(this)
+			);
+
 		return fCallback();
 	}
 

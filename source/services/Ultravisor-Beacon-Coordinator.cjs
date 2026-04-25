@@ -242,9 +242,19 @@ class UltravisorBeaconCoordinator extends libPictService
 	{
 		let tmpName = pBeaconInfo.Name || 'unnamed';
 
-		// Check for an existing offline beacon with the same name to reclaim
+		// Check for an existing beacon with the same name to reclaim.
+		// Status='Offline' is the original reconnect-after-disconnect case.
+		// Status='Online' is the post-enable refreshRegistration case
+		// (SDK pushed updated capabilities without disconnecting first).
+		// Either way, same name → same beacon — update in place rather
+		// than creating a duplicate record (which would orphan the
+		// FleetStore installation rows keyed on the old BeaconID and
+		// confuse the dispatch filter).
 		let tmpExistingBeacon = this.findBeaconByName(tmpName);
-		if (tmpExistingBeacon && tmpExistingBeacon.Status === 'Offline')
+		if (tmpExistingBeacon
+			&& (tmpExistingBeacon.Status === 'Offline'
+				|| tmpExistingBeacon.Status === 'Online'
+				|| tmpExistingBeacon.Status === 'Busy'))
 		{
 			tmpExistingBeacon.SessionID = pSessionID || null;
 			tmpExistingBeacon.LastHeartbeat = new Date().toISOString();
@@ -350,6 +360,37 @@ class UltravisorBeaconCoordinator extends libPictService
 		if (tmpReachability)
 		{
 			tmpReachability.onBeaconRegistered(tmpBeaconID);
+		}
+
+		// Notify the fleet manager so it can:
+		//   - auto-push any registered runtimes whose AutoPushOnConnect
+		//     is true and whose hash on the worker is stale
+		//   - auto-discover models the worker reports via LWM_Inventory
+		//     and import them into the fleet table at Source='discovered',
+		//     EnabledForDispatch=true (so existing dispatches keep working
+		//     without operator intervention)
+		//
+		// Critical: defer to the next tick. The WebSocket upgrade handler
+		// (which sets `_WorkItemPushHandler`) runs in the SAME tick as
+		// `/Beacon/Register`. If we kick off LWM_Inventory or runtime
+		// pushes synchronously here, those work items get pre-assigned
+		// (via the fleet-push affinity) BUT the WS handler isn't wired
+		// yet, so they never deliver — they just fill the beacon's
+		// CurrentWorkItems slot and starve every subsequent dispatch.
+		// setImmediate buys us "after the WS upgrade settles" without
+		// adding a real timer.
+		let tmpFleet = this._getService('UltravisorFleetManager');
+		if (tmpFleet && typeof tmpFleet.onBeaconConnected === 'function')
+		{
+			setImmediate(() =>
+			{
+				try { tmpFleet.onBeaconConnected(tmpBeaconID); }
+				catch (pErr)
+				{
+					this.log.warn(
+						`BeaconCoordinator: FleetManager.onBeaconConnected threw: ${pErr.message}`);
+				}
+			});
 		}
 
 		return tmpBeacon;
@@ -1171,6 +1212,31 @@ class UltravisorBeaconCoordinator extends libPictService
 				continue;
 			}
 
+			// Fleet-manager dispatch filter (same logic as pollForWork's
+			// pending-pass). System actions / unknown-model dispatches
+			// fall through; per-(beacon, model) gating only applies when
+			// the work item targets a known-installed model.
+			let tmpFleetWS = this._getService('UltravisorFleetManager');
+			if (tmpFleetWS && typeof tmpFleetWS.checkDispatchAllowed === 'function')
+			{
+				let tmpAllowWS;
+				try { tmpAllowWS = tmpFleetWS.checkDispatchAllowed(tmpBeacon.BeaconID, pWorkItem); }
+				catch (pErr)
+				{
+					this.log.warn(
+						`BeaconCoordinator: WS-push fleet filter threw: ${pErr.message} — allowing`);
+					tmpAllowWS = { Allowed: true };
+				}
+				if (tmpAllowWS && tmpAllowWS.Allowed === false)
+				{
+					this.log.info(
+						`BeaconCoordinator: WS-push fleet filter denied beacon [${tmpBeacon.BeaconID}] `
+						+ `for [${pWorkItem.Capability}/${pWorkItem.Action}] `
+						+ `(model=${tmpAllowWS.MatchedModelKey}, reason=${tmpAllowWS.Reason}).`);
+					continue;
+				}
+			}
+
 			// Assign the work item to this beacon
 			pWorkItem.Status = 'Running';
 			pWorkItem.AssignedBeaconID = tmpBeacon.BeaconID;
@@ -1339,6 +1405,35 @@ class UltravisorBeaconCoordinator extends libPictService
 			if (tmpBeacon.Capabilities.indexOf(tmpWorkItem.Capability) === -1)
 			{
 				continue;
+			}
+
+			// Fleet-manager dispatch filter: gate on per-(beacon, model)
+			// EnabledForDispatch state when the work item targets a
+			// known-installed model. System actions (LabsWorkerManagement,
+			// VideoPipeline/VP_EncodeVideo, etc.) and dispatches with no
+			// extractable model key fall through unchanged. See
+			// FleetManager.checkDispatchAllowed() for policy.
+			let tmpFleetForFilter = this._getService('UltravisorFleetManager');
+			if (tmpFleetForFilter && typeof tmpFleetForFilter.checkDispatchAllowed === 'function')
+			{
+				let tmpAllow;
+				try { tmpAllow = tmpFleetForFilter.checkDispatchAllowed(pBeaconID, tmpWorkItem); }
+				catch (pErr)
+				{
+					this.log.warn(
+						`BeaconCoordinator: fleet filter threw on `
+						+ `[${tmpWorkItem.WorkItemHash}]: ${pErr.message} — allowing`);
+					tmpAllow = { Allowed: true };
+				}
+				if (tmpAllow && tmpAllow.Allowed === false)
+				{
+					this.log.info(
+						`BeaconCoordinator: fleet filter denied beacon [${pBeaconID}] `
+						+ `for [${tmpWorkItem.Capability}/${tmpWorkItem.Action}] `
+						+ `(model=${tmpAllow.MatchedModelKey}, reason=${tmpAllow.Reason}) — `
+						+ `keeping work item pending for an enabled beacon.`);
+					continue;
+				}
 			}
 
 			// Claim this work item

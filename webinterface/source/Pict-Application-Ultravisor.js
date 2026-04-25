@@ -30,6 +30,7 @@ const libViewDocumentation = require('./views/PictView-Ultravisor-Documentation.
 const libViewBeaconList = require('./views/PictView-Ultravisor-BeaconList.js');
 const libViewReachabilityMap = require('./views/PictView-Ultravisor-ReachabilityMap.js');
 const libViewOperationDescriptionEditor = require('./views/PictView-Ultravisor-OperationDescriptionEditor.js');
+const libViewFleet = require('./views/PictView-Ultravisor-Fleet.js');
 const libPictSectionModal = require('pict-section-modal');
 
 class UltravisorApplication extends libPictApplication
@@ -66,6 +67,7 @@ class UltravisorApplication extends libPictApplication
 		this.pict.addView('Ultravisor-BeaconList', libViewBeaconList.default_configuration, libViewBeaconList);
 		this.pict.addView('Ultravisor-ReachabilityMap', libViewReachabilityMap.default_configuration, libViewReachabilityMap);
 		this.pict.addView('Ultravisor-OperationDescriptionEditor', libViewOperationDescriptionEditor.default_configuration, libViewOperationDescriptionEditor);
+		this.pict.addView('Ultravisor-Fleet', libViewFleet.default_configuration, libViewFleet);
 
 		// Modal/toast notification system (replaces browser alert/confirm)
 		this.pict.addView('Modal', {}, libPictSectionModal);

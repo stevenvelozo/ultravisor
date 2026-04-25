@@ -18,6 +18,9 @@ const libServiceExecutionManifest = require('../services/Ultravisor-ExecutionMan
 const libServiceBeaconCoordinator = require('../services/Ultravisor-Beacon-Coordinator.cjs');
 const libServiceBeaconReachability = require('../services/Ultravisor-Beacon-Reachability.cjs');
 const libServiceBeaconQueueJournal = require('../services/persistence/Ultravisor-Beacon-QueueJournal.cjs');
+const libServiceBeaconFleetStore = require('../services/persistence/Ultravisor-Beacon-FleetStore.cjs');
+const libServiceDirectoryDistributor = require('../services/Ultravisor-DirectoryDistributor.cjs');
+const libServiceFleetManager = require('../services/Ultravisor-FleetManager.cjs');
 
 // TODO: Remove this when Restify is fixed.
 process.removeAllListeners('warning')
@@ -214,6 +217,21 @@ if (tmpCoordinator)
 	tmpCoordinator.restoreFromJournal();
 	tmpCoordinator.loadActionCatalog();
 }
+
+// --- Fleet management (per-(beacon, model) install/enable state) ---
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
+	'UltravisorBeaconFleetStore', libServiceBeaconFleetStore);
+let tmpFleetStore = Object.values(_Ultravisor_Pict.fable.servicesMap['UltravisorBeaconFleetStore'])[0];
+if (tmpFleetStore)
+{
+	tmpFleetStore.initialize(_Ultravisor_Pict.fable.settings.UltravisorFileStorePath);
+}
+
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
+	'UltravisorDirectoryDistributor', libServiceDirectoryDistributor);
+
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
+	'UltravisorFleetManager', libServiceFleetManager);
 
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorAPIServer', libWebServerAPIServer);
 

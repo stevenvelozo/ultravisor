@@ -43,6 +43,10 @@
 			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-BeaconList`)~}"
 		},
 		{
+			"path": "/Fleet",
+			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-Fleet`)~}"
+		},
+		{
 			"path": "/Timing",
 			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-TimingView`)~}"
 		},

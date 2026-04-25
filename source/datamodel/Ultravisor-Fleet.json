@@ -1,0 +1,66 @@
+{
+	"Tables":
+	{
+		"BeaconModelInstallation":
+		{
+			"TableName": "BeaconModelInstallation",
+			"Domain": "Default",
+			"Description": "Per-(beacon, model) installation state. Authoritative source of truth for which beacons may be dispatched a given model. Status tracks install lifecycle; EnabledForDispatch is a separate operator toggle.",
+			"Columns":
+			[
+				{ "Column": "IDBeaconModelInstallation", "DataType": "ID" },
+				{ "Column": "GUIDBeaconModelInstallation", "DataType": "GUID", "Size": "36" },
+				{ "Column": "CreateDate", "DataType": "DateTime" },
+				{ "Column": "CreatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "UpdateDate", "DataType": "DateTime" },
+				{ "Column": "UpdatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "Deleted", "DataType": "Boolean" },
+				{ "Column": "DeleteDate", "DataType": "DateTime" },
+				{ "Column": "DeletingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "BeaconID", "DataType": "String", "Size": "128" },
+				{ "Column": "BeaconName", "DataType": "String", "Size": "256" },
+				{ "Column": "ModelKey", "DataType": "String", "Size": "256" },
+				{ "Column": "ModelName", "DataType": "String", "Size": "256" },
+				{ "Column": "ModelSourceDir", "DataType": "String", "Size": "1024" },
+				{ "Column": "ExpectedTreeHash", "DataType": "String", "Size": "128" },
+				{ "Column": "InstalledTreeHash", "DataType": "String", "Size": "128" },
+				{ "Column": "InstalledBytes", "DataType": "Numeric", "Size": "bigint" },
+				{ "Column": "Status", "DataType": "String", "Size": "32" },
+				{ "Column": "EnabledForDispatch", "DataType": "Boolean" },
+				{ "Column": "PushProgressBytes", "DataType": "Numeric", "Size": "bigint" },
+				{ "Column": "PushTotalBytes", "DataType": "Numeric", "Size": "bigint" },
+				{ "Column": "LastError", "DataType": "String", "Size": "4096" },
+				{ "Column": "InstalledAt", "DataType": "DateTime" },
+				{ "Column": "LastUpdatedAt", "DataType": "DateTime" },
+				{ "Column": "Source", "DataType": "String", "Size": "32" }
+			]
+		},
+		"BeaconRuntimeInstallation":
+		{
+			"TableName": "BeaconRuntimeInstallation",
+			"Domain": "Default",
+			"Description": "Per-(beacon, runtime) state. A runtime is a named directory of pipeline-worker code (e.g. retold-labs' examples/pipeline-workers). Auto-pushed on beacon connect. Tracks last-known runtime hash so the hub can short-circuit pushes when the worker is already up to date.",
+			"Columns":
+			[
+				{ "Column": "IDBeaconRuntimeInstallation", "DataType": "ID" },
+				{ "Column": "GUIDBeaconRuntimeInstallation", "DataType": "GUID", "Size": "36" },
+				{ "Column": "CreateDate", "DataType": "DateTime" },
+				{ "Column": "CreatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "UpdateDate", "DataType": "DateTime" },
+				{ "Column": "UpdatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "Deleted", "DataType": "Boolean" },
+				{ "Column": "DeleteDate", "DataType": "DateTime" },
+				{ "Column": "DeletingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "BeaconID", "DataType": "String", "Size": "128" },
+				{ "Column": "BeaconName", "DataType": "String", "Size": "256" },
+				{ "Column": "RuntimeName", "DataType": "String", "Size": "128" },
+				{ "Column": "ExpectedRuntimeHash", "DataType": "String", "Size": "128" },
+				{ "Column": "InstalledRuntimeHash", "DataType": "String", "Size": "128" },
+				{ "Column": "Status", "DataType": "String", "Size": "32" },
+				{ "Column": "LastError", "DataType": "String", "Size": "4096" },
+				{ "Column": "InstalledAt", "DataType": "DateTime" },
+				{ "Column": "LastUpdatedAt", "DataType": "DateTime" }
+			]
+		}
+	}
+}

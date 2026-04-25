@@ -218,6 +218,7 @@ const _ViewConfiguration =
 		<a onclick="{~P~}.PictApplication.navigateTo('/Schedule')">Schedule</a>
 		<a onclick="{~P~}.PictApplication.navigateTo('/Manifests')">Manifests</a>
 		<a onclick="{~P~}.PictApplication.navigateTo('/Beacons')">Beacons</a>
+		<a onclick="{~P~}.PictApplication.navigateTo('/Fleet')">Fleet</a>
 		<a onclick="{~P~}.PictApplication.navigateTo('/Docs')">Docs</a>
 	</div>
 	<div class="ultravisor-topbar-right">
