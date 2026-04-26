@@ -1,0 +1,240 @@
+{
+	"_comment": "Ultravisor persistence schema — source of truth for the four tables used when ultravisor's QueuePersistenceBridge / ManifestStoreBridge route through retold-databeacon's MeadowProxy. See modules/apps/ultravisor/docs/features/persistence-via-databeacon.md for the architectural context.",
+
+	"SchemaName": "ultravisor",
+	"Version": 1,
+
+	"Tables":
+	[
+		{
+			"Scope": "UVQueueWorkItem",
+			"DefaultIdentifier": "IDUVQueueWorkItem",
+			"Domain": "Ultravisor",
+			"Schema":
+			[
+				{ "Column": "IDUVQueueWorkItem", "Type": "AutoIdentity", "Size": "Default" },
+				{ "Column": "WorkItemHash",      "Type": "String",       "Size": "128" },
+				{ "Column": "RunID",             "Type": "String",       "Size": "128" },
+				{ "Column": "RunHash",           "Type": "String",       "Size": "128" },
+				{ "Column": "NodeHash",          "Type": "String",       "Size": "128" },
+				{ "Column": "OperationHash",    "Type": "String",       "Size": "128" },
+				{ "Column": "Capability",        "Type": "String",       "Size": "128" },
+				{ "Column": "Action",            "Type": "String",       "Size": "128" },
+				{ "Column": "Settings",          "Type": "String",       "Size": "Default" },
+				{ "Column": "AffinityKey",       "Type": "String",       "Size": "128" },
+				{ "Column": "AssignedBeaconID",  "Type": "String",       "Size": "128" },
+				{ "Column": "Status",            "Type": "String",       "Size": "32" },
+				{ "Column": "Priority",          "Type": "Integer",      "Size": "int" },
+				{ "Column": "EnqueuedAt",        "Type": "String",       "Size": "50" },
+				{ "Column": "DispatchedAt",      "Type": "String",       "Size": "50" },
+				{ "Column": "StartedAt",         "Type": "String",       "Size": "50" },
+				{ "Column": "ClaimedAt",         "Type": "String",       "Size": "50" },
+				{ "Column": "CompletedAt",       "Type": "String",       "Size": "50" },
+				{ "Column": "CanceledAt",        "Type": "String",       "Size": "50" },
+				{ "Column": "AssignedAt",        "Type": "String",       "Size": "50" },
+				{ "Column": "LastEventAt",       "Type": "String",       "Size": "50" },
+				{ "Column": "QueueWaitMs",       "Type": "Integer",      "Size": "int" },
+				{ "Column": "TimeoutMs",         "Type": "Integer",      "Size": "int" },
+				{ "Column": "Health",            "Type": "Float",        "Size": "Default" },
+				{ "Column": "HealthLabel",       "Type": "String",       "Size": "32" },
+				{ "Column": "HealthReason",      "Type": "String",       "Size": "512" },
+				{ "Column": "HealthComputedAt",  "Type": "String",       "Size": "50" },
+				{ "Column": "AttemptNumber",     "Type": "Integer",      "Size": "int" },
+				{ "Column": "MaxAttempts",       "Type": "Integer",      "Size": "int" },
+				{ "Column": "RetryBackoffMs",    "Type": "Integer",      "Size": "int" },
+				{ "Column": "RetryAfter",        "Type": "String",       "Size": "50" },
+				{ "Column": "LastError",         "Type": "String",       "Size": "Default" },
+				{ "Column": "Result",            "Type": "String",       "Size": "Default" },
+				{ "Column": "CancelRequested",   "Type": "Boolean",      "Size": "Default" },
+				{ "Column": "CancelReason",      "Type": "String",       "Size": "512" },
+				{ "Column": "CreateDate",        "Type": "CreateDate",   "Size": "Default" },
+				{ "Column": "UpdateDate",        "Type": "UpdateDate",   "Size": "Default" },
+				{ "Column": "Deleted",           "Type": "Deleted",      "Size": "Default" }
+			],
+			"DefaultObject":
+			{
+				"IDUVQueueWorkItem": 0,
+				"WorkItemHash": "",
+				"RunID": "",
+				"RunHash": "",
+				"NodeHash": "",
+				"OperationHash": "",
+				"Capability": "",
+				"Action": "",
+				"Settings": "{}",
+				"AffinityKey": "",
+				"AssignedBeaconID": "",
+				"Status": "Pending",
+				"Priority": 0,
+				"EnqueuedAt": "",
+				"DispatchedAt": "",
+				"StartedAt": "",
+				"ClaimedAt": "",
+				"CompletedAt": "",
+				"CanceledAt": "",
+				"AssignedAt": "",
+				"LastEventAt": "",
+				"QueueWaitMs": 0,
+				"TimeoutMs": 0,
+				"Health": 0,
+				"HealthLabel": "Unknown",
+				"HealthReason": "",
+				"HealthComputedAt": "",
+				"AttemptNumber": 0,
+				"MaxAttempts": 1,
+				"RetryBackoffMs": 0,
+				"RetryAfter": "",
+				"LastError": "",
+				"Result": "",
+				"CancelRequested": false,
+				"CancelReason": "",
+				"Deleted": false
+			},
+			"Indexes":
+			[
+				{ "Name": "IX_UVQueueWorkItem_Hash",      "Columns": ["WorkItemHash"], "Unique": true },
+				{ "Name": "IX_UVQueueWorkItem_Status",    "Columns": ["Status"] },
+				{ "Name": "IX_UVQueueWorkItem_RunID",     "Columns": ["RunID"] },
+				{ "Name": "IX_UVQueueWorkItem_Assigned",  "Columns": ["AssignedBeaconID", "Status"] },
+				{ "Name": "IX_UVQueueWorkItem_Dispatch",  "Columns": ["Status", "Priority", "EnqueuedAt"] }
+			]
+		},
+
+		{
+			"Scope": "UVQueueWorkItemEvent",
+			"DefaultIdentifier": "IDUVQueueWorkItemEvent",
+			"Domain": "Ultravisor",
+			"_comment": "Append-only event log per work item. EventGUID is unique for idempotency on bootstrap-flush replay.",
+			"Schema":
+			[
+				{ "Column": "IDUVQueueWorkItemEvent", "Type": "AutoIdentity", "Size": "Default" },
+				{ "Column": "EventGUID",             "Type": "String",       "Size": "36" },
+				{ "Column": "WorkItemHash",          "Type": "String",       "Size": "128" },
+				{ "Column": "EventType",             "Type": "String",       "Size": "64" },
+				{ "Column": "Payload",               "Type": "String",       "Size": "Default" },
+				{ "Column": "EmittedAt",             "Type": "String",       "Size": "50" },
+				{ "Column": "Seq",                   "Type": "Integer",      "Size": "int" },
+				{ "Column": "FromStatus",            "Type": "String",       "Size": "32" },
+				{ "Column": "ToStatus",              "Type": "String",       "Size": "32" },
+				{ "Column": "BeaconID",              "Type": "String",       "Size": "128" },
+				{ "Column": "CreateDate",            "Type": "CreateDate",   "Size": "Default" },
+				{ "Column": "Deleted",               "Type": "Deleted",      "Size": "Default" }
+			],
+			"DefaultObject":
+			{
+				"IDUVQueueWorkItemEvent": 0,
+				"EventGUID": "",
+				"WorkItemHash": "",
+				"EventType": "",
+				"Payload": "{}",
+				"EmittedAt": "",
+				"Seq": 0,
+				"FromStatus": "",
+				"ToStatus": "",
+				"BeaconID": "",
+				"Deleted": false
+			},
+			"Indexes":
+			[
+				{ "Name": "IX_UVQueueEvent_GUID", "Columns": ["EventGUID"], "Unique": true },
+				{ "Name": "IX_UVQueueEvent_Hash", "Columns": ["WorkItemHash"] }
+			]
+		},
+
+		{
+			"Scope": "UVQueueWorkItemAttempt",
+			"DefaultIdentifier": "IDUVQueueWorkItemAttempt",
+			"Domain": "Ultravisor",
+			"_comment": "One row per dispatch attempt. (WorkItemHash, AttemptNumber) is unique.",
+			"Schema":
+			[
+				{ "Column": "IDUVQueueWorkItemAttempt", "Type": "AutoIdentity", "Size": "Default" },
+				{ "Column": "WorkItemHash",            "Type": "String",       "Size": "128" },
+				{ "Column": "AttemptNumber",            "Type": "Integer",      "Size": "int" },
+				{ "Column": "BeaconID",                 "Type": "String",       "Size": "128" },
+				{ "Column": "StartedAt",                "Type": "String",       "Size": "50" },
+				{ "Column": "EndedAt",                  "Type": "String",       "Size": "50" },
+				{ "Column": "Outcome",                  "Type": "String",       "Size": "32" },
+				{ "Column": "Error",                    "Type": "String",       "Size": "Default" },
+				{ "Column": "CreateDate",               "Type": "CreateDate",   "Size": "Default" },
+				{ "Column": "Deleted",                  "Type": "Deleted",      "Size": "Default" }
+			],
+			"DefaultObject":
+			{
+				"IDUVQueueWorkItemAttempt": 0,
+				"WorkItemHash": "",
+				"AttemptNumber": 0,
+				"BeaconID": "",
+				"StartedAt": "",
+				"EndedAt": "",
+				"Outcome": "",
+				"Error": "",
+				"Deleted": false
+			},
+			"Indexes":
+			[
+				{ "Name": "IX_UVQueueAttempt_HashNum", "Columns": ["WorkItemHash", "AttemptNumber"], "Unique": true }
+			]
+		},
+
+		{
+			"Scope": "UVManifest",
+			"DefaultIdentifier": "IDUVManifest",
+			"Domain": "Ultravisor",
+			"_comment": "Execution manifests, one row per run. ManifestJSON is the full wire-safe blob produced by _cleanManifestForWire.",
+			"Schema":
+			[
+				{ "Column": "IDUVManifest",     "Type": "AutoIdentity", "Size": "Default" },
+				{ "Column": "Hash",             "Type": "String",       "Size": "128" },
+				{ "Column": "OperationHash",    "Type": "String",       "Size": "128" },
+				{ "Column": "OperationName",    "Type": "String",       "Size": "500" },
+				{ "Column": "Status",           "Type": "String",       "Size": "32" },
+				{ "Column": "RunMode",          "Type": "String",       "Size": "32" },
+				{ "Column": "Live",             "Type": "Boolean",      "Size": "Default" },
+				{ "Column": "StartTime",        "Type": "String",       "Size": "50" },
+				{ "Column": "StopTime",         "Type": "String",       "Size": "50" },
+				{ "Column": "ElapsedMs",        "Type": "Integer",      "Size": "int" },
+				{ "Column": "ManifestJSON",     "Type": "String",       "Size": "Default" },
+				{ "Column": "StagingPath",      "Type": "String",       "Size": "1024" },
+				{ "Column": "CreateDate",       "Type": "CreateDate",   "Size": "Default" },
+				{ "Column": "UpdateDate",       "Type": "UpdateDate",   "Size": "Default" },
+				{ "Column": "Deleted",          "Type": "Deleted",      "Size": "Default" }
+			],
+			"DefaultObject":
+			{
+				"IDUVManifest": 0,
+				"Hash": "",
+				"OperationHash": "",
+				"OperationName": "",
+				"Status": "",
+				"RunMode": "",
+				"Live": false,
+				"StartTime": "",
+				"StopTime": "",
+				"ElapsedMs": 0,
+				"ManifestJSON": "{}",
+				"StagingPath": "",
+				"Deleted": false
+			},
+			"Indexes":
+			[
+				{ "Name": "IX_UVManifest_Hash",      "Columns": ["Hash"], "Unique": true },
+				{ "Name": "IX_UVManifest_StatusStop","Columns": ["Status", "StopTime"] },
+				{ "Name": "IX_UVManifest_OpHash",    "Columns": ["OperationHash"] }
+			]
+		}
+	],
+
+	"_notes":
+	{
+		"meadowConventions": "Type values follow meadow column conventions. AutoIdentity → engine PK; CreateDate / UpdateDate / Deleted → meadow's auto-managed audit columns. The per-engine Meadow-Schema-<engine>.js files translate these to engine-specific DDL.",
+
+		"indexes": "Indexes here are NOT part of meadow's standard table descriptor. retold-databeacon's EnsureSchema action will issue them as CREATE INDEX IF NOT EXISTS statements after the meadow table create. Per-engine syntax differences (e.g. SQL Server's CREATE INDEX vs Postgres's CREATE INDEX IF NOT EXISTS) handled in the engine-specific path.",
+
+		"jsonColumns": "Settings (work item), Payload (event), Result, LastError, ManifestJSON are stored as opaque strings (JSON-encoded by callers). We don't use a native JSON column type because not all meadow connectors support it uniformly (mssql JSON support varies; sqlite has none). Callers are responsible for parse/stringify on the boundary.",
+
+		"floatColumns": "Health is stored as Float (0..1 score). Connector translation: REAL on sqlite, DOUBLE on mysql/postgres, FLOAT on mssql.",
+
+		"softDelete": "Deleted column matches meadow's standard soft-delete convention. The bridges' `removeManifest` etc. flip Deleted=1 rather than DROP. Hard-delete deferred to a separate retention sweep."
+	}
+}

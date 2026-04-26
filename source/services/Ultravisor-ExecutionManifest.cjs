@@ -519,8 +519,12 @@ class UltravisorExecutionManifest extends libPictService
 
 		let tmpStagingPath = pExecutionContext.StagingPath;
 
-		// Always write the manifest
-		this._writeManifest(pExecutionContext, tmpStagingPath);
+		// Always write the manifest. Routes through the ManifestStore
+		// bridge so a connected ManifestStore beacon owns the durable
+		// copy; the bridge's local fallback calls _writeManifest exactly
+		// like the old code path, preserving the on-disk JSON for any
+		// deployment that doesn't run the beacon.
+		this._persistManifestViaBridge(pExecutionContext, tmpStagingPath);
 
 		// Write log file
 		this._writeLogFile(pExecutionContext, tmpStagingPath);
@@ -822,10 +826,12 @@ class UltravisorExecutionManifest extends libPictService
 
 		tmpContext.Log.push(`[${new Date().toISOString()}] Run abandoned by user.`);
 
-		// Persist the updated status to disk
+		// Persist the updated status via the bridge (beacon when
+		// connected, on-disk JSON otherwise — same shape as the
+		// finalize path).
 		if (tmpContext.StagingPath)
 		{
-			this._writeManifest(tmpContext, tmpContext.StagingPath);
+			this._persistManifestViaBridge(tmpContext, tmpContext.StagingPath);
 		}
 
 		this.log.info(`UltravisorExecutionManifest: run [${pRunHash}] abandoned.`);
@@ -870,6 +876,95 @@ class UltravisorExecutionManifest extends libPictService
 		}
 
 		return tmpCount;
+	}
+
+	// --- Internal: persistence ---
+
+	/**
+	 * Bridge between the in-memory execution context and durable
+	 * storage. Looks up the ManifestStoreBridge service; if present,
+	 * dispatches the manifest there. Falls through to _writeManifest
+	 * (on-disk JSON) when no bridge or no beacon. Fire-and-await on
+	 * the Promise — manifests are written at terminal points
+	 * (finalize/abandon) so a slow persist doesn't block live work.
+	 *
+	 * Why both StagingPath and the bridge call? The local fallback
+	 * still needs to know where to write the JSON. The beacon path
+	 * persists the whole manifest blob (StagingPath included as a
+	 * string), so a future cold-start replay from the beacon can
+	 * still find the original staging dir if it survives.
+	 */
+	_persistManifestViaBridge(pExecutionContext, pStagingPath)
+	{
+		// Build the same serializable manifest _writeManifest builds —
+		// the bridge gets the canonical shape, not a partial in-memory
+		// view. Keeping the projection here means the beacon and on-
+		// disk paths agree byte-for-byte.
+		let tmpManifest = this._serializableManifest(pExecutionContext);
+		// The local fallback in the bridge reads this field to know
+		// where to write. It's set on the in-memory context too —
+		// callers don't need to pass it separately.
+		tmpManifest.StagingPath = pStagingPath;
+
+		let tmpMap = this.fable && this.fable.servicesMap
+			&& this.fable.servicesMap.UltravisorManifestStoreBridge;
+		let tmpBridge = tmpMap ? Object.values(tmpMap)[0] : null;
+		if (!tmpBridge)
+		{
+			// No bridge installed at all — preserve the legacy direct-
+			// write behavior so older deployments keep working.
+			this._writeManifest(pExecutionContext, pStagingPath);
+			return;
+		}
+		tmpBridge.upsertManifest(tmpManifest)
+			.then((pResult) =>
+			{
+				if (pResult && pResult.Success === false && pResult.Reason)
+				{
+					this.log.warn('UltravisorExecutionManifest: bridge upsert failed: ' + pResult.Reason);
+				}
+			})
+			.catch((pErr) =>
+			{
+				this.log.warn('UltravisorExecutionManifest: bridge upsert threw: '
+					+ ((pErr && pErr.message) || pErr));
+			});
+	}
+
+	/**
+	 * Build the serializable manifest object the bridge ships and
+	 * _writeManifest writes. Extracted so both paths use exactly the
+	 * same projection — no risk of one path including a field the
+	 * other strips.
+	 */
+	_serializableManifest(pExecutionContext)
+	{
+		let tmpManifest = {
+			Hash: pExecutionContext.Hash,
+			OperationHash: pExecutionContext.OperationHash,
+			OperationName: pExecutionContext.OperationName,
+			Status: pExecutionContext.Status,
+			RunMode: pExecutionContext.RunMode,
+			StartTime: pExecutionContext.StartTime,
+			StopTime: pExecutionContext.StopTime,
+			ElapsedMs: pExecutionContext.ElapsedMs,
+			Output: pExecutionContext.Output || {},
+			TaskManifests: pExecutionContext.TaskManifests,
+			TimingSummary: pExecutionContext.TimingSummary,
+			EventLog: pExecutionContext.EventLog,
+			Errors: pExecutionContext.Errors,
+			Log: pExecutionContext.Log,
+			GlobalState: pExecutionContext.GlobalState,
+			OperationState: pExecutionContext.OperationState,
+			TaskOutputs: pExecutionContext.TaskOutputs
+		};
+		if (pExecutionContext.Status === 'WaitingForInput'
+			&& pExecutionContext.WaitingTasks
+			&& Object.keys(pExecutionContext.WaitingTasks).length > 0)
+		{
+			tmpManifest.WaitingTasks = pExecutionContext.WaitingTasks;
+		}
+		return tmpManifest;
 	}
 
 	// --- Internal: file writing ---

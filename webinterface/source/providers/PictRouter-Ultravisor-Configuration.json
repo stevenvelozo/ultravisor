@@ -61,6 +61,14 @@
 		{
 			"path": "/Docs",
 			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-Documentation`)~}"
+		},
+		{
+			"path": "/Login",
+			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-Login`)~}"
+		},
+		{
+			"path": "/Users",
+			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-UserManagement`)~}"
 		}
 	]
 }

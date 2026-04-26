@@ -2,10 +2,80 @@ const libPictService = require(`pict-serviceproviderbase`);
 
 const libFS = require('fs');
 const libPath = require('path');
+const libCrypto = require('crypto');
 const libOrator = require('orator');
 const libOratorServiceServerRestify = require(`orator-serviceserver-restify`);
 const libOratorAuthentication = require('orator-authentication');
 const libWebSocket = require('ws');
+
+// Strip a manifest down to the JSON-serializable shape the wire
+// expects. The in-memory ExecutionContext can carry closures in
+// PendingEvents and circular refs in WaitingTasks; this projection
+// is what /Manifest/:RunHash has always returned. Used by both the
+// in-memory and the bridge-backed read paths so callers see the
+// same schema regardless of where the manifest came from.
+function _cleanManifestForWire(pManifest)
+{
+	if (!pManifest) return null;
+	return {
+		Hash: pManifest.Hash,
+		OperationHash: pManifest.OperationHash,
+		OperationName: pManifest.OperationName,
+		Status: pManifest.Status,
+		RunMode: pManifest.RunMode,
+		Live: pManifest.Live || false,
+		StartTime: pManifest.StartTime,
+		StopTime: pManifest.StopTime,
+		ElapsedMs: pManifest.ElapsedMs,
+		Output: pManifest.Output || {},
+		GlobalState: pManifest.GlobalState || {},
+		OperationState: pManifest.OperationState || {},
+		TaskOutputs: pManifest.TaskOutputs || {},
+		TaskManifests: pManifest.TaskManifests || {},
+		WaitingTasks: pManifest.WaitingTasks || {},
+		TimingSummary: pManifest.TimingSummary || null,
+		EventLog: pManifest.EventLog || [],
+		Errors: pManifest.Errors || [],
+		Log: pManifest.Log || []
+	};
+}
+
+// Lightweight query-string parser. Restify's queryParser plugin is
+// not enabled on this server (mounting it would change the request
+// shape for every existing handler), so the few routes that need
+// query params parse the URL directly. Returns an empty object when
+// no query string is present.
+function _parseQueryString(pURL)
+{
+	if (!pURL) return {};
+	let tmpQ = pURL.indexOf('?');
+	if (tmpQ < 0) return {};
+	let tmpStr = pURL.slice(tmpQ + 1);
+	let tmpOut = {};
+	let tmpPairs = tmpStr.split('&');
+	for (let i = 0; i < tmpPairs.length; i++)
+	{
+		if (!tmpPairs[i]) continue;
+		let tmpEq = tmpPairs[i].indexOf('=');
+		let tmpKey, tmpVal;
+		if (tmpEq < 0)
+		{
+			tmpKey = tmpPairs[i];
+			tmpVal = '';
+		}
+		else
+		{
+			tmpKey = tmpPairs[i].slice(0, tmpEq);
+			tmpVal = tmpPairs[i].slice(tmpEq + 1);
+		}
+		try { tmpKey = decodeURIComponent(tmpKey.replace(/\+/g, ' ')); }
+		catch (e) { /* leave raw */ }
+		try { tmpVal = decodeURIComponent(tmpVal.replace(/\+/g, ' ')); }
+		catch (e) { /* leave raw */ }
+		tmpOut[tmpKey] = tmpVal;
+	}
+	return tmpOut;
+}
 
 class UltravisorAPIServer extends libPictService
 {
@@ -31,6 +101,110 @@ class UltravisorAPIServer extends libPictService
 		// Set of WebSocket clients subscribed to the queue.* topic
 		// (broadcast by UltravisorBeaconScheduler).
 		this._QueueSubscribers = new Set();
+
+		// Queue-event ring buffer for GUID-anchored catch-up replay.
+		//
+		// Every queue.* delta the scheduler emits gets stamped with an
+		// EventGUID (immutable identity) + Seq (monotonic-per-process
+		// ordering hint, NOT identity) and stored here. When a client
+		// reconnects with {Action:"QueueSubscribe", LastEventGUID:X},
+		// we replay everything after X.
+		//
+		// Seq alone can't be used for identity: it resets on process
+		// restart, and a persistence beacon catching up from durable
+		// history would have to reconcile with whatever Seq counter
+		// happens to be running. EventGUID is the only stable handle.
+		//
+		// Snapshot/control frames (queue.summary, queue.replay_*,
+		// queue.reset) get an EventGUID for wire consistency but are
+		// NOT buffered — replaying a stale summary would briefly clobber
+		// correct counts, and control frames are session-scoped.
+		this._QueueEventBuffer = [];
+		this._QueueEventBufferCap = 2000;
+		this._QueueEventSeq = 0;
+
+		// Manifest (per-RunHash execution event) catch-up buffers.
+		//
+		// Same EventGUID-anchored resync protocol as the queue side, but
+		// with PER-RUN buffers instead of one global ring. A single ring
+		// would either evict mid-run events (when many runs are active)
+		// or be huge to compensate; per-run is cleaner because runs have
+		// a clear lifecycle (created → events → ExecutionComplete →
+		// dropped after a grace period). Per-run Seq counters also
+		// surface gaps locally to clients ("I had Seq=7 then jumped to
+		// Seq=10 — what happened to 8 and 9?") in a way a global Seq
+		// shared across runs can't.
+		//
+		// Maps keyed by RunHash:
+		//   _ManifestEventBuffers   — Array<envelope> per run
+		//   _ManifestEventSeqs      — int counter per run
+		//   _ManifestEventCleanupTimers — setTimeout handle per finalized run
+		//
+		// Buffers persist until grace period elapses after the
+		// ExecutionComplete event, so a subscriber that reconnects
+		// shortly after a run finishes can still get the full replay.
+		this._ManifestEventBuffers = new Map();
+		this._ManifestEventSeqs = new Map();
+		this._ManifestEventCleanupTimers = new Map();
+		this._ManifestEventBufferCapPerRun = 5000;
+		this._ManifestEventGracePeriodMs = 5 * 60 * 1000;
+	}
+
+	// Topics that flow through the wire envelope but should NOT be
+	// retained in the replay buffer. queue.summary is a snapshot
+	// (replaying old ones would briefly show stale counts);
+	// queue.replay_* and queue.reset are control frames meant for a
+	// specific subscriber's resume cycle and don't belong in the
+	// shared history.
+	_isReplayableQueueTopic(pTopic)
+	{
+		if (pTopic === 'queue.summary') return false;
+		if (pTopic === 'queue.replay_begin') return false;
+		if (pTopic === 'queue.replay_complete') return false;
+		if (pTopic === 'queue.reset') return false;
+		return true;
+	}
+
+	// Find the buffer index of pGUID. Scans newest-first because the
+	// common case is "client reconnected after a brief gap" — the
+	// requested GUID is near the tail. Returns -1 when not found.
+	_findQueueEventIndex(pGUID)
+	{
+		if (!pGUID) return -1;
+		let tmpBuf = this._QueueEventBuffer;
+		for (let i = tmpBuf.length - 1; i >= 0; i--)
+		{
+			if (tmpBuf[i].EventGUID === pGUID) return i;
+		}
+		return -1;
+	}
+
+	// Manifest analogs — the protocol is the same shape but the buffer
+	// is partitioned by RunHash (see constructor).
+
+	// Control event types are session-scoped and never buffered. They
+	// also don't advance the per-run cursor (the cursor on the
+	// browser side intentionally pins to the last "real" execution
+	// event so a subsequent reconnect anchors against something the
+	// server actually has in its buffer).
+	_isReplayableExecutionEventType(pType)
+	{
+		if (pType === 'execution.replay_begin') return false;
+		if (pType === 'execution.replay_complete') return false;
+		if (pType === 'execution.reset') return false;
+		return true;
+	}
+
+	_findManifestEventIndex(pRunHash, pGUID)
+	{
+		if (!pRunHash || !pGUID) return -1;
+		let tmpBuf = this._ManifestEventBuffers.get(pRunHash);
+		if (!tmpBuf) return -1;
+		for (let i = tmpBuf.length - 1; i >= 0; i--)
+		{
+			if (tmpBuf[i].EventGUID === pGUID) return i;
+		}
+		return -1;
 	}
 
 	/**
@@ -751,14 +925,51 @@ class UltravisorAPIServer extends libPictService
 			);
 
 		// --- Manifests ---
+		// Reads merge two sources:
+		//   - Live runs from the in-process UltravisorExecutionManifest
+		//     service (in-memory, includes still-running operations).
+		//   - Historical runs from the ManifestStore bridge (beacon when
+		//     connected, on-disk fallback otherwise).
+		// Dedup by Hash; live wins so an in-flight run doesn't get
+		// replaced by a stale persisted snapshot.
 		this._OratorServer.get
 			(
 				'/Manifest',
 				function (pRequest, pResponse, fNext)
 				{
 					let tmpManifest = this._getService('UltravisorExecutionManifest');
-					pResponse.send(tmpManifest ? tmpManifest.listRuns() : []);
-					return fNext();
+					let tmpBridge = this._getService('UltravisorManifestStoreBridge');
+					let tmpLiveRuns = tmpManifest ? (tmpManifest.listRuns() || []) : [];
+					if (!tmpBridge)
+					{
+						pResponse.send(tmpLiveRuns);
+						return fNext();
+					}
+					tmpBridge.listManifests({}).then((pHist) =>
+					{
+						let tmpHist = (pHist && pHist.Manifests) || [];
+						let tmpSeen = new Set();
+						let tmpOut = [];
+						for (let i = 0; i < tmpLiveRuns.length; i++)
+						{
+							tmpSeen.add(tmpLiveRuns[i].Hash);
+							tmpOut.push(tmpLiveRuns[i]);
+						}
+						for (let i = 0; i < tmpHist.length; i++)
+						{
+							if (!tmpSeen.has(tmpHist[i].Hash))
+							{
+								tmpOut.push(tmpHist[i]);
+							}
+						}
+						pResponse.send(tmpOut);
+						return fNext();
+					}).catch(() =>
+					{
+						// Bridge failed — return whatever live data we have.
+						pResponse.send(tmpLiveRuns);
+						return fNext();
+					});
 				}.bind(this)
 			);
 
@@ -767,40 +978,37 @@ class UltravisorAPIServer extends libPictService
 				'/Manifest/:RunHash',
 				function (pRequest, pResponse, fNext)
 				{
+					let tmpHash = pRequest.params.RunHash;
 					let tmpManifest = this._getService('UltravisorExecutionManifest');
-					let tmpRun = tmpManifest ? tmpManifest.getRun(pRequest.params.RunHash) : null;
+					let tmpRun = tmpManifest ? tmpManifest.getRun(tmpHash) : null;
 					if (tmpRun)
 					{
-						// Send a clean, JSON-serializable snapshot of the run
-						// (the raw context may contain closures in PendingEvents)
-						let tmpClean = {
-							Hash: tmpRun.Hash,
-							OperationHash: tmpRun.OperationHash,
-							OperationName: tmpRun.OperationName,
-							Status: tmpRun.Status,
-							RunMode: tmpRun.RunMode,
-							Live: tmpRun.Live || false,
-							StartTime: tmpRun.StartTime,
-							StopTime: tmpRun.StopTime,
-							ElapsedMs: tmpRun.ElapsedMs,
-							Output: tmpRun.Output || {},
-							GlobalState: tmpRun.GlobalState || {},
-							OperationState: tmpRun.OperationState || {},
-							TaskOutputs: tmpRun.TaskOutputs || {},
-							TaskManifests: tmpRun.TaskManifests || {},
-							WaitingTasks: tmpRun.WaitingTasks || {},
-							TimingSummary: tmpRun.TimingSummary || null,
-							EventLog: tmpRun.EventLog || [],
-							Errors: tmpRun.Errors || [],
-							Log: tmpRun.Log || []
-						};
-						pResponse.send(tmpClean);
+						pResponse.send(_cleanManifestForWire(tmpRun));
+						return fNext();
 					}
-					else
+					// Not in memory — try the bridge (beacon-backed history).
+					let tmpBridge = this._getService('UltravisorManifestStoreBridge');
+					if (!tmpBridge)
 					{
-						pResponse.send(404, { Error: `Manifest ${pRequest.params.RunHash} not found.` });
+						pResponse.send(404, { Error: `Manifest ${tmpHash} not found.` });
+						return fNext();
 					}
-					return fNext();
+					tmpBridge.getManifest(tmpHash).then((pResult) =>
+					{
+						if (pResult && pResult.Success && pResult.Manifest)
+						{
+							pResponse.send(_cleanManifestForWire(pResult.Manifest));
+						}
+						else
+						{
+							pResponse.send(404, { Error: `Manifest ${tmpHash} not found.` });
+						}
+						return fNext();
+					}).catch((pErr) =>
+					{
+						pResponse.send(500, { Error: 'Bridge read failed: ' + (pErr && pErr.message) });
+						return fNext();
+					});
 				}.bind(this)
 			);
 
@@ -1719,36 +1927,56 @@ class UltravisorAPIServer extends libPictService
 			);
 
 		// --- Per-Work-Item Event Log ---
+		// Read-only — matches the no-auth precedent of /Beacon/Queue
+		// and /Manifest/:hash. Retold-Labs proxies this for the /queue
+		// drawer so the lab user can see what happened to a work item
+		// without needing a separate ultravisor session. (Cancel and
+		// Reorder, the state-changing siblings, still require a session.)
 		this._OratorServer.get
 			(
 				'/Beacon/Work/:WorkItemHash/Events',
 				function (pRequest, pResponse, fNext)
 				{
-					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
-					if (!tmpSession) { return; }
-
-					let tmpStore = this._getService('UltravisorBeaconQueueStore');
-					if (!tmpStore || !tmpStore.isEnabled || !tmpStore.isEnabled())
+					// Read via the persistence bridge — beacon-backed when
+					// connected, local QueueStore otherwise. The bridge
+					// returns {Available, Success, WorkItem|Events, Reason}
+					// so we can distinguish "no backend at all" (503),
+					// "unknown work item" (404), and success (200).
+					let tmpBridge = this._getService('UltravisorQueuePersistenceBridge');
+					if (!tmpBridge)
 					{
-						pResponse.send(503, { Error: 'BeaconQueueStore service not available.' });
+						pResponse.send(503, { Error: 'QueuePersistenceBridge service not available.' });
 						return fNext();
 					}
 
 					let tmpHash = pRequest.params.WorkItemHash;
 					let tmpLimit = pRequest.query ? parseInt(pRequest.query.limit, 10) || 500 : 500;
-					let tmpItem = tmpStore.getWorkItemByHash(tmpHash);
-					if (!tmpItem)
-					{
-						pResponse.send(404, { Error: `Work item [${tmpHash}] not found.` });
-						return fNext();
-					}
 
-					let tmpEvents = tmpStore.listEventsForWorkItem(tmpHash, tmpLimit);
-					pResponse.send({
-						WorkItemHash: tmpHash,
-						Events: tmpEvents
+					tmpBridge.getWorkItemByHash(tmpHash).then((pItemResult) =>
+					{
+						if (!pItemResult || !pItemResult.Available)
+						{
+							pResponse.send(503, { Error: 'No persistence backend available.' });
+							return fNext();
+						}
+						if (!pItemResult.Success || !pItemResult.WorkItem)
+						{
+							pResponse.send(404, { Error: `Work item [${tmpHash}] not found.` });
+							return fNext();
+						}
+						return tmpBridge.getEvents(tmpHash, tmpLimit).then((pEventsResult) =>
+						{
+							pResponse.send({
+								WorkItemHash: tmpHash,
+								Events: (pEventsResult && pEventsResult.Events) || []
+							});
+							return fNext();
+						});
+					}).catch((pErr) =>
+					{
+						pResponse.send(500, { Error: 'Bridge dispatch failed: ' + (pErr && pErr.message) });
+						return fNext();
 					});
-					return fNext();
 				}.bind(this)
 			);
 
@@ -1759,24 +1987,99 @@ class UltravisorAPIServer extends libPictService
 				function (pRequest, pResponse, fNext)
 				{
 					let tmpScheduler = this._getService('UltravisorBeaconScheduler');
-					let tmpStore = this._getService('UltravisorBeaconQueueStore');
 					let tmpSummary = tmpScheduler ? tmpScheduler.summarize() : null;
-					let tmpBucket = pRequest.query ? pRequest.query.bucket : null;
-					let tmpLimit = pRequest.query ? parseInt(pRequest.query.limit, 10) || 200 : 200;
+					// Restify's queryParser plugin isn't installed on this
+					// server, so pRequest.query is undefined. Parse the URL
+					// directly. Cheap, no dependency.
+					let tmpQuery = _parseQueryString(pRequest.url || '');
+					let tmpBucket = tmpQuery.bucket || null;
+					let tmpLimit = parseInt(tmpQuery.limit, 10) || 200;
 
 					let tmpItems = tmpScheduler ? tmpScheduler.listBuckets(tmpBucket, tmpLimit) : [];
-					let tmpHistorical = null;
-					if (tmpStore && tmpStore.isEnabled && tmpStore.isEnabled()
-						&& pRequest.query && pRequest.query.include === 'history')
+
+					// History is opt-in via ?include=history. When opted in,
+					// pull through the persistence bridge so a connected
+					// QueuePersistence beacon owns the long-tail history view.
+					let tmpWantsHistory = tmpQuery.include === 'history';
+					if (!tmpWantsHistory)
 					{
-						tmpHistorical = tmpStore.listWorkItems({ Limit: tmpLimit, OrderBy: 'IDBeaconWorkItem DESC' });
+						pResponse.send({ Summary: tmpSummary, Items: tmpItems, History: null });
+						return fNext();
 					}
-					pResponse.send({
-						Summary: tmpSummary,
-						Items: tmpItems,
-						History: tmpHistorical
-					});
-					return fNext();
+					let tmpBridge = this._getService('UltravisorQueuePersistenceBridge');
+					if (!tmpBridge)
+					{
+						pResponse.send({ Summary: tmpSummary, Items: tmpItems, History: null });
+						return fNext();
+					}
+					tmpBridge.listWorkItems({ Limit: tmpLimit, OrderBy: '-EnqueuedAt' })
+						.then((pHistResult) =>
+						{
+							let tmpHistorical = (pHistResult && pHistResult.WorkItems) || null;
+							pResponse.send({
+								Summary: tmpSummary,
+								Items: tmpItems,
+								History: tmpHistorical
+							});
+							return fNext();
+						})
+						.catch(() =>
+						{
+							// Don't fail the whole snapshot if history
+							// fetch errors — return what we have.
+							pResponse.send({ Summary: tmpSummary, Items: tmpItems, History: null });
+							return fNext();
+						});
+				}.bind(this)
+			);
+
+		// --- One-time admin bootstrap (no session required) ---
+		// Body: {Token, UserSpec:{Username, Password, Roles?}}
+		// Dispatches AUTH_BootstrapAdmin via the bridge. Intentionally
+		// unauthenticated — the bootstrap is the chicken-and-egg path
+		// for creating the very first admin in a fresh non-promiscuous
+		// mesh, before any session exists. Defense in depth: the auth
+		// beacon validates the token via constant-time compare AND
+		// consumes it on first success, so brute-force or replay
+		// attempts past the first hit fail.
+		this._OratorServer.post
+			(
+				'/Beacon/BootstrapAdmin',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpBridge = this._getService('UltravisorAuthBeaconBridge');
+					if (!tmpBridge)
+					{
+						pResponse.send(503, { Success: false, Reason: 'AuthBeaconBridge not available' });
+						return fNext();
+					}
+					if (!tmpBridge.isAvailable())
+					{
+						pResponse.send(503, { Success: false, Reason: 'No auth beacon connected' });
+						return fNext();
+					}
+					let tmpBody = pRequest.body || {};
+					tmpBridge.bootstrapAdmin(tmpBody.Token, tmpBody.UserSpec || {})
+						.then((pResult) =>
+						{
+							let tmpStatus = (pResult && pResult.Success) ? 200 : 400;
+							if (pResult && /not (supported|reachable)/i.test(pResult.Reason || ''))
+							{
+								tmpStatus = 503;
+							}
+							pResponse.send(tmpStatus, pResult || { Success: false });
+							return fNext();
+						})
+						.catch((pErr) =>
+						{
+							pResponse.send(502,
+							{
+								Success: false,
+								Error: 'Bootstrap dispatch failed',
+								Reason: (pErr && pErr.message) || String(pErr)
+							});
+							return fNext();
+						});
 				}.bind(this)
 			);
 
@@ -2279,6 +2582,86 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
+		// --- Persistence assignment (Session 3) ---
+		// The lab POSTs an explicit persistence assignment to a running
+		// UV; both bridges' setPersistenceAssignment fires their bootstrap
+		// state machines if the chosen beacon is already Online. The GET
+		// returns the merged Queue + Manifest status object the lab status
+		// pill polls. See docs/features/persistence-via-databeacon.md.
+		this._OratorServer.post
+			(
+				'/Ultravisor/Persistence/Assign',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (tmpSession === null) return;
+
+					let tmpQueueBridge = this._getService('UltravisorQueuePersistenceBridge');
+					let tmpManifestBridge = this._getService('UltravisorManifestStoreBridge');
+					if (!tmpQueueBridge || !tmpManifestBridge)
+					{
+						pResponse.send(502, { Error: 'Persistence bridges not available.' });
+						return fNext();
+					}
+
+					let tmpBody = pRequest.body || {};
+					let tmpBeaconID = (tmpBody.BeaconID === null || tmpBody.BeaconID === undefined) ? null : String(tmpBody.BeaconID);
+					let tmpIDConn = parseInt(tmpBody.IDBeaconConnection, 10) || 0;
+
+					try
+					{
+						if (!tmpBeaconID)
+						{
+							tmpQueueBridge.clearPersistenceAssignment();
+							tmpManifestBridge.clearPersistenceAssignment();
+						}
+						else
+						{
+							tmpQueueBridge.setPersistenceAssignment(tmpBeaconID, tmpIDConn);
+							tmpManifestBridge.setPersistenceAssignment(tmpBeaconID, tmpIDConn);
+						}
+					}
+					catch (pErr)
+					{
+						pResponse.send(500, { Error: pErr.message || String(pErr) });
+						return fNext();
+					}
+
+					pResponse.send(
+					{
+						Success: true,
+						Queue: tmpQueueBridge.getPersistenceStatus(),
+						Manifest: tmpManifestBridge.getPersistenceStatus()
+					});
+					return fNext();
+				}.bind(this)
+			);
+
+		this._OratorServer.get
+			(
+				'/Ultravisor/Persistence/Status',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (tmpSession === null) return;
+
+					let tmpQueueBridge = this._getService('UltravisorQueuePersistenceBridge');
+					let tmpManifestBridge = this._getService('UltravisorManifestStoreBridge');
+					if (!tmpQueueBridge || !tmpManifestBridge)
+					{
+						pResponse.send(502, { Error: 'Persistence bridges not available.' });
+						return fNext();
+					}
+
+					pResponse.send(
+					{
+						Queue: tmpQueueBridge.getPersistenceStatus(),
+						Manifest: tmpManifestBridge.getPersistenceStatus()
+					});
+					return fNext();
+				}.bind(this)
+			);
+
 		return fCallback();
 	}
 
@@ -2335,15 +2718,80 @@ class UltravisorAPIServer extends libPictService
 			function (fNext)
 			{
 				this.fable.addServiceTypeIfNotExists('OratorAuthentication', libOratorAuthentication);
+
+				// Wire orator-authentication's BeaconAuthenticator hook
+				// at construction time — orator-auth installs the provider
+				// in its constructor when this option is present, so we
+				// don't need any setAuthenticator() call here. The
+				// dispatcher is a thin wrapper around the bridge so that
+				// orator-authentication itself stays free of any
+				// ultravisor-specific imports.
+				let tmpBeaconAuth =
+				{
+					Dispatcher: (pCapability, pAction, pSettings) =>
+					{
+						let tmpBridge = this._getService('UltravisorAuthBeaconBridge');
+						if (!tmpBridge)
+						{
+							return Promise.resolve({ Outputs: { Success: false, Reason: 'No bridge' } });
+						}
+						// dispatchAction returns {Available, ...Outputs} —
+						// wrap it in {Outputs:...} so the orator-auth
+						// provider's response-shape parser unwraps cleanly
+						// (it accepts either bare outputs or an Outputs
+						// envelope, but the envelope is more honest about
+						// where the data came from).
+						return tmpBridge.dispatchAction(pAction, pSettings)
+							.then((pResult) => ({ Outputs: pResult }));
+					}
+				};
+
 				this._OratorAuth = this.fable.instantiateServiceProvider('OratorAuthentication',
 					{
 						RoutePrefix: '/1.0/',
 						SessionTTL: this.fable.settings.UltravisorBeaconSessionTTLMs || 86400000,
 						CookieHttpOnly: true,
-						CookieSecure: false
+						CookieSecure: false,
+						BeaconAuthenticator: tmpBeaconAuth
 					});
 				this._OratorAuth.connectRoutes();
 				this.log.info('Ultravisor: OratorAuthentication routes registered.');
+
+				// User management routes — REST surface for the auth-beacon
+				// AUTH_*User actions, gated by orator-auth sessions + a
+				// configurable IsAdmin check. Mounted under the same /1.0/
+				// prefix so login cookies cover both paths. The helper
+				// itself lives in the auth-beacon module so any other
+				// orator-auth consumer can use it (lab, content-system, ...).
+				try
+				{
+					let libUserMgmtRoutes = require('ultravisor-auth-beacon/source/server-routes.cjs');
+					libUserMgmtRoutes.mountUserManagementRoutes(this._OratorServer.server,
+					{
+						OratorAuth: this._OratorAuth,
+						RoutePrefix: '/1.0/',
+						Log: this.log,
+						Dispatcher: (pAction, pSettings) =>
+						{
+							let tmpBridge = this._getService('UltravisorAuthBeaconBridge');
+							if (!tmpBridge)
+							{
+								return Promise.resolve({ Success: false, Reason: 'No bridge' });
+							}
+							return tmpBridge.dispatchAction(pAction, pSettings);
+						}
+					});
+				}
+				catch (pUMError)
+				{
+					// Non-fatal: ultravisor still works without user-mgmt
+					// routes. The auth flow still functions through
+					// orator-auth + the bridge. Log loud so an operator
+					// noticing missing /Users endpoints can find the cause.
+					this.log.warn('Ultravisor: user-management route mount failed: '
+						+ (pUMError && pUMError.message)
+						+ ' — Login still works, user CRUD endpoints disabled.');
+				}
 				return fNext();
 			}.bind(this));
 
@@ -2488,6 +2936,18 @@ class UltravisorAPIServer extends libPictService
 						if (tmpData.Action === 'Subscribe' && tmpData.RunHash)
 						{
 							// --- Execution event subscription (web UI) ---
+							//
+							// Mirrors the QueueSubscribe resync protocol:
+							// callers that pass LastEventGUID get a
+							// replay block (replay_begin / events after
+							// that GUID, in order / replay_complete).
+							// Callers that pass null/omit get today's
+							// behavior — subscribe and resume the live
+							// feed. If LastEventGUID isn't in our
+							// per-run buffer (gap older than the buffer
+							// or run finalized + dropped after grace),
+							// emit execution.reset so the client falls
+							// back to /Manifest/:RunHash.
 							this._unsubscribeClient(pWebSocket);
 							pWebSocket._SubscribedRunHash = tmpData.RunHash;
 
@@ -2496,6 +2956,37 @@ class UltravisorAPIServer extends libPictService
 								this._WebSocketSubscriptions[tmpData.RunHash] = new Set();
 							}
 							this._WebSocketSubscriptions[tmpData.RunHash].add(pWebSocket);
+
+							let tmpLastGUID = tmpData.LastEventGUID || null;
+							if (tmpLastGUID)
+							{
+								let tmpIdx = this._findManifestEventIndex(
+									tmpData.RunHash, tmpLastGUID);
+								if (tmpIdx < 0)
+								{
+									this._sendManifestControlFrame(pWebSocket,
+										'execution.reset', tmpData.RunHash,
+										{ Reason: 'history-too-old', LastEventGUID: tmpLastGUID });
+								}
+								else
+								{
+									let tmpBuf = this._ManifestEventBuffers.get(tmpData.RunHash) || [];
+									let tmpReplay = tmpBuf.slice(tmpIdx + 1);
+									this._sendManifestControlFrame(pWebSocket,
+										'execution.replay_begin', tmpData.RunHash,
+										{ FromGUID: tmpLastGUID, Count: tmpReplay.length });
+									for (let i = 0; i < tmpReplay.length; i++)
+									{
+										this._sendManifestEnvelope(pWebSocket, tmpReplay[i]);
+									}
+									let tmpThrough = tmpReplay.length
+										? tmpReplay[tmpReplay.length - 1].EventGUID
+										: tmpLastGUID;
+									this._sendManifestControlFrame(pWebSocket,
+										'execution.replay_complete', tmpData.RunHash,
+										{ ThroughGUID: tmpThrough, Count: tmpReplay.length });
+								}
+							}
 						}
 						else if (tmpData.Action === 'Unsubscribe')
 						{
@@ -2538,19 +3029,69 @@ class UltravisorAPIServer extends libPictService
 						}
 						else if (tmpData.Action === 'QueueSubscribe')
 						{
+							// QueueSubscribe doubles as a resync request:
+							// callers that pass LastEventGUID get a
+							// replay block (replay_begin / events after
+							// that GUID, in order / replay_complete) BEFORE
+							// the live summary push. Callers that pass
+							// null (or omit it) get today's behavior — a
+							// fresh summary with no replay.
+							//
+							// If the requested LastEventGUID isn't in our
+							// ring buffer (gap older than the buffer,
+							// process restarted, etc.), we emit
+							// queue.reset so the client falls back to a
+							// REST snapshot. The persistence-beacon
+							// fallback for deeper history is the
+							// bootstrap-flush task's territory.
 							this._QueueSubscribers.add(pWebSocket);
 							pWebSocket._QueueSubscribed = true;
+							let tmpLastGUID = tmpData.LastEventGUID || null;
+							if (tmpLastGUID)
+							{
+								let tmpIdx = this._findQueueEventIndex(tmpLastGUID);
+								if (tmpIdx < 0)
+								{
+									// TODO(bootstrap-flush): before giving up,
+									// query the queue persistence beacon for
+									// events after pGUID and emit them here.
+									// Today the in-process ring is the only
+									// tier, so a miss = reset.
+									this._sendQueueControlFrame(pWebSocket,
+										'queue.reset',
+										{ Reason: 'history-too-old', LastEventGUID: tmpLastGUID });
+								}
+								else
+								{
+									let tmpReplay = this._QueueEventBuffer.slice(tmpIdx + 1);
+									this._sendQueueControlFrame(pWebSocket,
+										'queue.replay_begin',
+										{ FromGUID: tmpLastGUID, Count: tmpReplay.length });
+									for (let i = 0; i < tmpReplay.length; i++)
+									{
+										this._sendQueueEnvelope(pWebSocket, tmpReplay[i]);
+									}
+									let tmpThrough = tmpReplay.length
+										? tmpReplay[tmpReplay.length - 1].EventGUID
+										: tmpLastGUID;
+									this._sendQueueControlFrame(pWebSocket,
+										'queue.replay_complete',
+										{ ThroughGUID: tmpThrough, Count: tmpReplay.length });
+								}
+							}
 							// Send current summary immediately so the UI
-							// doesn't wait a full tick to populate.
+							// doesn't wait a full tick to populate. Stamp
+							// it through the same envelope path so
+							// LastEventGUID tracking on the client stays
+							// monotone.
 							let tmpSched = this._getService('UltravisorBeaconScheduler');
 							if (tmpSched && typeof tmpSched.summarize === 'function')
 							{
 								try
 								{
-									pWebSocket.send(JSON.stringify({
-										Topic: 'queue.summary',
-										Payload: tmpSched.summarize()
-									}));
+									let tmpSummaryEnv = this._stampQueueEvent(
+										'queue.summary', tmpSched.summarize());
+									this._sendQueueEnvelope(pWebSocket, tmpSummaryEnv);
 								}
 								catch (pErr) { /* ignore */ }
 							}
@@ -2600,15 +3141,55 @@ class UltravisorAPIServer extends libPictService
 	}
 
 	/**
-	 * Fan out a queue.* topic payload to all subscribed WebSocket clients.
+	 * Stamp a queue topic payload with an envelope and (when replayable)
+	 * append it to the ring buffer. Returns the wire envelope so callers
+	 * can serialize once and reuse the same frame for live + replay.
+	 *
+	 * The envelope shape is:
+	 *   { Topic, Payload, EventGUID, Seq, EmittedAt }
+	 *
+	 * EventGUID is the durable identity (UUID v4); Seq is a per-process
+	 * monotonic ordering hint that resets on restart and so cannot be
+	 * trusted for dedup.
+	 */
+	_stampQueueEvent(pTopic, pPayload)
+	{
+		this._QueueEventSeq += 1;
+		let tmpEnvelope =
+		{
+			Topic: pTopic,
+			Payload: pPayload,
+			EventGUID: libCrypto.randomUUID(),
+			Seq: this._QueueEventSeq,
+			EmittedAt: new Date().toISOString()
+		};
+		if (this._isReplayableQueueTopic(pTopic))
+		{
+			this._QueueEventBuffer.push(tmpEnvelope);
+			if (this._QueueEventBuffer.length > this._QueueEventBufferCap)
+			{
+				this._QueueEventBuffer.splice(
+					0, this._QueueEventBuffer.length - this._QueueEventBufferCap);
+			}
+		}
+		return tmpEnvelope;
+	}
+
+	/**
+	 * Fan out a queue.* topic payload to all subscribed WebSocket
+	 * clients. Stamps the envelope first so the live feed and the
+	 * replay buffer carry the same frame shape.
 	 *
 	 * @param {string} pTopic - e.g. "queue.enqueued" / "queue.dispatched" / ...
 	 * @param {object} pPayload - topic-specific JSON body
 	 */
 	_broadcastQueueTopic(pTopic, pPayload)
 	{
+		// Always stamp — even if no current subscribers — so the buffer
+		// captures history that a future reconnect can replay against.
+		let tmpEnvelope = this._stampQueueEvent(pTopic, pPayload);
 		if (!this._QueueSubscribers || this._QueueSubscribers.size === 0) return;
-		let tmpMessage = JSON.stringify({ Topic: pTopic, Payload: pPayload });
+		let tmpMessage = JSON.stringify(tmpEnvelope);
 		this._QueueSubscribers.forEach(
 			function (pClient)
 			{
@@ -2621,40 +3202,169 @@ class UltravisorAPIServer extends libPictService
 	}
 
 	/**
-	 * Handle an execution event from the manifest service and broadcast
-	 * it to all WebSocket clients subscribed to that RunHash.
+	 * Send a stamped envelope to a single subscriber. Used by the
+	 * replay path so the catch-up frames carry the same shape (and
+	 * the same EventGUID) as the originals on the live feed.
+	 */
+	_sendQueueEnvelope(pClient, pEnvelope)
+	{
+		if (!pClient || pClient.readyState !== libWebSocket.OPEN) return;
+		try { pClient.send(JSON.stringify(pEnvelope)); }
+		catch (pErr) { /* best effort */ }
+	}
+
+	/**
+	 * Emit a control frame (replay_begin / replay_complete / reset) to
+	 * a single subscriber. Stamps the envelope so the wire shape is
+	 * uniform, but skips the ring buffer per `_isReplayableQueueTopic`.
+	 */
+	_sendQueueControlFrame(pClient, pTopic, pPayload)
+	{
+		let tmpEnvelope = this._stampQueueEvent(pTopic, pPayload || {});
+		this._sendQueueEnvelope(pClient, tmpEnvelope);
+	}
+
+	/**
+	 * Stamp an execution event with the resync envelope (EventGUID,
+	 * Seq, EmittedAt) and append it to the per-run buffer when the
+	 * type is replayable. Returns the wire envelope so callers can
+	 * broadcast the same frame to live subscribers.
 	 *
-	 * @param {string} pEventType - The event type (TaskStart, TaskComplete, etc.).
+	 * Per-run Seq is monotonic within a single run only; different
+	 * runs have independent counters. EventGUID is globally unique
+	 * (UUID v4) and is what survives across process restarts as the
+	 * dedup key.
+	 */
+	_stampManifestEvent(pEventType, pRunHash, pData)
+	{
+		let tmpSeq = (this._ManifestEventSeqs.get(pRunHash) || 0) + 1;
+		this._ManifestEventSeqs.set(pRunHash, tmpSeq);
+		let tmpEnvelope =
+		{
+			EventType: pEventType,
+			RunHash: pRunHash,
+			Data: pData,
+			EventGUID: libCrypto.randomUUID(),
+			Seq: tmpSeq,
+			EmittedAt: new Date().toISOString()
+		};
+		if (this._isReplayableExecutionEventType(pEventType))
+		{
+			let tmpBuf = this._ManifestEventBuffers.get(pRunHash);
+			if (!tmpBuf)
+			{
+				tmpBuf = [];
+				this._ManifestEventBuffers.set(pRunHash, tmpBuf);
+			}
+			tmpBuf.push(tmpEnvelope);
+			if (tmpBuf.length > this._ManifestEventBufferCapPerRun)
+			{
+				tmpBuf.splice(0, tmpBuf.length - this._ManifestEventBufferCapPerRun);
+			}
+		}
+		return tmpEnvelope;
+	}
+
+	/**
+	 * Send a stamped envelope to a single subscriber. Used by both the
+	 * live broadcast and the replay path.
+	 */
+	_sendManifestEnvelope(pClient, pEnvelope)
+	{
+		if (!pClient || pClient.readyState !== libWebSocket.OPEN) return;
+		try { pClient.send(JSON.stringify(pEnvelope)); }
+		catch (pErr) { /* best effort */ }
+	}
+
+	/**
+	 * Emit a control frame (execution.replay_begin / replay_complete /
+	 * reset) to a single subscriber. Stamped through the same envelope
+	 * path so wire shape is uniform; gated out of the buffer by
+	 * _isReplayableExecutionEventType.
+	 */
+	_sendManifestControlFrame(pClient, pEventType, pRunHash, pData)
+	{
+		let tmpEnvelope = this._stampManifestEvent(pEventType, pRunHash, pData || {});
+		this._sendManifestEnvelope(pClient, tmpEnvelope);
+	}
+
+	/**
+	 * Schedule a per-run buffer cleanup. Called once we see the
+	 * terminal ExecutionComplete event for a run; the buffer survives
+	 * the grace period so a subscriber that reconnects shortly after
+	 * the run finishes can still pull the full event log.
+	 *
+	 * Re-arming is idempotent: if a cleanup is already scheduled (e.g.
+	 * because of an earlier near-terminal event we treated as
+	 * "probably the end"), the existing timer is replaced with a fresh
+	 * one. Active runs that haven't finished never have a timer, so
+	 * their buffers grow until ExecutionComplete arrives.
+	 *
+	 * Assumption: every run that emits any execution event also emits
+	 * exactly one terminal ExecutionComplete. UltravisorExecutionManifest
+	 * funnels success/error/abandon through finalizeExecution which
+	 * unconditionally emits ExecutionComplete, so this holds. If a
+	 * future code path bypasses finalizeExecution, that run's buffer
+	 * will not be cleaned up — at which point either route the new
+	 * code path through finalizeExecution, or add a periodic GC pass
+	 * that drops buffers idle for >> _ManifestEventGracePeriodMs.
+	 */
+	_scheduleManifestBufferCleanup(pRunHash)
+	{
+		if (!pRunHash) return;
+		let tmpExisting = this._ManifestEventCleanupTimers.get(pRunHash);
+		if (tmpExisting) clearTimeout(tmpExisting);
+		let tmpHandle = setTimeout(() =>
+		{
+			this._ManifestEventBuffers.delete(pRunHash);
+			this._ManifestEventSeqs.delete(pRunHash);
+			this._ManifestEventCleanupTimers.delete(pRunHash);
+		}, this._ManifestEventGracePeriodMs);
+		if (tmpHandle && typeof tmpHandle.unref === 'function')
+		{
+			tmpHandle.unref();
+		}
+		this._ManifestEventCleanupTimers.set(pRunHash, tmpHandle);
+	}
+
+	/**
+	 * Handle an execution event from the manifest service: stamp the
+	 * envelope (always — buffer captures history even when no live
+	 * subscribers), then broadcast to subscribers of that RunHash.
+	 *
+	 * @param {string} pEventType - The event type (TaskStart, TaskComplete, ...).
 	 * @param {string} pRunHash - The execution run hash.
 	 * @param {object} pEventData - The event data.
 	 */
 	_onExecutionEvent(pEventType, pRunHash, pEventData)
 	{
-		let tmpSubscribers = this._WebSocketSubscriptions[pRunHash];
+		// Always stamp so the buffer captures history a future
+		// reconnect can replay against. Subscribers may be zero
+		// today and present tomorrow.
+		let tmpEnvelope = this._stampManifestEvent(pEventType, pRunHash, pEventData);
 
-		if (!tmpSubscribers || tmpSubscribers.size === 0)
+		let tmpSubscribers = this._WebSocketSubscriptions[pRunHash];
+		if (tmpSubscribers && tmpSubscribers.size > 0)
 		{
-			return;
+			let tmpMessage = JSON.stringify(tmpEnvelope);
+			tmpSubscribers.forEach(
+				function (pClient)
+				{
+					if (pClient.readyState === libWebSocket.OPEN)
+					{
+						pClient.send(tmpMessage);
+					}
+				});
 		}
 
-		let tmpMessage = JSON.stringify({
-			EventType: pEventType,
-			RunHash: pRunHash,
-			Data: pEventData
-		});
-
-		tmpSubscribers.forEach(
-			function (pClient)
-			{
-				if (pClient.readyState === libWebSocket.OPEN)
-				{
-					pClient.send(tmpMessage);
-				}
-			});
-
-		// Clean up subscription set when execution completes
+		// Terminal event: arm the per-run buffer cleanup grace timer
+		// and drop the live-subscriber set (subscribers reconnecting
+		// during the grace window will still get a fresh subscription
+		// + replay of the recorded buffer). The buffer itself is
+		// preserved until the timer fires.
 		if (pEventType === 'ExecutionComplete')
 		{
+			this._scheduleManifestBufferCleanup(pRunHash);
 			delete this._WebSocketSubscriptions[pRunHash];
 		}
 	}
@@ -2697,6 +3407,37 @@ class UltravisorAPIServer extends libPictService
 			return;
 		}
 
+		// Non-promiscuous-mode admission gate. In default (promiscuous)
+		// mode the lambda below resolves true synchronously; in non-
+		// promiscuous mode it dispatches to the auth beacon and resolves
+		// asynchronously. Either way, registration only proceeds when
+		// allowed.
+		this._admitBeaconForRegistration(pData, (pError, pAdmitted, pRejectReason) =>
+		{
+			if (pError)
+			{
+				this.log.warn(`Ultravisor WebSocket: beacon "${pData.Name}" admission errored: ${pError.message || pError}`);
+				this._rejectBeaconJoin(pWebSocket, 'Admission check failed: ' + (pError.message || pError));
+				return;
+			}
+			if (!pAdmitted)
+			{
+				this.log.warn(`Ultravisor WebSocket: beacon "${pData.Name}" rejected by admission gate: ${pRejectReason || 'denied'}`);
+				this._rejectBeaconJoin(pWebSocket, pRejectReason || 'Beacon admission denied');
+				return;
+			}
+			this._completeBeaconWSRegister(pWebSocket, pData, tmpCoordinator);
+		});
+	}
+
+	/**
+	 * Finish a WS beacon registration after the admission gate has
+	 * passed. Split out from _handleBeaconWSRegister so the gate can
+	 * short-circuit cleanly without nesting the success path inside
+	 * a callback that's also responsible for failure handling.
+	 */
+	_completeBeaconWSRegister(pWebSocket, pData, pCoordinator)
+	{
 		// Diagnostic: log what we RECEIVED from the client before forwarding
 		// to registerBeacon. If the client sent HostID but we're storing null,
 		// this log line pins down exactly where the drop happens (client vs
@@ -2712,7 +3453,7 @@ class UltravisorAPIServer extends libPictService
 		// reachability auto-detect). Forgetting to forward a field here means
 		// the WebSocket-registered beacon record will have that field set to
 		// null/empty in the coordinator, even though the client sent the value.
-		let tmpBeacon = tmpCoordinator.registerBeacon({
+		let tmpBeacon = pCoordinator.registerBeacon({
 			Name: pData.Name,
 			Capabilities: pData.Capabilities,
 			ActionSchemas: pData.ActionSchemas,
@@ -2744,6 +3485,126 @@ class UltravisorAPIServer extends libPictService
 				BeaconID: tmpBeacon.BeaconID
 			}));
 		}
+	}
+
+	/**
+	 * Decide whether a beacon may join the mesh. Three modes, in order:
+	 *
+	 *   1. Promiscuous (default) — always admit. Same behavior the hub
+	 *      had before the auth beacon work; nothing on the wire changes
+	 *      and existing deployments need no config update.
+	 *
+	 *   2. Non-promiscuous + this is the auth beacon's own join — accept
+	 *      iff the JoinSecret matches `UltravisorBootstrapAuthSecret`
+	 *      from config. We cannot consult the auth beacon to validate
+	 *      itself (chicken-and-egg), so the bootstrap secret is the one
+	 *      "trust me, I'm authorized" credential the hub keeps locally.
+	 *      A beacon counts as "the auth beacon" when it advertises the
+	 *      Authentication capability AND no other auth beacon is
+	 *      currently registered.
+	 *
+	 *   3. Non-promiscuous + any other beacon — dispatch
+	 *      AUTH_ValidateBeaconJoin to the live auth beacon via the
+	 *      bridge. If the bridge isn't available (no auth beacon
+	 *      connected yet) we fail closed: better to reject a real beacon
+	 *      than to admit an attacker during a bootstrap window.
+	 *
+	 * The callback is invoked exactly once: (pError, pAdmitted, pReason).
+	 */
+	_admitBeaconForRegistration(pData, fCallback)
+	{
+		// Config keys live in fable.ProgramConfiguration (gathered from
+		// .ultravisor.json + DefaultProgramConfiguration). fable.settings
+		// is a separate, mostly-empty bag that some legacy code reads —
+		// don't be fooled by either pattern in nearby files.
+		let tmpConfig = (this.fable && this.fable.ProgramConfiguration) || {};
+		let tmpNonPromiscuous = !!tmpConfig.UltravisorNonPromiscuous;
+		if (this.fable && this.fable.LogNoisiness >= 1)
+		{
+			this.log.info(`[Admission] beacon "${pData.Name}" caps=[${(pData.Capabilities||[]).join(',')}] joinSecret=${pData.JoinSecret ? '(present)' : '(none)'} nonPromiscuous=${tmpNonPromiscuous}`);
+		}
+		if (!tmpNonPromiscuous)
+		{
+			return fCallback(null, true);
+		}
+
+		let tmpCaps = Array.isArray(pData.Capabilities) ? pData.Capabilities : [];
+		let tmpClaimsAuth = tmpCaps.indexOf('Authentication') >= 0;
+		let tmpJoinSecret = pData.JoinSecret || '';
+
+		// Bootstrap path: this beacon claims Authentication AND no auth
+		// beacon is registered yet. Compare against the local
+		// UltravisorBootstrapAuthSecret using a constant-time compare
+		// so timing differences can't leak the secret.
+		let tmpBridge = this._getService('UltravisorAuthBeaconBridge');
+		let tmpAuthAlreadyConnected = tmpBridge && tmpBridge.isAvailable();
+		if (tmpClaimsAuth && !tmpAuthAlreadyConnected)
+		{
+			let tmpExpected = tmpConfig.UltravisorBootstrapAuthSecret || '';
+			if (!tmpExpected)
+			{
+				return fCallback(null, false,
+					'Non-promiscuous mode requires UltravisorBootstrapAuthSecret in config');
+			}
+			if (!this._constantTimeEqual(tmpJoinSecret, tmpExpected))
+			{
+				return fCallback(null, false, 'Bootstrap auth secret mismatch');
+			}
+			return fCallback(null, true);
+		}
+
+		// Standard path: ask the auth beacon to validate this join.
+		if (!tmpBridge || !tmpAuthAlreadyConnected)
+		{
+			return fCallback(null, false,
+				'No auth beacon connected; cannot validate beacon join in non-promiscuous mode');
+		}
+		tmpBridge.validateBeaconJoin(pData.Name || '', tmpJoinSecret, tmpCaps).then((pResult) =>
+		{
+			if (pResult && pResult.Available && pResult.Allowed)
+			{
+				return fCallback(null, true);
+			}
+			let tmpReason = (pResult && (pResult.Reason || pResult.Error))
+				|| 'Auth beacon denied beacon join';
+			return fCallback(null, false, tmpReason);
+		}).catch((pErr) => fCallback(pErr));
+	}
+
+	/**
+	 * Send an explicit rejection frame and close the socket so the
+	 * client knows it was denied (vs. a generic disconnect that looks
+	 * like a transient network blip and triggers exponential reconnect).
+	 */
+	_rejectBeaconJoin(pWebSocket, pReason)
+	{
+		if (pWebSocket && pWebSocket.readyState === libWebSocket.OPEN)
+		{
+			try
+			{
+				pWebSocket.send(JSON.stringify({
+					EventType: 'BeaconRejected',
+					Reason: pReason || 'Beacon admission denied'
+				}));
+			}
+			catch (pErr) { /* socket dying — close handler will clean up */ }
+			try { pWebSocket.close(4403, 'Beacon admission denied'); }
+			catch (pErr) { /* ignore */ }
+		}
+	}
+
+	/**
+	 * Constant-time string compare via crypto.timingSafeEqual on
+	 * Buffers of equal length. Pads/diffs unequal-length inputs as
+	 * "not equal" without revealing length difference timing.
+	 */
+	_constantTimeEqual(pA, pB)
+	{
+		let tmpA = Buffer.from(String(pA || ''), 'utf8');
+		let tmpB = Buffer.from(String(pB || ''), 'utf8');
+		if (tmpA.length !== tmpB.length) return false;
+		try { return libCrypto.timingSafeEqual(tmpA, tmpB); }
+		catch (pErr) { return false; }
 	}
 
 	/**

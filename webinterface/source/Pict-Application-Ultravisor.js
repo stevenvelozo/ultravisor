@@ -31,7 +31,10 @@ const libViewBeaconList = require('./views/PictView-Ultravisor-BeaconList.js');
 const libViewReachabilityMap = require('./views/PictView-Ultravisor-ReachabilityMap.js');
 const libViewOperationDescriptionEditor = require('./views/PictView-Ultravisor-OperationDescriptionEditor.js');
 const libViewFleet = require('./views/PictView-Ultravisor-Fleet.js');
+const libViewLogin = require('./views/PictView-Ultravisor-Login.js');
+const libViewUserManagement = require('./views/PictView-Ultravisor-UserManagement.js');
 const libPictSectionModal = require('pict-section-modal');
+const libPictSectionUserManagement = require('pict-section-usermanagement');
 
 class UltravisorApplication extends libPictApplication
 {
@@ -68,9 +71,36 @@ class UltravisorApplication extends libPictApplication
 		this.pict.addView('Ultravisor-ReachabilityMap', libViewReachabilityMap.default_configuration, libViewReachabilityMap);
 		this.pict.addView('Ultravisor-OperationDescriptionEditor', libViewOperationDescriptionEditor.default_configuration, libViewOperationDescriptionEditor);
 		this.pict.addView('Ultravisor-Fleet', libViewFleet.default_configuration, libViewFleet);
+		this.pict.addView('Ultravisor-Login', libViewLogin.default_configuration, libViewLogin);
+		this.pict.addView('Ultravisor-UserManagement', libViewUserManagement.default_configuration, libViewUserManagement);
 
-		// Modal/toast notification system (replaces browser alert/confirm)
+		// Modal/toast notification system (replaces browser alert/confirm).
+		// Two registrations: 'Modal' is the legacy hash existing call sites
+		// use; 'Pict-Section-Modal' is what pict-section-usermanagement's
+		// confirm/toast hooks look up. Both addView calls produce
+		// independent instances of the same section, which is fine because
+		// the modal section is stateless across constructions.
 		this.pict.addView('Modal', {}, libPictSectionModal);
+		this.pict.addView('Pict-Section-Modal', {}, libPictSectionModal);
+
+		// pict-section-usermanagement — install() registers the provider
+		// + 5 views (Login, CurrentUser, UserList, UserEdit,
+		// PasswordChange). Default browser fetch() is the transport,
+		// hitting orator-authentication's /1.0/Authenticate + the
+		// auth-beacon /Users routes mounted by ultravisor's API server.
+		// OnLogin / OnLogout hooks let us re-render the topbar and
+		// reroute on session-state flips without each view subscribing
+		// to AppData.
+		let tmpSelf = this;
+		libPictSectionUserManagement.install(this.pict,
+		{
+			ProviderOptions: { BaseURL: '/1.0/' },
+			ViewOptions:
+			{
+				Login:       { OnLogin:  () => tmpSelf._afterLogin() },
+				CurrentUser: { OnLogout: () => tmpSelf._afterLogout() }
+			}
+		});
 
 		// Register pict-section-form service types so Form panels can use them
 		this.pict.addServiceType('PictFormMetacontroller', libPictSectionForm.PictFormMetacontroller);
@@ -137,6 +167,31 @@ class UltravisorApplication extends libPictApplication
 	navigateTo(pRoute)
 	{
 		this.pict.providers.PictRouter.navigate(pRoute);
+	}
+
+	/**
+	 * Hook fired by pict-section-usermanagement's Login view after a
+	 * successful sign-in. Re-render the TopBar so the CurrentUser badge
+	 * appears, then bounce to the dashboard so the user lands on a
+	 * useful page rather than the login form's success message.
+	 */
+	_afterLogin()
+	{
+		let tmpTopBar = this.pict.views['Ultravisor-TopBar'];
+		if (tmpTopBar) tmpTopBar.render();
+		this.navigateTo('/Home');
+	}
+
+	/**
+	 * Hook fired by pict-section-usermanagement's CurrentUser view
+	 * after a logout. Drop back to /Login so it's obvious the session
+	 * is gone (vs. seeing a stale dashboard with no badge).
+	 */
+	_afterLogout()
+	{
+		let tmpTopBar = this.pict.views['Ultravisor-TopBar'];
+		if (tmpTopBar) tmpTopBar.render();
+		this.navigateTo('/Login');
 	}
 
 	showView(pViewIdentifier)

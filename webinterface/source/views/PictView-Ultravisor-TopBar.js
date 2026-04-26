@@ -219,9 +219,15 @@ const _ViewConfiguration =
 		<a onclick="{~P~}.PictApplication.navigateTo('/Manifests')">Manifests</a>
 		<a onclick="{~P~}.PictApplication.navigateTo('/Beacons')">Beacons</a>
 		<a onclick="{~P~}.PictApplication.navigateTo('/Fleet')">Fleet</a>
+		<a onclick="{~P~}.PictApplication.navigateTo('/Users')">Users</a>
 		<a onclick="{~P~}.PictApplication.navigateTo('/Docs')">Docs</a>
 	</div>
 	<div class="ultravisor-topbar-right">
+		<!-- pict-section-usermanagement's CurrentUser badge renders here.
+		     The view tracks #PictUM-CurrentUser as its destination;
+		     onAfterRender() below calls its render() so the badge
+		     appears alongside the status indicator. -->
+		<span id="PictUM-CurrentUser"></span>
 		<div class="ultravisor-topbar-status" id="Ultravisor-TopBar-StatusArea"></div>
 		<div class="ultravisor-settings-wrap">
 			<button class="ultravisor-settings-gear" onclick="{~P~}.views['Ultravisor-TopBar'].toggleThemePanel()" title="Settings">
@@ -286,6 +292,25 @@ class UltravisorTopBarView extends libPictView
 
 		// Render theme swatches
 		this._renderThemeGrid();
+
+		// Render the user-management current-user badge into our slot.
+		// On first paint there's no session yet — the section view
+		// drives a CheckSession on its own first render. After that
+		// it just paints from AppData.UserManagement.CurrentUser.
+		let tmpCurrentUserView = this.pict.views['PictUM-CurrentUser'];
+		if (tmpCurrentUserView)
+		{
+			let tmpProvider = this.pict.providers['Pict-UserManagement-Provider'];
+			if (tmpProvider && !this._didInitialSessionCheck)
+			{
+				this._didInitialSessionCheck = true;
+				tmpProvider.checkSession(() => tmpCurrentUserView.render());
+			}
+			else
+			{
+				tmpCurrentUserView.render();
+			}
+		}
 
 		// Set up click-outside-to-close handler
 		if (this._boundCloseHandler)

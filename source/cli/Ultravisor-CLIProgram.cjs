@@ -18,7 +18,12 @@ const libServiceExecutionManifest = require('../services/Ultravisor-ExecutionMan
 const libServiceBeaconCoordinator = require('../services/Ultravisor-Beacon-Coordinator.cjs');
 const libServiceBeaconReachability = require('../services/Ultravisor-Beacon-Reachability.cjs');
 const libServiceBeaconQueueJournal = require('../services/persistence/Ultravisor-Beacon-QueueJournal.cjs');
+const libServiceBeaconQueueStore = require('../services/persistence/Ultravisor-Beacon-QueueStore.cjs');
+const libServiceBeaconScheduler = require('../services/Ultravisor-Beacon-Scheduler.cjs');
 const libServiceBeaconFleetStore = require('../services/persistence/Ultravisor-Beacon-FleetStore.cjs');
+const libServiceAuthBeaconBridge = require('../services/Ultravisor-AuthBeaconBridge.cjs');
+const libServiceQueuePersistenceBridge = require('../services/Ultravisor-QueuePersistenceBridge.cjs');
+const libServiceManifestStoreBridge = require('../services/Ultravisor-ManifestStoreBridge.cjs');
 const libServiceDirectoryDistributor = require('../services/Ultravisor-DirectoryDistributor.cjs');
 const libServiceFleetManager = require('../services/Ultravisor-FleetManager.cjs');
 
@@ -210,6 +215,19 @@ if (tmpQueueJournal)
 	tmpQueueJournal.initialize(_Ultravisor_Pict.fable.settings.UltravisorFileStorePath);
 }
 
+// --- Beacon queue store (SQLite-backed history + per-item events) ---
+// Distinct from the journal above: the journal is a write-ahead log for
+// crash recovery of the in-flight queue; the store is a long-lived
+// SQLite database that backs the /queue UI's history list and the
+// /Beacon/Work/:hash/Events endpoint. Both can coexist — they were
+// added in separate generations of the queue work.
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconQueueStore', libServiceBeaconQueueStore);
+let tmpQueueStore = Object.values(_Ultravisor_Pict.fable.servicesMap['UltravisorBeaconQueueStore'])[0];
+if (tmpQueueStore)
+{
+	tmpQueueStore.initialize(_Ultravisor_Pict.fable.settings.UltravisorFileStorePath);
+}
+
 // Restore persisted work queue from journal (if any)
 let tmpCoordinator = Object.values(_Ultravisor_Pict.fable.servicesMap['UltravisorBeaconCoordinator'])[0];
 if (tmpCoordinator)
@@ -233,7 +251,51 @@ _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
 	'UltravisorFleetManager', libServiceFleetManager);
 
+// --- Beacon scheduler (queue.* topic broadcasts + dispatch tick) ---
+// The scheduler must exist before the APIServer wires its broadcast
+// handler — see Ultravisor-API-Server._initializeWebSocket where it
+// calls scheduler.setBroadcastHandler(...). After APIServer is up,
+// we kick off the dispatch/health/summary timers via .start().
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
+	'UltravisorBeaconScheduler', libServiceBeaconScheduler);
+
+// --- Auth beacon bridge (consults the optional Authentication-capable
+// beacon for session validation + non-promiscuous mode admission). The
+// bridge is always installed; it just resolves to "not available" when
+// no auth beacon is connected, so the rest of the hub keeps working
+// without it. See source/services/Ultravisor-AuthBeaconBridge.cjs and
+// the matching ultravisor-auth-beacon module under modules/apps/.
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
+	'UltravisorAuthBeaconBridge', libServiceAuthBeaconBridge);
+
+// --- Queue persistence bridge (consults the optional QueuePersistence
+// beacon for durable queue + event log storage). Like the auth bridge,
+// it's always installed and falls back to the in-process
+// UltravisorBeaconQueueStore when no beacon is connected. The
+// coordinator + scheduler call into the bridge for every persistence
+// op; switching to a beacon-backed backend is a runtime decision.
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
+	'UltravisorQueuePersistenceBridge', libServiceQueuePersistenceBridge);
+
+// --- Manifest store bridge (consults the optional ManifestStore
+// beacon for durable execution-manifest storage). Same shape as the
+// queue bridge: always installed, falls back to the in-process
+// UltravisorExecutionManifest service when no beacon is connected.
+// Persistence calls (finalizeExecution, abandonRun) go through this
+// bridge instead of directly writing JSON files.
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
+	'UltravisorManifestStoreBridge', libServiceManifestStoreBridge);
+
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorAPIServer', libWebServerAPIServer);
+
+// Kick the scheduler timers AFTER the API server has wired
+// setBroadcastHandler — otherwise the first summary tick has nowhere
+// to fan out to and is silently dropped.
+let tmpScheduler = Object.values(_Ultravisor_Pict.fable.servicesMap['UltravisorBeaconScheduler'])[0];
+if (tmpScheduler && typeof tmpScheduler.start === 'function')
+{
+	tmpScheduler.start();
+}
 
 // ── Service name aliases ────────────────────────────────
 // Some CLI commands access services by hyphenated names via this.fable['Name'].

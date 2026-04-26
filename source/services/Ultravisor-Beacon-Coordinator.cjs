@@ -114,6 +114,62 @@ class UltravisorBeaconCoordinator extends libPictService
 	}
 
 	/**
+	 * Get the queue persistence bridge (lazy). Falls back to direct
+	 * QueueStore writes when the bridge isn't installed (older
+	 * deployments, tests).
+	 *
+	 * @returns {object|null}
+	 */
+	_getQueuePersistenceBridge()
+	{
+		let tmpMap = this.fable.servicesMap && this.fable.servicesMap.UltravisorQueuePersistenceBridge;
+		if (!tmpMap) return null;
+		return Object.values(tmpMap)[0] || null;
+	}
+
+	/**
+	 * Capabilities the bridge skips persistence for. Their own dispatches
+	 * are themselves work items; recording them would loop:
+	 *   QueuePersistence    → QP_AppendEvent → enqueueWorkItem → QP_AppendEvent → ...
+	 *   ManifestStore       → MS_UpsertManifest → enqueueWorkItem → MS_UpsertManifest → ...
+	 *   MeadowProxy         → MeadowProxy.Request (the bridge's new dispatch
+	 *                         backend) → enqueueWorkItem → MeadowProxy.Request → ...
+	 *   DataBeaconSchema    → bootstrap-time EnsureSchema/IntrospectSchema; same loop hazard.
+	 *   DataBeaconManagement → bootstrap-time EnableEndpoint/UpdateProxyConfig; same loop hazard.
+	 * The set lives on the coordinator because it's the only place that
+	 * decides "is this work item worth persisting?".
+	 */
+	_isMetaCapability(pCapability)
+	{
+		return pCapability === 'QueuePersistence'
+			|| pCapability === 'ManifestStore'
+			|| pCapability === 'MeadowProxy'
+			|| pCapability === 'DataBeaconSchema'
+			|| pCapability === 'DataBeaconManagement';
+	}
+
+	/**
+	 * Centralized fire-and-forget for bridge calls. Promise rejections
+	 * land here as warnings instead of unhandled-rejection events,
+	 * matching the original `try { ... } catch (...)` best-effort
+	 * shape of every legacy QueueStore call site.
+	 */
+	_persistBest(pPromise, pLabel)
+	{
+		if (!pPromise || typeof pPromise.then !== 'function') return;
+		pPromise.then((pResult) =>
+		{
+			if (pResult && pResult.Success === false && pResult.Reason)
+			{
+				this.log.warn(`BeaconCoordinator: ${pLabel}: ${pResult.Reason}`);
+			}
+		}).catch((pErr) =>
+		{
+			this.log.warn(`BeaconCoordinator: ${pLabel} threw: ${(pErr && pErr.message) || pErr}`);
+		});
+	}
+
+	/**
 	 * Get the scheduler service (lazy lookup).
 	 *
 	 * @returns {object|null}
@@ -313,6 +369,12 @@ class UltravisorBeaconCoordinator extends libPictService
 				tmpReachability.onBeaconRegistered(tmpExistingBeacon.BeaconID);
 			}
 
+			// Bootstrap-flush: a reconnect is exactly the case we care
+			// about — the beacon was offline, local writes accumulated,
+			// now the beacon is back. Fire the same notification path
+			// as a fresh register so the bridges sweep their backlog.
+			this._notifyPersistenceBridgesOnConnect(tmpExistingBeacon.BeaconID);
+
 			return tmpExistingBeacon;
 		}
 
@@ -393,7 +455,48 @@ class UltravisorBeaconCoordinator extends libPictService
 			});
 		}
 
+		// Bootstrap-flush: notify persistence bridges that a beacon
+		// just connected so they can flush locally-buffered writes the
+		// beacon doesn't have. Each bridge inspects whether the new
+		// beacon supplies its capability (QueuePersistence /
+		// ManifestStore) and fires a sweep when relevant. setImmediate
+		// for the same reason as the FleetManager hook above — the
+		// WebSocket upgrade hasn't fully wired the push channel yet.
+		this._notifyPersistenceBridgesOnConnect(tmpBeaconID);
+
 		return tmpBeacon;
+	}
+
+	/**
+	 * Notify both persistence bridges that a beacon just connected.
+	 * Each bridge filters by capability internally so this is safe to
+	 * call for every beacon registration. Fire-and-forget; bridges
+	 * log their own success/failure. Wrapped in setImmediate so flush
+	 * dispatches don't preempt the WebSocket upgrade settlement.
+	 */
+	_notifyPersistenceBridgesOnConnect(pBeaconID)
+	{
+		let tmpQB = this._getService('UltravisorQueuePersistenceBridge');
+		let tmpMB = this._getService('UltravisorManifestStoreBridge');
+		setImmediate(() =>
+		{
+			if (tmpQB && typeof tmpQB.onBeaconConnected === 'function')
+			{
+				try { tmpQB.onBeaconConnected(pBeaconID); }
+				catch (pErr)
+				{
+					this.log.warn(`BeaconCoordinator: QueuePersistenceBridge.onBeaconConnected threw: ${pErr.message}`);
+				}
+			}
+			if (tmpMB && typeof tmpMB.onBeaconConnected === 'function')
+			{
+				try { tmpMB.onBeaconConnected(pBeaconID); }
+				catch (pErr)
+				{
+					this.log.warn(`BeaconCoordinator: ManifestStoreBridge.onBeaconConnected threw: ${pErr.message}`);
+				}
+			}
+		});
 	}
 
 	// ================================================================
@@ -1112,31 +1215,27 @@ class UltravisorBeaconCoordinator extends libPictService
 			}
 		}
 
-		// Persist the full record to the SQLite-backed queue store so
-		// the /queue view + historical queries + cross-restart recovery
-		// have a canonical source of truth.
-		let tmpQueueStore = this._getQueueStore();
-		if (tmpQueueStore)
+		// Persist via the bridge (beacon when connected, in-process
+		// QueueStore otherwise). Skip QueuePersistence's own dispatches
+		// — recording them would create infinite recursion through the
+		// bridge → coordinator → bridge → ... loop.
+		let tmpBridge = this._getQueuePersistenceBridge();
+		if (tmpBridge && !this._isMetaCapability(tmpWorkItem.Capability))
 		{
-			try { tmpQueueStore.upsertWorkItem(tmpWorkItem); }
-			catch (pStoreErr) { this.log.warn(`BeaconCoordinator: queue store upsert failed: ${pStoreErr.message}`); }
-			try
-			{
-				tmpQueueStore.appendEvent({
-					WorkItemHash: tmpWorkItem.WorkItemHash,
-					RunID: tmpWorkItem.RunID,
-					EventType: 'enqueued',
-					FromStatus: '',
-					ToStatus: tmpWorkItem.Status,
-					Payload: {
-						Capability: tmpWorkItem.Capability,
-						Action: tmpWorkItem.Action,
-						Priority: tmpWorkItem.Priority,
-						AffinityKey: tmpWorkItem.AffinityKey
-					}
-				});
-			}
-			catch (pStoreErr2) { /* best effort */ }
+			this._persistBest(tmpBridge.upsertWorkItem(tmpWorkItem), 'queue upsert');
+			this._persistBest(tmpBridge.appendEvent({
+				WorkItemHash: tmpWorkItem.WorkItemHash,
+				RunID: tmpWorkItem.RunID,
+				EventType: 'enqueued',
+				FromStatus: '',
+				ToStatus: tmpWorkItem.Status,
+				Payload: {
+					Capability: tmpWorkItem.Capability,
+					Action: tmpWorkItem.Action,
+					Priority: tmpWorkItem.Priority,
+					AffinityKey: tmpWorkItem.AffinityKey
+				}
+			}), 'queue enqueued event');
 		}
 
 		// Broadcast the enqueue event.  Scheduler owns the ws envelope.
@@ -1348,37 +1447,35 @@ class UltravisorBeaconCoordinator extends libPictService
 					if (!isNaN(tmpEnqMs)) tmpWorkItem.QueueWaitMs = Math.max(0, Date.now() - tmpEnqMs);
 				}
 				tmpWorkItem.AttemptNumber = (tmpWorkItem.AttemptNumber || 0) + 1;
-				let tmpPollStoreA = this._getQueueStore();
-				if (tmpPollStoreA)
+				// Affinity-poll dispatch path. Bridge handles beacon-or-local
+				// routing; meta-capability skip mirrors the other write sites.
+				let tmpPollBridgeA = this._getQueuePersistenceBridge();
+				if (tmpPollBridgeA && !this._isMetaCapability(tmpWorkItem.Capability))
 				{
-					try
-					{
-						tmpPollStoreA.updateWorkItem(tmpWorkItem.WorkItemHash, {
-							Status: 'Running',
-							StartedAt: tmpWorkItem.StartedAt,
-							DispatchedAt: tmpWorkItem.DispatchedAt,
-							LastEventAt: tmpPollNowIso,
-							QueueWaitMs: tmpWorkItem.QueueWaitMs || 0,
-							AttemptNumber: tmpWorkItem.AttemptNumber
-						});
-						tmpPollStoreA.appendEvent({
-							WorkItemHash: tmpWorkItem.WorkItemHash,
-							RunID: tmpWorkItem.RunID,
-							EventType: 'dispatched',
-							FromStatus: 'Assigned',
-							ToStatus: 'Running',
-							BeaconID: pBeaconID,
-							Payload: { QueueWaitMs: tmpWorkItem.QueueWaitMs || 0, Path: 'poll' }
-						});
-						tmpPollStoreA.insertAttempt({
-							WorkItemHash: tmpWorkItem.WorkItemHash,
-							AttemptNumber: tmpWorkItem.AttemptNumber,
-							BeaconID: pBeaconID,
-							DispatchedAt: tmpWorkItem.DispatchedAt,
-							Outcome: 'Dispatched'
-						});
-					}
-					catch (pErr) { /* best effort */ }
+					this._persistBest(tmpPollBridgeA.updateWorkItem(tmpWorkItem.WorkItemHash, {
+						Status: 'Running',
+						StartedAt: tmpWorkItem.StartedAt,
+						DispatchedAt: tmpWorkItem.DispatchedAt,
+						LastEventAt: tmpPollNowIso,
+						QueueWaitMs: tmpWorkItem.QueueWaitMs || 0,
+						AttemptNumber: tmpWorkItem.AttemptNumber
+					}), 'queue dispatch update (affinity)');
+					this._persistBest(tmpPollBridgeA.appendEvent({
+						WorkItemHash: tmpWorkItem.WorkItemHash,
+						RunID: tmpWorkItem.RunID,
+						EventType: 'dispatched',
+						FromStatus: 'Assigned',
+						ToStatus: 'Running',
+						BeaconID: pBeaconID,
+						Payload: { QueueWaitMs: tmpWorkItem.QueueWaitMs || 0, Path: 'poll' }
+					}), 'queue dispatched event (affinity)');
+					this._persistBest(tmpPollBridgeA.insertAttempt({
+						WorkItemHash: tmpWorkItem.WorkItemHash,
+						AttemptNumber: tmpWorkItem.AttemptNumber,
+						BeaconID: pBeaconID,
+						DispatchedAt: tmpWorkItem.DispatchedAt,
+						Outcome: 'Dispatched'
+					}), 'queue insert attempt (affinity)');
 				}
 				this.log.info(`BeaconCoordinator: beacon [${pBeaconID}] picked up affinity-assigned work item [${tmpWorkItem.WorkItemHash}].`);
 				return this._sanitizeWorkItemForBeacon(tmpWorkItem);
@@ -1452,39 +1549,38 @@ class UltravisorBeaconCoordinator extends libPictService
 				if (!isNaN(tmpEnqMs2)) tmpWorkItem.QueueWaitMs = Math.max(0, Date.now() - tmpEnqMs2);
 			}
 			tmpWorkItem.AttemptNumber = (tmpWorkItem.AttemptNumber || 0) + 1;
-			let tmpPollStoreB = this._getQueueStore();
-			if (tmpPollStoreB)
+			// Free-pool poll dispatch path. Same bridge + meta-capability
+			// guard as the affinity poll above; the only difference is
+			// the FromStatus carried into the event row.
+			let tmpPollBridgeB = this._getQueuePersistenceBridge();
+			if (tmpPollBridgeB && !this._isMetaCapability(tmpWorkItem.Capability))
 			{
-				try
-				{
-					tmpPollStoreB.updateWorkItem(tmpWorkItem.WorkItemHash, {
-						Status: 'Running',
-						AssignedBeaconID: pBeaconID,
-						AssignedAt: tmpWorkItem.AssignedAt,
-						DispatchedAt: tmpWorkItem.DispatchedAt,
-						StartedAt: tmpWorkItem.StartedAt,
-						LastEventAt: tmpPollClaimIso,
-						QueueWaitMs: tmpWorkItem.QueueWaitMs || 0,
-						AttemptNumber: tmpWorkItem.AttemptNumber
-					});
-					tmpPollStoreB.appendEvent({
-						WorkItemHash: tmpWorkItem.WorkItemHash,
-						RunID: tmpWorkItem.RunID,
-						EventType: 'dispatched',
-						FromStatus: tmpPollFromStatus,
-						ToStatus: 'Running',
-						BeaconID: pBeaconID,
-						Payload: { QueueWaitMs: tmpWorkItem.QueueWaitMs || 0, Path: 'poll' }
-					});
-					tmpPollStoreB.insertAttempt({
-						WorkItemHash: tmpWorkItem.WorkItemHash,
-						AttemptNumber: tmpWorkItem.AttemptNumber,
-						BeaconID: pBeaconID,
-						DispatchedAt: tmpWorkItem.DispatchedAt,
-						Outcome: 'Dispatched'
-					});
-				}
-				catch (pErr) { /* best effort */ }
+				this._persistBest(tmpPollBridgeB.updateWorkItem(tmpWorkItem.WorkItemHash, {
+					Status: 'Running',
+					AssignedBeaconID: pBeaconID,
+					AssignedAt: tmpWorkItem.AssignedAt,
+					DispatchedAt: tmpWorkItem.DispatchedAt,
+					StartedAt: tmpWorkItem.StartedAt,
+					LastEventAt: tmpPollClaimIso,
+					QueueWaitMs: tmpWorkItem.QueueWaitMs || 0,
+					AttemptNumber: tmpWorkItem.AttemptNumber
+				}), 'queue dispatch update (poll)');
+				this._persistBest(tmpPollBridgeB.appendEvent({
+					WorkItemHash: tmpWorkItem.WorkItemHash,
+					RunID: tmpWorkItem.RunID,
+					EventType: 'dispatched',
+					FromStatus: tmpPollFromStatus,
+					ToStatus: 'Running',
+					BeaconID: pBeaconID,
+					Payload: { QueueWaitMs: tmpWorkItem.QueueWaitMs || 0, Path: 'poll' }
+				}), 'queue dispatched event (poll)');
+				this._persistBest(tmpPollBridgeB.insertAttempt({
+					WorkItemHash: tmpWorkItem.WorkItemHash,
+					AttemptNumber: tmpWorkItem.AttemptNumber,
+					BeaconID: pBeaconID,
+					DispatchedAt: tmpWorkItem.DispatchedAt,
+					Outcome: 'Dispatched'
+				}), 'queue insert attempt (poll)');
 			}
 
 			if (tmpBeacon.CurrentWorkItems.indexOf(tmpWorkItem.WorkItemHash) === -1)
@@ -1675,34 +1771,33 @@ class UltravisorBeaconCoordinator extends libPictService
 			tmpJournal.appendEntry('complete', { WorkItemHash: pWorkItemHash });
 		}
 
-		// Persist to the new queue store + append event + update attempt.
-		let tmpQueueStore = this._getQueueStore();
-		if (tmpQueueStore)
+		// Persist via the bridge — beacon-backed when connected,
+		// in-process QueueStore otherwise. Skip meta-capability
+		// dispatches to avoid the QP_*-on-QP_* recursion.
+		let tmpCompleteBridge = this._getQueuePersistenceBridge();
+		if (tmpCompleteBridge && !this._isMetaCapability(tmpWorkItem.Capability))
 		{
-			try
-			{
-				tmpQueueStore.updateWorkItem(pWorkItemHash, {
-					Status: 'Complete',
-					CompletedAt: tmpWorkItem.CompletedAt,
-					LastEventAt: tmpWorkItem.LastEventAt,
-					Result: pResult || null
-				});
-				tmpQueueStore.appendEvent({
-					WorkItemHash: pWorkItemHash,
-					RunID: tmpWorkItem.RunID,
-					EventType: 'completed',
-					FromStatus: tmpFromStatus,
-					ToStatus: 'Complete',
-					BeaconID: tmpWorkItem.AssignedBeaconID,
-					Payload: { DurationMs: tmpDurationMs }
-				});
-				tmpQueueStore.updateAttemptOutcome(pWorkItemHash, tmpWorkItem.AttemptNumber || 1, {
+			this._persistBest(tmpCompleteBridge.updateWorkItem(pWorkItemHash, {
+				Status: 'Complete',
+				CompletedAt: tmpWorkItem.CompletedAt,
+				LastEventAt: tmpWorkItem.LastEventAt,
+				Result: pResult || null
+			}), 'queue complete update');
+			this._persistBest(tmpCompleteBridge.appendEvent({
+				WorkItemHash: pWorkItemHash,
+				RunID: tmpWorkItem.RunID,
+				EventType: 'completed',
+				FromStatus: tmpFromStatus,
+				ToStatus: 'Complete',
+				BeaconID: tmpWorkItem.AssignedBeaconID,
+				Payload: { DurationMs: tmpDurationMs }
+			}), 'queue completed event');
+			this._persistBest(tmpCompleteBridge.updateAttemptOutcome(
+				pWorkItemHash, tmpWorkItem.AttemptNumber || 1, {
 					CompletedAt: tmpWorkItem.CompletedAt,
 					Outcome: 'Complete',
 					DurationMs: tmpDurationMs
-				});
-			}
-			catch (pStoreErr) { /* best effort */ }
+				}), 'queue attempt outcome');
 		}
 
 		let tmpScheduler = this._getScheduler();
@@ -1872,36 +1967,35 @@ class UltravisorBeaconCoordinator extends libPictService
 			tmpJournal.appendEntry('fail', { WorkItemHash: pWorkItemHash });
 		}
 
-		// Persist to the new queue store + event + attempt outcome.
-		let tmpFailStore = this._getQueueStore();
-		if (tmpFailStore)
+		// Persist via the bridge — beacon-backed when connected,
+		// in-process QueueStore otherwise. Skip meta-capability
+		// dispatches to avoid recursion.
+		let tmpFailBridge = this._getQueuePersistenceBridge();
+		if (tmpFailBridge && !this._isMetaCapability(tmpWorkItem.Capability))
 		{
-			try
-			{
-				tmpFailStore.updateWorkItem(pWorkItemHash, {
-					Status: 'Error',
-					CompletedAt: tmpWorkItem.CompletedAt,
-					LastEventAt: tmpWorkItem.LastEventAt,
-					LastError: tmpWorkItem.LastError,
-					Result: tmpWorkItem.Result
-				});
-				tmpFailStore.appendEvent({
-					WorkItemHash: pWorkItemHash,
-					RunID: tmpWorkItem.RunID,
-					EventType: 'failed',
-					FromStatus: tmpFromStatus,
-					ToStatus: 'Error',
-					BeaconID: tmpWorkItem.AssignedBeaconID,
-					Payload: { Error: tmpWorkItem.LastError, DurationMs: tmpFailDurationMs }
-				});
-				tmpFailStore.updateAttemptOutcome(pWorkItemHash, tmpWorkItem.AttemptNumber || 1, {
+			this._persistBest(tmpFailBridge.updateWorkItem(pWorkItemHash, {
+				Status: 'Error',
+				CompletedAt: tmpWorkItem.CompletedAt,
+				LastEventAt: tmpWorkItem.LastEventAt,
+				LastError: tmpWorkItem.LastError,
+				Result: tmpWorkItem.Result
+			}), 'queue fail update');
+			this._persistBest(tmpFailBridge.appendEvent({
+				WorkItemHash: pWorkItemHash,
+				RunID: tmpWorkItem.RunID,
+				EventType: 'failed',
+				FromStatus: tmpFromStatus,
+				ToStatus: 'Error',
+				BeaconID: tmpWorkItem.AssignedBeaconID,
+				Payload: { Error: tmpWorkItem.LastError, DurationMs: tmpFailDurationMs }
+			}), 'queue failed event');
+			this._persistBest(tmpFailBridge.updateAttemptOutcome(
+				pWorkItemHash, tmpWorkItem.AttemptNumber || 1, {
 					CompletedAt: tmpWorkItem.CompletedAt,
 					Outcome: 'Error',
 					ErrorMessage: tmpWorkItem.LastError,
 					DurationMs: tmpFailDurationMs
-				});
-			}
-			catch (pStoreErr) { /* best effort */ }
+				}), 'queue fail attempt outcome');
 		}
 
 		let tmpFailScheduler = this._getScheduler();
@@ -2263,17 +2357,16 @@ class UltravisorBeaconCoordinator extends libPictService
 		// Mark the item as freshly heard-from for health scoring.
 		tmpWorkItem.LastEventAt = tmpWorkItem.Progress.UpdatedAt;
 		if (!tmpWorkItem.StartedAt) tmpWorkItem.StartedAt = tmpWorkItem.Progress.UpdatedAt;
-		let tmpProgressStore = this._getQueueStore();
-		if (tmpProgressStore)
+		// Progress updates also land via the bridge so a beacon-backed
+		// persistence backend sees the same heartbeat trail an in-process
+		// store would. Skip meta-capabilities to avoid recursion.
+		let tmpProgressBridge = this._getQueuePersistenceBridge();
+		if (tmpProgressBridge && !this._isMetaCapability(tmpWorkItem.Capability))
 		{
-			try
-			{
-				tmpProgressStore.updateWorkItem(pWorkItemHash, {
-					LastEventAt: tmpWorkItem.LastEventAt,
-					StartedAt: tmpWorkItem.StartedAt
-				});
-			}
-			catch (pErr) { /* best effort */ }
+			this._persistBest(tmpProgressBridge.updateWorkItem(pWorkItemHash, {
+				LastEventAt: tmpWorkItem.LastEventAt,
+				StartedAt: tmpWorkItem.StartedAt
+			}), 'queue progress update');
 		}
 
 		// Accumulate log entries

@@ -19,6 +19,7 @@
   - [Operations](features/operations.md)
   - [Scheduling](features/scheduling.md)
   - [Manifests](features/manifests.md)
+  - [Persistence via DataBeacon (planned)](features/persistence-via-databeacon.md)
 
 - Task Reference
 

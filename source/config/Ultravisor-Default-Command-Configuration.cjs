@@ -16,5 +16,13 @@ module.exports = (
 		"UltravisorBeaconWorkItemTimeoutMs": 300000,
 		"UltravisorBeaconAffinityTTLMs": 3600000,
 		"UltravisorBeaconPollIntervalMs": 5000,
-		"UltravisorBeaconJournalCompactThreshold": 500
+		"UltravisorBeaconJournalCompactThreshold": 500,
+
+		// Optional non-promiscuous mode. When true, every BeaconRegister
+		// must present a JoinSecret that either (a) matches the bootstrap
+		// secret below, for the auth beacon's own admission, or (b) is
+		// validated by the auth beacon's AUTH_ValidateBeaconJoin action.
+		// Default false → behavior identical to pre-auth-beacon ultravisor.
+		"UltravisorNonPromiscuous": false,
+		"UltravisorBootstrapAuthSecret": ""
 	});

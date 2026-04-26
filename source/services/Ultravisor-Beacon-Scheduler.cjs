@@ -82,6 +82,42 @@ class UltravisorBeaconScheduler extends libPictService
 		return (tmpStore && tmpStore.isEnabled()) ? tmpStore : null;
 	}
 
+	/**
+	 * Persistence bridge — beacon-or-local fallback. Same shape the
+	 * Coordinator uses; the scheduler funnels every write through it
+	 * so a connected QueuePersistence beacon sees the full event log
+	 * (dispatched, canceled, health updates, reorders).
+	 */
+	_getBridge()
+	{
+		let tmpMap = this.fable.servicesMap && this.fable.servicesMap.UltravisorQueuePersistenceBridge;
+		if (!tmpMap) return null;
+		return Object.values(tmpMap)[0] || null;
+	}
+
+	_isMetaCapability(pCapability)
+	{
+		// Mirror the coordinator's gate. Kept as a per-class method
+		// rather than a shared module so both classes can independently
+		// add their own meta-capabilities later.
+		return pCapability === 'QueuePersistence' || pCapability === 'ManifestStore';
+	}
+
+	_persistBest(pPromise, pLabel)
+	{
+		if (!pPromise || typeof pPromise.then !== 'function') return;
+		pPromise.then((pResult) =>
+		{
+			if (pResult && pResult.Success === false && pResult.Reason)
+			{
+				this.log.warn(`BeaconScheduler: ${pLabel}: ${pResult.Reason}`);
+			}
+		}).catch((pErr) =>
+		{
+			this.log.warn(`BeaconScheduler: ${pLabel} threw: ${(pErr && pErr.message) || pErr}`);
+		});
+	}
+
 	_getDefaults()
 	{
 		let tmpMap = this.fable.servicesMap && this.fable.servicesMap.UltravisorBeaconActionDefaults;
@@ -256,10 +292,10 @@ class UltravisorBeaconScheduler extends libPictService
 			pBeacon.CurrentWorkItems.push(pItem.WorkItemHash);
 		}
 
-		let tmpStore = this._getStore();
-		if (tmpStore)
+		let tmpDispatchBridge = this._getBridge();
+		if (tmpDispatchBridge && !this._isMetaCapability(pItem.Capability))
 		{
-			tmpStore.updateWorkItem(pItem.WorkItemHash, {
+			this._persistBest(tmpDispatchBridge.updateWorkItem(pItem.WorkItemHash, {
 				Status: 'Dispatched',
 				AssignedBeaconID: pBeacon.BeaconID,
 				AssignedAt: pItem.AssignedAt,
@@ -268,8 +304,8 @@ class UltravisorBeaconScheduler extends libPictService
 				AttemptNumber: pItem.AttemptNumber,
 				LastEventAt: pItem.LastEventAt,
 				Settings: pItem.Settings
-			});
-			tmpStore.appendEvent({
+			}), 'dispatch update');
+			this._persistBest(tmpDispatchBridge.appendEvent({
 				WorkItemHash: pItem.WorkItemHash,
 				RunID: pItem.RunID,
 				EventType: 'dispatched',
@@ -277,14 +313,14 @@ class UltravisorBeaconScheduler extends libPictService
 				ToStatus: 'Dispatched',
 				BeaconID: pBeacon.BeaconID,
 				Payload: { QueueWaitMs: tmpQueueWaitMs }
-			});
-			tmpStore.insertAttempt({
+			}), 'dispatched event');
+			this._persistBest(tmpDispatchBridge.insertAttempt({
 				WorkItemHash: pItem.WorkItemHash,
 				AttemptNumber: pItem.AttemptNumber,
 				BeaconID: pBeacon.BeaconID,
 				DispatchedAt: pItem.DispatchedAt,
 				Outcome: 'Dispatched'
-			});
+			}), 'dispatch attempt');
 		}
 
 		this.log.info(`BeaconScheduler: dispatched [${pItem.WorkItemHash}] to beacon [${pBeacon.BeaconID}] (queue_wait=${tmpQueueWaitMs}ms, attempt=${pItem.AttemptNumber}).`);
@@ -327,23 +363,23 @@ class UltravisorBeaconScheduler extends libPictService
 		pItem.CancelReason = pItem.CancelReason || pReason || '';
 		pItem.LastEventAt = tmpNowIso;
 
-		let tmpStore = this._getStore();
-		if (tmpStore)
+		let tmpCancelBridge = this._getBridge();
+		if (tmpCancelBridge && !this._isMetaCapability(pItem.Capability))
 		{
-			tmpStore.updateWorkItem(pItem.WorkItemHash, {
+			this._persistBest(tmpCancelBridge.updateWorkItem(pItem.WorkItemHash, {
 				Status: 'Canceled',
 				CanceledAt: pItem.CanceledAt,
 				CancelReason: pItem.CancelReason,
 				LastEventAt: tmpNowIso
-			});
-			tmpStore.appendEvent({
+			}), 'cancel update');
+			this._persistBest(tmpCancelBridge.appendEvent({
 				WorkItemHash: pItem.WorkItemHash,
 				RunID: pItem.RunID,
 				EventType: 'canceled',
 				FromStatus: tmpFromStatus,
 				ToStatus: 'Canceled',
 				Payload: { Reason: pItem.CancelReason }
-			});
+			}), 'canceled event');
 		}
 
 		this._broadcast('queue.canceled', {
@@ -489,15 +525,15 @@ class UltravisorBeaconScheduler extends libPictService
 		pItem.HealthReason = tmpHealth.Reason;
 		pItem.HealthComputedAt = tmpNowIso;
 
-		let tmpStore = this._getStore();
-		if (tmpStore)
+		let tmpHealthBridge = this._getBridge();
+		if (tmpHealthBridge && !this._isMetaCapability(pItem.Capability))
 		{
-			tmpStore.updateWorkItem(pItem.WorkItemHash, {
+			this._persistBest(tmpHealthBridge.updateWorkItem(pItem.WorkItemHash, {
 				Health: tmpHealth.Score,
 				HealthLabel: tmpHealth.Label,
 				HealthReason: tmpHealth.Reason,
 				HealthComputedAt: tmpNowIso
-			});
+			}), 'health update');
 		}
 
 		// Only broadcast on label change or meaningful score delta.
@@ -642,21 +678,21 @@ class UltravisorBeaconScheduler extends libPictService
 		{
 			tmpItem.CancelRequested = true;
 			tmpItem.CancelReason = pReason || 'cancel requested';
-			let tmpStore = this._getStore();
-			if (tmpStore)
+			let tmpCancelReqBridge = this._getBridge();
+			if (tmpCancelReqBridge && !this._isMetaCapability(tmpItem.Capability))
 			{
-				tmpStore.updateWorkItem(pWorkItemHash, {
+				this._persistBest(tmpCancelReqBridge.updateWorkItem(pWorkItemHash, {
 					CancelRequested: true,
 					CancelReason: tmpItem.CancelReason
-				});
-				tmpStore.appendEvent({
+				}), 'cancel-requested update');
+				this._persistBest(tmpCancelReqBridge.appendEvent({
 					WorkItemHash: pWorkItemHash,
 					RunID: tmpItem.RunID,
 					EventType: 'cancel_requested',
 					FromStatus: tmpItem.Status,
 					ToStatus: tmpItem.Status,
 					Payload: { Reason: tmpItem.CancelReason }
-				});
+				}), 'cancel-requested event');
 			}
 			this._broadcast('queue.cancel_requested', {
 				WorkItemHash: pWorkItemHash,
@@ -728,18 +764,18 @@ class UltravisorBeaconScheduler extends libPictService
 			: ((tmpNeighbor.Priority || 0) - 1);
 		tmpItem.Priority = tmpNewPriority;
 
-		let tmpStore = this._getStore();
-		if (tmpStore)
+		let tmpReorderBridge = this._getBridge();
+		if (tmpReorderBridge && !this._isMetaCapability(tmpItem.Capability))
 		{
-			tmpStore.updateWorkItem(pWorkItemHash, { Priority: tmpNewPriority });
-			tmpStore.appendEvent({
+			this._persistBest(tmpReorderBridge.updateWorkItem(pWorkItemHash, { Priority: tmpNewPriority }), 'reorder update');
+			this._persistBest(tmpReorderBridge.appendEvent({
 				WorkItemHash: pWorkItemHash,
 				RunID: tmpItem.RunID,
 				EventType: 'reordered',
 				FromStatus: tmpItem.Status,
 				ToStatus: tmpItem.Status,
 				Payload: { Direction: pDirection, OldPriority: tmpOldPriority, NewPriority: tmpNewPriority }
-			});
+			}), 'reordered event');
 		}
 
 		// Two broadcasts: a targeted reorder event so the UI can update

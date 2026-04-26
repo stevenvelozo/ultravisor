@@ -666,12 +666,30 @@ class UltravisorFleetManager extends libPictService
 		let tmpAvailableModels = [];
 		for (let tmpM of this._availableModels.values())
 		{
+			// Include a slim Actions[] projection so consumers (the lab
+			// FleetView, the admin UI, etc.) can group catalog entries
+			// into Tool / Capability concepts without a second fetch.
+			// Skips pict-only widget metadata to keep the response small.
+			let tmpManifestActions = (tmpM.Manifest && tmpM.Manifest.Actions) || [];
+			let tmpProjectedActions = [];
+			for (let tmpA of tmpManifestActions)
+			{
+				if (!tmpA || !tmpA.Capability || !tmpA.RemoteAction) continue;
+				tmpProjectedActions.push({
+					Capability: tmpA.Capability,
+					RemoteAction: tmpA.RemoteAction,
+					Title: tmpA.Title || '',
+					Description: tmpA.Description || '',
+					ActionType: tmpA.ActionType || ''
+				});
+			}
 			tmpAvailableModels.push({
 				ModelKey: tmpM.ModelKey,
 				ModelName: tmpM.ModelName,
 				DisplayName: tmpM.DisplayName,
 				CatalogName: tmpM.CatalogName,
-				ModelSourceDir: tmpM.ModelSourceDir
+				ModelSourceDir: tmpM.ModelSourceDir,
+				Actions: tmpProjectedActions
 			});
 		}
 
