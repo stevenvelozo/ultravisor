@@ -1,6 +1,6 @@
 {
     "name": "ultravisor",
-    "version": "1.0.25",
+    "version": "1.0.26",
     "description": "Cyclic process execution with ai integration.",
     "main": "source/Ultravisor.cjs",
     "bin": {
@@ -29,20 +29,20 @@
     "dependencies": {
         "better-sqlite3": "^11.10.0",
         "cron": "^4.4.0",
-        "orator": "^6.0.4",
-        "orator-authentication": "^1.0.0",
+        "orator": "^6.1.0",
+        "orator-authentication": "^1.0.1",
         "orator-serviceserver-restify": "^2.0.10",
-        "pict": "^1.0.363",
+        "pict": "^1.0.365",
         "pict-service-commandlineutility": "^1.0.19",
         "pict-serviceproviderbase": "^1.0.4",
-        "ultravisor-beacon": "^0.0.11",
+        "ultravisor-beacon": "^0.0.13",
         "ultravisor-file-stream": "^0.0.1",
         "ws": "^8.20.0"
     },
     "devDependencies": {
         "pict-docuserve": "^0.1.5",
         "puppeteer": "^24.40.0",
-        "quackage": "^1.1.0"
+        "quackage": "^1.1.2"
     },
     "mocha": {
         "diff": true,
