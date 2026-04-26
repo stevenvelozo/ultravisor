@@ -815,7 +815,7 @@ class UltravisorManifestStoreBridge extends libPictService
 				return { Available: true, Success: !!tmpRow, Manifest: tmpRow };
 			}
 			case 'MS_ListManifests':
-				return { Available: true, Success: pSuccess, Manifests: Array.isArray(tmpParsed) ? tmpParsed : [] };
+				return this._arrayResult(pAction, tmpParsed, pSuccess, 'Manifests');
 			default:
 				if (pSuccess)
 				{
@@ -827,6 +827,18 @@ class UltravisorManifestStoreBridge extends libPictService
 					Reason: (tmpParsed && (tmpParsed.error || tmpParsed.message)) || `MeadowProxy ${pStatus}`
 				};
 		}
+	}
+
+	/**
+	 * Wrap a meadow bulk-read array response into the {Available, Success,
+	 * <ListKey>: [...]} envelope `_readOrLocal`'s callers expect. Matches
+	 * the queue bridge's helper so both sides have identical shape.
+	 */
+	_arrayResult(pAction, pParsed, pSuccess, pListKey)
+	{
+		let tmpResult = { Available: true, Success: pSuccess };
+		tmpResult[pListKey] = Array.isArray(pParsed) ? pParsed : [];
+		return tmpResult;
 	}
 
 	_endpointBase(pBeaconID, pTableName)

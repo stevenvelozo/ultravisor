@@ -1,7 +1,13 @@
-.test_staging_queue
+# Test scratch directories (.test_staging_queue, .test_staging_paged,
+# .test_staging, .test_journal, .test_staging_browser, .test_staging_oplib).
+# Each suite owns its own subtree; the glob covers them all so future
+# suites that follow the .test_<name> convention don't need a gitignore
+# update.
+.test_*/
+test/.test_*/
+
 .ultravisor.json
 .data
-.test_staging_paged
 .DS_Store
 
 package-lock.json

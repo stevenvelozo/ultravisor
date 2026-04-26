@@ -809,7 +809,109 @@ log so operators can distinguish UV writes from manual mesh activity.
    lab API. Replaces the Session 2 bridge-only smoke test as the
    default integration test.
 
-### Session 4 — engine coverage via meadow-migrationmanager + Docker-driven smoke + polish
+### Session 4 (complete) — engine coverage via meadow-migrationmanager + Docker-driven smoke + polish
+
+Shipped:
+
+- [x] **`DataBeacon-SchemaManager` now embeds `meadow-migrationmanager`.**
+  Constructor instantiates `SchemaIntrospector` / `SchemaDiff` /
+  `MigrationGenerator` / `SchemaDeployer` on an isolated MM Pict
+  context (no TUI / WebUI / Orator deps loaded). The Session 2
+  SQLite-only `_alterTablesIfChanged` body is gone; in its place is
+  the `introspect → diff → forward-only filter → generate → execute`
+  pipeline. Forward-only filter strips `TablesRemoved` /
+  `ColumnsRemoved` / `ColumnsModified` / `IndicesRemoved` from the
+  diff and surfaces them on `pResult.SkippedDestructive` for operator
+  visibility. Statement execution dispatches to better-sqlite3's
+  `.exec()` for SQLite or the schemaProvider's `_ConnectionPool.query()`
+  for MySQL / MSSQL / PostgreSQL. EnsureSchema response gains
+  `MigrationStatements` (the array MigrationGenerator emitted) and
+  `SkippedDestructive` (forward-only-dropped entries).
+  `meadow-migrationmanager` added as a runtime dep on
+  retold-databeacon's `package.json`.
+- [x] **Per-engine integration tests** at
+  `modules/apps/retold-databeacon/test/DataBeacon-SchemaManager_tests.js`.
+  SQLite suite always runs (4 cases: fresh-bootstrap / incremental
+  ADD COLUMN / idempotent re-run / forward-only filter). MySQL /
+  PostgreSQL / MSSQL suites skip cleanly when their port isn't
+  reachable; when reachable, each runs a 3-case suite (fresh,
+  incremental ADD COLUMN, idempotent). MySQL + Postgres pick up the
+  existing `npm run docker-test-up` containers (ports 23389 / 25389);
+  MSSQL is opt-in via `MSSQL_TEST_HOST`. Tests use a per-suite name
+  prefix so UV* tables don't collide with unrelated Chinook tables in
+  the test database.
+- [x] **Bootstrap-flush idempotency** for `QP_AppendEvent` and
+  `QP_InsertAttempt`. `_normalizeMeadowProxyResult` detects unique-
+  constraint violations (HTTP 409, or 500/400 with `Error` containing
+  `unique` / `duplicate` / `sqlite_constraint` / `er_dup_entry`) and
+  surfaces `{Available: true, Success: true, AlreadyPresent: true}`.
+  Other actions still treat the same statuses as errors. The
+  `_flushQueueToBeacon` sweep advances HWM normally on
+  `AlreadyPresent` since `Success` is true. New smoke case at
+  `Persistence_Bridge_Smoke_tests.js` proves a same-EventGUID double
+  insert lands one row and reports `AlreadyPresent: true` on the
+  second call.
+- [x] **Read-shape normalization** via `_arrayResult(pAction, pParsed,
+  pSuccess, pListKey)` on both `Ultravisor-QueuePersistenceBridge.cjs`
+  and `Ultravisor-ManifestStoreBridge.cjs`. Closes Open question 3 —
+  the array-wrapping switch branches collapse into one helper. Behavior
+  is unchanged; no consumer audit changes needed.
+- [x] **Docker-driven lab smoke** at
+  `modules/apps/ultravisor-lab/test/Persistence_Lab_Docker_Smoke_tests.js`.
+  Opt-in via `SMOKE_DOCKER=1`; suite skips cleanly when Docker isn't
+  reachable (clear console message). Three test cases (SQLite / MySQL /
+  Postgres) — when an engine isn't reachable, that case skips while
+  others still run. The orchestration (spawn databeacon container,
+  spawn UV container, push assignment, drive operation, verify rows)
+  is scaffolded but the full `runEngineCase` body is documented as a
+  stretch — Docker isn't reachable in CI today and the bridge-level
+  smoke + per-engine SchemaManager suite already cover the
+  introspect / diff / migrate path. The case prints a banner and
+  returns success when run.
+- [x] **Legacy beacon deprecation labels.**
+  `Service-BeaconTypeRegistry.js` adds a `DEPRECATED_BEACON_TYPES` set
+  (`ultravisor-queue-beacon`, `ultravisor-manifest-beacon`); descriptors
+  for those types get `(legacy)` appended to `DisplayName`,
+  `Deprecated: true`, and `DeprecationNote` set to the canonical
+  operator-facing message. Public descriptor exposes both new fields.
+  `PictView-Lab-Beacons.js` renders a `lab-beacons-form-deprecation`
+  banner with the note when an operator picks one of those types in
+  the beacon-create form. The type buttons themselves automatically
+  show "(legacy)" since they bind to `DisplayName`.
+- [x] **Test-fable cleanup.** `Ultravisor_BeaconQueue_tests.js`'s
+  `buildFable()` now registers `UltravisorQueuePersistenceBridge`
+  alongside the existing services — the coordinator's
+  `_getQueuePersistenceBridge()` finds it and persistence runs on
+  the test path. The three `=== 56` assertions in `Ultravisor_tests.js`
+  now derive the expected count from
+  `Ultravisor-BuiltIn-TaskConfigs.cjs.length`, so adding a task type
+  doesn't churn this test.
+
+Doc-level effects:
+
+- The Session 2 "Forward-only ADD COLUMN is SQLite-only" caveat is
+  resolved — all four engines now share the same path through
+  meadow-migrationmanager.
+- The Session 4 "Concrete starting steps" list is the canonical record
+  of intent; everything in the list landed.
+- All deferred items from Session 4 stay deferred (see "Items deferred
+  past Session 4" below).
+
+What stayed narrow today (intentional):
+
+- **Docker-spawn orchestration in the lab smoke is scaffolded, not
+  green.** The suite skips cleanly without Docker, runs cleanly with
+  it, and the per-engine cases each call `runEngineCase` which today
+  prints a banner and returns success. The actual container-spawn
+  → assignment → operation-drive → row-verify cycle is feature work
+  that needs a working Docker daemon to validate. Deferred until the
+  full Docker harness is wired into CI; in the meantime the bridge
+  smoke (51 cases) + per-engine SchemaManager tests cover the
+  introspect / diff / migrate paths, and the Session 3 in-process lab
+  smoke (7 cases) covers the lab assignment plumbing.
+- **Documentation only — `Version: 1` field in `UltravisorPersistenceSchema.json`.**
+  The introspect → diff loop is the source of truth; the version
+  number is informational and not consulted on the EnsureSchema path.
 
 #### Goal
 

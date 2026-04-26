@@ -190,7 +190,11 @@ suite
 						Expect(tmpInstance.definition.Hash).to.equal('read-file');
 
 						let tmpDefs = tmpRegistry.listDefinitions();
-						Expect(tmpDefs.length).to.equal(56);
+						// Derive the expected count from the canonical
+						// config array so adding a task type doesn't
+						// require touching this test.
+						let tmpExpected = require('../source/services/tasks/Ultravisor-BuiltIn-TaskConfigs.cjs').length;
+						Expect(tmpDefs.length).to.equal(tmpExpected);
 
 						// Verify all registered definitions have Capability, Action, and Tier
 						for (let i = 0; i < tmpDefs.length; i++)
@@ -1929,7 +1933,7 @@ suite
 
 				test
 				(
-					'Registry should register all 32 built-in task types from config array.',
+					'Registry should register all built-in task types from config array.',
 					function()
 					{
 						let tmpFable = createTestFable();
@@ -1938,7 +1942,8 @@ suite
 						let tmpBuiltInConfigs = require('../source/services/tasks/Ultravisor-BuiltIn-TaskConfigs.cjs');
 						let tmpCount = tmpRegistry.registerTaskTypesFromConfigArray(tmpBuiltInConfigs);
 
-						Expect(tmpCount).to.equal(56);
+						// Derive expected count from the source-of-truth array.
+						Expect(tmpCount).to.equal(tmpBuiltInConfigs.length);
 
 						// Spot-check a few
 						Expect(tmpRegistry.hasTaskType('error-message')).to.equal(true);
@@ -2123,7 +2128,8 @@ suite
 
 						// Configs already registered by createTestFable — verify all present
 						let tmpDefs = tmpRegistry.listDefinitions();
-						Expect(tmpDefs.length).to.equal(56);
+						let tmpExpected = require('../source/services/tasks/Ultravisor-BuiltIn-TaskConfigs.cjs').length;
+						Expect(tmpDefs.length).to.equal(tmpExpected);
 					}
 				);
 			}

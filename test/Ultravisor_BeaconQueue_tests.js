@@ -21,6 +21,7 @@ const libUltravisorBeaconQueueStore = require('../source/services/persistence/Ul
 const libUltravisorBeaconRunManager = require('../source/services/Ultravisor-Beacon-RunManager.cjs');
 const libUltravisorBeaconActionDefaults = require('../source/services/Ultravisor-Beacon-ActionDefaults.cjs');
 const libUltravisorBeaconScheduler = require('../source/services/Ultravisor-Beacon-Scheduler.cjs');
+const libUltravisorQueuePersistenceBridge = require('../source/services/Ultravisor-QueuePersistenceBridge.cjs');
 const libQueuePhases = require('../../retold-labs/source/RetoldLabs-QueuePhases.cjs');
 
 const TEST_BASE = libPath.resolve(__dirname, '..', '.test_staging_queue');
@@ -48,6 +49,11 @@ function buildFable(pStoragePath)
 	tmpFable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconRunManager', libUltravisorBeaconRunManager);
 	tmpFable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconActionDefaults', libUltravisorBeaconActionDefaults);
 	tmpFable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconScheduler', libUltravisorBeaconScheduler);
+	// Coordinator's _getQueuePersistenceBridge() looks up the bridge service
+	// via the standard servicesMap. Without it the coordinator silently
+	// skips persistence — registration is required so coordinator integration
+	// tests can verify rows landed in the in-process store.
+	tmpFable.addAndInstantiateServiceTypeIfNotExists('UltravisorQueuePersistenceBridge', libUltravisorQueuePersistenceBridge);
 
 	let tmpStore = Object.values(tmpFable.servicesMap.UltravisorBeaconQueueStore)[0];
 	tmpStore.initialize(pStoragePath);

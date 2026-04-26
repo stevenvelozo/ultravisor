@@ -388,7 +388,11 @@ class UltravisorQueuePersistenceBridge extends libPictService
 			}
 			// Push any locally-recorded events for this item too,
 			// so timeline reads on the beacon match what was
-			// captured locally during the outage.
+			// captured locally during the outage. AppendEvent /
+			// InsertAttempt against a unique constraint return
+			// {Success: true, AlreadyPresent: true} — the row already
+			// landed during a prior flush, so we treat it as success
+			// and keep going (HWM still advances).
 			if (typeof pStore.listEventsForWorkItem === 'function')
 			{
 				let tmpEvents = pStore.listEventsForWorkItem(tmpItem.WorkItemHash, 1000) || [];
@@ -931,6 +935,19 @@ class UltravisorQueuePersistenceBridge extends libPictService
 			tmpParsed = pBody;
 		}
 
+		// QP_AppendEvent and QP_InsertAttempt both insert against unique
+		// constraints (EventGUID / (WorkItemHash, AttemptNumber)). On
+		// bootstrap-flush we replay both — re-pushing rows that already
+		// landed during a prior flush. Map the resulting 409 (or the
+		// engine-specific 500-with-unique-violation) to a successful
+		// idempotent result so the flush sweep advances its HWM rather
+		// than aborting. Other actions still treat 409 as an error.
+		if (!pSuccess && (pAction === 'QP_AppendEvent' || pAction === 'QP_InsertAttempt')
+			&& this._isUniqueViolation(pStatus, tmpParsed))
+		{
+			return { Available: true, Success: true, AlreadyPresent: true, Body: tmpParsed };
+		}
+
 		switch (pAction)
 		{
 			case 'QP_GetWorkItemByHash':
@@ -939,9 +956,9 @@ class UltravisorQueuePersistenceBridge extends libPictService
 				return { Available: true, Success: !!tmpItem, WorkItem: tmpItem };
 			}
 			case 'QP_ListWorkItems':
-				return { Available: true, Success: pSuccess, WorkItems: Array.isArray(tmpParsed) ? tmpParsed : [] };
+				return this._arrayResult(pAction, tmpParsed, pSuccess, 'WorkItems');
 			case 'QP_GetEvents':
-				return { Available: true, Success: pSuccess, Events: Array.isArray(tmpParsed) ? tmpParsed : [] };
+				return this._arrayResult(pAction, tmpParsed, pSuccess, 'Events');
 			default:
 				if (pSuccess)
 				{
@@ -953,6 +970,55 @@ class UltravisorQueuePersistenceBridge extends libPictService
 					Reason: (tmpParsed && (tmpParsed.error || tmpParsed.message)) || `MeadowProxy ${pStatus}`
 				};
 		}
+	}
+
+	/**
+	 * Wrap a meadow bulk-read array response into the {Available, Success,
+	 * <ListKey>: [...]} envelope `_readOrLocal`'s callers expect. Used by
+	 * QP_ListWorkItems / QP_GetEvents (and the manifest bridge's
+	 * MS_ListManifests via the same helper). Pulled out so the wrapping
+	 * shape stays in one place; consumers that previously got a bare
+	 * array now get the same shape regardless of action.
+	 */
+	_arrayResult(pAction, pParsed, pSuccess, pListKey)
+	{
+		let tmpResult = { Available: true, Success: pSuccess };
+		tmpResult[pListKey] = Array.isArray(pParsed) ? pParsed : [];
+		return tmpResult;
+	}
+
+	/**
+	 * Detect a unique-constraint violation in a MeadowProxy.Request
+	 * response. Engines disagree on the HTTP code:
+	 *   - meadow-endpoints maps the SQLite UNIQUE error to 409.
+	 *   - MySQL / Postgres / MSSQL bubble up driver errors as 500 with
+	 *     the engine's wording in the body.
+	 * We err on the inclusive side — if the status is 409 OR the body
+	 * mentions a known unique-violation phrase, treat it as
+	 * AlreadyPresent.
+	 */
+	_isUniqueViolation(pStatus, pParsed)
+	{
+		if (pStatus === 409) { return true; }
+		if (pStatus !== 500 && pStatus !== 400) { return false; }
+		let tmpMsg = '';
+		if (pParsed && typeof pParsed === 'object')
+		{
+			// meadow-endpoints surfaces engine errors in {Error, Code,
+			// Stack} (capital first letter). Some engines also use
+			// `error` / `message` lowercase, so we check both.
+			tmpMsg = String(pParsed.Error || pParsed.error || pParsed.Message || pParsed.message || pParsed.Code || '');
+			if (!tmpMsg && pParsed.Stack) { tmpMsg = String(pParsed.Stack); }
+		}
+		else if (typeof pParsed === 'string')
+		{
+			tmpMsg = pParsed;
+		}
+		let tmpLower = tmpMsg.toLowerCase();
+		return tmpLower.indexOf('unique') >= 0
+			|| tmpLower.indexOf('duplicate') >= 0
+			|| tmpLower.indexOf('sqlite_constraint') >= 0
+			|| tmpLower.indexOf('er_dup_entry') >= 0;
 	}
 
 	_endpointBase(pBeaconID, pTableName)
