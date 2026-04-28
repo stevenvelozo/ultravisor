@@ -896,6 +896,118 @@ suite
 						Expect(tmpResolved.Content).to.equal('hello world');
 					}
 				);
+
+				test
+				(
+					'Array-typed Settings whose value is a single {~D:Record.X~} reference resolve to the actual array (regression: BulkInsertViaBeacon got the literal template string and iterated its characters).',
+					function ()
+					{
+						let tmpFable = createTestFable();
+						let tmpEngine = Object.values(tmpFable.servicesMap['UltravisorExecutionEngine'])[0];
+
+						// Pretend an upstream parse-task produced an array of records.
+						let tmpUpstreamRecords =
+						[
+							{ Name: 'alpha', RowCount: 1 },
+							{ Name: 'beta',  RowCount: 2 }
+						];
+
+						let tmpNode =
+						{
+							Hash: 'insert-thing',
+							Type: 'beacon-labwriter-bulkinsertviabeacon',
+							Data: {},
+							Settings:
+							{
+								BeaconURL:  'http://x/',
+								EntityName: 'Thing',
+								// THE KEY DETAIL: an Array-typed setting whose
+								// value is a single whole-string reference.
+								// Pre-fix, the engine skipped this case and the
+								// handler got the raw template string.
+								Records:    '{~D:Record.TaskOutput.parse-thing.Records~}'
+							},
+							Ports: []
+						};
+
+						let tmpContext =
+						{
+							TaskOutputs: { 'parse-thing': { Records: tmpUpstreamRecords } },
+							_ConnectionMap: { stateTargets: {} },
+							_PortLabelMap:  {}
+						};
+
+						let tmpDefinition =
+						{
+							SettingsInputs:
+							[
+								{ Name: 'BeaconURL',  DataType: 'String' },
+								{ Name: 'EntityName', DataType: 'String' },
+								{ Name: 'Records',    DataType: 'Array' }
+							]
+						};
+
+						let tmpResolved = tmpEngine._resolveStateConnections('insert-thing', tmpNode, tmpContext, tmpDefinition);
+
+						Expect(Array.isArray(tmpResolved.Records),
+							'Records should be a real array, not the unresolved template string').to.equal(true);
+						Expect(tmpResolved.Records.length).to.equal(2);
+						Expect(tmpResolved.Records[0].Name).to.equal('alpha');
+						Expect(tmpResolved.Records[1].RowCount).to.equal(2);
+					}
+				);
+
+				test
+				(
+					'Object-typed Settings still skip nested-template resolution (TabularTransform-style mappings stay opaque).',
+					function ()
+					{
+						let tmpFable = createTestFable();
+						let tmpEngine = Object.values(tmpFable.servicesMap['UltravisorExecutionEngine'])[0];
+
+						// A mapping object that contains template expressions
+						// inside it. Those `{~D:~}` references are meant for
+						// the downstream consumer (TabularTransform), not the
+						// engine — so they must pass through verbatim.
+						let tmpMapping =
+						{
+							Entity: 'Thing',
+							Rules:  [{ From: 'a', To: 'b', Default: '{~D:Record.X~}' }]
+						};
+
+						let tmpNode =
+						{
+							Hash: 'transform',
+							Type: 'transform-records',
+							Data: {},
+							Settings: { MappingConfiguration: tmpMapping },
+							Ports: []
+						};
+
+						let tmpContext =
+						{
+							TaskOutputs:    {},
+							_ConnectionMap: { stateTargets: {} },
+							_PortLabelMap:  {}
+						};
+
+						let tmpDefinition =
+						{
+							SettingsInputs:
+							[
+								{ Name: 'MappingConfiguration', DataType: 'Object' }
+							]
+						};
+
+						let tmpResolved = tmpEngine._resolveStateConnections('transform', tmpNode, tmpContext, tmpDefinition);
+
+						// The whole mapping object should pass through structurally
+						// equal — the Default's `{~D:~}` belongs to the downstream
+						// consumer, not the engine.
+						Expect(tmpResolved.MappingConfiguration.Entity).to.equal('Thing');
+						Expect(tmpResolved.MappingConfiguration.Rules[0].Default).to.equal('{~D:Record.X~}');
+					}
+				);
 			}
 		);
 

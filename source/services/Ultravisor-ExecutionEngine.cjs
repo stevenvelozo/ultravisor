@@ -1234,21 +1234,22 @@ class UltravisorExecutionEngine extends libPictService
 		{
 			let tmpKey = tmpSettingsKeys[i];
 			let tmpVal = tmpSettings[tmpKey];
-
-			// Skip template resolution for Object and Array typed settings.
-			// These carry opaque configuration (e.g. mapping rules) whose
-			// template expressions belong to the consuming service, not the engine.
 			let tmpDeclaredType = tmpSettingsTypeMap[tmpKey];
-			if (tmpDeclaredType === 'Object' || tmpDeclaredType === 'Array')
-			{
-				continue;
-			}
 
+			// First, handle the single-whole-reference case regardless of
+			// declared type. When a string-typed graph value is exactly one
+			// `{~D:Record.X~}` expression, the author's intent is "pass the
+			// referenced value through verbatim." For Array / Object typed
+			// settings, that's the ONLY way to populate them via the graph
+			// (graph values are JSON, so a literal array reference is encoded
+			// as a string template). Resolving here preserves the non-scalar
+			// type. Without this branch, an Array setting that points at an
+			// upstream task's output (e.g. BulkInsertViaBeacon's `Records`
+			// reading parse-task `Records`) gets the unresolved template
+			// string passed to the handler, which then iterates over the
+			// string's characters and POSTs garbage.
 			if (typeof(tmpVal) === 'string' && tmpVal.indexOf('{~') >= 0)
 			{
-				// When the entire value is a single {~D:Record.X~} expression,
-				// resolve via StateManager to preserve non-scalar types
-				// (arrays, objects).  parseTemplate always returns strings.
 				let tmpDataMatch = tmpVal.match(/^\{~D:Record\.(.+?)~\}$/);
 				if (tmpDataMatch)
 				{
@@ -1260,6 +1261,22 @@ class UltravisorExecutionEngine extends libPictService
 						continue;
 					}
 				}
+			}
+
+			// For Object / Array typed settings whose value is NOT a single
+			// reference, skip template resolution. These carry opaque
+			// configuration (e.g. mapping rules) whose `{~D:~}` expressions
+			// belong to the consuming service (TabularTransform etc.), not
+			// the execution engine.
+			if (tmpDeclaredType === 'Object' || tmpDeclaredType === 'Array')
+			{
+				continue;
+			}
+
+			if (typeof(tmpVal) === 'string' && tmpVal.indexOf('{~') >= 0)
+			{
+				// Mixed/inline template — parseTemplate always returns a string,
+				// which is fine for scalar (String) settings.
 				tmpSettings[tmpKey] = this._resolveTemplate(tmpVal, tmpTemplateContext);
 			}
 		}
