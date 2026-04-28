@@ -11,7 +11,7 @@
 	"author": "steven velozo <steven@velozo.com>",
 	"license": "MIT",
 	"dependencies": {
-		"pict": "^1.0.359",
+		"pict": "^1.0.363",
 		"pict-application": "^1.0.33",
 		"pict-docuserve": "^0.0.32",
 		"pict-provider": "^1.0.12",

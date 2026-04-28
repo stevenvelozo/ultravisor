@@ -1,6 +1,6 @@
 {
     "name": "ultravisor",
-    "version": "1.0.27",
+    "version": "1.0.28",
     "description": "Cyclic process execution with ai integration.",
     "main": "source/Ultravisor.cjs",
     "bin": {
@@ -13,9 +13,25 @@
         "coverage": "npx quack coverage",
         "postinstall": "cd webinterface && npm install && npm run build && cd ..",
         "build": "npx quack build && cd webinterface && npm install && npm run build && cd ..",
+        "prepack": "npm run build",
         "docs": "npx quack prepare-docs ./docs -d ./modules",
         "docs-serve": "npx quack docs-serve ./docs"
     },
+    "files": [
+        "source/",
+        "operation-library/",
+        "webinterface/dist/",
+        "webinterface/css/",
+        "webinterface/build/",
+        "webinterface/docs/",
+        "webinterface/source/",
+        "webinterface/html/",
+        "webinterface/package.json",
+        "webinterface/package-lock.json",
+        "docs/",
+        "README.md",
+        "LICENSE"
+    ],
     "repository": {
         "type": "git",
         "url": "git+https://github.com/stevenvelozo/ultravisor.git"
