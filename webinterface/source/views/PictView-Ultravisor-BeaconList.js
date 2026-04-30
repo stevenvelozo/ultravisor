@@ -290,6 +290,89 @@ const _ViewConfiguration =
 			0%, 100% { opacity: 1; }
 			50% { opacity: 0.3; }
 		}
+
+		/* Queue snapshot — live counters + per-capability table.
+		   Mirrors ultravisor-lab's Queue Lab tab so cross-checking
+		   the same UV from both UIs is a glance comparison. */
+		.uv-queue-snap-tag {
+			margin-left: auto;
+			font-size: 0.75em;
+			color: var(--uv-text-tertiary);
+			font-weight: 400;
+		}
+		.uv-queue-snap-buckets {
+			display: grid;
+			grid-template-columns: repeat(5, 1fr);
+			background: var(--uv-bg-surface);
+			border: 1px solid var(--uv-border-subtle);
+			border-radius: 8px;
+			overflow: hidden;
+		}
+		.uv-queue-snap-bucket {
+			padding: 1em;
+			text-align: center;
+			border-right: 1px solid var(--uv-border-subtle);
+		}
+		.uv-queue-snap-bucket:last-child { border-right: none; }
+		.uv-queue-snap-bucket .uv-queue-snap-value {
+			font-size: 1.8em;
+			font-weight: 600;
+			color: var(--uv-text);
+		}
+		.uv-queue-snap-bucket .uv-queue-snap-label {
+			font-size: 0.7em;
+			color: var(--uv-text-secondary);
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			margin-top: 0.3em;
+		}
+		.uv-queue-snap-bucket.bucket-upcoming   .uv-queue-snap-value { color: #e65100; }
+		.uv-queue-snap-bucket.bucket-inprogress .uv-queue-snap-value { color: var(--uv-info); }
+		.uv-queue-snap-bucket.bucket-stalled    .uv-queue-snap-value { color: #f57f17; }
+		.uv-queue-snap-bucket.bucket-completed  .uv-queue-snap-value { color: var(--uv-success); }
+		.uv-queue-snap-bucket.bucket-errored    .uv-queue-snap-value { color: var(--uv-error, #c62828); }
+
+		.uv-queue-snap-bycap {
+			margin-top: 0.75em;
+			background: var(--uv-bg-surface);
+			border: 1px solid var(--uv-border-subtle);
+			border-radius: 8px;
+			overflow: hidden;
+		}
+		.uv-queue-snap-bycap table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+		.uv-queue-snap-bycap th, .uv-queue-snap-bycap td {
+			padding: 0.5em 1em;
+			text-align: left;
+			border-bottom: 1px solid var(--uv-border-subtle);
+		}
+		.uv-queue-snap-bycap th {
+			color: var(--uv-text-secondary);
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			font-size: 0.7em;
+			font-weight: 600;
+			background: var(--uv-bg-base);
+		}
+		.uv-queue-snap-bycap tr:last-child td { border-bottom: none; }
+		.uv-queue-snap-bycap .uv-queue-snap-empty {
+			padding: 1em;
+			text-align: center;
+			color: var(--uv-text-tertiary);
+			font-size: 0.85em;
+		}
+		.uv-queue-snap-source {
+			margin-left: 0.6em;
+			font-size: 0.65em;
+			color: var(--uv-text-tertiary);
+			font-weight: 400;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			padding: 0.1em 0.5em;
+			border-radius: 3px;
+			background: var(--uv-bg-base);
+		}
+		.uv-queue-snap-source.live { color: var(--uv-success); }
+		.uv-queue-snap-source.stale { color: var(--uv-text-tertiary); }
 	`,
 
 	Templates:
@@ -317,6 +400,13 @@ const _ViewConfiguration =
 			<button class="ultravisor-btn ultravisor-btn-secondary" onclick="{~P~}.views['Ultravisor-BeaconList'].probeAll()">Probe All</button>
 		</div>
 		<div id="Ultravisor-BeaconList-ReachabilityMap"></div>
+	</div>
+	<div class="ultravisor-beacon-section" id="Ultravisor-BeaconList-QueueSnapshot-Section">
+		<div class="ultravisor-beacon-section-header">
+			<h2>Queue Snapshot <span id="Ultravisor-BeaconList-QueueSnapshot-Source" class="uv-queue-snap-source stale">REST</span></h2>
+			<span id="Ultravisor-BeaconList-QueueSnapshot-Tag" class="uv-queue-snap-tag">no data yet</span>
+		</div>
+		<div id="Ultravisor-BeaconList-QueueSnapshot"></div>
 	</div>
 	<div class="ultravisor-beacon-section" id="Ultravisor-BeaconList-WorkQueue-Section">
 		<div class="ultravisor-beacon-section-header">
@@ -353,6 +443,9 @@ class UltravisorBeaconListView extends libPictView
 		super(pFable, pOptions, pServiceHash);
 
 		this._refreshTimer = null;
+		this._QueueWS = null;
+		this._QueueLastEventGUID = null;
+		this._QueueSummary = null;  // last-known {Buckets, ByCapability, At}
 	}
 
 	onBeforeRender(pRenderable, pRenderDestinationAddress, pRecord)
@@ -363,6 +456,7 @@ class UltravisorBeaconListView extends libPictView
 			clearInterval(this._refreshTimer);
 			this._refreshTimer = null;
 		}
+		this._closeQueueSocket();
 
 		return super.onBeforeRender(pRenderable, pRenderDestinationAddress, pRecord);
 	}
@@ -382,7 +476,220 @@ class UltravisorBeaconListView extends libPictView
 				this._silentRefresh();
 			}.bind(this), 10000);
 
+		// Open the queue.* WebSocket so the snapshot card stays live.
+		// This is intentionally narrow: it only consumes queue.summary
+		// envelopes -- enough to spot inconsistencies between this UV
+		// and any external dashboard (e.g. the lab's Queue Lab tab).
+		this._openQueueSocket();
+		this.renderQueueSnapshot();
+
 		return super.onAfterRender(pRenderable, pRenderDestinationAddress, pRecord, pContent);
+	}
+
+	_openQueueSocket()
+	{
+		this._closeQueueSocket();
+
+		let tmpProtocol = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
+		let tmpHost = window.location.host;
+		let tmpBaseURL = (this.pict.AppData.Ultravisor && this.pict.AppData.Ultravisor.APIBaseURL) || '';
+		if (tmpBaseURL)
+		{
+			try
+			{
+				let tmpURL = new URL(tmpBaseURL);
+				tmpHost = tmpURL.host;
+				tmpProtocol = (tmpURL.protocol === 'https:') ? 'wss:' : 'ws:';
+			}
+			catch (pError) { /* fall back to page location */ }
+		}
+
+		let tmpWSURL = tmpProtocol + '//' + tmpHost;
+		let tmpWS;
+		try { tmpWS = new WebSocket(tmpWSURL); }
+		catch (pError)
+		{
+			this.pict.log.warn('BeaconList: queue WebSocket failed to open: ' + pError.message);
+			return;
+		}
+		this._QueueWS = tmpWS;
+
+		tmpWS.onopen = function ()
+		{
+			tmpWS.send(JSON.stringify({ Action: 'QueueSubscribe', LastEventGUID: this._QueueLastEventGUID }));
+		}.bind(this);
+
+		tmpWS.onmessage = function (pEvent)
+		{
+			let tmpEnvelope;
+			try { tmpEnvelope = JSON.parse(pEvent.data); }
+			catch (pError) { return; }
+			if (!tmpEnvelope || typeof tmpEnvelope !== 'object') { return; }
+			if (tmpEnvelope.EventGUID) { this._QueueLastEventGUID = tmpEnvelope.EventGUID; }
+			if (tmpEnvelope.Topic === 'queue.summary')
+			{
+				this._QueueSummary = tmpEnvelope.Payload || null;
+				this.renderQueueSnapshot();
+			}
+			else if (tmpEnvelope.Topic === 'queue.reset')
+			{
+				// History gap -- mark snapshot as stale until a fresh
+				// summary lands.  The next queue.summary will overwrite.
+				this._QueueSummary = null;
+				this.renderQueueSnapshot();
+			}
+		}.bind(this);
+
+		tmpWS.onerror = function ()
+		{
+			this.pict.log.warn('BeaconList: queue WebSocket error');
+		}.bind(this);
+
+		tmpWS.onclose = function ()
+		{
+			if (this._QueueWS === tmpWS) { this._QueueWS = null; }
+		}.bind(this);
+	}
+
+	_closeQueueSocket()
+	{
+		if (!this._QueueWS) { return; }
+		let tmpWS = this._QueueWS;
+		this._QueueWS = null;
+		try { tmpWS.send(JSON.stringify({ Action: 'QueueUnsubscribe' })); } catch (pError) { /* best effort */ }
+		try { tmpWS.close(); } catch (pError) { /* best effort */ }
+	}
+
+	renderQueueSnapshot()
+	{
+		// Source label: shows whether the card is reading live WS frames
+		// or has only the initial REST-poll baseline.  Operators glancing
+		// between this UV and any external dashboard (lab Queue Lab tab,
+		// for instance) can confirm which one is fresher when numbers
+		// disagree.
+		let tmpSourceEl = document.getElementById('Ultravisor-BeaconList-QueueSnapshot-Source');
+		let tmpTagEl    = document.getElementById('Ultravisor-BeaconList-QueueSnapshot-Tag');
+		let tmpHasWS    = !!this._QueueWS && this._QueueWS.readyState === WebSocket.OPEN;
+		if (tmpSourceEl)
+		{
+			tmpSourceEl.textContent = tmpHasWS ? 'LIVE (queue.summary)' : 'REST';
+			tmpSourceEl.className = 'uv-queue-snap-source ' + (tmpHasWS ? 'live' : 'stale');
+		}
+
+		let tmpSummary = this._QueueSummary;
+		// Fall back to a REST-derived snapshot computed from WorkItems
+		// when no WS frame has landed yet.  Counts won't match the
+		// scheduler's per-bucket logic exactly (the WS path includes
+		// items that landed in persistence after this list was fetched),
+		// but they're close enough to confirm the section is wired.
+		if (!tmpSummary)
+		{
+			tmpSummary = this._summaryFromWorkItems();
+		}
+
+		let tmpAt = tmpSummary && tmpSummary.At ? tmpSummary.At : null;
+		if (tmpTagEl)
+		{
+			tmpTagEl.textContent = tmpAt
+				? ('updated ' + this._plainRelativeTime(tmpAt))
+				: 'no data yet';
+		}
+
+		let tmpBuckets = (tmpSummary && tmpSummary.Buckets)
+			|| { Upcoming: 0, InProgress: 0, Stalled: 0, Completed: 0, Errored: 0 };
+		let tmpByCap = (tmpSummary && Array.isArray(tmpSummary.ByCapability))
+			? tmpSummary.ByCapability
+			: [];
+
+		let tmpHTML = '<div class="uv-queue-snap-buckets">';
+		let tmpBucketCells =
+		[
+			{ key: 'Upcoming',   label: 'Upcoming',    cls: 'bucket-upcoming' },
+			{ key: 'InProgress', label: 'In Progress', cls: 'bucket-inprogress' },
+			{ key: 'Stalled',    label: 'Stalled',     cls: 'bucket-stalled' },
+			{ key: 'Completed',  label: 'Completed',   cls: 'bucket-completed' },
+			{ key: 'Errored',    label: 'Errored',     cls: 'bucket-errored' }
+		];
+		for (let i = 0; i < tmpBucketCells.length; i++)
+		{
+			let tmpCell = tmpBucketCells[i];
+			tmpHTML += '<div class="uv-queue-snap-bucket ' + tmpCell.cls + '">';
+			tmpHTML += '<div class="uv-queue-snap-value">' + (tmpBuckets[tmpCell.key] || 0) + '</div>';
+			tmpHTML += '<div class="uv-queue-snap-label">' + tmpCell.label + '</div>';
+			tmpHTML += '</div>';
+		}
+		tmpHTML += '</div>';
+
+		tmpHTML += '<div class="uv-queue-snap-bycap">';
+		if (tmpByCap.length === 0)
+		{
+			tmpHTML += '<div class="uv-queue-snap-empty">No capabilities currently in flight.</div>';
+		}
+		else
+		{
+			tmpHTML += '<table>';
+			tmpHTML += '<thead><tr><th>Capability</th><th>Action</th><th>Queued</th><th>Running</th><th>Stalled</th></tr></thead>';
+			tmpHTML += '<tbody>';
+			for (let i = 0; i < tmpByCap.length; i++)
+			{
+				let tmpRow = tmpByCap[i];
+				tmpHTML += '<tr>';
+				tmpHTML += '<td>' + this._escapeHTML(tmpRow.Capability || '') + '</td>';
+				tmpHTML += '<td>' + this._escapeHTML(tmpRow.Action || '') + '</td>';
+				tmpHTML += '<td>' + (tmpRow.Queued || 0) + '</td>';
+				tmpHTML += '<td>' + (tmpRow.Running || 0) + '</td>';
+				tmpHTML += '<td>' + (tmpRow.Stalled || 0) + '</td>';
+				tmpHTML += '</tr>';
+			}
+			tmpHTML += '</tbody></table>';
+		}
+		tmpHTML += '</div>';
+
+		this.pict.ContentAssignment.assignContent('#Ultravisor-BeaconList-QueueSnapshot', tmpHTML);
+	}
+
+	_plainRelativeTime(pISO)
+	{
+		// Plain-text variant of _formatRelativeTime -- the queue snapshot
+		// tag uses textContent (no HTML), so we keep this plain to avoid
+		// double-escaping the <span title> wrapper the original returns.
+		if (!pISO) { return ''; }
+		let tmpDelta = Math.max(0, Date.now() - Date.parse(pISO));
+		if (tmpDelta < 1500)  { return 'just now'; }
+		if (tmpDelta < 60000) { return Math.round(tmpDelta / 1000) + 's ago'; }
+		return Math.round(tmpDelta / 60000) + 'm ago';
+	}
+
+	_summaryFromWorkItems()
+	{
+		let tmpItems = (this.pict.AppData.Ultravisor && this.pict.AppData.Ultravisor.WorkItems) || [];
+		if (tmpItems.length === 0) { return null; }
+		let tmpBuckets = { Upcoming: 0, InProgress: 0, Stalled: 0, Completed: 0, Errored: 0 };
+		let tmpByCapMap = new Map();
+		for (let i = 0; i < tmpItems.length; i++)
+		{
+			let tmpItem = tmpItems[i];
+			let tmpStatus = (tmpItem.Status || '').toLowerCase();
+			if (tmpStatus === 'pending' || tmpStatus === 'assigned') { tmpBuckets.Upcoming++; }
+			else if (tmpStatus === 'running' || tmpStatus === 'dispatched') { tmpBuckets.InProgress++; }
+			else if (tmpStatus === 'complete') { tmpBuckets.Completed++; }
+			else if (tmpStatus === 'error' || tmpStatus === 'timeout' || tmpStatus === 'failed') { tmpBuckets.Errored++; }
+
+			let tmpKey = (tmpItem.Capability || '') + '' + (tmpItem.Action || '');
+			let tmpRow = tmpByCapMap.get(tmpKey);
+			if (!tmpRow)
+			{
+				tmpRow = { Capability: tmpItem.Capability || '', Action: tmpItem.Action || '', Queued: 0, Running: 0, Stalled: 0 };
+				tmpByCapMap.set(tmpKey, tmpRow);
+			}
+			if (tmpStatus === 'pending' || tmpStatus === 'assigned') { tmpRow.Queued++; }
+			else if (tmpStatus === 'running' || tmpStatus === 'dispatched') { tmpRow.Running++; }
+		}
+		return {
+			At: new Date().toISOString(),
+			Buckets: tmpBuckets,
+			ByCapability: Array.from(tmpByCapMap.values()).filter((pR) => pR.Queued > 0 || pR.Running > 0 || pR.Stalled > 0)
+		};
 	}
 
 	refreshAll()
@@ -398,6 +705,7 @@ class UltravisorBeaconListView extends libPictView
 				this.renderReachabilityMap();
 				this.renderWorkQueue();
 				this.renderAffinityTable();
+				this.renderQueueSnapshot();
 			}
 		}.bind(this);
 
@@ -421,6 +729,7 @@ class UltravisorBeaconListView extends libPictView
 				this.renderReachabilityMap();
 				this.renderWorkQueue();
 				this.renderAffinityTable();
+				this.renderQueueSnapshot();
 			}
 		}.bind(this);
 
