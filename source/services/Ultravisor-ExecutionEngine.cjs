@@ -1,4 +1,5 @@
 const libPictService = require('pict-serviceproviderbase');
+const libStatus = require('./Ultravisor-Status.cjs');
 
 /**
  * Event-driven graph executor for Ultravisor operations.
@@ -110,7 +111,7 @@ class UltravisorExecutionEngine extends libPictService
 			pOperationDefinition.Graph, tmpContext._NodeMap, tmpContext._PortLabelMap);
 
 		// Mark as running
-		tmpContext.Status = 'Running';
+		tmpContext.Status = libStatus.STATUS.IN_PROGRESS;
 		tmpContext.StartTime = new Date().toISOString();
 		this._log(tmpContext, `Operation [${pOperationDefinition.Hash}] started.`);
 
@@ -230,7 +231,7 @@ class UltravisorExecutionEngine extends libPictService
 			pOperationDefinition.Graph, tmpContext._NodeMap, tmpContext._PortLabelMap);
 
 		// Mark as running
-		tmpContext.Status = 'Running';
+		tmpContext.Status = libStatus.STATUS.IN_PROGRESS;
 		tmpContext.StartTime = new Date().toISOString();
 		this._log(tmpContext, `Operation [${pOperationDefinition.Hash}] started (async).`);
 		this.log.info(`[Engine] startOperationAsync: run=${tmpContext.Hash} operation="${pOperationDefinition.Hash}" nodeCount=${pOperationDefinition.Graph.Nodes ? pOperationDefinition.Graph.Nodes.length : 0}`);
@@ -334,8 +335,8 @@ class UltravisorExecutionEngine extends libPictService
 		{
 			let tmpRun = tmpRuns[i];
 
-			// Resume WaitingForInput runs
-			if (tmpRun.Status === 'WaitingForInput' && !tmpRun.Live)
+			// Resume Waiting runs
+			if (libStatus.isWaiting(tmpRun.Status) && !tmpRun.Live)
 			{
 				if (!tmpRun.WaitingTasks || Object.keys(tmpRun.WaitingTasks).length === 0)
 				{
@@ -364,8 +365,8 @@ class UltravisorExecutionEngine extends libPictService
 				tmpResumedCount++;
 			}
 
-			// Mark stale Running operations as Error
-			if (tmpRun.Status === 'Running' && !tmpRun.Live)
+			// Mark stale In Progress operations as Error
+			if (libStatus.isInProgress(tmpRun.Status) && !tmpRun.Live)
 			{
 				let tmpContext = tmpManifestService.getRun(tmpRun.Hash);
 				if (tmpContext)
@@ -427,7 +428,7 @@ class UltravisorExecutionEngine extends libPictService
 			return fCallback(new Error(`ExecutionEngine: run [${pRunHash}] not found.`));
 		}
 
-		if (tmpContext.Status !== 'WaitingForInput')
+		if (!libStatus.isWaiting(tmpContext.Status))
 		{
 			return fCallback(new Error(`ExecutionEngine: run [${pRunHash}] is not waiting for input (status: ${tmpContext.Status}).`));
 		}
@@ -485,7 +486,7 @@ class UltravisorExecutionEngine extends libPictService
 
 		// Fire the completion event (custom resume event for beacon-dispatch, default for value-input)
 		let tmpResumeEvent = tmpWaitingInfo.ResumeEventName || 'ValueInputComplete';
-		tmpContext.Status = 'Running';
+		tmpContext.Status = libStatus.STATUS.IN_PROGRESS;
 		this._log(tmpContext, `Input received for node [${pNodeHash}], resuming execution (event: ${tmpResumeEvent}).`);
 
 		this._enqueueDownstreamEvents(pNodeHash, tmpResumeEvent, tmpContext);
@@ -501,6 +502,98 @@ class UltravisorExecutionEngine extends libPictService
 				tmpManifestService.finalizeExecution(tmpContext);
 				return fCallback(null, tmpContext);
 			});
+	}
+
+	/**
+	 * Force-finalize an operation as Stalled because the scheduler
+	 * detected a heartbeat timeout on a beacon work item.
+	 *
+	 * Distinct from forceErrorOnWaitingTask:
+	 *   - Marks the per-node Execution Status='Stalled' (not 'Error').
+	 *   - Sets _Stalled marker on TaskOutputs so finalizeExecution
+	 *     rolls up to operation Status='Stalled'.
+	 *   - Does NOT route to the Error port — Stalled is "the work is
+	 *     stuck and unrecoverable", not "the work returned an error
+	 *     the graph should handle."  Downstream Error edges aren't
+	 *     fired; the operation just terminates.
+	 *
+	 * @param {string} pRunHash - The execution run hash.
+	 * @param {string} pNodeHash - The waiting task node hash.
+	 * @param {object} [pStallInfo] - Optional metadata: BeaconID, StalledAt.
+	 * @param {function} fCallback - function(pError, pExecutionContext)
+	 */
+	stallOperation(pRunHash, pNodeHash, pStallInfo, fCallback)
+	{
+		if (typeof pStallInfo === 'function')
+		{
+			fCallback = pStallInfo;
+			pStallInfo = {};
+		}
+		pStallInfo = pStallInfo || {};
+
+		let tmpManifestService = this._getManifestService();
+		if (!tmpManifestService)
+		{
+			return fCallback(new Error('ExecutionEngine: UltravisorExecutionManifest service not found.'));
+		}
+
+		let tmpContext = tmpManifestService.getRun(pRunHash);
+		if (!tmpContext)
+		{
+			return fCallback(new Error(`ExecutionEngine: run [${pRunHash}] not found.`));
+		}
+
+		// Idempotency: if already terminal, nothing to do.
+		if (libStatus.isTerminal(tmpContext.Status))
+		{
+			return fCallback(null, tmpContext);
+		}
+
+		this._log(tmpContext, `Task [${pNodeHash}] stalled (beacon heartbeat timeout). Operation will finalize as Stalled.`, 'warn');
+
+		// Mark TaskOutputs._Stalled so finalizeExecution's roll-up
+		// catches the case (mirrors the _BeaconError pattern from
+		// Phase 1).
+		if (!tmpContext.TaskOutputs[pNodeHash])
+		{
+			tmpContext.TaskOutputs[pNodeHash] = {};
+		}
+		tmpContext.TaskOutputs[pNodeHash]._Stalled = true;
+		tmpContext.TaskOutputs[pNodeHash]._StalledAt = pStallInfo.StalledAt || new Date().toISOString();
+		if (pStallInfo.BeaconID)
+		{
+			tmpContext.TaskOutputs[pNodeHash].BeaconID = pStallInfo.BeaconID;
+		}
+
+		// Record the per-execution status as Stalled.
+		let tmpTaskManifest = tmpContext.TaskManifests[pNodeHash];
+		if (tmpTaskManifest && tmpTaskManifest.Executions
+			&& tmpTaskManifest.Executions.length > 0)
+		{
+			let tmpExec = tmpTaskManifest.Executions[tmpTaskManifest.Executions.length - 1];
+			let tmpNow = Date.now();
+			tmpExec.Status = libStatus.STATUS.STALLED;
+			tmpExec.StopTime = new Date(tmpNow).toISOString();
+			tmpExec.StopTimeMs = tmpNow;
+			if (tmpExec.StartTimeMs)
+			{
+				tmpExec.ElapsedMs = tmpNow - tmpExec.StartTimeMs;
+			}
+		}
+
+		// Remove from WaitingTasks so resume-on-startup doesn't try to
+		// re-pick this node.  Drop any pending events for the same node
+		// so the engine doesn't try to fire a downstream branch from
+		// stale state.
+		delete tmpContext.WaitingTasks[pNodeHash];
+		tmpContext.PendingEvents = (tmpContext.PendingEvents || []).filter(
+			function (pEvent) { return pEvent.TargetNodeHash !== pNodeHash; });
+
+		// finalizeExecution sees TaskOutputs._Stalled and rolls up
+		// to operation Status='Stalled' (see ExecutionManifest).
+		tmpManifestService.finalizeExecution(tmpContext);
+
+		return fCallback(null, tmpContext);
 	}
 
 	/**
@@ -532,7 +625,7 @@ class UltravisorExecutionEngine extends libPictService
 			return fCallback(new Error(`ExecutionEngine: run [${pRunHash}] not found.`));
 		}
 
-		if (tmpContext.Status !== 'WaitingForInput')
+		if (!libStatus.isWaiting(tmpContext.Status))
 		{
 			return fCallback(new Error(`ExecutionEngine: run [${pRunHash}] is not waiting for input (status: ${tmpContext.Status}).`));
 		}
@@ -573,7 +666,7 @@ class UltravisorExecutionEngine extends libPictService
 		delete tmpContext.WaitingTasks[pNodeHash];
 
 		// Fire the Error event so the operation continues on the error path
-		tmpContext.Status = 'Running';
+		tmpContext.Status = libStatus.STATUS.IN_PROGRESS;
 
 		this._enqueueDownstreamEvents(pNodeHash, 'Error', tmpContext);
 
@@ -626,12 +719,15 @@ class UltravisorExecutionEngine extends libPictService
 			return fCallback(new Error(`ExecutionEngine: run [${pRunHash}] not found.`));
 		}
 
-		if (tmpContext.Status === 'Running' || tmpContext.Status === 'WaitingForInput')
+		if (libStatus.isInProgress(tmpContext.Status) || libStatus.isWaiting(tmpContext.Status))
 		{
 			return fCallback(new Error(`ExecutionEngine: run [${pRunHash}] is still active (${tmpContext.Status}). Cannot retry.`));
 		}
 
-		// Find the failed node — either specified or auto-detected from TaskManifests
+		// Find the failed-or-stalled node — either specified or auto-detected
+		// from TaskManifests.  Per-Execution Status of 'Error' covers
+		// Phase 1's beacon failure path; 'Stalled' covers Phase 2's
+		// heartbeat-timeout path (set by stallOperation).
 		let tmpTargetNode = pOptions.NodeHash || null;
 		if (!tmpTargetNode)
 		{
@@ -641,7 +737,7 @@ class UltravisorExecutionEngine extends libPictService
 				if (tmpManifest.Executions && tmpManifest.Executions.length > 0)
 				{
 					let tmpLastExec = tmpManifest.Executions[tmpManifest.Executions.length - 1];
-					if (tmpLastExec.Status === 'Error')
+					if (tmpLastExec.Status === 'Error' || tmpLastExec.Status === 'Stalled')
 					{
 						tmpTargetNode = tmpNodeHash;
 						break;
@@ -650,12 +746,14 @@ class UltravisorExecutionEngine extends libPictService
 			}
 		}
 
-		// Also check TaskOutputs for _BeaconError flag (beacon-dispatch failures)
+		// Also check TaskOutputs for _BeaconError (beacon failures) or
+		// _Stalled (heartbeat-timeout finalizations) flags.
 		if (!tmpTargetNode)
 		{
 			for (let tmpNodeHash of Object.keys(tmpContext.TaskOutputs || {}))
 			{
-				if (tmpContext.TaskOutputs[tmpNodeHash]._BeaconError)
+				let tmpOut = tmpContext.TaskOutputs[tmpNodeHash];
+				if (tmpOut && (tmpOut._BeaconError || tmpOut._Stalled))
 				{
 					tmpTargetNode = tmpNodeHash;
 					break;
@@ -701,17 +799,20 @@ class UltravisorExecutionEngine extends libPictService
 			});
 		}
 
-		// Re-add the node as WaitingForInput so the coordinator
-		// picks it up. Use the same ResumeEventName the original
-		// beacon-dispatch used ('Complete' for successful retry).
+		// Re-add the node as Waiting so the coordinator picks it up.
+		// Use the same ResumeEventName the original beacon-dispatch
+		// used ('Complete' for successful retry).
 		tmpContext.WaitingTasks[tmpTargetNode] = {
 			PromptMessage: '',
 			OutputAddress: '',
 			ResumeEventName: 'Complete',
 			Timestamp: new Date().toISOString()
 		};
-		tmpContext.Status = 'WaitingForInput';
+		tmpContext.Status = libStatus.STATUS.WAITING;
 		tmpContext.StopTime = null;
+		// Restore Live so the UI re-shows Watch / Awaiting affordances —
+		// finalizeExecution flips Live=false on terminal status.
+		tmpContext.Live = true;
 
 		// Clear operation-level errors from the previous run
 		tmpContext.Errors = tmpContext.Errors.filter(
@@ -723,7 +824,7 @@ class UltravisorExecutionEngine extends libPictService
 			tmpManifestService._writeManifest(tmpContext, tmpContext.StagingPath);
 		}
 
-		this.log.info(`ExecutionEngine: run [${pRunHash}] reset to WaitingForInput at node [${tmpTargetNode}]. Re-dispatch the work item to continue.`);
+		this.log.info(`ExecutionEngine: run [${pRunHash}] reset to Waiting at node [${tmpTargetNode}]. Re-dispatch the work item to continue.`);
 
 		// Now re-dispatch the beacon work item through the coordinator.
 		// The node's original Settings are in the operation graph.
@@ -754,12 +855,30 @@ class UltravisorExecutionEngine extends libPictService
 				}
 			}
 
+			// Capability/Action live on the task type definition for
+			// auto-generated beacon-<cap>-<action> task types, not on
+			// the graph node itself.  Look them up via the registry
+			// before falling back to node fields, otherwise re-dispatch
+			// lands the work item in the default Shell/Execute bucket
+			// and no specialized beacon ever picks it up.
+			let tmpRegistry = this._getTaskTypeRegistry();
+			let tmpDefinitionHash = tmpNodeDef.DefinitionHash || tmpNodeDef.Type;
+			let tmpDefinition = tmpRegistry ? tmpRegistry.getDefinition(tmpDefinitionHash) : null;
+			let tmpCapability = tmpNodeDef.Capability
+				|| tmpSettings.Capability
+				|| (tmpDefinition && tmpDefinition.Capability)
+				|| '';
+			let tmpAction = tmpNodeDef.Action
+				|| tmpSettings.Action
+				|| (tmpDefinition && tmpDefinition.Action)
+				|| '';
+
 			let tmpWorkItemInfo = {
 				RunHash: pRunHash,
 				NodeHash: tmpTargetNode,
 				OperationHash: tmpContext.OperationHash,
-				Capability: tmpNodeDef.Capability || tmpSettings.Capability || '',
-				Action: tmpNodeDef.Action || tmpSettings.Action || '',
+				Capability: tmpCapability,
+				Action: tmpAction,
 				Settings: tmpSettings,
 				TimeoutMs: tmpNodeDef.TimeoutMs || 600000
 			};
@@ -792,7 +911,7 @@ class UltravisorExecutionEngine extends libPictService
 			// Check if we're waiting for input
 			if (Object.keys(pContext.WaitingTasks).length > 0)
 			{
-				pContext.Status = 'WaitingForInput';
+				pContext.Status = libStatus.STATUS.WAITING;
 				// Use each waiting task's PromptMessage — set by the task
 				// when it returned {WaitingForInput:true, ...}. That's
 				// where tasks already describe what they're waiting for

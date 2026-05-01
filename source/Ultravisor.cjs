@@ -12,6 +12,7 @@ module.exports = (
 		BeaconRunManager: require('./services/Ultravisor-Beacon-RunManager.cjs'),
 		BeaconActionDefaults: require('./services/Ultravisor-Beacon-ActionDefaults.cjs'),
 		BeaconScheduler: require('./services/Ultravisor-Beacon-Scheduler.cjs'),
+		Status: require('./services/Ultravisor-Status.cjs'),
 		BeaconService: require('ultravisor-beacon'),
 		BeaconCapabilityProvider: require('ultravisor-beacon/source/Ultravisor-Beacon-CapabilityProvider.cjs'),
 		BeaconProviderRegistry: require('ultravisor-beacon/source/Ultravisor-Beacon-ProviderRegistry.cjs'),

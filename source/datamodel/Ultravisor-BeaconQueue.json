@@ -1,4 +1,5 @@
 {
+	"_comment": "Ultravisor Beacon Queue — meadow DAL schema. Each table has a Stricture-style Columns block (legacy / documentation) plus a MeadowSchema block that drives the runtime DAL through meadow-connection-sqlite. Schema bootstrap and forward-only migration are handled by Service Ultravisor-Beacon-QueueStore via meadow-migrationmanager (introspect → diff → ALTER). Single-column lookup indices are declared with Indexed: true; the connector emits IX_M_T_{Table}_C_{Column} during createAllIndices.",
 	"Tables":
 	{
 		"BeaconRun":
@@ -26,7 +27,45 @@
 				{ "Column": "CanceledAt", "DataType": "DateTime" },
 				{ "Column": "CancelReason", "DataType": "String", "Size": "512" },
 				{ "Column": "Metadata", "DataType": "String", "Size": "8192" }
-			]
+			],
+			"MeadowSchema":
+			{
+				"Scope": "BeaconRun",
+				"DefaultIdentifier": "IDBeaconRun",
+				"Domain": "Default",
+				"Schema":
+				[
+					{ "Column": "IDBeaconRun",     "Type": "AutoIdentity", "Size": "Default" },
+					{ "Column": "GUIDBeaconRun",   "Type": "String",       "Size": "36" },
+					{ "Column": "CreateDate",      "Type": "CreateDate",   "Size": "Default" },
+					{ "Column": "CreatingIDUser",  "Type": "Integer",      "Size": "int" },
+					{ "Column": "UpdateDate",      "Type": "UpdateDate",   "Size": "Default" },
+					{ "Column": "UpdatingIDUser",  "Type": "Integer",      "Size": "int" },
+					{ "Column": "Deleted",         "Type": "Boolean",      "Size": "Default" },
+					{ "Column": "DeleteDate",      "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "DeletingIDUser",  "Type": "Integer",      "Size": "int" },
+					{ "Column": "RunID",           "Type": "String",       "Size": "128", "Indexed": true },
+					{ "Column": "IdempotencyKey",  "Type": "String",       "Size": "256", "Indexed": true },
+					{ "Column": "SubmitterTag",    "Type": "String",       "Size": "256" },
+					{ "Column": "State",           "Type": "String",       "Size": "32" },
+					{ "Column": "StartedAt",       "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "EndedAt",         "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "CanceledAt",      "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "CancelReason",    "Type": "String",       "Size": "512" },
+					{ "Column": "Metadata",        "Type": "Text",         "Size": "Default" }
+				],
+				"DefaultObject":
+				{
+					"IDBeaconRun": 0, "GUIDBeaconRun": "",
+					"CreateDate": null, "CreatingIDUser": 0,
+					"UpdateDate": null, "UpdatingIDUser": 0,
+					"Deleted": 0, "DeleteDate": null, "DeletingIDUser": 0,
+					"RunID": "", "IdempotencyKey": "", "SubmitterTag": "",
+					"State": "Active",
+					"StartedAt": null, "EndedAt": null, "CanceledAt": null,
+					"CancelReason": "", "Metadata": ""
+				}
+			}
 		},
 		"BeaconWorkItem":
 		{
@@ -76,7 +115,75 @@
 				{ "Column": "HealthReason", "DataType": "String", "Size": "128" },
 				{ "Column": "HealthComputedAt", "DataType": "DateTime" },
 				{ "Column": "Result", "DataType": "String", "Size": "65535" }
-			]
+			],
+			"MeadowSchema":
+			{
+				"Scope": "BeaconWorkItem",
+				"DefaultIdentifier": "IDBeaconWorkItem",
+				"Domain": "Default",
+				"Schema":
+				[
+					{ "Column": "IDBeaconWorkItem",   "Type": "AutoIdentity", "Size": "Default" },
+					{ "Column": "GUIDBeaconWorkItem", "Type": "String",       "Size": "36" },
+					{ "Column": "CreateDate",         "Type": "CreateDate",   "Size": "Default" },
+					{ "Column": "CreatingIDUser",     "Type": "Integer",      "Size": "int" },
+					{ "Column": "UpdateDate",         "Type": "UpdateDate",   "Size": "Default" },
+					{ "Column": "UpdatingIDUser",     "Type": "Integer",      "Size": "int" },
+					{ "Column": "Deleted",            "Type": "Boolean",      "Size": "Default" },
+					{ "Column": "DeleteDate",         "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "DeletingIDUser",     "Type": "Integer",      "Size": "int" },
+					{ "Column": "WorkItemHash",       "Type": "String",       "Size": "256", "Indexed": true },
+					{ "Column": "RunID",              "Type": "String",       "Size": "128", "Indexed": true },
+					{ "Column": "RunHash",            "Type": "String",       "Size": "256" },
+					{ "Column": "NodeHash",           "Type": "String",       "Size": "256" },
+					{ "Column": "OperationHash",      "Type": "String",       "Size": "256" },
+					{ "Column": "Capability",         "Type": "String",       "Size": "128", "Indexed": true },
+					{ "Column": "Action",             "Type": "String",       "Size": "128" },
+					{ "Column": "Settings",           "Type": "Text",         "Size": "Default" },
+					{ "Column": "AffinityKey",        "Type": "String",       "Size": "256" },
+					{ "Column": "Priority",           "Type": "Integer",      "Size": "int", "Indexed": true },
+					{ "Column": "Status",             "Type": "String",       "Size": "32",  "Indexed": true },
+					{ "Column": "AssignedBeaconID",   "Type": "String",       "Size": "128", "Indexed": true },
+					{ "Column": "TimeoutMs",          "Type": "Integer",      "Size": "int" },
+					{ "Column": "MaxAttempts",        "Type": "Integer",      "Size": "int" },
+					{ "Column": "AttemptNumber",      "Type": "Integer",      "Size": "int" },
+					{ "Column": "RetryBackoffMs",     "Type": "Integer",      "Size": "int" },
+					{ "Column": "EnqueuedAt",         "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "AssignedAt",         "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "DispatchedAt",       "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "StartedAt",          "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "CompletedAt",        "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "CanceledAt",         "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "CancelRequested",    "Type": "Boolean",      "Size": "Default" },
+					{ "Column": "CancelReason",       "Type": "String",       "Size": "512" },
+					{ "Column": "LastError",          "Type": "Text",         "Size": "Default" },
+					{ "Column": "LastEventAt",        "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "QueueWaitMs",        "Type": "Integer",      "Size": "int" },
+					{ "Column": "Health",             "Type": "String",       "Size": "32" },
+					{ "Column": "HealthLabel",        "Type": "String",       "Size": "16" },
+					{ "Column": "HealthReason",       "Type": "String",       "Size": "128" },
+					{ "Column": "HealthComputedAt",   "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "Result",             "Type": "Text",         "Size": "Default" }
+				],
+				"DefaultObject":
+				{
+					"IDBeaconWorkItem": 0, "GUIDBeaconWorkItem": "",
+					"CreateDate": null, "CreatingIDUser": 0,
+					"UpdateDate": null, "UpdatingIDUser": 0,
+					"Deleted": 0, "DeleteDate": null, "DeletingIDUser": 0,
+					"WorkItemHash": "", "RunID": "", "RunHash": "", "NodeHash": "", "OperationHash": "",
+					"Capability": "Shell", "Action": "",
+					"Settings": "", "AffinityKey": "",
+					"Priority": 0, "Status": "Queued", "AssignedBeaconID": "",
+					"TimeoutMs": 300000, "MaxAttempts": 1, "AttemptNumber": 0, "RetryBackoffMs": 5000,
+					"EnqueuedAt": null, "AssignedAt": null, "DispatchedAt": null,
+					"StartedAt": null, "CompletedAt": null, "CanceledAt": null,
+					"CancelRequested": 0, "CancelReason": "",
+					"LastError": "", "LastEventAt": null, "QueueWaitMs": 0,
+					"Health": null, "HealthLabel": "Unknown", "HealthReason": "", "HealthComputedAt": null,
+					"Result": ""
+				}
+			}
 		},
 		"BeaconWorkItemEvent":
 		{
@@ -95,7 +202,34 @@
 				{ "Column": "ToStatus", "DataType": "String", "Size": "32" },
 				{ "Column": "BeaconID", "DataType": "String", "Size": "128" },
 				{ "Column": "Payload", "DataType": "String", "Size": "8192" }
-			]
+			],
+			"MeadowSchema":
+			{
+				"Scope": "BeaconWorkItemEvent",
+				"DefaultIdentifier": "IDBeaconWorkItemEvent",
+				"Domain": "Default",
+				"Schema":
+				[
+					{ "Column": "IDBeaconWorkItemEvent", "Type": "AutoIdentity", "Size": "Default" },
+					{ "Column": "CreateDate",            "Type": "CreateDate",   "Size": "Default" },
+					{ "Column": "CreatingIDUser",        "Type": "Integer",      "Size": "int" },
+					{ "Column": "WorkItemHash",          "Type": "String",       "Size": "256", "Indexed": true },
+					{ "Column": "RunID",                 "Type": "String",       "Size": "128" },
+					{ "Column": "EventType",             "Type": "String",       "Size": "32" },
+					{ "Column": "FromStatus",            "Type": "String",       "Size": "32" },
+					{ "Column": "ToStatus",              "Type": "String",       "Size": "32" },
+					{ "Column": "BeaconID",              "Type": "String",       "Size": "128" },
+					{ "Column": "Payload",               "Type": "Text",         "Size": "Default" }
+				],
+				"DefaultObject":
+				{
+					"IDBeaconWorkItemEvent": 0,
+					"CreateDate": null, "CreatingIDUser": 0,
+					"WorkItemHash": "", "RunID": "",
+					"EventType": "", "FromStatus": "", "ToStatus": "",
+					"BeaconID": "", "Payload": ""
+				}
+			}
 		},
 		"BeaconWorkItemAttempt":
 		{
@@ -118,7 +252,39 @@
 				{ "Column": "Outcome", "DataType": "String", "Size": "32" },
 				{ "Column": "ErrorMessage", "DataType": "String", "Size": "4096" },
 				{ "Column": "DurationMs", "DataType": "Numeric", "Size": "int" }
-			]
+			],
+			"MeadowSchema":
+			{
+				"Scope": "BeaconWorkItemAttempt",
+				"DefaultIdentifier": "IDBeaconWorkItemAttempt",
+				"Domain": "Default",
+				"Schema":
+				[
+					{ "Column": "IDBeaconWorkItemAttempt", "Type": "AutoIdentity", "Size": "Default" },
+					{ "Column": "CreateDate",              "Type": "CreateDate",   "Size": "Default" },
+					{ "Column": "CreatingIDUser",          "Type": "Integer",      "Size": "int" },
+					{ "Column": "UpdateDate",              "Type": "UpdateDate",   "Size": "Default" },
+					{ "Column": "UpdatingIDUser",          "Type": "Integer",      "Size": "int" },
+					{ "Column": "WorkItemHash",            "Type": "String",       "Size": "256", "Indexed": true },
+					{ "Column": "AttemptNumber",           "Type": "Integer",      "Size": "int" },
+					{ "Column": "BeaconID",                "Type": "String",       "Size": "128" },
+					{ "Column": "DispatchedAt",            "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "StartedAt",               "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "CompletedAt",             "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "Outcome",                 "Type": "String",       "Size": "32" },
+					{ "Column": "ErrorMessage",            "Type": "Text",         "Size": "Default" },
+					{ "Column": "DurationMs",              "Type": "Integer",      "Size": "int" }
+				],
+				"DefaultObject":
+				{
+					"IDBeaconWorkItemAttempt": 0,
+					"CreateDate": null, "CreatingIDUser": 0,
+					"UpdateDate": null, "UpdatingIDUser": 0,
+					"WorkItemHash": "", "AttemptNumber": 0, "BeaconID": "",
+					"DispatchedAt": null, "StartedAt": null, "CompletedAt": null,
+					"Outcome": "Dispatched", "ErrorMessage": "", "DurationMs": 0
+				}
+			}
 		},
 		"BeaconAffinityBinding":
 		{
@@ -136,7 +302,33 @@
 				{ "Column": "BeaconID", "DataType": "String", "Size": "128" },
 				{ "Column": "ExpiresAt", "DataType": "DateTime" },
 				{ "Column": "ClearedAt", "DataType": "DateTime" }
-			]
+			],
+			"MeadowSchema":
+			{
+				"Scope": "BeaconAffinityBinding",
+				"DefaultIdentifier": "IDBeaconAffinityBinding",
+				"Domain": "Default",
+				"Schema":
+				[
+					{ "Column": "IDBeaconAffinityBinding", "Type": "AutoIdentity", "Size": "Default" },
+					{ "Column": "CreateDate",              "Type": "CreateDate",   "Size": "Default" },
+					{ "Column": "CreatingIDUser",          "Type": "Integer",      "Size": "int" },
+					{ "Column": "UpdateDate",              "Type": "UpdateDate",   "Size": "Default" },
+					{ "Column": "UpdatingIDUser",          "Type": "Integer",      "Size": "int" },
+					{ "Column": "AffinityKey",             "Type": "String",       "Size": "256", "Indexed": true },
+					{ "Column": "BeaconID",                "Type": "String",       "Size": "128" },
+					{ "Column": "ExpiresAt",               "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "ClearedAt",               "Type": "DateTime",     "Size": "Default" }
+				],
+				"DefaultObject":
+				{
+					"IDBeaconAffinityBinding": 0,
+					"CreateDate": null, "CreatingIDUser": 0,
+					"UpdateDate": null, "UpdatingIDUser": 0,
+					"AffinityKey": "", "BeaconID": "",
+					"ExpiresAt": null, "ClearedAt": null
+				}
+			}
 		},
 		"BeaconActionDefault":
 		{
@@ -159,7 +351,49 @@
 				{ "Column": "ExpectedWaitP95Ms", "DataType": "Numeric", "Size": "int" },
 				{ "Column": "HeartbeatExpectedMs", "DataType": "Numeric", "Size": "int" },
 				{ "Column": "MinSamplesForBaseline", "DataType": "Numeric", "Size": "int" }
-			]
+			],
+			"MeadowSchema":
+			{
+				"Scope": "BeaconActionDefault",
+				"DefaultIdentifier": "IDBeaconActionDefault",
+				"Domain": "Default",
+				"Schema":
+				[
+					{ "Column": "IDBeaconActionDefault",   "Type": "AutoIdentity", "Size": "Default" },
+					{ "Column": "CreateDate",              "Type": "CreateDate",   "Size": "Default" },
+					{ "Column": "CreatingIDUser",          "Type": "Integer",      "Size": "int" },
+					{ "Column": "UpdateDate",              "Type": "UpdateDate",   "Size": "Default" },
+					{ "Column": "UpdatingIDUser",          "Type": "Integer",      "Size": "int" },
+					{ "Column": "Capability",              "Type": "String",       "Size": "128", "Indexed": true },
+					{ "Column": "Action",                  "Type": "String",       "Size": "128" },
+					{ "Column": "TimeoutMs",               "Type": "Integer",      "Size": "int" },
+					{ "Column": "MaxAttempts",             "Type": "Integer",      "Size": "int" },
+					{ "Column": "RetryBackoffMs",          "Type": "Integer",      "Size": "int" },
+					{ "Column": "DefaultPriority",         "Type": "Integer",      "Size": "int" },
+					{ "Column": "ExpectedWaitP95Ms",       "Type": "Integer",      "Size": "int" },
+					{ "Column": "HeartbeatExpectedMs",     "Type": "Integer",      "Size": "int" },
+					{ "Column": "MinSamplesForBaseline",   "Type": "Integer",      "Size": "int" }
+				],
+				"DefaultObject":
+				{
+					"IDBeaconActionDefault": 0,
+					"CreateDate": null, "CreatingIDUser": 0,
+					"UpdateDate": null, "UpdatingIDUser": 0,
+					"Capability": "", "Action": "",
+					"TimeoutMs": 300000, "MaxAttempts": 1, "RetryBackoffMs": 5000,
+					"DefaultPriority": 0, "ExpectedWaitP95Ms": 0,
+					"HeartbeatExpectedMs": 0, "MinSamplesForBaseline": 20
+				}
+			}
 		}
-	}
+	},
+	"TablesSequence":
+	[
+		"BeaconRun",
+		"BeaconWorkItem",
+		"BeaconWorkItemEvent",
+		"BeaconWorkItemAttempt",
+		"BeaconAffinityBinding",
+		"BeaconActionDefault"
+	]
 }

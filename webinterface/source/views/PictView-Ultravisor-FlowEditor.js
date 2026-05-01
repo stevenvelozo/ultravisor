@@ -218,6 +218,20 @@ const _ViewConfiguration =
 			stroke-width: 2 !important;
 			stroke-dasharray: 4 2;
 		}
+		/* Stalled: amber pulse to distinguish "stuck" from running's
+		 * blue pulse.  Only fires when the scheduler's stall detection
+		 * has flipped the node's beacon work item to Stalled. */
+		.uv-exec-stalled .pict-flow-node-body {
+			stroke: #b45309 !important;
+			stroke-width: 2.5 !important;
+		}
+		.uv-exec-stalled {
+			animation: uv-exec-stalled-pulse 1.6s ease-in-out infinite;
+		}
+		@keyframes uv-exec-stalled-pulse {
+			0%, 100% { filter: drop-shadow(0 0 3px rgba(180, 83, 9, 0.5)); }
+			50% { filter: drop-shadow(0 0 12px rgba(180, 83, 9, 0.85)); }
+		}
 
 		/* Execution status bar */
 		.ultravisor-floweditor-execution-status {
@@ -240,7 +254,8 @@ const _ViewConfiguration =
 			font-size: 0.85em;
 			font-weight: 600;
 		}
-		.uv-exec-status-badge.running {
+		.uv-exec-status-badge.running,
+		.uv-exec-status-badge.inprogress {
 			background-color: #1a3a5a;
 			color: #5a9ecb;
 		}
@@ -248,13 +263,19 @@ const _ViewConfiguration =
 			background-color: #1a3a2a;
 			color: #5ab88a;
 		}
-		.uv-exec-status-badge.error {
+		.uv-exec-status-badge.error,
+		.uv-exec-status-badge.failed {
 			background-color: #3a1a1a;
 			color: #c44e4e;
 		}
+		.uv-exec-status-badge.waiting,
 		.uv-exec-status-badge.waitingforinput {
 			background-color: #3a2a1a;
 			color: #d4884a;
+		}
+		.uv-exec-status-badge.stalled {
+			background-color: #3a2a10;
+			color: #d18a3a;
 		}
 	`,
 
@@ -1329,7 +1350,9 @@ class UltravisorFlowEditorView extends libPictView
 					{
 						let tmpLatest = tmpManifest.Executions[tmpManifest.Executions.length - 1];
 
-						if (tmpLatest.Status === 'Running')
+						// Accept legacy 'Running' alongside the canonical
+						// 'In Progress' that UV 1.0.34+ emits.
+						if (tmpLatest.Status === 'Running' || tmpLatest.Status === 'In Progress')
 						{
 							tmpExecState = 'executing';
 						}
@@ -1341,6 +1364,11 @@ class UltravisorFlowEditorView extends libPictView
 						else if (tmpLatest.Status === 'Error')
 						{
 							tmpExecState = 'error';
+							tmpErrorCount++;
+						}
+						else if (tmpLatest.Status === 'Stalled')
+						{
+							tmpExecState = 'stalled';
 							tmpErrorCount++;
 						}
 					}
@@ -1359,7 +1387,9 @@ class UltravisorFlowEditorView extends libPictView
 				let tmpElapsedMs = pData.ElapsedMs || (Date.now() - this._ExecutionStartTime);
 				this._updateExecutionStatusBar(pData.Status, tmpCompletedCount, tmpErrorCount, tmpElapsedMs);
 
-				if (pData.Status === 'Complete' || pData.Status === 'Error' || pData.Status === 'WaitingForInput')
+				if (pData.Status === 'Complete' || pData.Status === 'Error'
+					|| pData.Status === 'Failed' || pData.Status === 'Stalled'
+					|| pData.Status === 'WaitingForInput' || pData.Status === 'Waiting')
 				{
 					this._finishExecution(pData.Status);
 				}
@@ -1389,7 +1419,7 @@ class UltravisorFlowEditorView extends libPictView
 		}
 
 		// Remove all execution state classes
-		tmpNodeGroup.classList.remove('uv-exec-idle', 'uv-exec-executing', 'uv-exec-complete', 'uv-exec-error', 'uv-exec-waiting');
+		tmpNodeGroup.classList.remove('uv-exec-idle', 'uv-exec-executing', 'uv-exec-complete', 'uv-exec-error', 'uv-exec-waiting', 'uv-exec-stalled');
 
 		// Add the new state class
 		tmpNodeGroup.classList.add('uv-exec-' + pState);
@@ -1487,7 +1517,7 @@ class UltravisorFlowEditorView extends libPictView
 			let tmpNodeGroups = this._FlowView._NodesLayer.querySelectorAll('[data-node-hash]');
 			for (let i = 0; i < tmpNodeGroups.length; i++)
 			{
-				tmpNodeGroups[i].classList.remove('uv-exec-idle', 'uv-exec-executing', 'uv-exec-complete', 'uv-exec-error', 'uv-exec-waiting');
+				tmpNodeGroups[i].classList.remove('uv-exec-idle', 'uv-exec-executing', 'uv-exec-complete', 'uv-exec-error', 'uv-exec-waiting', 'uv-exec-stalled');
 			}
 		}
 

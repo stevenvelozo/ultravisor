@@ -7,6 +7,7 @@ const libOrator = require('orator');
 const libOratorServiceServerRestify = require(`orator-serviceserver-restify`);
 const libOratorAuthentication = require('orator-authentication');
 const libWebSocket = require('ws');
+const libStatus = require('../services/Ultravisor-Status.cjs');
 
 // Strip a manifest down to the JSON-serializable shape the wire
 // expects. The in-memory ExecutionContext can carry closures in
@@ -156,6 +157,13 @@ class UltravisorAPIServer extends libPictService
 	// queue.replay_* and queue.reset are control frames meant for a
 	// specific subscriber's resume cycle and don't belong in the
 	// shared history.
+	//
+	// Replayable topics include the lifecycle deltas the scheduler
+	// emits — queue.enqueued, queue.dispatched, queue.running,
+	// queue.completed, queue.failed, queue.canceled, queue.health,
+	// queue.cancel_requested, queue.reordered — plus the Phase 2
+	// queue.stalled and queue.unstalled envelopes. New queue.* lifecycle
+	// topics get replay for free unless they're explicitly excluded here.
 	_isReplayableQueueTopic(pTopic)
 	{
 		if (pTopic === 'queue.summary') return false;
@@ -219,21 +227,61 @@ class UltravisorAPIServer extends libPictService
 
 	_requireSession(pRequest, pResponse, fNext)
 	{
+		// `_OratorAuth` is wired unconditionally during wireEndpoints
+		// startup, so the legacy `if (!this._OratorAuth)` escape hatch
+		// is dead code in practice -- but it's preserved for any
+		// theoretical pre-init request.  Treat it the same as the
+		// "no auth provider connected" path: hand back an anonymous
+		// session rather than 401.
 		if (!this._OratorAuth)
 		{
-			return {};
+			return this._anonymousSession();
 		}
 
 		let tmpSession = this._OratorAuth.getSessionForRequest(pRequest);
-
-		if (!tmpSession)
+		if (tmpSession)
 		{
-			pResponse.send(401, { Error: 'Authentication required.', LoggedIn: false });
-			fNext();
-			return null;
+			return tmpSession;
 		}
 
-		return tmpSession;
+		// No valid cookie.  If no auth-beacon currently advertises the
+		// `Authentication` capability, there is no provider that could
+		// ever issue a session against this UV -- 401-ing would be a
+		// permanent block on every session-gated route.  Synthesize an
+		// anonymous session instead, so a UV running without an auth-
+		// beacon is genuinely promiscuous.  When an auth-beacon IS
+		// connected, fall through to 401 so the operator knows login
+		// is possible.  Routes that need real auth should explicitly
+		// check `session.Anonymous` and reject when appropriate.
+		let tmpBridge = this._getService('UltravisorAuthBeaconBridge');
+		let tmpAuthProviderAvailable = tmpBridge
+			&& typeof tmpBridge.isAvailable === 'function'
+			&& tmpBridge.isAvailable();
+		if (!tmpAuthProviderAvailable)
+		{
+			return this._anonymousSession();
+		}
+
+		pResponse.send(401, { Error: 'Authentication required.', LoggedIn: false });
+		fNext();
+		return null;
+	}
+
+	/**
+	 * Synthetic session handed back when no auth provider can validate
+	 * a real one.  Carries an `Anonymous: true` marker so routes that
+	 * need authenticated access can detect and reject it cleanly.  A
+	 * fixed `SessionID: 'anonymous'` makes audit trails legible.
+	 */
+	_anonymousSession()
+	{
+		return {
+			SessionID:     'anonymous',
+			IDUser:        0,
+			UserID:        0,
+			Anonymous:     true,
+			Authenticated: false
+		};
 	}
 
 	wireEndpoints(fCallback)
@@ -260,10 +308,24 @@ class UltravisorAPIServer extends libPictService
 				function (pRequest, pResponse, fNext)
 				{
 					let tmpHypervisor = this._getService('UltravisorHypervisor');
+					// AuthEnabled tracks whether an auth-beacon is
+					// currently advertising the Authentication
+					// capability.  When false the UV runs in
+					// promiscuous mode -- session-gated routes
+					// synthesize an anonymous session via
+					// _requireSession's anonymous-fallback path.
+					// UI components surface this so operators don't
+					// have to infer it from "no auth-beacon connected".
+					let tmpBridge = this._getService('UltravisorAuthBeaconBridge');
+					let tmpAuthEnabled = tmpBridge
+						&& typeof tmpBridge.isAvailable === 'function'
+						&& tmpBridge.isAvailable();
 					pResponse.send({
 						Status: 'Running',
 						ScheduleEntries: tmpHypervisor ? tmpHypervisor.getSchedule().length : 0,
-						ScheduleRunning: tmpHypervisor ? tmpHypervisor._Running : false
+						ScheduleRunning: tmpHypervisor ? tmpHypervisor._Running : false,
+						AuthEnabled: !!tmpAuthEnabled,
+						AuthMode: tmpAuthEnabled ? 'authenticated' : 'promiscuous'
 					});
 					return fNext();
 				}.bind(this)
@@ -1074,7 +1136,7 @@ class UltravisorAPIServer extends libPictService
 
 					for (let i = 0; i < tmpRuns.length; i++)
 					{
-						if (tmpRuns[i].Status === 'WaitingForInput')
+						if (libStatus.isWaiting(tmpRuns[i].Status))
 						{
 							let tmpFullRun = tmpManifest.getRun(tmpRuns[i].Hash);
 							if (tmpFullRun)
@@ -1410,6 +1472,12 @@ class UltravisorAPIServer extends libPictService
 					}
 
 					let tmpBeacon = tmpCoordinator.registerBeacon(tmpBody, tmpSession.SessionID);
+					let tmpObsForReg = this._getService('UltravisorObserver');
+					if (tmpObsForReg)
+					{
+						try { tmpObsForReg.onBeaconRegistered(tmpBeacon); }
+						catch (pErr) { /* best effort */ }
+					}
 					pResponse.send(tmpBeacon);
 					return fNext();
 				}.bind(this)
@@ -1434,6 +1502,14 @@ class UltravisorAPIServer extends libPictService
 			);
 
 		// --- Beacon Reachability Matrix (no auth – management UI) ---
+		// Response shape (envelope; clients MUST handle both):
+		//   Legacy clients: a bare array of matrix entries
+		//   Phase-2 clients: { Matrix, Beacons, Hub } where
+		//     Beacons[i] = { BeaconID, Name, Status, HasListener,
+		//                    WSConnected, BindAddresses, HostID }
+		//     Hub       = { HostID, Name } — the synthesized "UV" node
+		// We always emit the envelope; the view treats a bare-array
+		// response as Matrix-only for one minor version of overlap.
 		this._OratorServer.get
 			(
 				'/Beacon/Reachability',
@@ -1442,11 +1518,20 @@ class UltravisorAPIServer extends libPictService
 					let tmpReachability = this._getService('UltravisorBeaconReachability');
 					if (!tmpReachability)
 					{
-						pResponse.send([]);
+						pResponse.send({ Matrix: [], Beacons: [], Hub: null });
 						return fNext();
 					}
-
-					pResponse.send(tmpReachability.getMatrix());
+					let tmpHubID = (this.fable.settings && this.fable.settings.UltravisorHubInstanceID) || 'ultravisor';
+					pResponse.send(
+					{
+						Matrix:  tmpReachability.getMatrix(),
+						Beacons: tmpReachability.getBeaconConnectivity(this),
+						Hub:
+						{
+							HostID: tmpHubID,
+							Name:   'Ultravisor'
+						}
+					});
 					return fNext();
 				}.bind(this)
 			);
@@ -1471,9 +1556,15 @@ class UltravisorAPIServer extends libPictService
 							pResponse.send(500, { Error: pError.message });
 							return fNext();
 						}
-						pResponse.send(pMatrix);
+						let tmpHubID = (this.fable.settings && this.fable.settings.UltravisorHubInstanceID) || 'ultravisor';
+						pResponse.send(
+						{
+							Matrix:  pMatrix,
+							Beacons: tmpReachability.getBeaconConnectivity(this),
+							Hub:     { HostID: tmpHubID, Name: 'Ultravisor' }
+						});
 						return fNext();
-					});
+					}.bind(this));
 				}.bind(this)
 			);
 
@@ -1556,6 +1647,13 @@ class UltravisorAPIServer extends libPictService
 					{
 						pResponse.send(404, { Error: `Beacon [${pRequest.params.BeaconID}] not found.` });
 						return fNext();
+					}
+
+					let tmpObsDel = this._getService('UltravisorObserver');
+					if (tmpObsDel)
+					{
+						try { tmpObsDel.onBeaconDeregistered(pRequest.params.BeaconID); }
+						catch (pErr) { /* best effort */ }
 					}
 
 					pResponse.send({ Status: 'Deregistered', BeaconID: pRequest.params.BeaconID });
@@ -2030,6 +2128,61 @@ class UltravisorAPIServer extends libPictService
 							pResponse.send({ Summary: tmpSummary, Items: tmpItems, History: null });
 							return fNext();
 						});
+				}.bind(this)
+			);
+
+		// --- Observer (Phase 3) ---
+		// Snapshot endpoint returns the AI-ready system view in one JSON
+		// document: working beacons + liveness, in-process operations,
+		// upcoming queue items + their BlockingReason, and the recent
+		// terminal ring. Intended both for the UI and for an LLM
+		// coordinator that wants the whole picture in one fetch.
+		this._OratorServer.get
+			(
+				'/Observer/Snapshot',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpObs = this._getService('UltravisorObserver');
+					if (!tmpObs)
+					{
+						pResponse.send(503, { Error: 'Observer service not available.' });
+						return fNext();
+					}
+					try
+					{
+						let tmpSnapshot = tmpObs.buildSnapshot();
+						pResponse.send(tmpSnapshot);
+					}
+					catch (pErr)
+					{
+						pResponse.send(500, { Error: pErr.message });
+					}
+					return fNext();
+				}.bind(this)
+			);
+
+		this._OratorServer.get
+			(
+				'/Observer/History',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpObs = this._getService('UltravisorObserver');
+					if (!tmpObs)
+					{
+						pResponse.send(503, { Error: 'Observer service not available.' });
+						return fNext();
+					}
+					let tmpQuery = _parseQueryString(pRequest.url || '');
+					let tmpSince = tmpQuery.since || null;
+					try
+					{
+						pResponse.send({ Events: tmpObs.getHistorySince(tmpSince) });
+					}
+					catch (pErr)
+					{
+						pResponse.send(500, { Error: pErr.message });
+					}
+					return fNext();
 				}.bind(this)
 			);
 
@@ -3130,11 +3283,33 @@ class UltravisorAPIServer extends libPictService
 		}
 
 		// Wire the scheduler's broadcast hook to the queue.* WebSocket topic.
+		// Phase 3: interpose the Observer so every queue.* topic flows
+		// through ObserverPolicy classification before it fans out.
+		// The Observer keeps the legacy contract (calls _broadcastQueueTopic
+		// upstream) so existing clients see the same envelopes.
 		let tmpScheduler = this._getService('UltravisorBeaconScheduler');
+		let tmpObserver = this._getService('UltravisorObserver');
 		if (tmpScheduler && typeof tmpScheduler.setBroadcastHandler === 'function')
 		{
-			tmpScheduler.setBroadcastHandler(
-				this._broadcastQueueTopic.bind(this));
+			if (tmpObserver && typeof tmpObserver.setUpstreamBroadcast === 'function')
+			{
+				tmpObserver.setUpstreamBroadcast(this._broadcastQueueTopic.bind(this));
+				tmpObserver.setObserverBroadcastHandler(this._broadcastQueueTopic.bind(this));
+				tmpScheduler.setBroadcastHandler(tmpObserver.handleQueueBroadcast.bind(tmpObserver));
+			}
+			else
+			{
+				tmpScheduler.setBroadcastHandler(this._broadcastQueueTopic.bind(this));
+			}
+		}
+
+		// Subscribe the Observer to manifest execution events so it can
+		// roll up Stalled / Failed runs into RecentTerminal.
+		if (tmpManifestService && tmpObserver
+			&& typeof tmpObserver.handleExecutionEvent === 'function')
+		{
+			tmpManifestService.addExecutionEventListener(
+				tmpObserver.handleExecutionEvent.bind(tmpObserver));
 		}
 
 		this.log.info('Ultravisor WebSocket: execution event WebSocket server initialized.');
@@ -3477,6 +3652,17 @@ class UltravisorAPIServer extends libPictService
 
 		this.log.info(`Ultravisor WebSocket: beacon [${tmpBeacon.BeaconID}] "${pData.Name}" registered via WebSocket.`);
 
+		// Tell the Observer about the registration + WS open so it can
+		// classify Liveness without waiting for its periodic tick. Phase 3.
+		let tmpObs = this._getService('UltravisorObserver');
+		if (tmpObs)
+		{
+			try { tmpObs.onBeaconRegistered(tmpBeacon); }
+			catch (pErr) { /* best effort */ }
+			try { tmpObs.onBeaconWSOpen(tmpBeacon.BeaconID, tmpBeacon); }
+			catch (pErr) { /* best effort */ }
+		}
+
 		// Send registration confirmation back
 		if (pWebSocket.readyState === libWebSocket.OPEN)
 		{
@@ -3617,6 +3803,12 @@ class UltravisorAPIServer extends libPictService
 		{
 			tmpCoordinator.heartbeat(pData.BeaconID);
 		}
+		let tmpObs = this._getService('UltravisorObserver');
+		if (tmpObs && pData.BeaconID)
+		{
+			try { tmpObs.onBeaconHeartbeat(pData.BeaconID); }
+			catch (pErr) { /* best effort */ }
+		}
 	}
 
 	/**
@@ -3682,11 +3874,24 @@ class UltravisorAPIServer extends libPictService
 	 */
 	_handleBeaconWSDeregister(pWebSocket, pData)
 	{
+		let tmpObs = this._getService('UltravisorObserver');
+		if (tmpObs && pData.BeaconID)
+		{
+			try { tmpObs.onBeaconWSClose(pData.BeaconID); }
+			catch (pErr) { /* best effort */ }
+		}
+
 		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 		if (tmpCoordinator && pData.BeaconID)
 		{
 			tmpCoordinator.deregisterBeacon(pData.BeaconID);
 			this.log.info(`Ultravisor WebSocket: beacon [${pData.BeaconID}] deregistered.`);
+		}
+
+		if (tmpObs && pData.BeaconID)
+		{
+			try { tmpObs.onBeaconDeregistered(pData.BeaconID); }
+			catch (pErr) { /* best effort */ }
 		}
 
 		delete this._BeaconWebSockets[pData.BeaconID];
@@ -3712,12 +3917,30 @@ class UltravisorAPIServer extends libPictService
 		delete this._BeaconWebSockets[tmpBeaconID];
 		pWebSocket._BeaconID = null;
 
+		// Phase 3: tell the Observer about the WS close BEFORE the
+		// Coordinator deregister blows away the beacon record. The
+		// Observer needs the record to update Liveness=Dead and to
+		// re-classify any in-flight work items pinned to this beacon
+		// in the same tick (~5s) instead of the 120s heartbeat window.
+		let tmpObs = this._getService('UltravisorObserver');
+		if (tmpObs)
+		{
+			try { tmpObs.onBeaconWSClose(tmpBeaconID); }
+			catch (pErr) { /* best effort */ }
+		}
+
 		// Deregister the beacon from the coordinator
 		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 		if (tmpCoordinator)
 		{
 			tmpCoordinator.deregisterBeacon(tmpBeaconID);
 			this.log.info(`Ultravisor WebSocket: beacon [${tmpBeaconID}] disconnected and deregistered.`);
+		}
+
+		if (tmpObs)
+		{
+			try { tmpObs.onBeaconDeregistered(tmpBeaconID); }
+			catch (pErr) { /* best effort */ }
 		}
 	}
 

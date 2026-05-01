@@ -52,13 +52,22 @@ const _ViewConfiguration =
 			background-color: #2e7d32;
 			color: #c8e6c9;
 		}
-		.ultravisor-manifest-status.running {
+		.ultravisor-manifest-status.running,
+		.ultravisor-manifest-status.inprogress {
 			background-color: var(--uv-info);
 			color: var(--uv-text-heading);
 		}
 		.ultravisor-manifest-status.error {
 			background-color: #c62828;
 			color: #ffcdd2;
+		}
+		.ultravisor-manifest-status.failed {
+			background-color: #b71c1c;
+			color: #ffcdd2;
+		}
+		.ultravisor-manifest-status.stalled {
+			background-color: #b45309;
+			color: #fef3c7;
 		}
 		.ultravisor-manifest-status.waiting,
 		.ultravisor-manifest-status.waitingforinput {
@@ -288,17 +297,54 @@ class UltravisorManifestListView extends libPictView
 
 	// ── Filter Helpers ──
 
+	// Normalize a Status string to a lowercased canonical bucket key.
+	// Accepts both legacy (Pending/Running/WaitingForInput) and the
+	// canonical 7-state enum (Queued/In Progress/Waiting/Stalled/Failed)
+	// emitted by UV 1.0.34+.  Returns one of:
+	//   'running' | 'waiting' | 'complete' | 'error' | 'failed'
+	//   | 'stalled' | 'abandoned' | 'queued' | ''
+	_normalizeStatusKey(pStatus)
+	{
+		let tmpRaw = (pStatus || '').toLowerCase().replace(/\s+/g, '');
+		switch (tmpRaw)
+		{
+			case 'pending':
+			case 'queued':
+				return 'queued';
+			case 'running':
+			case 'inprogress':
+				return 'running';
+			case 'waitingforinput':
+			case 'waiting':
+				return 'waiting';
+			case 'complete':
+			case 'completed':
+				return 'complete';
+			case 'error':
+				return 'error';
+			case 'failed':
+				return 'failed';
+			case 'stalled':
+				return 'stalled';
+			case 'abandoned':
+				return 'abandoned';
+			default:
+				return tmpRaw;
+		}
+	}
+
 	_matchesFilter(pStatus)
 	{
 		if (this._CurrentFilter === 'all') return true;
-		let tmpNormalized = (pStatus || '').toLowerCase();
+		let tmpKey = this._normalizeStatusKey(pStatus);
 		switch (this._CurrentFilter)
 		{
-			case 'running': return tmpNormalized === 'running';
-			case 'waiting': return tmpNormalized === 'waitingforinput';
-			case 'complete': return tmpNormalized === 'complete';
-			case 'error': return tmpNormalized === 'error';
-			case 'abandoned': return tmpNormalized === 'abandoned';
+			case 'running': return tmpKey === 'running';
+			case 'waiting': return tmpKey === 'waiting';
+			case 'complete': return tmpKey === 'complete';
+			case 'error': return tmpKey === 'error' || tmpKey === 'failed';
+			case 'stalled': return tmpKey === 'stalled';
+			case 'abandoned': return tmpKey === 'abandoned';
 			default: return true;
 		}
 	}
@@ -309,14 +355,15 @@ class UltravisorManifestListView extends libPictView
 		let tmpCount = 0;
 		for (let i = 0; i < pManifests.length; i++)
 		{
-			let tmpNormalized = (pManifests[i].Status || '').toLowerCase();
+			let tmpKey = this._normalizeStatusKey(pManifests[i].Status);
 			switch (pFilter)
 			{
-				case 'running': if (tmpNormalized === 'running') tmpCount++; break;
-				case 'waiting': if (tmpNormalized === 'waitingforinput') tmpCount++; break;
-				case 'complete': if (tmpNormalized === 'complete') tmpCount++; break;
-				case 'error': if (tmpNormalized === 'error') tmpCount++; break;
-				case 'abandoned': if (tmpNormalized === 'abandoned') tmpCount++; break;
+				case 'running': if (tmpKey === 'running') tmpCount++; break;
+				case 'waiting': if (tmpKey === 'waiting') tmpCount++; break;
+				case 'complete': if (tmpKey === 'complete') tmpCount++; break;
+				case 'error': if (tmpKey === 'error' || tmpKey === 'failed') tmpCount++; break;
+				case 'stalled': if (tmpKey === 'stalled') tmpCount++; break;
+				case 'abandoned': if (tmpKey === 'abandoned') tmpCount++; break;
 			}
 		}
 		return tmpCount;
@@ -388,10 +435,14 @@ class UltravisorManifestListView extends libPictView
 			let tmpRunHash = tmpManifest.Hash || '';
 			let tmpEscHash = tmpRunHash.replace(/'/g, "\\'");
 			let tmpEscOpHash = (tmpManifest.OperationHash || '').replace(/'/g, "\\'");
-			let tmpStatusClass = tmpStatus.toLowerCase();
-			if (tmpStatusClass !== 'complete' && tmpStatusClass !== 'running'
-				&& tmpStatusClass !== 'error' && tmpStatusClass !== 'waiting'
-				&& tmpStatusClass !== 'waitingforinput' && tmpStatusClass !== 'abandoned')
+			// Normalize legacy + canonical Status names to a stable CSS
+			// class name. Phase 2 added 'stalled' and 'failed' on top of
+			// the previous set; Pending/Running/WaitingForInput legacy
+			// strings still arrive from older persisted manifests.
+			let tmpStatusClass = this._normalizeStatusKey(tmpStatus);
+			let tmpKnownClasses = ['complete', 'running', 'queued', 'error',
+				'failed', 'stalled', 'waiting', 'waitingforinput', 'abandoned'];
+			if (tmpKnownClasses.indexOf(tmpStatusClass) < 0)
 			{
 				tmpStatusClass = '';
 			}
@@ -419,10 +470,18 @@ class UltravisorManifestListView extends libPictView
 			// Show operation name when available, fall back to hash
 			let tmpOperationLabel = tmpManifest.OperationName || tmpManifest.OperationHash || '';
 
-			// Determine status display
+			// Determine status display.
+			// Friendly labels: surface 'In Progress' instead of the
+			// raw 'Running' that older persisted manifests still
+			// carry, and 'Stalled' as its own pill.
 			let tmpStatusLabel = tmpStatus;
+			if (tmpStatusClass === 'running') { tmpStatusLabel = 'In Progress'; }
+			else if (tmpStatusClass === 'queued') { tmpStatusLabel = 'Queued'; }
+			else if (tmpStatusClass === 'waiting' || tmpStatusClass === 'waitingforinput') { tmpStatusLabel = 'Waiting'; }
+			else if (tmpStatusClass === 'failed') { tmpStatusLabel = 'Failed'; }
+			else if (tmpStatusClass === 'stalled') { tmpStatusLabel = 'Stalled'; }
 			let tmpIsLive = tmpManifest.Live || false;
-			let tmpIsWaiting = (tmpStatusClass === 'waitingforinput');
+			let tmpIsWaiting = (tmpStatusClass === 'waitingforinput' || tmpStatusClass === 'waiting');
 			let tmpIsRunning = (tmpStatusClass === 'running');
 
 			if (tmpIsWaiting)
@@ -473,10 +532,21 @@ class UltravisorManifestListView extends libPictView
 				tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-secondary" onclick="' + tmpViewRef + '.toggleAwaitingDetail(\'' + tmpEscHash + '\')">Awaiting</button>';
 			}
 
-			// Abandon button for non-terminal statuses
-			if (tmpStatusClass !== 'complete' && tmpStatusClass !== 'abandoned')
+			// Abandon button for non-terminal statuses (Stalled and
+			// Failed are terminal too — no point in abandoning them).
+			if (tmpStatusClass !== 'complete' && tmpStatusClass !== 'abandoned'
+				&& tmpStatusClass !== 'failed' && tmpStatusClass !== 'stalled')
 			{
 				tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-delete" onclick="' + tmpViewRef + '.abandonRun(\'' + tmpEscHash + '\')">Abandon</button>';
+			}
+
+			// Retry button for Stalled and Failed runs.  Re-dispatches the
+			// stuck node only — upstream outputs are preserved.  No effect
+			// on Complete / Abandoned (nothing to retry) or active runs
+			// (engine rejects retry while In Progress / Waiting).
+			if (tmpStatusClass === 'stalled' || tmpStatusClass === 'failed')
+			{
+				tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-execute" onclick="' + tmpViewRef + '.retryRun(\'' + tmpEscHash + '\')">Retry</button>';
 			}
 
 			tmpHTML += '<button class="ultravisor-btn-sm ultravisor-btn-edit" onclick="' + tmpGlobalRef + '.PictApplication.navigateTo(\'/Manifests/detail/' + tmpEscHash + '\')">Details</button>';
@@ -504,8 +574,8 @@ class UltravisorManifestListView extends libPictView
 
 	_renderFilterTabs(pManifests, pViewRef)
 	{
-		let tmpFilters = ['all', 'running', 'waiting', 'complete', 'error', 'abandoned'];
-		let tmpLabels = { all: 'All', running: 'Running', waiting: 'Waiting', complete: 'Complete', error: 'Error', abandoned: 'Abandoned' };
+		let tmpFilters = ['all', 'running', 'waiting', 'stalled', 'complete', 'error', 'abandoned'];
+		let tmpLabels = { all: 'All', running: 'In Progress', waiting: 'Waiting', stalled: 'Stalled', complete: 'Complete', error: 'Error', abandoned: 'Abandoned' };
 
 		let tmpHTML = '<div class="ultravisor-manifest-filters">';
 		for (let i = 0; i < tmpFilters.length; i++)
@@ -521,6 +591,72 @@ class UltravisorManifestListView extends libPictView
 		tmpHTML += '</div>';
 
 		this.pict.ContentAssignment.assignContent('#Ultravisor-ManifestList-Filters', tmpHTML);
+	}
+
+	// ── Retry Action ──
+
+	retryRun(pRunHash)
+	{
+		this.pict.views.Modal.confirm('Retry this run from its failed/stalled node? Upstream node outputs are preserved; only the stuck node and its downstream branch re-run.', { confirmLabel: 'Retry' }).then(
+			function (pConfirmed)
+			{
+				if (!pConfirmed) return;
+				this.pict.PictApplication.retryRun(pRunHash,
+					function (pError, pData)
+					{
+						if (pError)
+						{
+							this.pict.views.Modal.toast('Failed to retry run: ' + (pError.message || 'Unknown error'), { type: 'error' });
+							return;
+						}
+						this.pict.views.Modal.toast('Run re-dispatched.', { type: 'success' });
+						this._pollAfterRetry(pRunHash);
+					}.bind(this));
+			}.bind(this));
+	}
+
+	// Reload the manifest list every second for ~12 seconds after a
+	// retry so the user sees state progress (Stalled → Waiting →
+	// Complete).  Stops early when the targeted run reaches a NEW
+	// terminal state (the engine takes a tick or two to transition
+	// out of the pre-retry Stalled, so we record that as the baseline
+	// and only stop on a *changed* terminal status).
+	_pollAfterRetry(pRunHash)
+	{
+		let tmpTicks = 0;
+		let tmpMaxTicks = 12;
+		let tmpInitialStatusKey = null;
+		let tmpInterval = setInterval(function ()
+		{
+			tmpTicks++;
+			this.pict.PictApplication.loadManifests(
+				function ()
+				{
+					this.renderManifestTable();
+					let tmpManifests = this.pict.AppData.Ultravisor.Manifests || [];
+					let tmpRow = null;
+					for (let i = 0; i < tmpManifests.length; i++)
+					{
+						if (tmpManifests[i].Hash === pRunHash) { tmpRow = tmpManifests[i]; break; }
+					}
+					if (tmpRow)
+					{
+						let tmpKey = this._normalizeStatusKey(tmpRow.Status);
+						if (tmpInitialStatusKey === null) { tmpInitialStatusKey = tmpKey; }
+						let tmpIsTerminal = (tmpKey === 'complete' || tmpKey === 'failed'
+							|| tmpKey === 'stalled' || tmpKey === 'error'
+							|| tmpKey === 'abandoned');
+						if (tmpIsTerminal && tmpKey !== tmpInitialStatusKey)
+						{
+							clearInterval(tmpInterval);
+						}
+					}
+					if (tmpTicks >= tmpMaxTicks)
+					{
+						clearInterval(tmpInterval);
+					}
+				}.bind(this));
+		}.bind(this), 1000);
 	}
 
 	// ── Abandon Actions ──

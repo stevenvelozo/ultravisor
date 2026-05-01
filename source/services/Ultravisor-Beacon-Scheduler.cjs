@@ -32,6 +32,15 @@ const THRESHOLD_UNCERTAIN = 0.3;
 // Items younger than this have no meaningful health signal yet.
 const FRESH_GRACE_MS = 2000;
 
+// Stalled detection: minimum multiplier on the action's HeartbeatExpectedMs
+// before flipping a Dispatched/Running item to Stalled. Tunable per-action
+// via BeaconActionDefault.HeartbeatExpectedMs (a quick shell command and a
+// long LLM call have very different baselines). Two heartbeat windows is
+// the same "weakest link" threshold the freshness dimension uses, so an
+// item that's already Unhealthy on event_freshness rolls into Stalled
+// without re-deriving a separate threshold.
+const STALL_HEARTBEAT_MULTIPLIER = 2;
+
 class UltravisorBeaconScheduler extends libPictService
 {
 	constructor(pPict, pOptions, pServiceHash)
@@ -402,8 +411,176 @@ class UltravisorBeaconScheduler extends libPictService
 		{
 			let tmpItem = tmpQueue[tmpHash];
 			if (TERMINAL_STATUSES.has(tmpItem.Status)) continue;
+			// Stalled is a non-terminal but already-flagged state.  Skip
+			// the health recompute (it would just thrash the score) and
+			// only check for recovery (heartbeat resumed before the
+			// Coordinator's stall-finalize landed).
+			if (tmpItem.Status === 'Stalled')
+			{
+				this._maybeRecoverStalled(tmpItem);
+				continue;
+			}
 			this._updateHealth(tmpItem);
+			this._maybeMarkStalled(tmpItem, tmpCoordinator);
 		}
+	}
+
+	/**
+	 * Flip a previously-active item to Stalled when its beacon stops
+	 * sending heartbeats past HeartbeatExpectedMs × STALL_HEARTBEAT_MULTIPLIER.
+	 *
+	 * Catches two scenarios:
+	 *   - Status=Dispatched/Running with stale LastEventAt: the beacon
+	 *     is wedged but the WebSocket hasn't dropped yet.
+	 *   - Status=Pending after a prior dispatch (LastEventAt set and old):
+	 *     the Coordinator's deregisterBeacon path resets in-flight items
+	 *     to Pending when their beacon's WebSocket closes.  If no other
+	 *     beacon picks it up before the heartbeat threshold elapses, the
+	 *     item is effectively stuck and rolls up to Stalled.
+	 *
+	 * HealthLabel isn't part of the gate — a Pending item with no wait
+	 * baseline scores as Unknown, not Unhealthy, so requiring Unhealthy
+	 * would miss the post-deregister case.  LastEventAt + the heartbeat
+	 * threshold is a sharper signal anyway.
+	 */
+	_maybeMarkStalled(pItem, pCoordinator)
+	{
+		// Skip items that were never dispatched.  A Pending item is
+		// only a stall candidate if it was previously running (i.e.
+		// the deregister path bounced it back to Pending after the
+		// beacon's WS dropped).  Without this gate, ordinary queue
+		// backlog (Transformer busy with one item, more in queue
+		// behind it) gets misclassified as Stalled within 120s.
+		let tmpEligibleStatuses = ['Dispatched', 'Running', 'Pending', 'Assigned'];
+		if (tmpEligibleStatuses.indexOf(pItem.Status) < 0) return;
+		let tmpEverDispatched = !!pItem.DispatchedAt;
+		if ((pItem.Status === 'Pending' || pItem.Status === 'Assigned') && !tmpEverDispatched) return;
+
+		let tmpLastEventStr = pItem.LastEventAt || pItem.DispatchedAt;
+		if (!tmpLastEventStr) return;
+		let tmpLastEventMs = Date.parse(tmpLastEventStr);
+		if (isNaN(tmpLastEventMs)) return;
+
+		let tmpDefaults = this._getDefaults();
+		let tmpResolved = tmpDefaults
+			? tmpDefaults.resolve(pItem.Capability, pItem.Action)
+			: { HeartbeatExpectedMs: 60000 };
+		let tmpHeartbeat = tmpResolved.HeartbeatExpectedMs || 60000;
+		let tmpStallThreshold = tmpHeartbeat * STALL_HEARTBEAT_MULTIPLIER;
+
+		let tmpSinceEvent = Date.now() - tmpLastEventMs;
+		if (tmpSinceEvent <= tmpStallThreshold) return;
+
+		let tmpFromStatus = pItem.Status;
+		let tmpNowIso = new Date().toISOString();
+		pItem.PriorStatusBeforeStall = tmpFromStatus;
+		pItem.Status = 'Stalled';
+		pItem.StalledAt = tmpNowIso;
+		pItem.StalledSinceMs = tmpSinceEvent;
+
+		let tmpStallBridge = this._getBridge();
+		if (tmpStallBridge && !this._isMetaCapability(pItem.Capability))
+		{
+			this._persistBest(tmpStallBridge.updateWorkItem(pItem.WorkItemHash, {
+				Status: 'Stalled',
+				StalledAt: pItem.StalledAt
+			}), 'stall update');
+			this._persistBest(tmpStallBridge.appendEvent({
+				WorkItemHash: pItem.WorkItemHash,
+				RunID: pItem.RunID,
+				EventType: 'stalled',
+				FromStatus: tmpFromStatus,
+				ToStatus: 'Stalled',
+				BeaconID: pItem.AssignedBeaconID,
+				Payload: { LastEventAt: pItem.LastEventAt, StalledSinceMs: tmpSinceEvent }
+			}), 'stalled event');
+		}
+
+		this.log.warn(`BeaconScheduler: work item [${pItem.WorkItemHash}] flipped to Stalled (no event for ${tmpSinceEvent}ms, threshold ${tmpStallThreshold}ms).`);
+
+		this._broadcast('queue.stalled', {
+			WorkItemHash: pItem.WorkItemHash,
+			RunID: pItem.RunID,
+			Capability: pItem.Capability,
+			Action: pItem.Action,
+			BeaconID: pItem.AssignedBeaconID,
+			LastEventAt: pItem.LastEventAt,
+			StalledSince: pItem.StalledAt,
+			StalledSinceMs: tmpSinceEvent
+		});
+
+		// Drive the operation rollup. The Coordinator owns the
+		// engine-resume path; ask it to mark the work item as a
+		// Stalled outcome (analogous to failWorkItem but with a
+		// distinct terminal label that finalizeExecution rolls up
+		// to operation Status='Stalled').
+		if (pCoordinator && typeof pCoordinator.stallWorkItem === 'function')
+		{
+			pCoordinator.stallWorkItem(pItem.WorkItemHash, function (pErr)
+			{
+				// stallWorkItem already journals; swallow callback errors
+				// so a bad rollup doesn't tear down the health tick.
+			});
+		}
+	}
+
+	/**
+	 * Heartbeat resumed on an item still parked in Stalled.  Flip
+	 * back to its prior status and emit queue.unstalled so the UI
+	 * can clear the alert.  In practice this is rare: stall detection
+	 * triggers the Coordinator's stall-finalize path immediately, so
+	 * by the next health tick the item is usually already removed.
+	 * It still fires for the narrow window between stall detection
+	 * and the rollup callback, plus any standalone (no-RunHash) work
+	 * items the rollup path skips.
+	 */
+	_maybeRecoverStalled(pItem)
+	{
+		let tmpDefaults = this._getDefaults();
+		let tmpResolved = tmpDefaults
+			? tmpDefaults.resolve(pItem.Capability, pItem.Action)
+			: { HeartbeatExpectedMs: 60000 };
+		let tmpHeartbeat = tmpResolved.HeartbeatExpectedMs || 60000;
+		let tmpStallThreshold = tmpHeartbeat * STALL_HEARTBEAT_MULTIPLIER;
+
+		let tmpLastEventStr = pItem.LastEventAt || pItem.DispatchedAt;
+		if (!tmpLastEventStr) return;
+		let tmpLastEventMs = Date.parse(tmpLastEventStr);
+		if (isNaN(tmpLastEventMs)) return;
+		let tmpSinceEvent = Date.now() - tmpLastEventMs;
+		if (tmpSinceEvent > tmpStallThreshold) return;
+
+		let tmpPrior = pItem.PriorStatusBeforeStall || 'Running';
+		pItem.Status = tmpPrior;
+		delete pItem.PriorStatusBeforeStall;
+		delete pItem.StalledAt;
+		delete pItem.StalledSinceMs;
+
+		let tmpRecoverBridge = this._getBridge();
+		if (tmpRecoverBridge && !this._isMetaCapability(pItem.Capability))
+		{
+			this._persistBest(tmpRecoverBridge.updateWorkItem(pItem.WorkItemHash, {
+				Status: tmpPrior
+			}), 'unstall update');
+			this._persistBest(tmpRecoverBridge.appendEvent({
+				WorkItemHash: pItem.WorkItemHash,
+				RunID: pItem.RunID,
+				EventType: 'unstalled',
+				FromStatus: 'Stalled',
+				ToStatus: tmpPrior,
+				BeaconID: pItem.AssignedBeaconID
+			}), 'unstalled event');
+		}
+
+		this.log.info(`BeaconScheduler: work item [${pItem.WorkItemHash}] recovered from Stalled, back to ${tmpPrior}.`);
+
+		this._broadcast('queue.unstalled', {
+			WorkItemHash: pItem.WorkItemHash,
+			RunID: pItem.RunID,
+			BeaconID: pItem.AssignedBeaconID,
+			Status: tmpPrior,
+			RecoveredAt: new Date().toISOString()
+		});
 	}
 
 	/**
@@ -611,6 +788,10 @@ class UltravisorBeaconScheduler extends libPictService
 		if (tmpStatus === 'Completed' || tmpStatus === 'Complete') return 'Completed';
 		if (tmpStatus === 'Failed' || tmpStatus === 'Error'
 			|| tmpStatus === 'Timeout' || tmpStatus === 'Canceled') return 'Errored';
+		// 'Stalled' is its own explicit status now (Phase 2).  Items
+		// flipped to Stalled by _maybeMarkStalled bucket here without
+		// needing to also be Unhealthy.
+		if (tmpStatus === 'Stalled') return 'Stalled';
 		if (tmpStatus === 'Dispatched' || tmpStatus === 'Running')
 		{
 			return (pItem.HealthLabel === 'Unhealthy') ? 'Stalled' : 'InProgress';

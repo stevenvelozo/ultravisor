@@ -17,9 +17,11 @@ const libServiceExecutionEngine = require('../services/Ultravisor-ExecutionEngin
 const libServiceExecutionManifest = require('../services/Ultravisor-ExecutionManifest.cjs');
 const libServiceBeaconCoordinator = require('../services/Ultravisor-Beacon-Coordinator.cjs');
 const libServiceBeaconReachability = require('../services/Ultravisor-Beacon-Reachability.cjs');
+const libServiceBeaconRunManager = require('../services/Ultravisor-Beacon-RunManager.cjs');
 const libServiceBeaconQueueJournal = require('../services/persistence/Ultravisor-Beacon-QueueJournal.cjs');
 const libServiceBeaconQueueStore = require('../services/persistence/Ultravisor-Beacon-QueueStore.cjs');
 const libServiceBeaconScheduler = require('../services/Ultravisor-Beacon-Scheduler.cjs');
+const libServiceObserver = require('../services/Ultravisor-Observer.cjs');
 const libServiceBeaconFleetStore = require('../services/persistence/Ultravisor-Beacon-FleetStore.cjs');
 const libServiceAuthBeaconBridge = require('../services/Ultravisor-AuthBeaconBridge.cjs');
 const libServiceQueuePersistenceBridge = require('../services/Ultravisor-QueuePersistenceBridge.cjs');
@@ -158,6 +160,24 @@ if (_ConfigFileOverride)
 	_Ultravisor_Pict.ProgramConfiguration = Object.assign(_Ultravisor_Pict.ProgramConfiguration || {}, _ConfigFileOverride);
 }
 
+// Bridge ProgramConfiguration → fable.settings.  Quackage's
+// AutoGatherProgramConfiguration populates ProgramConfiguration but
+// leaves fable.settings unchanged, while service code throughout this
+// app reads settings via `this.fable.settings.UltravisorFileStorePath`
+// (and similar keys).  Without this copy, services that depend on
+// those keys -- notably UltravisorBeaconQueueStore (SQLite history),
+// UltravisorBeaconQueueJournal, UltravisorBeaconFleetStore, and the
+// QueuePersistence/ManifestStore bridges' fallback paths -- silently
+// initialize with `undefined` for paths and disable themselves with
+// "no store path provided" warnings.  Net effect was a UV that
+// looked healthy but had no durable queue/manifest history.
+if (_Ultravisor_Pict.ProgramConfiguration
+	&& _Ultravisor_Pict.fable
+	&& _Ultravisor_Pict.fable.settings)
+{
+	Object.assign(_Ultravisor_Pict.fable.settings, _Ultravisor_Pict.ProgramConfiguration);
+}
+
 // Instantiate the file persistence service
 _Ultravisor_Pict.instantiateServiceProvider('FilePersistence');
 // Instantiate the data generation service
@@ -206,6 +226,16 @@ _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeacon
 
 // --- Beacon reachability ---
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconReachability', libServiceBeaconReachability);
+
+// --- Beacon run manager (hub-assigned RunIDs for /Beacon/Run/Start) ---
+// Owns the hub-side run lifecycle: mints RunIDs, tracks state
+// Active→Ended/Canceled, supports IdempotencyKey-based dedup so a
+// re-submitted Start with the same key returns the existing RunID
+// instead of stacking duplicates.  Without this service registered
+// the API server's /Beacon/Run/Start and /Beacon/Run/:RunID/End
+// endpoints 500 with "BeaconRunManager service not available."
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
+	'UltravisorBeaconRunManager', libServiceBeaconRunManager);
 
 // --- Beacon queue journal (persistence) ---
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconQueueJournal', libServiceBeaconQueueJournal);
@@ -259,6 +289,16 @@ _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
 	'UltravisorBeaconScheduler', libServiceBeaconScheduler);
 
+// --- Observer (Phase 3) — fuses raw lifecycle signals from the
+// Coordinator, Scheduler, Manifest, and the API server's WebSocket
+// layer into a coherent system view. Sits in the broadcast chain
+// between the Scheduler and the API server's _broadcastQueueTopic
+// so every queue.* topic flows through ObserverPolicy classification
+// before it fans out. Phase 3 is additive — Phase 2's stall
+// detection in the Scheduler / Coordinator / Manifest still runs.
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
+	'UltravisorObserver', libServiceObserver);
+
 // --- Auth beacon bridge (consults the optional Authentication-capable
 // beacon for session validation + non-promiscuous mode admission). The
 // bridge is always installed; it just resolves to "not available" when
@@ -295,6 +335,15 @@ let tmpScheduler = Object.values(_Ultravisor_Pict.fable.servicesMap['UltravisorB
 if (tmpScheduler && typeof tmpScheduler.start === 'function')
 {
 	tmpScheduler.start();
+}
+
+// Start the Observer's periodic re-classification tick after the
+// API server has wired its setUpstreamBroadcast — same reasoning as
+// the scheduler kick above.
+let tmpObserver = Object.values(_Ultravisor_Pict.fable.servicesMap['UltravisorObserver'])[0];
+if (tmpObserver && typeof tmpObserver.start === 'function')
+{
+	tmpObserver.start();
 }
 
 // ── Service name aliases ────────────────────────────────

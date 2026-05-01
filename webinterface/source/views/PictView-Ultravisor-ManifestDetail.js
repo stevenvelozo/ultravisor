@@ -285,7 +285,7 @@ class UltravisorManifestDetailView extends libPictView
 				tmpHTML += '<dl class="ultravisor-manifestdetail-meta">';
 				tmpHTML += '<dt>Operation</dt><dd>' + libTimingUtils.escapeHTML(tmpOperationName) + '</dd>';
 				tmpHTML += '<dt>Run Hash</dt><dd><code style="font-size:0.85em;">' + libTimingUtils.escapeHTML(pManifest.Hash || '') + '</code></dd>';
-				tmpHTML += '<dt>Status</dt><dd><span class="ultravisor-manifest-status ' + (pManifest.Status || '').toLowerCase() + '">' + libTimingUtils.escapeHTML(pManifest.Status || '') + '</span></dd>';
+				tmpHTML += '<dt>Status</dt><dd><span class="ultravisor-manifest-status ' + this._normalizeStatusKey(pManifest.Status) + '">' + libTimingUtils.escapeHTML(pManifest.Status || '') + '</span></dd>';
 				tmpHTML += '<dt>Elapsed</dt><dd>' + tmpElapsed + '</dd>';
 				tmpHTML += '<dt>Started</dt><dd>' + libTimingUtils.escapeHTML(tmpStarted) + '</dd>';
 				tmpHTML += '<dt>Completed</dt><dd>' + libTimingUtils.escapeHTML(tmpCompleted) + '</dd>';
@@ -295,12 +295,14 @@ class UltravisorManifestDetailView extends libPictView
 				}
 				tmpHTML += '</dl>';
 
-				// ── Action bar for live runs ──
+				// ── Action bar ──
+				let tmpStatusKey = this._normalizeStatusKey(pManifest.Status);
 				let tmpIsLive = pManifest.Live || false;
-				let tmpIsWaiting = (pManifest.Status || '').toLowerCase() === 'waitingforinput';
-				let tmpIsRunning = (pManifest.Status || '').toLowerCase() === 'running';
+				let tmpIsWaiting = (tmpStatusKey === 'waiting');
+				let tmpIsRunning = (tmpStatusKey === 'running');
+				let tmpIsRetryable = (tmpStatusKey === 'stalled' || tmpStatusKey === 'failed');
 
-				if (tmpIsLive && (tmpIsRunning || tmpIsWaiting))
+				if ((tmpIsLive && (tmpIsRunning || tmpIsWaiting)) || tmpIsRetryable)
 				{
 					let tmpEscHash = (pManifest.Hash || '').replace(/'/g, "\\'");
 					let tmpEscOpHash = (pManifest.OperationHash || '').replace(/'/g, "\\'");
@@ -309,11 +311,18 @@ class UltravisorManifestDetailView extends libPictView
 
 					tmpHTML += '<div class="ultravisor-manifestdetail-actions">';
 					tmpHTML += '<span class="ultravisor-manifestdetail-actions-label">Actions:</span>';
-					tmpHTML += '<button class="ultravisor-btn ultravisor-btn-execute" onclick="' + tmpGlobalRef + '.PictApplication.watchExecution(\'' + tmpEscHash + '\', \'' + tmpEscOpHash + '\')">Watch in Flow Editor</button>';
+					if (tmpIsLive && (tmpIsRunning || tmpIsWaiting))
+					{
+						tmpHTML += '<button class="ultravisor-btn ultravisor-btn-execute" onclick="' + tmpGlobalRef + '.PictApplication.watchExecution(\'' + tmpEscHash + '\', \'' + tmpEscOpHash + '\')">Watch in Flow Editor</button>';
+					}
+					if (tmpIsRetryable)
+					{
+						tmpHTML += '<button class="ultravisor-btn ultravisor-btn-execute" onclick="' + tmpViewRef + '.retryRun(\'' + tmpEscHash + '\')">Retry</button>';
+					}
 					tmpHTML += '</div>';
 				}
 
-				// ── Waiting Tasks (for live WaitingForInput runs) ──
+				// ── Waiting Tasks (for live Waiting runs) ──
 				if (tmpIsLive && tmpIsWaiting && pManifest.WaitingTasks)
 				{
 					let tmpWaitingNodeHashes = Object.keys(pManifest.WaitingTasks);
@@ -370,7 +379,7 @@ class UltravisorManifestDetailView extends libPictView
 						tmpHTML += '<div class="ultravisor-manifestdetail-task">';
 						tmpHTML += '<div class="ultravisor-manifestdetail-task-header">';
 						tmpHTML += '<code>' + libTimingUtils.escapeHTML(tmpNodeHash) + '</code>';
-						tmpHTML += '<span class="ultravisor-manifest-status ' + (tmpTaskManifest.Status || '').toLowerCase() + '">' + libTimingUtils.escapeHTML(tmpTaskManifest.Status || '') + '</span>';
+						tmpHTML += '<span class="ultravisor-manifest-status ' + this._normalizeStatusKey(tmpTaskManifest.Status) + '">' + libTimingUtils.escapeHTML(tmpTaskManifest.Status || '') + '</span>';
 						tmpHTML += '</div>';
 						if (tmpTaskManifest.Output)
 						{
@@ -429,6 +438,98 @@ class UltravisorManifestDetailView extends libPictView
 	_isBeaconTask(pTask)
 	{
 		return (pTask.ResumeEventName && pTask.ResumeEventName !== 'ValueInputComplete');
+	}
+
+	// Map any Status string (legacy Pending/Running/WaitingForInput or
+	// canonical Queued/In Progress/Waiting/Stalled/Failed) to a stable
+	// CSS-class-friendly key.  Same logic as ManifestList's helper —
+	// keep them in sync if you change one.
+	_normalizeStatusKey(pStatus)
+	{
+		let tmpRaw = (pStatus || '').toLowerCase().replace(/\s+/g, '');
+		switch (tmpRaw)
+		{
+			case 'pending':
+			case 'queued':
+				return 'queued';
+			case 'running':
+			case 'inprogress':
+				return 'running';
+			case 'waitingforinput':
+			case 'waiting':
+				return 'waiting';
+			case 'complete':
+			case 'completed':
+				return 'complete';
+			case 'error':         return 'error';
+			case 'failed':        return 'failed';
+			case 'stalled':       return 'stalled';
+			case 'abandoned':     return 'abandoned';
+			case 'retrying':      return 'running';
+			default:              return tmpRaw;
+		}
+	}
+
+	// ── Retry action ──
+	// Re-dispatches the failed/stalled node.  Briefly polls the
+	// manifest for ~12s after the API call so the user sees the
+	// state progress (Stalled → Waiting → Complete) without having
+	// to manually refresh.
+	retryRun(pRunHash)
+	{
+		this.pict.views.Modal.confirm('Retry this run from its failed/stalled node? Upstream node outputs are preserved; only the stuck node and its downstream branch re-run.', { confirmLabel: 'Retry' }).then(
+			function (pConfirmed)
+			{
+				if (!pConfirmed) return;
+				this.pict.PictApplication.retryRun(pRunHash,
+					function (pError, pData)
+					{
+						if (pError)
+						{
+							this.pict.views.Modal.toast('Failed to retry run: ' + (pError.message || 'Unknown error'), { type: 'error' });
+							return;
+						}
+						this.pict.views.Modal.toast('Run re-dispatched.', { type: 'success' });
+						this._pollAfterRetry(pRunHash);
+					}.bind(this));
+			}.bind(this));
+	}
+
+	// Reload the manifest every second for ~12 seconds after a retry,
+	// stopping early on a terminal status that's *different* from the
+	// pre-retry status (the engine takes a tick or two to transition
+	// out of the original Stalled/Failed; we don't want to give up
+	// before that transition lands).
+	_pollAfterRetry(pRunHash)
+	{
+		let tmpTicks = 0;
+		let tmpMaxTicks = 12;
+		let tmpInitialStatusKey = null;
+		let tmpInterval = setInterval(function ()
+		{
+			tmpTicks++;
+			this.pict.PictApplication.loadManifest(pRunHash,
+				function (pError, pManifest)
+				{
+					if (!pError && pManifest)
+					{
+						this._loadAndRenderDetail(pRunHash);
+						let tmpKey = this._normalizeStatusKey(pManifest.Status);
+						if (tmpInitialStatusKey === null) { tmpInitialStatusKey = tmpKey; }
+						let tmpIsTerminal = (tmpKey === 'complete' || tmpKey === 'failed'
+							|| tmpKey === 'stalled' || tmpKey === 'error'
+							|| tmpKey === 'abandoned');
+						if (tmpIsTerminal && tmpKey !== tmpInitialStatusKey)
+						{
+							clearInterval(tmpInterval);
+						}
+					}
+					if (tmpTicks >= tmpMaxTicks)
+					{
+						clearInterval(tmpInterval);
+					}
+				}.bind(this));
+		}.bind(this), 1000);
 	}
 
 	_formatElapsed(pTimestamp)

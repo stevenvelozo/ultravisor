@@ -111,11 +111,13 @@ class UltravisorBeaconReachability extends libPictService
 	}
 
 	/**
-	 * Return the reachability entry for a directed pair.
+	 * Return the reachability entry for a directed pair.  Falls back to
+	 * 'no-listener' if the target advertises no BindAddresses (structural,
+	 * not a probe failure), otherwise returns 'untested'.
 	 *
 	 * @param {string} pSourceID
 	 * @param {string} pTargetID
-	 * @returns {object} Matrix entry or a synthetic 'untested' stub
+	 * @returns {object} Matrix entry or a synthetic stub
 	 */
 	getReachability(pSourceID, pTargetID)
 	{
@@ -125,14 +127,68 @@ class UltravisorBeaconReachability extends libPictService
 			return this._Matrix[tmpKey];
 		}
 
+		// Synthesize a no-listener stub when we can determine the target
+		// has no probeable address — saves the UI from displaying a
+		// misleading 'untested' for inherently un-probeable beacons.
+		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+		let tmpTarget = tmpCoordinator ? tmpCoordinator.getBeacon(pTargetID) : null;
+		let tmpStatus = 'untested';
+		if (tmpTarget && !this._buildProbeURL(tmpTarget))
+		{
+			tmpStatus = 'no-listener';
+		}
+
 		return {
 			SourceBeaconID: pSourceID,
 			TargetBeaconID: pTargetID,
-			Status: 'untested',
+			Status: tmpStatus,
 			ProbeLatencyMs: null,
 			LastProbeAt: null,
 			ProbeURL: ''
 		};
+	}
+
+	/**
+	 * Per-beacon connectivity summary used by the API + UI.  Returns
+	 * one row per registered beacon.  HasListener is structural (does
+	 * the beacon advertise an HTTP bind address); WSConnected reflects
+	 * whether the API server currently holds an open WebSocket for it.
+	 *
+	 * @param {object} [pAPIServer] - Optional API server instance whose
+	 *   _BeaconWebSockets map is consulted for WSConnected. When omitted
+	 *   we fall back to Status==='Online' as a proxy.
+	 * @returns {Array}
+	 */
+	getBeaconConnectivity(pAPIServer)
+	{
+		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+		if (!tmpCoordinator) return [];
+		let tmpBeacons = tmpCoordinator.listBeacons();
+		let tmpWSMap = (pAPIServer && pAPIServer._BeaconWebSockets) || {};
+		let tmpOut = [];
+		for (let i = 0; i < tmpBeacons.length; i++)
+		{
+			let tmpB = tmpBeacons[i];
+			let tmpHasListener = !!this._buildProbeURL(tmpB);
+			let tmpWSConnected = tmpWSMap.hasOwnProperty(tmpB.BeaconID)
+				&& tmpWSMap[tmpB.BeaconID]
+				&& tmpWSMap[tmpB.BeaconID].readyState === 1;
+			// Fall back to Status when no API server reference (CLI / tests).
+			if (!pAPIServer)
+			{
+				tmpWSConnected = (tmpB.Status === 'Online');
+			}
+			tmpOut.push({
+				BeaconID: tmpB.BeaconID,
+				Name: tmpB.Name,
+				Status: tmpB.Status,
+				HasListener: tmpHasListener,
+				WSConnected: !!tmpWSConnected,
+				BindAddresses: tmpB.BindAddresses || [],
+				HostID: tmpB.HostID || ''
+			});
+		}
+		return tmpOut;
 	}
 
 	// ================================================================
@@ -168,12 +224,16 @@ class UltravisorBeaconReachability extends libPictService
 		let tmpProbeURL = this._buildProbeURL(tmpTargetBeacon);
 		if (!tmpProbeURL)
 		{
-			// No bind address — record as unreachable (no address to probe)
+			// Target advertises no HTTP listener (no BindAddresses).  This
+			// is structural, not a network failure — direct probing isn't
+			// possible by definition.  Record as 'no-listener' so the UI
+			// can render it as a circle treatment instead of a misleading
+			// "unreachable" red dashed line.
 			let tmpKey = this._key(pSourceBeaconID, pTargetBeaconID);
 			this._Matrix[tmpKey] = {
 				SourceBeaconID: pSourceBeaconID,
 				TargetBeaconID: pTargetBeaconID,
-				Status: 'unreachable',
+				Status: 'no-listener',
 				ProbeLatencyMs: null,
 				LastProbeAt: new Date().toISOString(),
 				ProbeURL: ''
@@ -425,7 +485,26 @@ class UltravisorBeaconReachability extends libPictService
 			return { Strategy: 'direct', DirectURL: tmpDirectURL || '' };
 		}
 
-		// unreachable or untested — fall back to proxy
+		// 'indirect': neither beacon exposes a direct HTTP listener for
+		// the other to probe, but both are connected to UV — UV's
+		// coordinator can broker the transfer (proxy) and the caller
+		// should treat the path as available, just non-direct.  Used by
+		// the resolve-address card to choose between proxy (indirect)
+		// and a hard "no path" failure.  Distinct from 'proxy' because
+		// it positively asserts both beacons are reachable via UV; the
+		// 'proxy' fallback below is the unknown/untested case.
+		if (tmpEntry.Status === 'no-listener' || tmpEntry.Status === 'unreachable')
+		{
+			let tmpRequester = tmpCoordinator.getBeacon(pRequestingBeaconID);
+			let tmpBothOnline = tmpSourceBeacon.Status === 'Online'
+				&& tmpRequester && tmpRequester.Status === 'Online';
+			if (tmpBothOnline)
+			{
+				return { Strategy: 'indirect', DirectURL: '' };
+			}
+		}
+
+		// untested or one side offline — fall back to proxy
 		return { Strategy: 'proxy', DirectURL: '' };
 	}
 

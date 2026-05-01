@@ -137,6 +137,8 @@ class UltravisorApplication extends libPictApplication
 			BeaconCapabilities: {},
 			AffinityBindings: [],
 			ReachabilityMatrix: [],
+			ReachabilityBeacons: [],
+			ReachabilityHub: null,
 			CurrentEditOperation: null,
 			Flows: {},
 			OperationDescriptionSegments: [{ Content: '' }],
@@ -666,6 +668,22 @@ class UltravisorApplication extends libPictApplication
 			}.bind(this));
 	}
 
+	// --- Retry ---
+	// Retries a Stalled or Failed run from its last failed/stalled node.
+	// All upstream node outputs are preserved; only the failed node and
+	// its downstream branch re-run.
+	retryRun(pRunHash, fCallback)
+	{
+		this.apiCall('POST', `/Operation/${encodeURIComponent(pRunHash)}/Retry`, {},
+			function (pError, pData)
+			{
+				if (typeof fCallback === 'function')
+				{
+					fCallback(pError, pData);
+				}
+			}.bind(this));
+	}
+
 	// --- Beacons ---
 	loadBeacons(fCallback)
 	{
@@ -755,15 +773,35 @@ class UltravisorApplication extends libPictApplication
 			}.bind(this));
 	}
 
+	// Accepts both shapes: legacy bare-array (Matrix only) and the
+	// envelope { Matrix, Beacons, Hub } added in UV 1.0.34.
+	_storeReachabilityResponse(pData)
+	{
+		if (Array.isArray(pData))
+		{
+			this.pict.AppData.Ultravisor.ReachabilityMatrix = pData;
+			this.pict.AppData.Ultravisor.ReachabilityBeacons = [];
+			this.pict.AppData.Ultravisor.ReachabilityHub = null;
+			return;
+		}
+		if (pData && typeof pData === 'object')
+		{
+			this.pict.AppData.Ultravisor.ReachabilityMatrix = Array.isArray(pData.Matrix) ? pData.Matrix : [];
+			this.pict.AppData.Ultravisor.ReachabilityBeacons = Array.isArray(pData.Beacons) ? pData.Beacons : [];
+			this.pict.AppData.Ultravisor.ReachabilityHub = pData.Hub || null;
+			return;
+		}
+		this.pict.AppData.Ultravisor.ReachabilityMatrix = [];
+		this.pict.AppData.Ultravisor.ReachabilityBeacons = [];
+		this.pict.AppData.Ultravisor.ReachabilityHub = null;
+	}
+
 	loadReachabilityMatrix(fCallback)
 	{
 		this.apiCall('GET', '/Beacon/Reachability', null,
 			function (pError, pData)
 			{
-				if (!pError && pData)
-				{
-					this.pict.AppData.Ultravisor.ReachabilityMatrix = Array.isArray(pData) ? pData : [];
-				}
+				if (!pError) { this._storeReachabilityResponse(pData); }
 				if (typeof fCallback === 'function')
 				{
 					fCallback(pError, pData);
@@ -776,10 +814,7 @@ class UltravisorApplication extends libPictApplication
 		this.apiCall('POST', '/Beacon/Reachability/Probe', null,
 			function (pError, pData)
 			{
-				if (!pError && pData)
-				{
-					this.pict.AppData.Ultravisor.ReachabilityMatrix = Array.isArray(pData) ? pData : [];
-				}
+				if (!pError) { this._storeReachabilityResponse(pData); }
 				if (typeof fCallback === 'function')
 				{
 					fCallback(pError, pData);

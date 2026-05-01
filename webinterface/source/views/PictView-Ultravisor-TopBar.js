@@ -77,6 +77,32 @@ const _ViewConfiguration =
 			background-color: var(--uv-error);
 		}
 
+		/* Auth-mode badge — surfaces whether this UV currently has an
+		   auth-beacon advertising Authentication.  When false, session-
+		   gated routes synthesize an anonymous session, so we mark the
+		   UV PROMISCUOUS in the top bar so it's always visible. */
+		.ultravisor-authmode-badge {
+			display: inline-flex;
+			align-items: center;
+			padding: 2px 8px;
+			border-radius: 10px;
+			font-size: 0.7em;
+			font-weight: 700;
+			letter-spacing: 0.5px;
+			text-transform: uppercase;
+			margin-left: 0.5em;
+		}
+		.ultravisor-authmode-badge.promiscuous {
+			background-color: rgba(245, 158, 11, 0.18);
+			color: #f59e0b;
+			border: 1px solid rgba(245, 158, 11, 0.35);
+		}
+		.ultravisor-authmode-badge.authenticated {
+			background-color: rgba(34, 197, 94, 0.16);
+			color: var(--uv-success);
+			border: 1px solid rgba(34, 197, 94, 0.32);
+		}
+
 		/* Settings gear */
 		.ultravisor-settings-wrap {
 			position: relative;
@@ -249,7 +275,7 @@ const _ViewConfiguration =
 		},
 		{
 			Hash: "Ultravisor-TopBar-Status-Template",
-			Template: /*html*/`<span class="ultravisor-status-dot {~D:AppData.Ultravisor.ServerStatus.StatusClass~}"></span><span>{~D:AppData.Ultravisor.ServerStatus.StatusText~}</span>`
+			Template: /*html*/`<span class="ultravisor-status-dot {~D:AppData.Ultravisor.ServerStatus.StatusClass~}"></span><span>{~D:AppData.Ultravisor.ServerStatus.StatusText~}</span><span class="ultravisor-authmode-badge {~D:AppData.Ultravisor.ServerStatus.AuthMode~}" title="{~D:AppData.Ultravisor.ServerStatus.AuthTooltip~}">{~D:AppData.Ultravisor.ServerStatus.AuthMode~}</span>`
 		}
 	],
 
@@ -286,6 +312,15 @@ class UltravisorTopBarView extends libPictView
 					tmpStatus.StatusClass = 'connected';
 					tmpStatus.StatusText = tmpStatus.Status || 'Connected';
 				}
+				// AuthMode badge: 'promiscuous' when no auth-beacon is
+				// connected (session-gated routes accept anonymous), or
+				// 'authenticated' when one is.  Falls back to
+				// 'promiscuous' on error so an unreachable UV doesn't
+				// silently look secure.
+				tmpStatus.AuthMode = (tmpStatus.AuthEnabled === true) ? 'authenticated' : 'promiscuous';
+				tmpStatus.AuthTooltip = (tmpStatus.AuthEnabled === true)
+					? 'An auth-beacon is connected; session-gated routes require a valid login.'
+					: 'No auth-beacon connected; session-gated routes accept anonymous sessions.';
 				let tmpContent = this.pict.parseTemplateByHash('Ultravisor-TopBar-Status-Template', {}, null, this.pict);
 				this.pict.ContentAssignment.assignContent('#Ultravisor-TopBar-StatusArea', tmpContent);
 			}.bind(this));

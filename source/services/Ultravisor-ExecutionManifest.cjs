@@ -1,6 +1,7 @@
 const libPictService = require('pict-serviceproviderbase');
 const libFS = require('fs');
 const libPath = require('path');
+const libStatus = require('./Ultravisor-Status.cjs');
 
 /**
  * Manages operation execution manifests, staging folders, and run artifacts.
@@ -294,7 +295,7 @@ class UltravisorExecutionManifest extends libPictService
 			Hash: tmpRunHash,
 			OperationHash: pOperationDefinition.Hash,
 			OperationName: pOperationDefinition.Name || pOperationDefinition.Hash,
-			Status: 'Pending',
+			Status: libStatus.STATUS.QUEUED,
 			RunMode: tmpRunMode,
 			StagingPath: tmpStagingPath,
 			Live: true,
@@ -385,7 +386,7 @@ class UltravisorExecutionManifest extends libPictService
 			StopTime: null,
 			StopTimeMs: null,
 			ElapsedMs: null,
-			Status: 'Running',
+			Status: libStatus.STATUS.IN_PROGRESS,
 			Log: []
 		});
 
@@ -394,7 +395,7 @@ class UltravisorExecutionManifest extends libPictService
 			NodeHash: pNodeHash,
 			DefinitionHash: tmpMeta.DefinitionHash || '',
 			TaskTypeName: tmpMeta.TaskTypeName || '',
-			Status: 'Running'
+			Status: libStatus.STATUS.IN_PROGRESS
 		});
 	}
 
@@ -505,13 +506,57 @@ class UltravisorExecutionManifest extends libPictService
 		pExecutionContext.ElapsedMs = new Date(pExecutionContext.StopTime).getTime()
 			- new Date(pExecutionContext.StartTime).getTime();
 
-		if (pExecutionContext.Errors.length > 0)
+		// Operation-level terminal status (canonical 7-state enum; see
+		// services/Ultravisor-Status.cjs):
+		//   'Stalled'  — at least one node's beacon work item was flagged
+		//                Stalled by the scheduler (heartbeat timeout). The
+		//                _Stalled marker is set on TaskOutputs by the
+		//                queue.stalled handler in the resume path.
+		//   'Failed'   — at least one node ended in an unhandled error
+		//                state.  Distinct from per-node TaskExecution.Status
+		//                which still uses 'Error' for the node's own state.
+		//   'Complete' — every node ended cleanly (or any errors were
+		//                consumed by an Error-port downstream branch that
+		//                completed).
+		//   'Waiting'  — left as-is; the engine will resume later.
+		// We also defensively scan TaskOutputs for the _BeaconError flag
+		// in case some path bypassed recordTaskError (so beacon failures
+		// always surface as Failed even if the bookkeeping missed them).
+		let tmpHasStalled = false;
+		let tmpHasUnhandledError = pExecutionContext.Errors.length > 0;
+		if (pExecutionContext.TaskOutputs)
 		{
-			pExecutionContext.Status = 'Error';
+			let tmpKeys = Object.keys(pExecutionContext.TaskOutputs);
+			for (let i = 0; i < tmpKeys.length; i++)
+			{
+				let tmpOut = pExecutionContext.TaskOutputs[tmpKeys[i]];
+				if (!tmpOut) continue;
+				if (tmpOut._Stalled) { tmpHasStalled = true; }
+				if (!tmpHasUnhandledError && tmpOut._BeaconError)
+				{
+					tmpHasUnhandledError = true;
+				}
+			}
 		}
-		else if (pExecutionContext.Status !== 'WaitingForInput')
+		if (tmpHasStalled)
 		{
-			pExecutionContext.Status = 'Complete';
+			pExecutionContext.Status = libStatus.STATUS.STALLED;
+		}
+		else if (tmpHasUnhandledError)
+		{
+			pExecutionContext.Status = libStatus.STATUS.FAILED;
+		}
+		else if (!libStatus.isWaiting(pExecutionContext.Status))
+		{
+			pExecutionContext.Status = libStatus.STATUS.COMPLETE;
+		}
+
+		// Mark non-Waiting terminal runs as not-Live so the UI's
+		// active-vs-terminal branching matches.  Waiting runs stay Live
+		// because the engine can resume them when input arrives.
+		if (!libStatus.isWaiting(pExecutionContext.Status))
+		{
+			pExecutionContext.Live = false;
 		}
 
 		// Compute timing summary from task manifests
@@ -732,7 +777,7 @@ class UltravisorExecutionManifest extends libPictService
 				return fCallback(new Error('Run not found: ' + pRunHash));
 			}
 
-			if (tmpRun.Status === 'Complete' || tmpRun.Status === 'Error')
+			if (libStatus.isTerminal(tmpRun.Status))
 			{
 				clearInterval(tmpInterval);
 				return fCallback(null, tmpRun);
@@ -781,7 +826,7 @@ class UltravisorExecutionManifest extends libPictService
 
 			// Include WaitingTasks for runs that are waiting, so the UI
 			// can render inline awaiting actions without a second API call
-			if (tmpRun.Status === 'WaitingForInput' && tmpRun.WaitingTasks)
+			if (libStatus.isWaiting(tmpRun.Status) && tmpRun.WaitingTasks)
 			{
 				tmpSummary.WaitingTasks = tmpRun.WaitingTasks;
 			}
@@ -807,13 +852,14 @@ class UltravisorExecutionManifest extends libPictService
 			return null;
 		}
 
-		// Only abandon non-terminal runs
-		if (tmpContext.Status === 'Complete' || tmpContext.Status === 'Abandoned')
+		// Only abandon non-terminal runs.  isTerminal covers Complete,
+		// Failed, Stalled, Abandoned, and Error (per-operation legacy).
+		if (libStatus.isTerminal(tmpContext.Status))
 		{
 			return tmpContext;
 		}
 
-		tmpContext.Status = 'Abandoned';
+		tmpContext.Status = libStatus.STATUS.ABANDONED;
 		tmpContext.WaitingTasks = {};
 		tmpContext.PendingEvents = [];
 		tmpContext.Live = false;
@@ -840,7 +886,7 @@ class UltravisorExecutionManifest extends libPictService
 
 	/**
 	 * Abandon all stale runs in impossible states.
-	 * Targets: WaitingForInput with no live graph, Running with no live context.
+	 * Targets: Waiting with no live graph, In Progress with no live context.
 	 *
 	 * @returns {number} Count of runs abandoned.
 	 */
@@ -853,16 +899,16 @@ class UltravisorExecutionManifest extends libPictService
 		{
 			let tmpRun = this._Runs[tmpKeys[i]];
 
-			// Abandon non-live WaitingForInput runs (orphaned from previous sessions)
-			if (tmpRun.Status === 'WaitingForInput' && !tmpRun.Live)
+			// Abandon non-live Waiting runs (orphaned from previous sessions)
+			if (libStatus.isWaiting(tmpRun.Status) && !tmpRun.Live)
 			{
 				this.abandonRun(tmpRun.Hash);
 				tmpCount++;
 				continue;
 			}
 
-			// Abandon non-live Running runs (crashed mid-execution)
-			if (tmpRun.Status === 'Running' && !tmpRun.Live)
+			// Abandon non-live In Progress runs (crashed mid-execution)
+			if (libStatus.isInProgress(tmpRun.Status) && !tmpRun.Live)
 			{
 				this.abandonRun(tmpRun.Hash);
 				tmpCount++;
@@ -958,7 +1004,7 @@ class UltravisorExecutionManifest extends libPictService
 			OperationState: pExecutionContext.OperationState,
 			TaskOutputs: pExecutionContext.TaskOutputs
 		};
-		if (pExecutionContext.Status === 'WaitingForInput'
+		if (libStatus.isWaiting(pExecutionContext.Status)
 			&& pExecutionContext.WaitingTasks
 			&& Object.keys(pExecutionContext.WaitingTasks).length > 0)
 		{
@@ -998,8 +1044,8 @@ class UltravisorExecutionManifest extends libPictService
 			tmpManifest.OperationState = pExecutionContext.OperationState;
 			tmpManifest.TaskOutputs = pExecutionContext.TaskOutputs;
 
-			// Persist WaitingTasks so WaitingForInput runs can resume after restart
-			if (pExecutionContext.Status === 'WaitingForInput'
+			// Persist WaitingTasks so Waiting runs can resume after restart
+			if (libStatus.isWaiting(pExecutionContext.Status)
 				&& pExecutionContext.WaitingTasks
 				&& Object.keys(pExecutionContext.WaitingTasks).length > 0)
 			{

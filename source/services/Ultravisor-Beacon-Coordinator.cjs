@@ -2056,9 +2056,21 @@ class UltravisorBeaconCoordinator extends libPictService
 		if (tmpManifest)
 		{
 			let tmpContext = tmpManifest.getRun(tmpWorkItem.RunHash);
-			if (tmpContext && tmpContext.WaitingTasks[tmpWorkItem.NodeHash])
+			if (tmpContext)
 			{
-				tmpContext.WaitingTasks[tmpWorkItem.NodeHash].ResumeEventName = 'error';
+				if (tmpContext.WaitingTasks[tmpWorkItem.NodeHash])
+				{
+					tmpContext.WaitingTasks[tmpWorkItem.NodeHash].ResumeEventName = 'error';
+				}
+				// Push the failure into the canonical Errors[] log so
+				// finalizeExecution's roll-up sees it and the operation
+				// terminates as 'Failed' instead of silently 'Complete'.
+				// Without this, beacon-dispatch failures only set the
+				// _BeaconError flag in TaskOutputs and the operation's
+				// terminal status stays 'Complete' even though work
+				// genuinely failed.
+				tmpManifest.recordTaskError(tmpContext, tmpWorkItem.NodeHash,
+					new Error(pError.ErrorMessage || 'Beacon work item failed.'));
 			}
 		}
 
@@ -2078,6 +2090,98 @@ class UltravisorBeaconCoordinator extends libPictService
 
 				return fCallback(null);
 			});
+	}
+
+	/**
+	 * Force-finalize a work item flagged as Stalled by the scheduler
+	 * health pass.  Distinct from failWorkItem: stalls do not retry
+	 * (the beacon is presumed dead, not transiently failing) and the
+	 * operation rolls up to Status='Stalled' rather than 'Failed'
+	 * (see ExecutionManifest.finalizeExecution + Ultravisor-Status.cjs).
+	 *
+	 * Sets the _Stalled marker on the run context's TaskOutputs so
+	 * finalizeExecution rolls up to Stalled.  Then drives the engine
+	 * resume so the operation actually finalizes (the engine doesn't
+	 * spontaneously notice a stalled WaitingTask).
+	 *
+	 * @param {string} pWorkItemHash
+	 * @param {function} [fCallback] - function(pError)
+	 */
+	stallWorkItem(pWorkItemHash, fCallback)
+	{
+		fCallback = fCallback || function () {};
+		this.log.warn(`[Coordinator] stallWorkItem: ${pWorkItemHash}`);
+		let tmpWorkItem = this._WorkQueue[pWorkItemHash];
+
+		if (!tmpWorkItem)
+		{
+			return fCallback(new Error(`BeaconCoordinator: work item [${pWorkItemHash}] not found.`));
+		}
+
+		// Idempotency: if the rollup is already in flight or finished,
+		// don't re-enter.  StallFinalized is set the first time we
+		// drive the engine resume.
+		if (tmpWorkItem._StallFinalized)
+		{
+			return fCallback(null);
+		}
+		tmpWorkItem._StallFinalized = true;
+
+		let tmpJournal = this._getJournal();
+		if (tmpJournal)
+		{
+			tmpJournal.appendEntry('stalled', { WorkItemHash: pWorkItemHash });
+		}
+
+		// Persist the terminal-ish marker.  Status was already set to
+		// 'Stalled' by the scheduler; this just stamps the rollup time.
+		let tmpStallFinalIso = new Date().toISOString();
+		let tmpStallBridge = this._getQueuePersistenceBridge();
+		if (tmpStallBridge && !this._isMetaCapability(tmpWorkItem.Capability))
+		{
+			this._persistBest(tmpStallBridge.updateWorkItem(pWorkItemHash, {
+				Status: 'Stalled',
+				CompletedAt: tmpStallFinalIso,
+				LastEventAt: tmpStallFinalIso
+			}), 'stall finalize update');
+		}
+
+		// Remove from beacon's active list (the slot is now free even
+		// though the beacon itself is dead, in case the beacon comes
+		// back and picks up new work).
+		this._removeWorkItemFromBeacon(tmpWorkItem.AssignedBeaconID, pWorkItemHash);
+
+		// Standalone work item (no operation) — nothing to roll up to.
+		if (!tmpWorkItem.RunHash)
+		{
+			delete this._WorkQueue[pWorkItemHash];
+			return fCallback(null);
+		}
+
+		let tmpEngine = this._getService('UltravisorExecutionEngine');
+		if (!tmpEngine || typeof tmpEngine.stallOperation !== 'function')
+		{
+			this.log.error(`BeaconCoordinator: stallWorkItem cannot finalize run ${tmpWorkItem.RunHash} — engine or stallOperation missing.`);
+			delete this._WorkQueue[pWorkItemHash];
+			return fCallback(null);
+		}
+
+		tmpEngine.stallOperation(tmpWorkItem.RunHash, tmpWorkItem.NodeHash, {
+			BeaconID: tmpWorkItem.AssignedBeaconID || '',
+			StalledAt: tmpStallFinalIso
+		}, (pStallError) =>
+		{
+			if (pStallError)
+			{
+				this.log.error(`BeaconCoordinator: error finalizing operation [${tmpWorkItem.RunHash}] for stalled work item [${pWorkItemHash}]: ${pStallError.message}`);
+			}
+			else
+			{
+				this.log.warn(`BeaconCoordinator: operation [${tmpWorkItem.RunHash}] finalized as Stalled after work item [${pWorkItemHash}] stall.`);
+			}
+			delete this._WorkQueue[pWorkItemHash];
+			return fCallback(pStallError || null);
+		});
 	}
 
 	/**

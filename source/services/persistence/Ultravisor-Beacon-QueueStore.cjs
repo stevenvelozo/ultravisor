@@ -2,16 +2,27 @@
  * Ultravisor Beacon Queue Store
  *
  * SQLite-backed persistence for the beacon work queue, runs, affinity
- * bindings, per-attempt history, and action defaults.  Replaces the
- * former JSONL journal as the durable store of record.
+ * bindings, per-attempt history, and action defaults.  Now backed by
+ * the meadow DAL (meadow + meadow-connection-sqlite) — the schema
+ * lives in source/datamodel/Ultravisor-BeaconQueue.json (single source
+ * of truth for both Stricture-style Columns and meadow-style
+ * MeadowSchema blocks).
  *
- * Schema is driven by the stricture intermediate model at
- * source/datamodel/Ultravisor-BeaconQueue.json.  DDL is generated
- * directly (CREATE TABLE IF NOT EXISTS + ALTER TABLE ADD COLUMN for
- * forward-only drift), avoiding the meadow bootstrap chain.
+ * Bootstrap path:
+ *   1. meadow-connection-sqlite opens beacon-queue.sqlite (WAL mode is
+ *      applied by the connector itself) and exposes a SchemaProvider
+ *      that emits CREATE TABLE IF NOT EXISTS / CREATE INDEX statements.
+ *   2. createTables + createAllIndices run idempotently.
+ *   3. meadow-migrationmanager (introspect → diff → forward-only filter
+ *      → generate ALTER → execute) handles forward-only ADD COLUMN /
+ *      ADD INDEX drift since the last boot. Same path the lab uses.
  *
- * SQLite WAL mode is enabled on open — crash-safe, concurrent reader
- * support, no separate journal file to reason about.
+ * Public API is preserved verbatim (the 5 caller services don't change).
+ * `initialize(pStorePath)` remains synchronous-returning: meadow's SQLite
+ * provider is backed by better-sqlite3, whose calls resolve their
+ * callbacks before returning. We capture results into a local variable
+ * via _runSync and surface failure as a thrown error instead of an
+ * unfulfilled promise.
  *
  * @module Ultravisor-Beacon-QueueStore
  */
@@ -19,21 +30,16 @@
 const libPictService = require('pict-serviceproviderbase');
 const libFS = require('fs');
 const libPath = require('path');
+const libMeadow = require('meadow');
+const libMeadowConnectionSQLite = require('meadow-connection-sqlite');
+const libMeadowMigrationManager = require('meadow-migrationmanager');
 
-let libBetterSqlite = null;
-try
-{
-	libBetterSqlite = require('better-sqlite3');
-}
-catch (pError)
-{
-	// better-sqlite3 is a hard requirement at runtime but we defer the
-	// failure to initialize() so unit tests that don't touch persistence
-	// can still load the module.
-}
+// better-sqlite3 isn't directly required any more; meadow-connection-sqlite
+// pulls it in transitively. We keep no fallback shim — failures during
+// initialize() now surface naturally from the connector.
 
-const TYPE_INTEGER_RE = /^(Integer|Int|FK|AutoID|AutoIdentity|ID|CreateIDUser|UpdateIDUser|DeleteIDUser|Boolean|Deleted)$/i;
-const TYPE_NUMERIC_INT_SIZES = new Set(['int', 'integer', 'smallint', 'bigint', 'tinyint']);
+const SCHEMA_PATH = libPath.join(__dirname, '..', '..', 'datamodel', 'Ultravisor-BeaconQueue.json');
+const READS_CAP = 5000;
 
 class UltravisorBeaconQueueStore extends libPictService
 {
@@ -49,8 +55,12 @@ class UltravisorBeaconQueueStore extends libPictService
 		this._Initialized = false;
 		this._Enabled = false;
 
-		// Prepared statement cache — compiled once, reused per call.
-		this._Prepared = {};
+		// One Meadow DAL per table.
+		this._DAL = {};
+
+		// Migration manager + connector handles, lazily set during initialize().
+		this._SQLiteProvider = null;
+		this._MM = null;
 	}
 
 	// ====================================================================
@@ -58,7 +68,15 @@ class UltravisorBeaconQueueStore extends libPictService
 	// ====================================================================
 
 	/**
-	 * Initialize the store: open SQLite, apply WAL, provision tables.
+	 * Initialize the store: open SQLite via meadow-connection-sqlite,
+	 * provision tables, run forward-only migrations.
+	 *
+	 * Synchronous-returning by exploiting better-sqlite3's sync nature —
+	 * meadow's SQLite path resolves callbacks before its driver call
+	 * returns. _runSync wraps a callback-style call and pulls the result
+	 * back to the calling stack frame; if the callback didn't fire
+	 * synchronously we throw immediately so the caller sees the
+	 * deviation.
 	 *
 	 * @param {string} pStorePath - Base storage directory
 	 * @returns {boolean} true on success
@@ -74,12 +92,6 @@ class UltravisorBeaconQueueStore extends libPictService
 		if (!pStorePath)
 		{
 			this.log.warn('BeaconQueueStore: no store path; persistence disabled.');
-			return false;
-		}
-
-		if (!libBetterSqlite)
-		{
-			this.log.error('BeaconQueueStore: better-sqlite3 not installed; persistence disabled.');
 			return false;
 		}
 
@@ -101,10 +113,43 @@ class UltravisorBeaconQueueStore extends libPictService
 
 		try
 		{
-			this._DB = new libBetterSqlite(this._DBPath);
-			this._DB.pragma('journal_mode = WAL');
-			this._DB.pragma('synchronous = NORMAL');
-			this._DB.pragma('foreign_keys = ON');
+			this._Schema = JSON.parse(libFS.readFileSync(SCHEMA_PATH, 'utf8'));
+		}
+		catch (pError)
+		{
+			this.log.error(`BeaconQueueStore: failed to load schema [${SCHEMA_PATH}]: ${pError.message}`);
+			return false;
+		}
+
+		// The meadow SQLite provider locates the better-sqlite3 handle
+		// via fable.MeadowSQLiteProvider — that name is hard-coded in
+		// meadow's own SQLite Provider getDB(). Register via the fable
+		// service manager so the binding is created automatically;
+		// using `new libMeadowConnectionSQLite(...)` directly leaves
+		// fable.MeadowSQLiteProvider unset and CRUD calls fail with
+		// "No SQLite database connection available".
+		//
+		// We point the connector at our DB file via fable.settings.SQLite,
+		// which is what the connector's constructor reads.
+		try
+		{
+			if (!this.fable.settings.SQLite) { this.fable.settings.SQLite = {}; }
+			this.fable.settings.SQLite.SQLiteFilePath = this._DBPath;
+			this.fable.settings.MeadowProvider = 'SQLite';
+
+			this.fable.addAndInstantiateServiceTypeIfNotExists(
+				'MeadowSQLiteProvider', libMeadowConnectionSQLite);
+			this._SQLiteProvider = this.fable.MeadowSQLiteProvider;
+		}
+		catch (pError)
+		{
+			this.log.error(`BeaconQueueStore: failed to instantiate meadow-connection-sqlite: ${pError.message}`);
+			return false;
+		}
+
+		try
+		{
+			this._runSync((cb) => this._SQLiteProvider.connectAsync(cb));
 		}
 		catch (pError)
 		{
@@ -112,20 +157,23 @@ class UltravisorBeaconQueueStore extends libPictService
 			return false;
 		}
 
-		let tmpSchemaPath = libPath.join(__dirname, '..', '..', 'datamodel', 'Ultravisor-BeaconQueue.json');
+		this._DB = this._SQLiteProvider.db;
+		// Match the original WAL/synchronous tuning. The connector
+		// already turns WAL on; the rest are still useful.
 		try
 		{
-			this._Schema = JSON.parse(libFS.readFileSync(tmpSchemaPath, 'utf8'));
+			this._DB.pragma('synchronous = NORMAL');
+			this._DB.pragma('foreign_keys = ON');
 		}
 		catch (pError)
 		{
-			this.log.error(`BeaconQueueStore: failed to load schema [${tmpSchemaPath}]: ${pError.message}`);
-			return false;
+			this.log.warn(`BeaconQueueStore: pragma tuning failed: ${pError.message}`);
 		}
 
 		try
 		{
-			this._provisionTables();
+			this._instantiateDALs();
+			this._bootstrapSchema();
 		}
 		catch (pError)
 		{
@@ -150,110 +198,192 @@ class UltravisorBeaconQueueStore extends libPictService
 			try { this._DB.close(); } catch (pError) { /* ignore */ }
 			this._DB = null;
 		}
+		this._SQLiteProvider = null;
+		this._DAL = {};
 		this._Enabled = false;
-		this._Prepared = {};
 	}
 
 	// ====================================================================
-	// Schema provisioning
+	// Sync-capture wrapper for meadow's callback-style API.
+	//
+	// meadow-connection-sqlite is synchronous (better-sqlite3); the
+	// callbacks fire before doX returns. We exploit that to keep the
+	// public sync API identical to the legacy raw-SQL implementation.
 	// ====================================================================
 
-	/**
-	 * Translate a stricture column spec to a SQLite column DDL fragment.
-	 * Forward-only drift uses the same mapping for ALTER TABLE ADD COLUMN.
-	 */
-	_columnToSql(pCol, pIsPrimary)
+	_runSync(pAction)
 	{
-		let tmpType = pCol.DataType || pCol.Type || 'String';
-		let tmpSize = (pCol.Size || '').toString().toLowerCase();
-
-		let tmpSqlType = 'TEXT';
-		if (/^ID$/i.test(tmpType))
+		let tmpResult = { fired: false, error: null, args: null };
+		pAction((pErr, ...pRest) =>
 		{
-			tmpSqlType = 'INTEGER';
-		}
-		else if (/^Numeric$/i.test(tmpType))
+			tmpResult.fired = true;
+			tmpResult.error = pErr || null;
+			tmpResult.args = pRest;
+		});
+		if (!tmpResult.fired)
 		{
-			tmpSqlType = TYPE_NUMERIC_INT_SIZES.has(tmpSize) ? 'INTEGER' : 'REAL';
+			throw new Error('BeaconQueueStore: meadow callback did not fire synchronously (unexpected).');
 		}
-		else if (TYPE_INTEGER_RE.test(tmpType))
-		{
-			tmpSqlType = 'INTEGER';
-		}
-		else if (/^(DateTime|Date)$/i.test(tmpType))
-		{
-			tmpSqlType = 'TEXT';
-		}
-		else
-		{
-			tmpSqlType = 'TEXT';
-		}
-
-		let tmpDDL = `"${pCol.Column}" ${tmpSqlType}`;
-		if (pIsPrimary)
-		{
-			tmpDDL += ' PRIMARY KEY AUTOINCREMENT';
-		}
-		return tmpDDL;
+		if (tmpResult.error) { throw tmpResult.error; }
+		return tmpResult.args;
 	}
 
-	_provisionTables()
+	// ====================================================================
+	// Schema bootstrap + DAL instantiation
+	// ====================================================================
+
+	_instantiateDALs()
 	{
 		let tmpTables = this._Schema.Tables || {};
-		for (let tmpName of Object.keys(tmpTables))
+		let tmpNames = Object.keys(tmpTables);
+		for (let i = 0; i < tmpNames.length; i++)
 		{
-			let tmpTable = tmpTables[tmpName];
-			let tmpCols = tmpTable.Columns || [];
-			if (tmpCols.length === 0) continue;
-
-			// Convention: first ID column is the primary key.
-			let tmpPrimaryIdx = tmpCols.findIndex((c) => /^ID$/i.test(c.DataType || c.Type || ''));
-			let tmpDDLCols = tmpCols.map((c, idx) =>
-				this._columnToSql(c, idx === tmpPrimaryIdx));
-
-			let tmpCreate = `CREATE TABLE IF NOT EXISTS "${tmpTable.TableName}" (${tmpDDLCols.join(', ')})`;
-			this._DB.exec(tmpCreate);
-
-			// Forward-only ADD COLUMN migration
-			let tmpExisting = {};
-			let tmpInfo = this._DB.prepare(`PRAGMA table_info("${tmpTable.TableName}")`).all();
-			for (let r of tmpInfo) tmpExisting[r.name] = r;
-
-			for (let c of tmpCols)
+			let tmpEntry = tmpTables[tmpNames[i]];
+			let tmpMeadowSchema = tmpEntry.MeadowSchema;
+			if (!tmpMeadowSchema)
 			{
-				if (tmpExisting[c.Column]) continue;
-				let tmpAdd = this._columnToSql(c, false);
-				try
-				{
-					this._DB.exec(`ALTER TABLE "${tmpTable.TableName}" ADD COLUMN ${tmpAdd}`);
-					this.log.info(`BeaconQueueStore: migrated ${tmpTable.TableName}.${c.Column}`);
-				}
-				catch (pAlterErr)
-				{
-					if (!/duplicate column/i.test(pAlterErr.message))
-					{
-						throw pAlterErr;
-					}
-				}
+				throw new Error(`BeaconQueueStore: model entry [${tmpNames[i]}] missing MeadowSchema.`);
 			}
+			let tmpDAL = libMeadow.new(this.fable).loadFromPackageObject(tmpMeadowSchema);
+			tmpDAL.setProvider('SQLite');
+			this._DAL[tmpNames[i]] = tmpDAL;
+		}
+	}
+
+	/**
+	 * Convert the model's high-level Schema entries (AutoIdentity / Integer /
+	 * Boolean / String / Text / DateTime / CreateDate / UpdateDate /
+	 * ForeignKey) to the lower-level meadow connector vocabulary the
+	 * SQLite schemaProvider expects (ID / Numeric / Boolean / String /
+	 * Text / DateTime). Mirrors the lab's _collectMeadowTables.
+	 */
+	_collectMeadowTables()
+	{
+		const TYPE_TO_DATATYPE =
+		{
+			AutoIdentity: 'ID',
+			AutoGUID:     'GUID',
+			ForeignKey:   'ForeignKey',
+			Integer:      'Numeric',
+			Float:        'Decimal',
+			Decimal:      'Decimal',
+			Boolean:      'Boolean',
+			Deleted:      'Boolean',
+			CreateDate:   'DateTime',
+			UpdateDate:   'DateTime',
+			DeleteDate:   'DateTime',
+			DateTime:     'DateTime',
+			String:       'String',
+			Text:         'Text',
+			JSON:         'Text'
+		};
+		let tmpTables = [];
+		let tmpNames = Object.keys(this._Schema.Tables || {});
+		for (let i = 0; i < tmpNames.length; i++)
+		{
+			let tmpEntry = this._Schema.Tables[tmpNames[i]];
+			let tmpSchema = tmpEntry.MeadowSchema && tmpEntry.MeadowSchema.Schema;
+			if (!Array.isArray(tmpSchema)) { continue; }
+			let tmpColumns = tmpSchema.map((pC) =>
+			{
+				let tmpDT = TYPE_TO_DATATYPE[pC.Type] || 'Text';
+				let tmpCol = { Column: pC.Column, DataType: tmpDT };
+				if (pC.Size && pC.Size !== 'Default' && pC.Size !== 'int')
+				{
+					tmpCol.Size = pC.Size;
+				}
+				if (pC.Indexed) { tmpCol.Indexed = pC.Indexed; }
+				if (pC.IndexName) { tmpCol.IndexName = pC.IndexName; }
+				return tmpCol;
+			});
+			tmpTables.push({ TableName: tmpEntry.TableName, Columns: tmpColumns });
+		}
+		return tmpTables;
+	}
+
+	_bootstrapSchema()
+	{
+		let tmpSchemaProvider = this._SQLiteProvider.schemaProvider;
+		if (!tmpSchemaProvider || typeof tmpSchemaProvider.createTables !== 'function')
+		{
+			throw new Error('BeaconQueueStore: SQLite schemaProvider not exposed by connector.');
 		}
 
-		// Useful indices on hot lookup paths.
-		let tmpIndices = [
-			'CREATE INDEX IF NOT EXISTS idx_workitem_hash ON BeaconWorkItem(WorkItemHash)',
-			'CREATE INDEX IF NOT EXISTS idx_workitem_status ON BeaconWorkItem(Status)',
-			'CREATE INDEX IF NOT EXISTS idx_workitem_runid ON BeaconWorkItem(RunID)',
-			'CREATE INDEX IF NOT EXISTS idx_workitem_assigned ON BeaconWorkItem(AssignedBeaconID, Status)',
-			'CREATE INDEX IF NOT EXISTS idx_workitem_priority ON BeaconWorkItem(Status, Priority, EnqueuedAt)',
-			'CREATE INDEX IF NOT EXISTS idx_run_runid ON BeaconRun(RunID)',
-			'CREATE INDEX IF NOT EXISTS idx_run_idempotency ON BeaconRun(IdempotencyKey)',
-			'CREATE INDEX IF NOT EXISTS idx_affinity_key ON BeaconAffinityBinding(AffinityKey)',
-			'CREATE INDEX IF NOT EXISTS idx_event_hash ON BeaconWorkItemEvent(WorkItemHash)',
-			'CREATE INDEX IF NOT EXISTS idx_action_default ON BeaconActionDefault(Capability, Action)'
-		];
-		for (let tmpSql of tmpIndices)
+		let tmpMeadowSchema = { Tables: this._collectMeadowTables() };
+
+		this._runSync((cb) => tmpSchemaProvider.createTables(tmpMeadowSchema, cb));
+		this._runSync((cb) => tmpSchemaProvider.createAllIndices(tmpMeadowSchema, cb));
+
+		this._runForwardMigrations(tmpSchemaProvider, tmpMeadowSchema);
+	}
+
+	/**
+	 * Forward-only ADD COLUMN / ADD INDEX migration, scoped to our
+	 * tables. Same shape as the lab's _runForwardMigrations.
+	 */
+	_runForwardMigrations(pSchemaProvider, pMeadowSchema)
+	{
+		if (!this._MM)
 		{
-			this._DB.exec(tmpSql);
+			this._MM = new libMeadowMigrationManager(
+				{
+					Product: 'BeaconQueueStore',
+					LogStreams: (this.fable.settings && this.fable.settings.LogStreams) || [{ streamtype: 'console', level: 'warn' }]
+				});
+			this._SchemaIntrospector = this._MM.instantiateServiceProvider('SchemaIntrospector');
+			this._SchemaDiff         = this._MM.instantiateServiceProvider('SchemaDiff');
+			this._MigrationGenerator = this._MM.instantiateServiceProvider('MigrationGenerator');
+		}
+
+		let tmpArgs = this._runSync((cb) => this._SchemaIntrospector.introspectDatabase(pSchemaProvider, cb));
+		let tmpIntrospected = tmpArgs[0] || { Tables: [] };
+
+		// Restrict the introspected snapshot to the tables we own —
+		// other tables in the same DB file (none today, but defensive)
+		// should not show up as drops we'd skip but still log.
+		let tmpOwn = new Set(pMeadowSchema.Tables.map((pT) => pT.TableName));
+		let tmpFilteredSource =
+		{
+			Tables: (tmpIntrospected.Tables || []).filter((pT) => tmpOwn.has(pT.TableName))
+		};
+
+		let tmpDiff = this._SchemaDiff.diffSchemas(tmpFilteredSource, pMeadowSchema);
+
+		// Forward-only filter — keep ColumnsAdded / IndicesAdded only,
+		// drop ColumnsRemoved / ColumnsModified / IndicesRemoved.
+		let tmpModified = (tmpDiff.TablesModified || []).map((pM) => (
+			{
+				TableName: pM.TableName,
+				ColumnsAdded: pM.ColumnsAdded || [],
+				ColumnsRemoved: [], ColumnsModified: [],
+				IndicesAdded: pM.IndicesAdded || [],
+				IndicesRemoved: [],
+				ForeignKeysAdded: pM.ForeignKeysAdded || [],
+				ForeignKeysRemoved: []
+			})).filter((pM) => pM.ColumnsAdded.length > 0 || pM.IndicesAdded.length > 0);
+
+		if (tmpModified.length === 0) { return; }
+
+		let tmpStatements = this._MigrationGenerator.generateMigrationStatements(
+			{ TablesAdded: [], TablesRemoved: [], TablesModified: tmpModified }, 'SQLite');
+
+		for (let i = 0; i < tmpStatements.length; i++)
+		{
+			let tmpSql = tmpStatements[i];
+			if (!tmpSql || tmpSql.trim().length === 0 || tmpSql.trim().indexOf('--') === 0) { continue; }
+			try
+			{
+				this._DB.exec(tmpSql);
+				this.log.info(`BeaconQueueStore: migrated ${tmpSql.replace(/\s+/g, ' ').slice(0, 120)}`);
+			}
+			catch (pExecErr)
+			{
+				if (/duplicate column|already exists/i.test(pExecErr.message || ''))
+				{
+					continue;
+				}
+				throw pExecErr;
+			}
 		}
 	}
 
@@ -261,13 +391,17 @@ class UltravisorBeaconQueueStore extends libPictService
 	// Internal helpers
 	// ====================================================================
 
-	_prepare(pKey, pSql)
+	_dal(pTable)
 	{
-		if (!this._Prepared[pKey])
-		{
-			this._Prepared[pKey] = this._DB.prepare(pSql);
-		}
-		return this._Prepared[pKey];
+		let tmpDAL = this._DAL[pTable];
+		if (!tmpDAL) { throw new Error(`BeaconQueueStore: unknown table [${pTable}]`); }
+		return tmpDAL;
+	}
+
+	_idColumn(pTable)
+	{
+		let tmpEntry = this._Schema && this._Schema.Tables[pTable];
+		return tmpEntry && tmpEntry.MeadowSchema && tmpEntry.MeadowSchema.DefaultIdentifier;
 	}
 
 	_nowIso()
@@ -289,6 +423,102 @@ class UltravisorBeaconQueueStore extends libPictService
 		try { return JSON.parse(pValue); } catch (pErr) { return (pFallback !== undefined) ? pFallback : null; }
 	}
 
+	/**
+	 * Coerce JS values into shapes the SQLite provider can bind:
+	 *   boolean  → 0/1 (better-sqlite3 rejects bare booleans)
+	 *   undefined → null
+	 *   number / string / bigint / Buffer → passthrough
+	 *   anything else → JSON-stringified
+	 *
+	 * Same rationale as the lab's _coerceRecord.
+	 */
+	_coerceRecord(pRecord)
+	{
+		let tmpClean = {};
+		let tmpKeys = Object.keys(pRecord || {});
+		for (let i = 0; i < tmpKeys.length; i++)
+		{
+			let tmpV = pRecord[tmpKeys[i]];
+			if (tmpV === undefined) { tmpClean[tmpKeys[i]] = null; continue; }
+			if (tmpV === null) { tmpClean[tmpKeys[i]] = null; continue; }
+			if (typeof tmpV === 'boolean') { tmpClean[tmpKeys[i]] = tmpV ? 1 : 0; continue; }
+			if (typeof tmpV === 'number' || typeof tmpV === 'string'
+				|| typeof tmpV === 'bigint' || Buffer.isBuffer(tmpV))
+			{
+				tmpClean[tmpKeys[i]] = tmpV;
+				continue;
+			}
+			tmpClean[tmpKeys[i]] = JSON.stringify(tmpV);
+		}
+		return tmpClean;
+	}
+
+	/**
+	 * Insert a record via the meadow DAL and return the auto-incremented
+	 * row id. Mirror of the lab's insert helper, scoped to our tables.
+	 */
+	_insert(pTable, pRecord)
+	{
+		let tmpDAL = this._dal(pTable);
+		let tmpClean = this._coerceRecord(pRecord);
+		let tmpQuery = tmpDAL.query.clone().setIDUser(0).addRecord(tmpClean);
+		let tmpArgs = this._runSync((cb) => tmpDAL.doCreate(tmpQuery, cb));
+		// doCreate callback: (err, query, queryRead, inserted).
+		let tmpInserted = tmpArgs[2];
+		let tmpIDCol = this._idColumn(pTable);
+		return (tmpInserted && tmpIDCol) ? tmpInserted[tmpIDCol] : null;
+	}
+
+	/**
+	 * Read a single record by exact-match filter. Returns null if not
+	 * found. Multi-filter via the pFilters array of [col, val] pairs.
+	 */
+	_readOne(pTable, pFilters)
+	{
+		let tmpDAL = this._dal(pTable);
+		let tmpQuery = tmpDAL.query.clone().setBegin(0).setCap(1);
+		for (let i = 0; i < pFilters.length; i++)
+		{
+			tmpQuery.addFilter(pFilters[i][0], pFilters[i][1]);
+		}
+		let tmpArgs = this._runSync((cb) => tmpDAL.doReads(tmpQuery, cb));
+		let tmpRecords = tmpArgs[1] || [];
+		return tmpRecords.length > 0 ? tmpRecords[0] : null;
+	}
+
+	/**
+	 * Update a record by primary key. The lookup-then-merge pattern
+	 * preserves COALESCE-style "null patch field => keep existing value"
+	 * semantics: nulls and undefined values in pPatch are dropped before
+	 * the merge so they can't clobber non-null persisted values.
+	 *
+	 * Pass pSkipNullCoalesce=true to allow nulls to overwrite.
+	 */
+	_updateByID(pTable, pIDColumn, pIDValue, pPatch, pSkipNullCoalesce)
+	{
+		let tmpDAL = this._dal(pTable);
+		let tmpExisting = this._readOne(pTable, [[pIDColumn, pIDValue]]);
+		if (!tmpExisting) { return 0; }
+
+		let tmpEffective = {};
+		let tmpKeys = Object.keys(pPatch || {});
+		for (let i = 0; i < tmpKeys.length; i++)
+		{
+			let tmpV = pPatch[tmpKeys[i]];
+			if (!pSkipNullCoalesce && (tmpV === null || tmpV === undefined))
+			{
+				continue;
+			}
+			tmpEffective[tmpKeys[i]] = tmpV;
+		}
+
+		let tmpMerged = Object.assign({}, tmpExisting, this._coerceRecord(tmpEffective));
+		tmpMerged[pIDColumn] = pIDValue;
+		let tmpQuery = tmpDAL.query.clone().setIDUser(0).addRecord(tmpMerged);
+		this._runSync((cb) => tmpDAL.doUpdate(tmpQuery, cb));
+		return 1;
+	}
+
 	// ====================================================================
 	// Run lifecycle
 	// ====================================================================
@@ -296,18 +526,10 @@ class UltravisorBeaconQueueStore extends libPictService
 	insertRun(pRun)
 	{
 		if (!this._Enabled) return null;
-		let tmpStmt = this._prepare('insertRun', `
-			INSERT INTO BeaconRun
-			(GUIDBeaconRun, CreateDate, UpdateDate, Deleted, RunID, IdempotencyKey,
-			 SubmitterTag, State, StartedAt, EndedAt, CanceledAt, CancelReason, Metadata)
-			VALUES (@GUIDBeaconRun, @CreateDate, @UpdateDate, 0, @RunID, @IdempotencyKey,
-			        @SubmitterTag, @State, @StartedAt, @EndedAt, @CanceledAt, @CancelReason, @Metadata)
-		`);
 		let tmpNow = this._nowIso();
-		let tmpRec = {
+		let tmpRecord = {
 			GUIDBeaconRun: pRun.GUIDBeaconRun || '',
-			CreateDate: tmpNow,
-			UpdateDate: tmpNow,
+			Deleted: 0,
 			RunID: pRun.RunID,
 			IdempotencyKey: pRun.IdempotencyKey || '',
 			SubmitterTag: pRun.SubmitterTag || '',
@@ -318,49 +540,48 @@ class UltravisorBeaconQueueStore extends libPictService
 			CancelReason: pRun.CancelReason || '',
 			Metadata: this._serializeJSON(pRun.Metadata)
 		};
-		tmpStmt.run(tmpRec);
+		this._insert('BeaconRun', tmpRecord);
 		return this.getRunByRunID(pRun.RunID);
 	}
 
 	getRunByRunID(pRunID)
 	{
 		if (!this._Enabled) return null;
-		let tmpStmt = this._prepare('getRunByRunID',
-			'SELECT * FROM BeaconRun WHERE RunID = ? AND Deleted = 0 LIMIT 1');
-		let tmpRow = tmpStmt.get(pRunID);
+		let tmpRow = this._readOne('BeaconRun', [['RunID', pRunID]]);
 		return tmpRow ? this._hydrateRun(tmpRow) : null;
 	}
 
 	getRunByIdempotencyKey(pKey)
 	{
 		if (!this._Enabled || !pKey) return null;
-		let tmpStmt = this._prepare('getRunByIdempotency',
-			'SELECT * FROM BeaconRun WHERE IdempotencyKey = ? AND Deleted = 0 ORDER BY IDBeaconRun DESC LIMIT 1');
-		let tmpRow = tmpStmt.get(pKey);
-		return tmpRow ? this._hydrateRun(tmpRow) : null;
+		// Sort by IDBeaconRun DESC so the most recent run wins, matching
+		// the original `ORDER BY IDBeaconRun DESC LIMIT 1`.
+		let tmpDAL = this._dal('BeaconRun');
+		let tmpQuery = tmpDAL.query.clone()
+			.setBegin(0)
+			.setCap(1)
+			.addFilter('IdempotencyKey', pKey)
+			.addSort({ Column: 'IDBeaconRun', Direction: 'Descending' });
+		let tmpArgs = this._runSync((cb) => tmpDAL.doReads(tmpQuery, cb));
+		let tmpRecords = tmpArgs[1] || [];
+		return tmpRecords.length > 0 ? this._hydrateRun(tmpRecords[0]) : null;
 	}
 
 	updateRunState(pRunID, pState, pExtras)
 	{
 		if (!this._Enabled) return;
 		let tmpExtras = pExtras || {};
-		let tmpStmt = this._prepare('updateRunState', `
-			UPDATE BeaconRun
-			SET State = @State,
-			    EndedAt = COALESCE(@EndedAt, EndedAt),
-			    CanceledAt = COALESCE(@CanceledAt, CanceledAt),
-			    CancelReason = COALESCE(@CancelReason, CancelReason),
-			    UpdateDate = @UpdateDate
-			WHERE RunID = @RunID
-		`);
-		tmpStmt.run({
-			RunID: pRunID,
-			State: pState,
-			EndedAt: tmpExtras.EndedAt || null,
-			CanceledAt: tmpExtras.CanceledAt || null,
-			CancelReason: tmpExtras.CancelReason || null,
-			UpdateDate: this._nowIso()
-		});
+		let tmpExisting = this._readOne('BeaconRun', [['RunID', pRunID]]);
+		if (!tmpExisting) { return; }
+
+		// Build patch with COALESCE semantics: only non-null fields
+		// from pExtras overwrite existing values.
+		let tmpPatch = { State: pState };
+		if (tmpExtras.EndedAt) { tmpPatch.EndedAt = tmpExtras.EndedAt; }
+		if (tmpExtras.CanceledAt) { tmpPatch.CanceledAt = tmpExtras.CanceledAt; }
+		if (tmpExtras.CancelReason) { tmpPatch.CancelReason = tmpExtras.CancelReason; }
+
+		this._updateByID('BeaconRun', 'IDBeaconRun', tmpExisting.IDBeaconRun, tmpPatch);
 	}
 
 	_hydrateRun(pRow)
@@ -394,30 +615,9 @@ class UltravisorBeaconQueueStore extends libPictService
 
 		if (!tmpExisting)
 		{
-			let tmpInsert = this._prepare('insertWorkItem', `
-				INSERT INTO BeaconWorkItem
-				(GUIDBeaconWorkItem, CreateDate, UpdateDate, Deleted,
-				 WorkItemHash, RunID, RunHash, NodeHash, OperationHash,
-				 Capability, Action, Settings, AffinityKey, Priority,
-				 Status, AssignedBeaconID, TimeoutMs, MaxAttempts, AttemptNumber,
-				 RetryBackoffMs, EnqueuedAt, AssignedAt, DispatchedAt, StartedAt,
-				 CompletedAt, CanceledAt, CancelRequested, CancelReason,
-				 LastError, LastEventAt, QueueWaitMs,
-				 Health, HealthLabel, HealthReason, HealthComputedAt, Result)
-				VALUES
-				(@GUIDBeaconWorkItem, @CreateDate, @UpdateDate, 0,
-				 @WorkItemHash, @RunID, @RunHash, @NodeHash, @OperationHash,
-				 @Capability, @Action, @Settings, @AffinityKey, @Priority,
-				 @Status, @AssignedBeaconID, @TimeoutMs, @MaxAttempts, @AttemptNumber,
-				 @RetryBackoffMs, @EnqueuedAt, @AssignedAt, @DispatchedAt, @StartedAt,
-				 @CompletedAt, @CanceledAt, @CancelRequested, @CancelReason,
-				 @LastError, @LastEventAt, @QueueWaitMs,
-				 @Health, @HealthLabel, @HealthReason, @HealthComputedAt, @Result)
-			`);
-			tmpInsert.run({
+			let tmpRecord = {
 				GUIDBeaconWorkItem: pItem.GUIDBeaconWorkItem || '',
-				CreateDate: tmpNow,
-				UpdateDate: tmpNow,
+				Deleted: 0,
 				WorkItemHash: pItem.WorkItemHash,
 				RunID: pItem.RunID || '',
 				RunHash: pItem.RunHash || '',
@@ -445,12 +645,15 @@ class UltravisorBeaconQueueStore extends libPictService
 				LastError: pItem.LastError || '',
 				LastEventAt: pItem.LastEventAt || tmpNow,
 				QueueWaitMs: pItem.QueueWaitMs || 0,
+				// Health is stored as TEXT-of-float so it can carry both
+				// floats and a literal null without an extra column.
 				Health: (pItem.Health == null) ? null : String(pItem.Health),
 				HealthLabel: pItem.HealthLabel || 'Unknown',
 				HealthReason: pItem.HealthReason || '',
 				HealthComputedAt: pItem.HealthComputedAt || null,
 				Result: this._serializeJSON(pItem.Result)
-			});
+			};
+			this._insert('BeaconWorkItem', tmpRecord);
 		}
 		else
 		{
@@ -462,8 +665,10 @@ class UltravisorBeaconQueueStore extends libPictService
 	updateWorkItem(pHash, pPatch)
 	{
 		if (!this._Enabled) return;
-		let tmpFields = [];
-		let tmpParams = { WorkItemHash: pHash, UpdateDate: this._nowIso() };
+
+		let tmpExisting = this._readOne('BeaconWorkItem', [['WorkItemHash', pHash]]);
+		if (!tmpExisting) { return; }
+
 		let tmpAllowed = [
 			'RunID', 'RunHash', 'NodeHash', 'OperationHash', 'Capability', 'Action',
 			'Settings', 'AffinityKey', 'Priority', 'Status', 'AssignedBeaconID',
@@ -473,39 +678,49 @@ class UltravisorBeaconQueueStore extends libPictService
 			'LastEventAt', 'QueueWaitMs', 'Health', 'HealthLabel', 'HealthReason',
 			'HealthComputedAt', 'Result'
 		];
-		for (let tmpKey of tmpAllowed)
+
+		// Build a sparse patch — only allowed keys that are explicitly
+		// present on pPatch make it through. Field-specific
+		// normalization (JSON for Settings/Result, Health → string,
+		// CancelRequested → 0/1) is preserved verbatim from the legacy
+		// implementation.
+		let tmpEffective = {};
+		let tmpHasField = false;
+		for (let i = 0; i < tmpAllowed.length; i++)
 		{
-			if (!(tmpKey in pPatch)) continue;
+			let tmpKey = tmpAllowed[i];
+			if (!(tmpKey in pPatch)) { continue; }
 			let tmpVal = pPatch[tmpKey];
 			if (tmpKey === 'Settings' || tmpKey === 'Result')
 			{
 				tmpVal = this._serializeJSON(tmpVal);
 			}
-			else if (tmpKey === 'Health' && tmpVal != null)
+			else if (tmpKey === 'Health')
 			{
-				tmpVal = String(tmpVal);
+				tmpVal = (tmpVal == null) ? null : String(tmpVal);
 			}
 			else if (tmpKey === 'CancelRequested')
 			{
 				tmpVal = tmpVal ? 1 : 0;
 			}
-			tmpFields.push(`"${tmpKey}" = @${tmpKey}`);
-			tmpParams[tmpKey] = tmpVal;
+			tmpEffective[tmpKey] = tmpVal;
+			tmpHasField = true;
 		}
-		if (tmpFields.length === 0) return;
-		tmpFields.push('UpdateDate = @UpdateDate');
+		if (!tmpHasField) { return; }
 
-		let tmpSql = `UPDATE BeaconWorkItem SET ${tmpFields.join(', ')} WHERE WorkItemHash = @WorkItemHash`;
-		// Not cached — field list varies per call.
-		this._DB.prepare(tmpSql).run(tmpParams);
+		// Note: the legacy update permitted explicit-null patches on
+		// some columns (Health=null, AssignedAt=null, etc.) but the
+		// COALESCE pattern on Run/Attempt updates does NOT. We pass
+		// pSkipNullCoalesce=true here so a null-valued patch field
+		// overwrites the persisted value, matching the legacy
+		// "set the column to whatever's in the patch" behavior.
+		this._updateByID('BeaconWorkItem', 'IDBeaconWorkItem', tmpExisting.IDBeaconWorkItem, tmpEffective, true);
 	}
 
 	getWorkItemByHash(pHash)
 	{
 		if (!this._Enabled) return null;
-		let tmpStmt = this._prepare('getWorkItemByHash',
-			'SELECT * FROM BeaconWorkItem WHERE WorkItemHash = ? AND Deleted = 0 LIMIT 1');
-		let tmpRow = tmpStmt.get(pHash);
+		let tmpRow = this._readOne('BeaconWorkItem', [['WorkItemHash', pHash]]);
 		return tmpRow ? this._hydrateWorkItem(tmpRow) : null;
 	}
 
@@ -513,55 +728,58 @@ class UltravisorBeaconQueueStore extends libPictService
 	{
 		if (!this._Enabled) return [];
 		let tmpFilter = pFilter || {};
-		let tmpWhere = ['Deleted = 0'];
-		let tmpParams = {};
+		let tmpDAL = this._dal('BeaconWorkItem');
+
+		let tmpLimit = Math.max(1, Math.min(parseInt(tmpFilter.Limit, 10) || 500, READS_CAP));
+		let tmpQuery = tmpDAL.query.clone().setBegin(0).setCap(tmpLimit);
 
 		if (tmpFilter.Status)
 		{
 			if (Array.isArray(tmpFilter.Status))
 			{
-				let tmpKeys = tmpFilter.Status.map((s, i) => `@status_${i}`);
-				tmpWhere.push(`Status IN (${tmpKeys.join(',')})`);
-				tmpFilter.Status.forEach((s, i) => { tmpParams[`status_${i}`] = s; });
+				tmpQuery.addFilter('Status', tmpFilter.Status, 'IN');
 			}
 			else
 			{
-				tmpWhere.push('Status = @Status');
-				tmpParams.Status = tmpFilter.Status;
+				tmpQuery.addFilter('Status', tmpFilter.Status);
 			}
 		}
 		if (tmpFilter.AssignedBeaconID)
 		{
-			tmpWhere.push('AssignedBeaconID = @AssignedBeaconID');
-			tmpParams.AssignedBeaconID = tmpFilter.AssignedBeaconID;
+			tmpQuery.addFilter('AssignedBeaconID', tmpFilter.AssignedBeaconID);
 		}
 		if (tmpFilter.RunID)
 		{
-			tmpWhere.push('RunID = @RunID');
-			tmpParams.RunID = tmpFilter.RunID;
+			tmpQuery.addFilter('RunID', tmpFilter.RunID);
 		}
 		if (tmpFilter.Capability)
 		{
-			tmpWhere.push('Capability = @Capability');
-			tmpParams.Capability = tmpFilter.Capability;
+			tmpQuery.addFilter('Capability', tmpFilter.Capability);
 		}
 
-		let tmpOrder = tmpFilter.OrderBy || 'EnqueuedAt ASC';
-		let tmpLimit = Math.max(1, Math.min(parseInt(tmpFilter.Limit, 10) || 500, 5000));
+		// Sort handling. Default is "EnqueuedAt ASC" — any other order
+		// can be passed in tmpFilter.OrderBy. Parse "Column DIR" pairs.
+		let tmpOrder = (tmpFilter.OrderBy || 'EnqueuedAt ASC').trim();
+		let tmpParts = tmpOrder.split(/\s+/);
+		let tmpSortCol = tmpParts[0];
+		let tmpSortDir = (tmpParts[1] || 'ASC').toUpperCase().startsWith('DESC') ? 'Descending' : 'Ascending';
+		tmpQuery.addSort({ Column: tmpSortCol, Direction: tmpSortDir });
 
-		let tmpSql = `SELECT * FROM BeaconWorkItem WHERE ${tmpWhere.join(' AND ')} ORDER BY ${tmpOrder} LIMIT ${tmpLimit}`;
-		let tmpRows = this._DB.prepare(tmpSql).all(tmpParams);
+		let tmpArgs = this._runSync((cb) => tmpDAL.doReads(tmpQuery, cb));
+		let tmpRows = tmpArgs[1] || [];
 		return tmpRows.map((r) => this._hydrateWorkItem(r));
 	}
 
 	countByStatus()
 	{
 		if (!this._Enabled) return {};
-		let tmpStmt = this._prepare('countByStatus',
-			'SELECT Status, COUNT(*) as Count FROM BeaconWorkItem WHERE Deleted = 0 GROUP BY Status');
-		let tmpRows = tmpStmt.all();
+		// Aggregate isn't directly supported by the DAL; drop to raw SQL
+		// against the connector's better-sqlite3 handle. Same behavior,
+		// same WHERE Deleted = 0 filter, same shape return.
+		let tmpRows = this._DB.prepare(
+			'SELECT Status, COUNT(*) as Count FROM BeaconWorkItem WHERE Deleted = 0 GROUP BY Status').all();
 		let tmpOut = {};
-		for (let r of tmpRows) tmpOut[r.Status] = r.Count;
+		for (let r of tmpRows) { tmpOut[r.Status] = r.Count; }
 		return tmpOut;
 	}
 
@@ -571,7 +789,7 @@ class UltravisorBeaconQueueStore extends libPictService
 		if (pRow.Health != null && pRow.Health !== '')
 		{
 			let tmpParsed = parseFloat(pRow.Health);
-			if (!isNaN(tmpParsed)) tmpHealth = tmpParsed;
+			if (!isNaN(tmpParsed)) { tmpHealth = tmpParsed; }
 		}
 		return {
 			IDBeaconWorkItem: pRow.IDBeaconWorkItem,
@@ -618,13 +836,7 @@ class UltravisorBeaconQueueStore extends libPictService
 	appendEvent(pEvent)
 	{
 		if (!this._Enabled) return;
-		let tmpStmt = this._prepare('appendEvent', `
-			INSERT INTO BeaconWorkItemEvent
-			(CreateDate, WorkItemHash, RunID, EventType, FromStatus, ToStatus, BeaconID, Payload)
-			VALUES (@CreateDate, @WorkItemHash, @RunID, @EventType, @FromStatus, @ToStatus, @BeaconID, @Payload)
-		`);
-		tmpStmt.run({
-			CreateDate: this._nowIso(),
+		this._insert('BeaconWorkItemEvent', {
 			WorkItemHash: pEvent.WorkItemHash || '',
 			RunID: pEvent.RunID || '',
 			EventType: pEvent.EventType || '',
@@ -639,9 +851,15 @@ class UltravisorBeaconQueueStore extends libPictService
 	{
 		if (!this._Enabled) return [];
 		let tmpLimit = Math.max(1, Math.min(parseInt(pLimit, 10) || 200, 2000));
-		let tmpStmt = this._DB.prepare(
-			`SELECT * FROM BeaconWorkItemEvent WHERE WorkItemHash = ? ORDER BY IDBeaconWorkItemEvent ASC LIMIT ${tmpLimit}`);
-		return tmpStmt.all(pHash).map((r) => ({
+		let tmpDAL = this._dal('BeaconWorkItemEvent');
+		let tmpQuery = tmpDAL.query.clone()
+			.setBegin(0)
+			.setCap(tmpLimit)
+			.addFilter('WorkItemHash', pHash)
+			.addSort({ Column: 'IDBeaconWorkItemEvent', Direction: 'Ascending' });
+		let tmpArgs = this._runSync((cb) => tmpDAL.doReads(tmpQuery, cb));
+		let tmpRows = tmpArgs[1] || [];
+		return tmpRows.map((r) => ({
 			IDBeaconWorkItemEvent: r.IDBeaconWorkItemEvent,
 			CreateDate: r.CreateDate,
 			WorkItemHash: r.WorkItemHash,
@@ -661,17 +879,8 @@ class UltravisorBeaconQueueStore extends libPictService
 	insertAttempt(pAttempt)
 	{
 		if (!this._Enabled) return;
-		let tmpStmt = this._prepare('insertAttempt', `
-			INSERT INTO BeaconWorkItemAttempt
-			(CreateDate, UpdateDate, WorkItemHash, AttemptNumber, BeaconID,
-			 DispatchedAt, StartedAt, CompletedAt, Outcome, ErrorMessage, DurationMs)
-			VALUES (@CreateDate, @UpdateDate, @WorkItemHash, @AttemptNumber, @BeaconID,
-			        @DispatchedAt, @StartedAt, @CompletedAt, @Outcome, @ErrorMessage, @DurationMs)
-		`);
 		let tmpNow = this._nowIso();
-		tmpStmt.run({
-			CreateDate: tmpNow,
-			UpdateDate: tmpNow,
+		this._insert('BeaconWorkItemAttempt', {
 			WorkItemHash: pAttempt.WorkItemHash,
 			AttemptNumber: pAttempt.AttemptNumber || 1,
 			BeaconID: pAttempt.BeaconID || '',
@@ -687,26 +896,29 @@ class UltravisorBeaconQueueStore extends libPictService
 	updateAttemptOutcome(pHash, pAttemptNumber, pPatch)
 	{
 		if (!this._Enabled) return;
-		let tmpStmt = this._prepare('updateAttemptOutcome', `
-			UPDATE BeaconWorkItemAttempt
-			SET StartedAt = COALESCE(@StartedAt, StartedAt),
-			    CompletedAt = COALESCE(@CompletedAt, CompletedAt),
-			    Outcome = COALESCE(@Outcome, Outcome),
-			    ErrorMessage = COALESCE(@ErrorMessage, ErrorMessage),
-			    DurationMs = COALESCE(@DurationMs, DurationMs),
-			    UpdateDate = @UpdateDate
-			WHERE WorkItemHash = @WorkItemHash AND AttemptNumber = @AttemptNumber
-		`);
-		tmpStmt.run({
-			WorkItemHash: pHash,
-			AttemptNumber: pAttemptNumber,
-			StartedAt: pPatch.StartedAt || null,
-			CompletedAt: pPatch.CompletedAt || null,
-			Outcome: pPatch.Outcome || null,
-			ErrorMessage: pPatch.ErrorMessage || null,
-			DurationMs: pPatch.DurationMs || null,
-			UpdateDate: this._nowIso()
-		});
+		// COALESCE semantics: drop any patch field that is null so it
+		// can't clobber the existing value. Same shape as the Run
+		// updateRunState path.
+		let tmpDAL = this._dal('BeaconWorkItemAttempt');
+		let tmpQuery = tmpDAL.query.clone()
+			.setBegin(0)
+			.setCap(1)
+			.addFilter('WorkItemHash', pHash)
+			.addFilter('AttemptNumber', pAttemptNumber);
+		let tmpArgs = this._runSync((cb) => tmpDAL.doReads(tmpQuery, cb));
+		let tmpRecords = tmpArgs[1] || [];
+		if (tmpRecords.length === 0) { return; }
+		let tmpExisting = tmpRecords[0];
+
+		let tmpEffective = {};
+		if (pPatch.StartedAt) { tmpEffective.StartedAt = pPatch.StartedAt; }
+		if (pPatch.CompletedAt) { tmpEffective.CompletedAt = pPatch.CompletedAt; }
+		if (pPatch.Outcome) { tmpEffective.Outcome = pPatch.Outcome; }
+		if (pPatch.ErrorMessage) { tmpEffective.ErrorMessage = pPatch.ErrorMessage; }
+		if (pPatch.DurationMs != null) { tmpEffective.DurationMs = pPatch.DurationMs; }
+
+		this._updateByID('BeaconWorkItemAttempt', 'IDBeaconWorkItemAttempt',
+			tmpExisting.IDBeaconWorkItemAttempt, tmpEffective);
 	}
 
 	// ====================================================================
@@ -717,17 +929,10 @@ class UltravisorBeaconQueueStore extends libPictService
 	{
 		if (!this._Enabled) return;
 		let tmpExisting = this.getAffinityBinding(pBinding.AffinityKey);
-		let tmpNow = this._nowIso();
+
 		if (!tmpExisting)
 		{
-			let tmpStmt = this._prepare('insertAffinity', `
-				INSERT INTO BeaconAffinityBinding
-				(CreateDate, UpdateDate, AffinityKey, BeaconID, ExpiresAt, ClearedAt)
-				VALUES (@CreateDate, @UpdateDate, @AffinityKey, @BeaconID, @ExpiresAt, @ClearedAt)
-			`);
-			tmpStmt.run({
-				CreateDate: tmpNow,
-				UpdateDate: tmpNow,
+			this._insert('BeaconAffinityBinding', {
 				AffinityKey: pBinding.AffinityKey,
 				BeaconID: pBinding.BeaconID,
 				ExpiresAt: pBinding.ExpiresAt || null,
@@ -736,59 +941,95 @@ class UltravisorBeaconQueueStore extends libPictService
 		}
 		else
 		{
-			let tmpStmt = this._prepare('updateAffinity', `
-				UPDATE BeaconAffinityBinding
-				SET BeaconID = @BeaconID, ExpiresAt = @ExpiresAt, ClearedAt = NULL, UpdateDate = @UpdateDate
-				WHERE AffinityKey = @AffinityKey
-			`);
-			tmpStmt.run({
-				AffinityKey: pBinding.AffinityKey,
-				BeaconID: pBinding.BeaconID,
-				ExpiresAt: pBinding.ExpiresAt || null,
-				UpdateDate: tmpNow
-			});
+			// Look up the IDBeaconAffinityBinding via the unfiltered
+			// table so we can target a specific row to update — the
+			// affinity key isn't unique once a binding has been
+			// re-bound. The "active" one (ClearedAt IS NULL) is what
+			// getAffinityBinding already returned.
+			let tmpRow = this._readOne('BeaconAffinityBinding', [
+				['AffinityKey', pBinding.AffinityKey],
+				['BeaconID', tmpExisting.BeaconID]
+			]);
+			if (!tmpRow) { return; }
+
+			this._updateByID('BeaconAffinityBinding', 'IDBeaconAffinityBinding',
+				tmpRow.IDBeaconAffinityBinding,
+				{
+					BeaconID: pBinding.BeaconID,
+					ExpiresAt: pBinding.ExpiresAt || null,
+					ClearedAt: null
+				},
+				true);
 		}
 	}
 
 	getAffinityBinding(pKey)
 	{
 		if (!this._Enabled) return null;
-		let tmpStmt = this._prepare('getAffinity', `
-			SELECT * FROM BeaconAffinityBinding
-			WHERE AffinityKey = ? AND (ClearedAt IS NULL OR ClearedAt = '')
-			ORDER BY IDBeaconAffinityBinding DESC LIMIT 1
-		`);
-		let tmpRow = tmpStmt.get(pKey);
-		return tmpRow ? {
-			AffinityKey: tmpRow.AffinityKey,
-			BeaconID: tmpRow.BeaconID,
-			ExpiresAt: tmpRow.ExpiresAt,
-			ClearedAt: tmpRow.ClearedAt,
-			CreateDate: tmpRow.CreateDate,
-			UpdateDate: tmpRow.UpdateDate
-		} : null;
+		// "Most recent active row for this key" — ClearedAt IS NULL OR ''
+		// matches the legacy getAffinity statement. Since meadow's DAL
+		// can't express IS NULL OR '' conveniently, the simplest path
+		// is to fetch the most-recent rows for the key and filter in
+		// memory.
+		let tmpDAL = this._dal('BeaconAffinityBinding');
+		let tmpQuery = tmpDAL.query.clone()
+			.setBegin(0)
+			.setCap(50)
+			.addFilter('AffinityKey', pKey)
+			.addSort({ Column: 'IDBeaconAffinityBinding', Direction: 'Descending' });
+		let tmpArgs = this._runSync((cb) => tmpDAL.doReads(tmpQuery, cb));
+		let tmpRows = tmpArgs[1] || [];
+		for (let i = 0; i < tmpRows.length; i++)
+		{
+			let r = tmpRows[i];
+			if (r.ClearedAt == null || r.ClearedAt === '')
+			{
+				return {
+					AffinityKey: r.AffinityKey,
+					BeaconID: r.BeaconID,
+					ExpiresAt: r.ExpiresAt,
+					ClearedAt: r.ClearedAt,
+					CreateDate: r.CreateDate,
+					UpdateDate: r.UpdateDate
+				};
+			}
+		}
+		return null;
 	}
 
 	clearAffinityBinding(pKey)
 	{
 		if (!this._Enabled) return;
-		let tmpStmt = this._prepare('clearAffinity', `
-			UPDATE BeaconAffinityBinding
-			SET ClearedAt = @ClearedAt, UpdateDate = @UpdateDate
-			WHERE AffinityKey = @AffinityKey
-		`);
+		// Find every uncleared row for the key and stamp ClearedAt.
+		// Bulk update in a transaction — semantically the same as the
+		// legacy single-shot UPDATE that didn't filter by ClearedAt.
+		let tmpDAL = this._dal('BeaconAffinityBinding');
+		let tmpQuery = tmpDAL.query.clone()
+			.setBegin(0)
+			.setCap(READS_CAP)
+			.addFilter('AffinityKey', pKey);
+		let tmpArgs = this._runSync((cb) => tmpDAL.doReads(tmpQuery, cb));
+		let tmpRows = tmpArgs[1] || [];
 		let tmpNow = this._nowIso();
-		tmpStmt.run({ AffinityKey: pKey, ClearedAt: tmpNow, UpdateDate: tmpNow });
+		for (let i = 0; i < tmpRows.length; i++)
+		{
+			this._updateByID('BeaconAffinityBinding', 'IDBeaconAffinityBinding',
+				tmpRows[i].IDBeaconAffinityBinding,
+				{ ClearedAt: tmpNow },
+				true);
+		}
 	}
 
 	listActiveAffinityBindings()
 	{
 		if (!this._Enabled) return [];
-		let tmpStmt = this._prepare('listAffinities', `
-			SELECT * FROM BeaconAffinityBinding
-			WHERE ClearedAt IS NULL OR ClearedAt = ''
-		`);
-		return tmpStmt.all();
+		let tmpDAL = this._dal('BeaconAffinityBinding');
+		let tmpQuery = tmpDAL.query.clone().setBegin(0).setCap(READS_CAP);
+		let tmpArgs = this._runSync((cb) => tmpDAL.doReads(tmpQuery, cb));
+		let tmpRows = tmpArgs[1] || [];
+		// Filter active bindings (ClearedAt IS NULL OR '') in memory —
+		// matches the legacy listAffinities query.
+		return tmpRows.filter((r) => r.ClearedAt == null || r.ClearedAt === '');
 	}
 
 	// ====================================================================
@@ -799,19 +1040,9 @@ class UltravisorBeaconQueueStore extends libPictService
 	{
 		if (!this._Enabled) return;
 		let tmpExisting = this.getActionDefault(pEntry.Capability, pEntry.Action);
-		let tmpNow = this._nowIso();
 		if (!tmpExisting)
 		{
-			let tmpStmt = this._prepare('insertActionDefault', `
-				INSERT INTO BeaconActionDefault
-				(CreateDate, UpdateDate, Capability, Action, TimeoutMs, MaxAttempts,
-				 RetryBackoffMs, DefaultPriority, ExpectedWaitP95Ms, HeartbeatExpectedMs, MinSamplesForBaseline)
-				VALUES (@CreateDate, @UpdateDate, @Capability, @Action, @TimeoutMs, @MaxAttempts,
-				        @RetryBackoffMs, @DefaultPriority, @ExpectedWaitP95Ms, @HeartbeatExpectedMs, @MinSamplesForBaseline)
-			`);
-			tmpStmt.run({
-				CreateDate: tmpNow,
-				UpdateDate: tmpNow,
+			this._insert('BeaconActionDefault', {
 				Capability: pEntry.Capability,
 				Action: pEntry.Action || '',
 				TimeoutMs: pEntry.TimeoutMs || 300000,
@@ -825,45 +1056,38 @@ class UltravisorBeaconQueueStore extends libPictService
 		}
 		else
 		{
-			let tmpStmt = this._prepare('updateActionDefault', `
-				UPDATE BeaconActionDefault
-				SET TimeoutMs = @TimeoutMs, MaxAttempts = @MaxAttempts,
-				    RetryBackoffMs = @RetryBackoffMs, DefaultPriority = @DefaultPriority,
-				    ExpectedWaitP95Ms = @ExpectedWaitP95Ms,
-				    HeartbeatExpectedMs = @HeartbeatExpectedMs,
-				    MinSamplesForBaseline = @MinSamplesForBaseline,
-				    UpdateDate = @UpdateDate
-				WHERE Capability = @Capability AND Action = @Action
-			`);
-			tmpStmt.run({
-				Capability: pEntry.Capability,
-				Action: pEntry.Action || '',
+			// The legacy upsertActionDefault used a |-style fallback that
+			// preserved existing values whenever the patch was 0/falsy
+			// for several numeric fields. Reproduce that here:
+			let tmpPatch =
+			{
 				TimeoutMs: pEntry.TimeoutMs || tmpExisting.TimeoutMs,
 				MaxAttempts: pEntry.MaxAttempts || tmpExisting.MaxAttempts,
 				RetryBackoffMs: pEntry.RetryBackoffMs || tmpExisting.RetryBackoffMs,
 				DefaultPriority: (pEntry.DefaultPriority != null) ? pEntry.DefaultPriority : tmpExisting.DefaultPriority,
 				ExpectedWaitP95Ms: (pEntry.ExpectedWaitP95Ms != null) ? pEntry.ExpectedWaitP95Ms : tmpExisting.ExpectedWaitP95Ms,
 				HeartbeatExpectedMs: (pEntry.HeartbeatExpectedMs != null) ? pEntry.HeartbeatExpectedMs : tmpExisting.HeartbeatExpectedMs,
-				MinSamplesForBaseline: (pEntry.MinSamplesForBaseline != null) ? pEntry.MinSamplesForBaseline : tmpExisting.MinSamplesForBaseline,
-				UpdateDate: tmpNow
-			});
+				MinSamplesForBaseline: (pEntry.MinSamplesForBaseline != null) ? pEntry.MinSamplesForBaseline : tmpExisting.MinSamplesForBaseline
+			};
+			this._updateByID('BeaconActionDefault', 'IDBeaconActionDefault',
+				tmpExisting.IDBeaconActionDefault, tmpPatch, true);
 		}
 	}
 
 	getActionDefault(pCapability, pAction)
 	{
 		if (!this._Enabled) return null;
-		let tmpStmt = this._prepare('getActionDefault', `
-			SELECT * FROM BeaconActionDefault
-			WHERE Capability = ? AND Action = ? LIMIT 1
-		`);
-		return tmpStmt.get(pCapability, pAction || '') || null;
+		return this._readOne('BeaconActionDefault',
+			[['Capability', pCapability], ['Action', pAction || '']]);
 	}
 
 	listActionDefaults()
 	{
 		if (!this._Enabled) return [];
-		return this._DB.prepare('SELECT * FROM BeaconActionDefault').all();
+		let tmpDAL = this._dal('BeaconActionDefault');
+		let tmpQuery = tmpDAL.query.clone().setBegin(0).setCap(READS_CAP);
+		let tmpArgs = this._runSync((cb) => tmpDAL.doReads(tmpQuery, cb));
+		return tmpArgs[1] || [];
 	}
 
 	// ====================================================================
@@ -874,12 +1098,16 @@ class UltravisorBeaconQueueStore extends libPictService
 	{
 		if (!this._Enabled) return [];
 		let tmpLimit = Math.max(1, Math.min(parseInt(pLimit, 10) || 200, 2000));
-		let tmpStmt = this._DB.prepare(`
+		// Aggregate-style read with a non-equality predicate (QueueWaitMs > 0)
+		// and a projection. Drop to raw SQL on the connector's handle —
+		// the DAL doesn't naturally express column-level projections or
+		// "greater than" predicates and the query is read-only anyway.
+		let tmpRows = this._DB.prepare(`
 			SELECT QueueWaitMs FROM BeaconWorkItem
 			WHERE Capability = ? AND Action = ? AND QueueWaitMs > 0 AND Deleted = 0
 			ORDER BY IDBeaconWorkItem DESC LIMIT ${tmpLimit}
-		`);
-		return tmpStmt.all(pCapability, pAction || '').map((r) => r.QueueWaitMs);
+		`).all(pCapability, pAction || '');
+		return tmpRows.map((r) => r.QueueWaitMs);
 	}
 }
 
