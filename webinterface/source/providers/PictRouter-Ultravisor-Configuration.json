@@ -43,6 +43,22 @@
 			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-BeaconList`)~}"
 		},
 		{
+			"path": "/Timeline",
+			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-Timeline`)~}"
+		},
+		{
+			"path": "/Capabilities",
+			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-CapabilityHeatMap`)~}"
+		},
+		{
+			"path": "/Throughput",
+			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-Throughput`)~}"
+		},
+		{
+			"path": "/Constellation",
+			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-Constellation`)~}"
+		},
+		{
 			"path": "/Fleet",
 			"template": "{~LV:Pict.PictApplication.showView(`Ultravisor-Fleet`)~}"
 		},

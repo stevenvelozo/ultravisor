@@ -28,6 +28,11 @@ const libViewFlowEditor = require('./views/PictView-Ultravisor-FlowEditor.js');
 const libViewPendingInput = require('./views/PictView-Ultravisor-PendingInput.js');
 const libViewDocumentation = require('./views/PictView-Ultravisor-Documentation.js');
 const libViewBeaconList = require('./views/PictView-Ultravisor-BeaconList.js');
+const libViewTimeline = require('./views/PictView-Ultravisor-Timeline.js');
+const libProviderTimelineStream = require('./providers/Provider-Timeline-Stream.js');
+const libViewCapabilityHeatMap = require('./views/PictView-Ultravisor-CapabilityHeatMap.js');
+const libViewThroughput = require('./views/PictView-Ultravisor-Throughput.js');
+const libViewConstellation = require('./views/PictView-Ultravisor-Constellation.js');
 const libViewReachabilityMap = require('./views/PictView-Ultravisor-ReachabilityMap.js');
 const libViewOperationDescriptionEditor = require('./views/PictView-Ultravisor-OperationDescriptionEditor.js');
 const libViewFleet = require('./views/PictView-Ultravisor-Fleet.js');
@@ -68,6 +73,19 @@ class UltravisorApplication extends libPictApplication
 		this.pict.addView('Ultravisor-PendingInput', libViewPendingInput.default_configuration, libViewPendingInput);
 		this.pict.addView('Ultravisor-Documentation', libViewDocumentation.default_configuration, libViewDocumentation);
 		this.pict.addView('Ultravisor-BeaconList', libViewBeaconList.default_configuration, libViewBeaconList);
+
+		// Phase 6 — three-band timeline (the spine). Provider owns the
+		// `/Timeline` long-poll cycle and reconciles into AppData.Timeline.*;
+		// view observes AppData and paints via Canvas + SVG.
+		this.pict.addProvider('Timeline-Stream', libProviderTimelineStream.default_configuration, libProviderTimelineStream);
+		this.pict.addView('Ultravisor-Timeline', libViewTimeline.default_configuration, libViewTimeline);
+
+		// Phase 7 — complementary timeline views. Each is standalone (own
+		// fetch loop on the same /Timeline endpoint) and shares the spine's
+		// URL contract via webinterface/source/views/timeline/url-state.js.
+		this.pict.addView('Ultravisor-CapabilityHeatMap', libViewCapabilityHeatMap.default_configuration, libViewCapabilityHeatMap);
+		this.pict.addView('Ultravisor-Throughput', libViewThroughput.default_configuration, libViewThroughput);
+		this.pict.addView('Ultravisor-Constellation', libViewConstellation.default_configuration, libViewConstellation);
 		this.pict.addView('Ultravisor-ReachabilityMap', libViewReachabilityMap.default_configuration, libViewReachabilityMap);
 		this.pict.addView('Ultravisor-OperationDescriptionEditor', libViewOperationDescriptionEditor.default_configuration, libViewOperationDescriptionEditor);
 		this.pict.addView('Ultravisor-Fleet', libViewFleet.default_configuration, libViewFleet);

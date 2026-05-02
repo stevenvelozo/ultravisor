@@ -453,6 +453,106 @@ class UltravisorAPIServer extends libPictService
 		catch (pErr) { /* best effort */ }
 	}
 
+	// Phase 7 — anomaly scoring. v1 is the static-threshold scorer the
+	// plan in uv-timeline-views-future.md calls for as the cheap first
+	// pass. We bucket the same timeline data the spine reads, then mark
+	// any bucket whose Failed or Stalled count exceeds a threshold as a
+	// spike (Score = count / threshold, clamped). The shape is forward-
+	// compatible with the rolling-baseline upgrade: each entry has both
+	// Observed and Baseline so the client can render either dimension.
+	_handleTimelineAnomaliesRequest(pRequest, pResponse, fNext)
+	{
+		let tmpQuery = _parseQueryString(pRequest.url || '');
+		let tmpNowMs = Date.now();
+		let tmpFromIso = this._resolveRelativeTime(tmpQuery.from, tmpNowMs)
+			|| new Date(tmpNowMs - 60 * 60 * 1000).toISOString();
+		let tmpToIso = this._resolveRelativeTime(tmpQuery.to, tmpNowMs)
+			|| new Date(tmpNowMs).toISOString();
+		if (tmpFromIso > tmpToIso)
+		{
+			pResponse.send(400, { Error: '"from" must be <= "to"' });
+			return fNext();
+		}
+
+		// Thresholds (overridable via query for ops tuning).
+		let tmpFailThresh = parseInt(tmpQuery.failThreshold, 10);
+		if (!Number.isFinite(tmpFailThresh) || tmpFailThresh <= 0) { tmpFailThresh = 5; }
+		let tmpStallThresh = parseInt(tmpQuery.stallThreshold, 10);
+		if (!Number.isFinite(tmpStallThresh) || tmpStallThresh <= 0) { tmpStallThresh = 3; }
+		let tmpDenyThresh = parseInt(tmpQuery.denyThreshold, 10);
+		if (!Number.isFinite(tmpDenyThresh) || tmpDenyThresh <= 0) { tmpDenyThresh = 1; }
+
+		// Reuse the timeline body's bucketing — pass bucket=auto so the
+		// resolver picks the natural granularity.
+		let tmpBody = this._buildTimelineBody(
+			tmpFromIso, tmpToIso, [], [], 0, tmpQuery.bucket || 'auto');
+		let tmpBuckets = (tmpBody && Array.isArray(tmpBody.Buckets)) ? tmpBody.Buckets : [];
+
+		let tmpAnomalies = [];
+		for (let i = 0; i < tmpBuckets.length; i++)
+		{
+			let tmpB = tmpBuckets[i];
+			let tmpTypes  = tmpB.ByEventType || {};
+			let tmpStatus = tmpB.ByStatus || {};
+			let tmpFailed = (tmpTypes.Failed   || 0) + (tmpStatus.Failed  || 0);
+			let tmpStalled= (tmpTypes.Stalled  || 0) + (tmpTypes['Workitem.Stranded'] || 0)
+							+ (tmpStatus.Stalled || 0);
+			let tmpDenied = (tmpTypes['Admission.Denied'] || 0) + (tmpTypes['admission.denied'] || 0);
+
+			let tmpEntries = [];
+			if (tmpFailed >= tmpFailThresh)
+			{
+				tmpEntries.push({
+					EventType: 'Failed',
+					Observed:  tmpFailed,
+					Baseline:  tmpFailThresh,
+					Score:     Math.min(4, tmpFailed / tmpFailThresh)
+				});
+			}
+			if (tmpStalled >= tmpStallThresh)
+			{
+				tmpEntries.push({
+					EventType: 'Stalled',
+					Observed:  tmpStalled,
+					Baseline:  tmpStallThresh,
+					Score:     Math.min(4, tmpStalled / tmpStallThresh)
+				});
+			}
+			if (tmpDenied >= tmpDenyThresh)
+			{
+				tmpEntries.push({
+					EventType: 'Admission.Denied',
+					Observed:  tmpDenied,
+					Baseline:  tmpDenyThresh,
+					Score:     Math.min(4, tmpDenied / tmpDenyThresh)
+				});
+			}
+
+			for (let j = 0; j < tmpEntries.length; j++)
+			{
+				tmpAnomalies.push({
+					At:         tmpB.At,
+					DurationMs: tmpB.DurationMs,
+					EventType:  tmpEntries[j].EventType,
+					Observed:   tmpEntries[j].Observed,
+					Baseline:   tmpEntries[j].Baseline,
+					Score:      tmpEntries[j].Score
+				});
+			}
+		}
+
+		pResponse.send(
+		{
+			From:      tmpFromIso,
+			To:        tmpToIso,
+			Now:       new Date().toISOString(),
+			Mode:      'static-threshold',
+			BucketCount: tmpBuckets.length,
+			Anomalies: tmpAnomalies
+		});
+		return fNext();
+	}
+
 	_buildTimelineBody(pFromIso, pToIso, pCaps, pRunHashes, pFutureLimit, pBucket)
 	{
 		let tmpStore = this._getService('UltravisorTimelineStore');
@@ -580,7 +680,13 @@ class UltravisorAPIServer extends libPictService
 			: tmpVal;
 	}
 
-	// Group raw past records into time buckets aligned to From.
+	// Group raw past records into time buckets anchored to ABSOLUTE
+	// epoch time (snapped to the bucket size), NOT to the request's
+	// From. Anchoring to From means two requests with different From
+	// values get different bucket boundaries for the same records, so
+	// any client that pans the window sees the histogram visibly hop
+	// around between fetches. Absolute-time anchoring keeps a record
+	// in the same bucket regardless of which window it was fetched in.
 	_aggregateBuckets(pRecords, pFromMs, pToMs, pBucketSec)
 	{
 		let tmpBucketMs = pBucketSec * 1000;
@@ -589,8 +695,7 @@ class UltravisorAPIServer extends libPictService
 		{
 			let tmpR = pRecords[i];
 			let tmpAtMs = Date.parse(tmpR.At) || pFromMs;
-			let tmpOffset = Math.floor((tmpAtMs - pFromMs) / tmpBucketMs);
-			let tmpStart = pFromMs + tmpOffset * tmpBucketMs;
+			let tmpStart = Math.floor(tmpAtMs / tmpBucketMs) * tmpBucketMs;
 			let tmpKey = String(tmpStart);
 			if (!tmpBuckets.has(tmpKey))
 			{
@@ -3114,6 +3219,22 @@ class UltravisorAPIServer extends libPictService
 				function (pRequest, pResponse, fNext)
 				{
 					return this._handleTimelineRequest(pRequest, pResponse, fNext);
+				}.bind(this)
+			);
+
+		// --- Timeline anomalies (Phase 7) ---
+		// Per-bucket anomaly score for the current window. v1 uses a
+		// static-threshold scorer over the same `/Timeline?bucket=auto`
+		// data — Failed or Stalled count > 5/bucket triggers a spike.
+		// This is the cheap version called out in
+		// /Users/steven/.claude/plans/uv-timeline-views-future.md; the
+		// rolling-baseline / window-function version is a follow-up.
+		this._OratorServer.get
+			(
+				'/Timeline/Anomalies',
+				function (pRequest, pResponse, fNext)
+				{
+					return this._handleTimelineAnomaliesRequest(pRequest, pResponse, fNext);
 				}.bind(this)
 			);
 
