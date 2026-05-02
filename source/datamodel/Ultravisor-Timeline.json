@@ -1,0 +1,169 @@
+{
+	"_comment": "Ultravisor Timeline — meadow DAL schema for the Phase 5 normalized event stream. Two tables share the same shape: TimelineRecord (hot, recent) and TimelineRecordArchive (cold, older than UltravisorTimelineHotRetentionDays). The /Timeline endpoint reads from whichever covers the requested range, unioning when a query straddles the boundary. Every event projected from manifest lifecycle, queue.* broadcasts, or observer.* announcements lands in the hot table on ingest; an archive cycle moves rows past the retention window. Schema bootstrap and forward-only ADD COLUMN / ADD INDEX migrations follow the same path as Ultravisor-BeaconQueue (meadow-connection-sqlite + meadow-migrationmanager).",
+	"Tables":
+	{
+		"TimelineRecord":
+		{
+			"TableName": "TimelineRecord",
+			"Domain": "Default",
+			"Description": "Hot ring of normalized timeline events. Thin pointer + summary records — drill-down to source state goes through RawRefHash. EventGUID is the dedup key, At and EndAt drive range queries.",
+			"Columns":
+			[
+				{ "Column": "IDTimelineRecord", "DataType": "ID" },
+				{ "Column": "GUIDTimelineRecord", "DataType": "GUID", "Size": "36" },
+				{ "Column": "CreateDate", "DataType": "DateTime" },
+				{ "Column": "CreatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "UpdateDate", "DataType": "DateTime" },
+				{ "Column": "UpdatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "Deleted", "DataType": "Boolean" },
+				{ "Column": "DeleteDate", "DataType": "DateTime" },
+				{ "Column": "DeletingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "EventGUID", "DataType": "String", "Size": "64" },
+				{ "Column": "At", "DataType": "DateTime" },
+				{ "Column": "EndAt", "DataType": "DateTime" },
+				{ "Column": "EventType", "DataType": "String", "Size": "64" },
+				{ "Column": "RunHash", "DataType": "String", "Size": "256" },
+				{ "Column": "OperationHash", "DataType": "String", "Size": "256" },
+				{ "Column": "WorkItemHash", "DataType": "String", "Size": "256" },
+				{ "Column": "Capability", "DataType": "String", "Size": "128" },
+				{ "Column": "Action", "DataType": "String", "Size": "128" },
+				{ "Column": "BeaconID", "DataType": "String", "Size": "128" },
+				{ "Column": "Status", "DataType": "String", "Size": "32" },
+				{ "Column": "DurationMs", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "RawRefHash", "DataType": "String", "Size": "256" },
+				{ "Column": "InsertedAt", "DataType": "DateTime" }
+			],
+			"MeadowSchema":
+			{
+				"Scope": "TimelineRecord",
+				"DefaultIdentifier": "IDTimelineRecord",
+				"Domain": "Default",
+				"Schema":
+				[
+					{ "Column": "IDTimelineRecord",   "Type": "AutoIdentity", "Size": "Default" },
+					{ "Column": "GUIDTimelineRecord", "Type": "String",       "Size": "36" },
+					{ "Column": "CreateDate",         "Type": "CreateDate",   "Size": "Default" },
+					{ "Column": "CreatingIDUser",     "Type": "Integer",      "Size": "int" },
+					{ "Column": "UpdateDate",         "Type": "UpdateDate",   "Size": "Default" },
+					{ "Column": "UpdatingIDUser",     "Type": "Integer",      "Size": "int" },
+					{ "Column": "Deleted",            "Type": "Boolean",      "Size": "Default" },
+					{ "Column": "DeleteDate",         "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "DeletingIDUser",     "Type": "Integer",      "Size": "int" },
+					{ "Column": "EventGUID",          "Type": "String",       "Size": "64",  "Indexed": true },
+					{ "Column": "At",                 "Type": "DateTime",     "Size": "Default", "Indexed": true },
+					{ "Column": "EndAt",              "Type": "DateTime",     "Size": "Default", "Indexed": true },
+					{ "Column": "EventType",          "Type": "String",       "Size": "64" },
+					{ "Column": "RunHash",            "Type": "String",       "Size": "256", "Indexed": true },
+					{ "Column": "OperationHash",      "Type": "String",       "Size": "256" },
+					{ "Column": "WorkItemHash",       "Type": "String",       "Size": "256", "Indexed": true },
+					{ "Column": "Capability",         "Type": "String",       "Size": "128", "Indexed": true },
+					{ "Column": "Action",             "Type": "String",       "Size": "128" },
+					{ "Column": "BeaconID",           "Type": "String",       "Size": "128" },
+					{ "Column": "Status",             "Type": "String",       "Size": "32" },
+					{ "Column": "DurationMs",         "Type": "Integer",      "Size": "int" },
+					{ "Column": "RawRefHash",         "Type": "String",       "Size": "256" },
+					{ "Column": "InsertedAt",         "Type": "DateTime",     "Size": "Default" }
+				],
+				"DefaultObject":
+				{
+					"IDTimelineRecord": 0, "GUIDTimelineRecord": "",
+					"CreateDate": null, "CreatingIDUser": 0,
+					"UpdateDate": null, "UpdatingIDUser": 0,
+					"Deleted": 0, "DeleteDate": null, "DeletingIDUser": 0,
+					"EventGUID": "",
+					"At": null, "EndAt": null,
+					"EventType": "",
+					"RunHash": "", "OperationHash": "", "WorkItemHash": "",
+					"Capability": "", "Action": "", "BeaconID": "",
+					"Status": "",
+					"DurationMs": 0,
+					"RawRefHash": "",
+					"InsertedAt": null
+				}
+			}
+		},
+		"TimelineRecordArchive":
+		{
+			"TableName": "TimelineRecordArchive",
+			"Domain": "Default",
+			"Description": "Cold storage for timeline events past the hot retention window. Identical shape to TimelineRecord; the archive cycler INSERTs from hot then DELETEs in one transaction. The /Timeline endpoint queries this table when a request's range falls into archived territory and unions both when a request straddles the boundary.",
+			"Columns":
+			[
+				{ "Column": "IDTimelineRecordArchive", "DataType": "ID" },
+				{ "Column": "GUIDTimelineRecordArchive", "DataType": "GUID", "Size": "36" },
+				{ "Column": "CreateDate", "DataType": "DateTime" },
+				{ "Column": "CreatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "UpdateDate", "DataType": "DateTime" },
+				{ "Column": "UpdatingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "Deleted", "DataType": "Boolean" },
+				{ "Column": "DeleteDate", "DataType": "DateTime" },
+				{ "Column": "DeletingIDUser", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "EventGUID", "DataType": "String", "Size": "64" },
+				{ "Column": "At", "DataType": "DateTime" },
+				{ "Column": "EndAt", "DataType": "DateTime" },
+				{ "Column": "EventType", "DataType": "String", "Size": "64" },
+				{ "Column": "RunHash", "DataType": "String", "Size": "256" },
+				{ "Column": "OperationHash", "DataType": "String", "Size": "256" },
+				{ "Column": "WorkItemHash", "DataType": "String", "Size": "256" },
+				{ "Column": "Capability", "DataType": "String", "Size": "128" },
+				{ "Column": "Action", "DataType": "String", "Size": "128" },
+				{ "Column": "BeaconID", "DataType": "String", "Size": "128" },
+				{ "Column": "Status", "DataType": "String", "Size": "32" },
+				{ "Column": "DurationMs", "DataType": "Numeric", "Size": "int" },
+				{ "Column": "RawRefHash", "DataType": "String", "Size": "256" },
+				{ "Column": "InsertedAt", "DataType": "DateTime" },
+				{ "Column": "ArchivedAt", "DataType": "DateTime" }
+			],
+			"MeadowSchema":
+			{
+				"Scope": "TimelineRecordArchive",
+				"DefaultIdentifier": "IDTimelineRecordArchive",
+				"Domain": "Default",
+				"Schema":
+				[
+					{ "Column": "IDTimelineRecordArchive",   "Type": "AutoIdentity", "Size": "Default" },
+					{ "Column": "GUIDTimelineRecordArchive", "Type": "String",       "Size": "36" },
+					{ "Column": "CreateDate",                "Type": "CreateDate",   "Size": "Default" },
+					{ "Column": "CreatingIDUser",            "Type": "Integer",      "Size": "int" },
+					{ "Column": "UpdateDate",                "Type": "UpdateDate",   "Size": "Default" },
+					{ "Column": "UpdatingIDUser",            "Type": "Integer",      "Size": "int" },
+					{ "Column": "Deleted",                   "Type": "Boolean",      "Size": "Default" },
+					{ "Column": "DeleteDate",                "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "DeletingIDUser",            "Type": "Integer",      "Size": "int" },
+					{ "Column": "EventGUID",                 "Type": "String",       "Size": "64",  "Indexed": true },
+					{ "Column": "At",                        "Type": "DateTime",     "Size": "Default", "Indexed": true },
+					{ "Column": "EndAt",                     "Type": "DateTime",     "Size": "Default", "Indexed": true },
+					{ "Column": "EventType",                 "Type": "String",       "Size": "64" },
+					{ "Column": "RunHash",                   "Type": "String",       "Size": "256", "Indexed": true },
+					{ "Column": "OperationHash",             "Type": "String",       "Size": "256" },
+					{ "Column": "WorkItemHash",              "Type": "String",       "Size": "256", "Indexed": true },
+					{ "Column": "Capability",                "Type": "String",       "Size": "128", "Indexed": true },
+					{ "Column": "Action",                    "Type": "String",       "Size": "128" },
+					{ "Column": "BeaconID",                  "Type": "String",       "Size": "128" },
+					{ "Column": "Status",                    "Type": "String",       "Size": "32" },
+					{ "Column": "DurationMs",                "Type": "Integer",      "Size": "int" },
+					{ "Column": "RawRefHash",                "Type": "String",       "Size": "256" },
+					{ "Column": "InsertedAt",                "Type": "DateTime",     "Size": "Default" },
+					{ "Column": "ArchivedAt",                "Type": "DateTime",     "Size": "Default" }
+				],
+				"DefaultObject":
+				{
+					"IDTimelineRecordArchive": 0, "GUIDTimelineRecordArchive": "",
+					"CreateDate": null, "CreatingIDUser": 0,
+					"UpdateDate": null, "UpdatingIDUser": 0,
+					"Deleted": 0, "DeleteDate": null, "DeletingIDUser": 0,
+					"EventGUID": "",
+					"At": null, "EndAt": null,
+					"EventType": "",
+					"RunHash": "", "OperationHash": "", "WorkItemHash": "",
+					"Capability": "", "Action": "", "BeaconID": "",
+					"Status": "",
+					"DurationMs": 0,
+					"RawRefHash": "",
+					"InsertedAt": null,
+					"ArchivedAt": null
+				}
+			}
+		}
+	}
+}

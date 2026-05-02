@@ -22,6 +22,10 @@ const libServiceBeaconQueueJournal = require('../services/persistence/Ultravisor
 const libServiceBeaconQueueStore = require('../services/persistence/Ultravisor-Beacon-QueueStore.cjs');
 const libServiceBeaconScheduler = require('../services/Ultravisor-Beacon-Scheduler.cjs');
 const libServiceObserver = require('../services/Ultravisor-Observer.cjs');
+const libServiceLongPollManager = require('../services/Ultravisor-LongPollManager.cjs');
+const libServiceAdmissionPolicy = require('../services/Ultravisor-AdmissionPolicy.cjs');
+const libServiceTimelineStore = require('../services/persistence/Ultravisor-Timeline-Store.cjs');
+const libServiceTimelineAggregator = require('../services/Ultravisor-TimelineAggregator.cjs');
 const libServiceBeaconFleetStore = require('../services/persistence/Ultravisor-Beacon-FleetStore.cjs');
 const libServiceAuthBeaconBridge = require('../services/Ultravisor-AuthBeaconBridge.cjs');
 const libServiceQueuePersistenceBridge = require('../services/Ultravisor-QueuePersistenceBridge.cjs');
@@ -299,6 +303,40 @@ _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
 _Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
 	'UltravisorObserver', libServiceObserver);
 
+// --- Long-poll manager (Phase 4 — Pillar 3) — book-keeps HTTP
+// long-poll waiters on /Queue/Events and /Observer/Events. Same event
+// stream as the WS path; just a different transport face.
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
+	'UltravisorLongPollManager', libServiceLongPollManager);
+
+// --- Admission policy (Phase 4 — Pillar 4) — tracks queue depth +
+// fleet health, hands 429s on enqueue routes when thresholds trip,
+// per-client rate limits, fires observer.admission.* events.
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
+	'UltravisorAdmissionPolicy', libServiceAdmissionPolicy);
+
+// --- Timeline store (Phase 5 — Pillar 1) — Meadow-backed flat event
+// stream, hot + archive tables. Shares UltravisorBeaconQueueStore's
+// connector (one Meadow connector per UV process; each store registers
+// its own tables). Production swaps the connector via
+// fable.settings.MeadowProvider — no store-code changes.
+//
+// Order matters: BeaconQueueStore.initialize() registers the connector
+// at fable.MeadowSQLiteProvider; TimelineStore.initialize() reads it.
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
+	'UltravisorTimelineStore', libServiceTimelineStore);
+let tmpTimelineStore = Object.values(_Ultravisor_Pict.fable.servicesMap['UltravisorTimelineStore'])[0];
+if (tmpTimelineStore)
+{
+	tmpTimelineStore.initialize();
+}
+
+// --- Timeline aggregator (Phase 5 — Pillar 1) — projects manifest +
+// queue events into TimelineRecords and batch-flushes through the
+// store. Started after the API server has wired its broadcast tap.
+_Ultravisor_Pict.fable.addAndInstantiateServiceTypeIfNotExists(
+	'UltravisorTimelineAggregator', libServiceTimelineAggregator);
+
 // --- Auth beacon bridge (consults the optional Authentication-capable
 // beacon for session validation + non-promiscuous mode admission). The
 // bridge is always installed; it just resolves to "not available" when
@@ -344,6 +382,16 @@ let tmpObserver = Object.values(_Ultravisor_Pict.fable.servicesMap['UltravisorOb
 if (tmpObserver && typeof tmpObserver.start === 'function')
 {
 	tmpObserver.start();
+}
+
+// Start the Timeline aggregator after the API server has had a chance
+// to wire the broadcast tap during wireEndpoints. Same lifecycle as
+// the Observer/Scheduler — the first events arrive immediately as
+// queue.* / observer.* envelopes start flowing.
+let tmpTimelineAggregator = Object.values(_Ultravisor_Pict.fable.servicesMap['UltravisorTimelineAggregator'])[0];
+if (tmpTimelineAggregator && typeof tmpTimelineAggregator.start === 'function')
+{
+	tmpTimelineAggregator.start();
 }
 
 // ── Service name aliases ────────────────────────────────

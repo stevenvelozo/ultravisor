@@ -647,7 +647,10 @@ class UltravisorBeaconQueueStore extends libPictService
 				QueueWaitMs: pItem.QueueWaitMs || 0,
 				// Health is stored as TEXT-of-float so it can carry both
 				// floats and a literal null without an extra column.
-				Health: (pItem.Health == null) ? null : String(pItem.Health),
+				// Schema declares NOT NULL DEFAULT ''; explicit-NULL
+				// binds bypass the default and trip the constraint, so
+				// we coerce nullish to ''.
+				Health: (pItem.Health == null) ? '' : String(pItem.Health),
 				HealthLabel: pItem.HealthLabel || 'Unknown',
 				HealthReason: pItem.HealthReason || '',
 				HealthComputedAt: pItem.HealthComputedAt || null,
@@ -697,7 +700,7 @@ class UltravisorBeaconQueueStore extends libPictService
 			}
 			else if (tmpKey === 'Health')
 			{
-				tmpVal = (tmpVal == null) ? null : String(tmpVal);
+				tmpVal = (tmpVal == null) ? '' : String(tmpVal);
 			}
 			else if (tmpKey === 'CancelRequested')
 			{

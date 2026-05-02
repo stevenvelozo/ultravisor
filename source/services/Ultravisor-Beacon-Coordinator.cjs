@@ -1340,6 +1340,13 @@ class UltravisorBeaconCoordinator extends libPictService
 			pWorkItem.Status = 'Running';
 			pWorkItem.AssignedBeaconID = tmpBeacon.BeaconID;
 			pWorkItem.ClaimedAt = new Date().toISOString();
+			// Phase 4 — Pillar 1 follow-up: reset LastEventAt + record
+			// DispatchedAt so the BeaconScheduler stall scan doesn't
+			// false-stall items that sat Pending in a deep queue. Same
+			// reasoning as the matching reset in
+			// Ultravisor-Beacon-Scheduler.cjs._dispatchItemToBeacon.
+			pWorkItem.DispatchedAt = pWorkItem.ClaimedAt;
+			pWorkItem.LastEventAt = pWorkItem.ClaimedAt;
 			tmpBeacon.CurrentWorkItems.push(pWorkItem.WorkItemHash);
 
 			// Create affinity binding if applicable

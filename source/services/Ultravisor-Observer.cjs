@@ -658,6 +658,43 @@ class UltravisorObserver extends libPictService
 		return tmpOut;
 	}
 
+	/**
+	 * Phase 5 — duration-sample summary per capability for the timeline
+	 * projector's future-prediction.  Aggregates RecentDurations across
+	 * every Alive/Suspect beacon advertising the capability.  Returns
+	 * { Samples, MedianMs, P95Ms } — { 0, 0, 0 } when no signal yet.
+	 */
+	getCapabilityDurationStats(pCapability)
+	{
+		if (!pCapability) return { Samples: 0, MedianMs: 0, P95Ms: 0 };
+		let tmpAll = [];
+		let tmpKeys = Object.keys(this._Beacons || {});
+		for (let i = 0; i < tmpKeys.length; i++)
+		{
+			let tmpRec = this._Beacons[tmpKeys[i]];
+			if (!tmpRec || !tmpRec.RecentDurations) continue;
+			let tmpRDKeys = Object.keys(tmpRec.RecentDurations);
+			for (let j = 0; j < tmpRDKeys.length; j++)
+			{
+				if (tmpRDKeys[j].indexOf(pCapability + '/') !== 0) continue;
+				let tmpArr = tmpRec.RecentDurations[tmpRDKeys[j]];
+				for (let k = 0; k < tmpArr.length; k++)
+				{
+					if (typeof tmpArr[k] === 'number' && tmpArr[k] >= 0) tmpAll.push(tmpArr[k]);
+				}
+			}
+		}
+		if (tmpAll.length === 0) return { Samples: 0, MedianMs: 0, P95Ms: 0 };
+		tmpAll.sort(function (pA, pB) { return pA - pB; });
+		let tmpMidIdx = Math.floor(tmpAll.length / 2);
+		let tmpP95Idx = Math.min(tmpAll.length - 1, Math.floor(tmpAll.length * 0.95));
+		return {
+			Samples:  tmpAll.length,
+			MedianMs: tmpAll[tmpMidIdx],
+			P95Ms:    tmpAll[tmpP95Idx]
+		};
+	}
+
 	// ====================================================================
 	// Private — observer.* announcement
 	// ====================================================================

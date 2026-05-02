@@ -84,6 +84,12 @@ class UltravisorAPIServer extends libPictService
 	{
 		super(pPict, pOptions, pServiceHash);
 
+		// Phase 4 — services discover the API server through fable's
+		// servicesMap (e.g. UltravisorAdmissionPolicy fans observer.*
+		// events through this._broadcastQueueTopic). Set the service
+		// type explicitly so the registration name is stable.
+		this.serviceType = 'UltravisorAPIServer';
+
 		// Add Restify as the default service server type
 		this.fable.addServiceTypeIfNotExists('OratorServiceServer', libOratorServiceServerRestify);
 		this._OratorServer = this.fable.instantiateServiceProvider('OratorServiceServer', {});
@@ -121,8 +127,31 @@ class UltravisorAPIServer extends libPictService
 		// NOT buffered — replaying a stale summary would briefly clobber
 		// correct counts, and control frames are session-scoped.
 		this._QueueEventBuffer = [];
-		this._QueueEventBufferCap = 2000;
+		// Phase 4 — Pillar 3: bumped from 2000 to 5000 to absorb longer
+		// polling-beacon offline windows. At Phase 3 lab fixture rates
+		// (~200 envelopes/min) that gives ~25 min of catch-up before a
+		// poll request gets 410 Gone. Both queue.* and observer.*
+		// envelopes share this ring (the Observer's broadcast hook
+		// flows through the same _broadcastQueueTopic path); the
+		// /Observer/Events endpoint filters by topic prefix on read.
+		this._QueueEventBufferCap = 5000;
 		this._QueueEventSeq = 0;
+
+		// Phase 5 — Pillar 1+3: broadcast taps + timeline waiters.
+		//
+		// _BroadcastTaps: every replayable broadcast envelope is also
+		// fanned out here. The Timeline aggregator registers a tap so
+		// it gets every event without the overhead of a WS subscription.
+		// Taps are best-effort — exceptions are swallowed; a misbehaving
+		// tap doesn't break the broadcast path.
+		//
+		// _TimelineWaiters: long-poll waiters on /Timeline. Drained on
+		// every replayable broadcast. Distinct from the LongPollManager
+		// (which keys on EventGUID positions in the ring); a timeline
+		// waiter wakes on any new event because the renderer wants the
+		// freshest projection, not a delta from a cursor.
+		this._BroadcastTaps = new Set();
+		this._TimelineWaiters = new Set();
 
 		// Manifest (per-RunHash execution event) catch-up buffers.
 		//
@@ -223,6 +252,581 @@ class UltravisorAPIServer extends libPictService
 		return this.fable.servicesMap[pTypeName]
 			? Object.values(this.fable.servicesMap[pTypeName])[0]
 			: null;
+	}
+
+	// Phase 4 — Pillar 2 helper. Fan in to ExecutionManifest.getRun for
+	// each hash, falling back to the persistence bridge for hashes not
+	// in memory. Returns { Manifests, NotFound } in one response. The
+	// per-hash code path is identical to GET /Manifest/:RunHash so the
+	// wire shape stays uniform.
+	_handleManifestBatchRead(pHashes, pResponse, fNext)
+	{
+		let tmpManifest = this._getService('UltravisorExecutionManifest');
+		let tmpBridge = this._getService('UltravisorManifestStoreBridge');
+		let tmpManifests = [];
+		let tmpNotFound = [];
+		let tmpBridgeQueue = [];
+		for (let i = 0; i < pHashes.length; i++)
+		{
+			let tmpHash = pHashes[i];
+			let tmpRun = tmpManifest ? tmpManifest.getRun(tmpHash) : null;
+			if (tmpRun)
+			{
+				tmpManifests.push(_cleanManifestForWire(tmpRun));
+			}
+			else if (tmpBridge)
+			{
+				tmpBridgeQueue.push(tmpHash);
+			}
+			else
+			{
+				tmpNotFound.push(tmpHash);
+			}
+		}
+		if (tmpBridgeQueue.length === 0)
+		{
+			pResponse.send({ Manifests: tmpManifests, NotFound: tmpNotFound });
+			return fNext();
+		}
+		let tmpRem = tmpBridgeQueue.length;
+		let tmpDone = false;
+		let fSendOnce = () =>
+		{
+			if (tmpDone) return;
+			tmpDone = true;
+			pResponse.send({ Manifests: tmpManifests, NotFound: tmpNotFound });
+			return fNext();
+		};
+		for (let i = 0; i < tmpBridgeQueue.length; i++)
+		{
+			let tmpHash = tmpBridgeQueue[i];
+			tmpBridge.getManifest(tmpHash).then((pResult) =>
+			{
+				if (pResult && pResult.Success && pResult.Manifest)
+				{
+					tmpManifests.push(_cleanManifestForWire(pResult.Manifest));
+				}
+				else
+				{
+					tmpNotFound.push(tmpHash);
+				}
+				tmpRem--;
+				if (tmpRem === 0) { fSendOnce(); }
+			}).catch(() =>
+			{
+				tmpNotFound.push(tmpHash);
+				tmpRem--;
+				if (tmpRem === 0) { fSendOnce(); }
+			});
+		}
+	}
+
+	// Phase 5 — broadcast tap registration. Aggregator (and any future
+	// observability service) subscribes to every stamped envelope.
+	addBroadcastTap(fTap)
+	{
+		if (typeof fTap !== 'function') return;
+		this._BroadcastTaps.add(fTap);
+	}
+
+	removeBroadcastTap(fTap)
+	{
+		this._BroadcastTaps.delete(fTap);
+	}
+
+	// Phase 5 — Pillar 3 — drain waiters parked on /Timeline?waitMs=...
+	// Each waiter re-runs its own projection; we just remove + invoke.
+	_drainTimelineWaiters()
+	{
+		if (!this._TimelineWaiters || this._TimelineWaiters.size === 0) return;
+		let tmpWaiters = Array.from(this._TimelineWaiters);
+		this._TimelineWaiters.clear();
+		for (let i = 0; i < tmpWaiters.length; i++)
+		{
+			let tmpW = tmpWaiters[i];
+			if (tmpW._Settled) continue;
+			tmpW._Settled = true;
+			if (tmpW.TimeoutHandle)
+			{
+				try { clearTimeout(tmpW.TimeoutHandle); } catch (pErr) { /* ignore */ }
+			}
+			try { tmpW.fSatisfy(); } catch (pErr) { /* best effort */ }
+		}
+	}
+
+	// Phase 5 — Pillar 3 — /Timeline request handler.
+	//
+	// Resolves relative time ("now-2m" / "now+30s"), reads historical
+	// past via the store, projects present + future via the projector,
+	// optionally LOD-buckets the past, optionally registers a long-poll
+	// waiter for live tail.
+	_handleTimelineRequest(pRequest, pResponse, fNext)
+	{
+		let tmpQuery = _parseQueryString(pRequest.url || '');
+		let tmpNow = new Date();
+		let tmpNowMs = tmpNow.getTime();
+		let tmpNowIso = tmpNow.toISOString();
+		let tmpFromIso = this._resolveRelativeTime(tmpQuery.from, tmpNowMs)
+			|| new Date(tmpNowMs - 5 * 60 * 1000).toISOString();
+		let tmpToIso = this._resolveRelativeTime(tmpQuery.to, tmpNowMs)
+			|| new Date(tmpNowMs + 30 * 1000).toISOString();
+		if (tmpFromIso > tmpToIso)
+		{
+			pResponse.send(400, { Error: '"from" must be <= "to"' });
+			return fNext();
+		}
+		let tmpCaps = (tmpQuery.capability || '')
+			.split(',').map((pS) => pS.trim()).filter((pS) => pS.length > 0);
+		let tmpRunHashes = (tmpQuery.runHash || '')
+			.split(',').map((pS) => pS.trim()).filter((pS) => pS.length > 0);
+		let tmpFutureLimit = parseInt(tmpQuery.futureLimit, 10);
+		if (!Number.isFinite(tmpFutureLimit) || tmpFutureLimit < 0) { tmpFutureLimit = 32; }
+		if (tmpFutureLimit > 256) { tmpFutureLimit = 256; }
+		let tmpBucket = (tmpQuery.bucket || 'auto');
+		let tmpWaitMs = parseInt(tmpQuery.waitMs, 10);
+		if (!Number.isFinite(tmpWaitMs) || tmpWaitMs < 0) { tmpWaitMs = 0; }
+		if (tmpWaitMs > 60000) { tmpWaitMs = 60000; }
+
+		let fBuildBody = function ()
+		{
+			return this._buildTimelineBody(
+				tmpFromIso, tmpToIso, tmpCaps, tmpRunHashes, tmpFutureLimit, tmpBucket);
+		}.bind(this);
+
+		// Build an immediate response. If the body is non-empty or
+		// waitMs=0, send now. Otherwise register a waiter.
+		let tmpBody = fBuildBody();
+		let fHasContent = function (pBody)
+		{
+			let tmpAny = (pBody.Past && pBody.Past.length > 0)
+				|| (pBody.Buckets && pBody.Buckets.length > 0)
+				|| (pBody.Present && pBody.Present.length > 0)
+				|| (pBody.Future && pBody.Future.length > 0);
+			return tmpAny;
+		};
+		if (tmpWaitMs === 0 || fHasContent(tmpBody))
+		{
+			pResponse.send(tmpBody);
+			return fNext();
+		}
+
+		let tmpWaiter =
+		{
+			RegisteredAt:  Date.now(),
+			TimeoutHandle: null,
+			_Settled:      false,
+			fSatisfy: function ()
+			{
+				let tmpRefreshed = fBuildBody();
+				pResponse.send(tmpRefreshed);
+				fNext();
+			},
+			fTimeout: function ()
+			{
+				let tmpRefreshed = fBuildBody();
+				pResponse.send(tmpRefreshed);
+				fNext();
+			}
+		};
+		this._TimelineWaiters.add(tmpWaiter);
+		tmpWaiter.TimeoutHandle = setTimeout(function ()
+		{
+			if (tmpWaiter._Settled) return;
+			tmpWaiter._Settled = true;
+			this._TimelineWaiters.delete(tmpWaiter);
+			tmpWaiter.fTimeout();
+		}.bind(this), tmpWaitMs);
+
+		try
+		{
+			pRequest.connection && pRequest.connection.on('close', function ()
+			{
+				if (tmpWaiter._Settled) return;
+				tmpWaiter._Settled = true;
+				this._TimelineWaiters.delete(tmpWaiter);
+				if (tmpWaiter.TimeoutHandle)
+				{
+					try { clearTimeout(tmpWaiter.TimeoutHandle); } catch (pErr) { /* ignore */ }
+				}
+			}.bind(this));
+		}
+		catch (pErr) { /* best effort */ }
+	}
+
+	_buildTimelineBody(pFromIso, pToIso, pCaps, pRunHashes, pFutureLimit, pBucket)
+	{
+		let tmpStore = this._getService('UltravisorTimelineStore');
+		let tmpCoord = this._getService('UltravisorBeaconCoordinator');
+		let tmpObs   = this._getService('UltravisorObserver');
+		let tmpProj  = require('../services/Ultravisor-TimelineProjector.cjs');
+
+		let tmpNowIso = new Date().toISOString();
+		let tmpNowMs = Date.now();
+		let tmpToMs = Date.parse(pToIso) || tmpNowMs;
+		let tmpFromMs = Date.parse(pFromIso) || (tmpNowMs - 5 * 60 * 1000);
+
+		// Past: read from store, capped at To = min(now, requestedTo).
+		let tmpPastTo = pToIso < tmpNowIso ? pToIso : tmpNowIso;
+		let tmpPastBlock = { Records: [], More: false };
+		if (tmpStore && typeof tmpStore.readRange === 'function')
+		{
+			tmpPastBlock = tmpStore.readRange({
+				FromIso:        pFromIso,
+				ToIso:          tmpPastTo,
+				Capabilities:   pCaps.length > 0 ? pCaps : null,
+				RunHashes:      pRunHashes.length > 0 ? pRunHashes : null,
+				IncludeArchive: this._shouldIncludeArchive(pFromIso),
+				Limit:          10000
+			}) || { Records: [], More: false };
+		}
+
+		// Present: project only when "now" falls inside the window.
+		let tmpPresent = [];
+		if (tmpFromMs <= tmpNowMs && tmpNowMs < tmpToMs)
+		{
+			tmpPresent = tmpProj.projectPresent(tmpCoord, tmpNowIso) || [];
+			tmpPresent = this._filterByCapsAndRuns(tmpPresent, pCaps, pRunHashes);
+		}
+
+		// Future: project only when To > now.
+		let tmpFuture = [];
+		if (tmpToMs > tmpNowMs)
+		{
+			tmpFuture = tmpProj.projectFuture(tmpCoord, tmpObs, tmpNowIso, pFutureLimit) || [];
+			tmpFuture = this._filterByCapsAndRuns(tmpFuture, pCaps, pRunHashes);
+			// Drop predictions past the requested To.
+			tmpFuture = tmpFuture.filter(function (pR)
+			{
+				if (!pR.PredictedAtIso) return true; // ETA-unknown rows still belong
+				return pR.PredictedAtIso <= pToIso;
+			});
+		}
+
+		// LOD bucketing — applied to Past only.
+		let tmpBucketSec = this._resolveBucketSeconds(pBucket, tmpFromMs, tmpToMs);
+		let tmpBuckets = null;
+		let tmpPastOut = tmpPastBlock.Records;
+		if (tmpBucketSec > 0)
+		{
+			tmpBuckets = this._aggregateBuckets(tmpPastOut, tmpFromMs, tmpToMs, tmpBucketSec);
+			tmpPastOut = [];
+		}
+
+		let tmpCursor = '';
+		if (tmpPastBlock.Records.length > 0)
+		{
+			tmpCursor = tmpPastBlock.Records[tmpPastBlock.Records.length - 1].EventGUID;
+		}
+
+		return {
+			From:     pFromIso,
+			To:       pToIso,
+			Now:      tmpNowIso,
+			Past:     tmpPastOut,
+			Present:  tmpPresent,
+			Future:   tmpFuture,
+			Buckets:  tmpBuckets,
+			Cursor:   tmpCursor,
+			More:     !!tmpPastBlock.More
+		};
+	}
+
+	// Resolve "now", "now-2m", "now+30s", "now-1h", "now-7d", or an ISO
+	// string. Returns null if pSpec is empty/missing.
+	_resolveRelativeTime(pSpec, pNowMs)
+	{
+		if (!pSpec) return null;
+		let tmpStr = String(pSpec).trim();
+		if (tmpStr === 'now') return new Date(pNowMs).toISOString();
+		let tmpMatch = tmpStr.match(/^now\s*([+-])\s*(\d+)\s*([smhd])?$/i);
+		if (tmpMatch)
+		{
+			let tmpSign = tmpMatch[1] === '-' ? -1 : 1;
+			let tmpVal = parseInt(tmpMatch[2], 10);
+			let tmpUnit = (tmpMatch[3] || 's').toLowerCase();
+			let tmpMul = tmpUnit === 'd' ? 86400000
+				: tmpUnit === 'h' ? 3600000
+				: tmpUnit === 'm' ? 60000
+				: 1000;
+			return new Date(pNowMs + tmpSign * tmpVal * tmpMul).toISOString();
+		}
+		// Treat anything else as ISO; let Date.parse validate.
+		let tmpMs = Date.parse(tmpStr);
+		if (!Number.isFinite(tmpMs)) return null;
+		return new Date(tmpMs).toISOString();
+	}
+
+	// "auto" | "raw" | "<duration>" → seconds-per-bucket. Returns 0 to
+	// signal raw (no bucketing).
+	_resolveBucketSeconds(pBucketSpec, pFromMs, pToMs)
+	{
+		let tmpSpec = String(pBucketSpec || 'auto').toLowerCase();
+		if (tmpSpec === 'raw') return 0;
+		if (tmpSpec === 'auto')
+		{
+			let tmpSpanMs = Math.max(0, pToMs - pFromMs);
+			if (tmpSpanMs < 5 * 60 * 1000) return 0;            // < 5 min: raw
+			if (tmpSpanMs < 60 * 60 * 1000) return 5;           // < 1 hr:  5s buckets
+			if (tmpSpanMs < 24 * 60 * 60 * 1000) return 60;     // < 1 day: 1m buckets
+			return 300;                                          // ≥ 1 day: 5m buckets
+		}
+		// Explicit unit form: 1s / 5s / 1m / 5m / 1h
+		let tmpMatch = tmpSpec.match(/^(\d+)\s*([smh])$/);
+		if (!tmpMatch) return 0;
+		let tmpVal = parseInt(tmpMatch[1], 10);
+		let tmpUnit = tmpMatch[2];
+		return tmpUnit === 'h' ? tmpVal * 3600
+			: tmpUnit === 'm' ? tmpVal * 60
+			: tmpVal;
+	}
+
+	// Group raw past records into time buckets aligned to From.
+	_aggregateBuckets(pRecords, pFromMs, pToMs, pBucketSec)
+	{
+		let tmpBucketMs = pBucketSec * 1000;
+		let tmpBuckets = new Map();
+		for (let i = 0; i < pRecords.length; i++)
+		{
+			let tmpR = pRecords[i];
+			let tmpAtMs = Date.parse(tmpR.At) || pFromMs;
+			let tmpOffset = Math.floor((tmpAtMs - pFromMs) / tmpBucketMs);
+			let tmpStart = pFromMs + tmpOffset * tmpBucketMs;
+			let tmpKey = String(tmpStart);
+			if (!tmpBuckets.has(tmpKey))
+			{
+				tmpBuckets.set(tmpKey, {
+					At:           new Date(tmpStart).toISOString(),
+					DurationMs:   tmpBucketMs,
+					Count:        0,
+					ByEventType:  {},
+					ByCapability: {},
+					ByStatus:     {}
+				});
+			}
+			let tmpBucket = tmpBuckets.get(tmpKey);
+			tmpBucket.Count++;
+			let tmpET = tmpR.EventType || 'Unknown';
+			let tmpCap = tmpR.Capability || '';
+			let tmpStatus = tmpR.Status || '';
+			tmpBucket.ByEventType[tmpET]   = (tmpBucket.ByEventType[tmpET]   || 0) + 1;
+			if (tmpCap)    { tmpBucket.ByCapability[tmpCap]   = (tmpBucket.ByCapability[tmpCap]   || 0) + 1; }
+			if (tmpStatus) { tmpBucket.ByStatus[tmpStatus]    = (tmpBucket.ByStatus[tmpStatus]    || 0) + 1; }
+		}
+		let tmpOut = [];
+		tmpBuckets.forEach(function (pV) { tmpOut.push(pV); });
+		tmpOut.sort(function (pA, pB) { return pA.At < pB.At ? -1 : pA.At > pB.At ? 1 : 0; });
+		return tmpOut;
+	}
+
+	_filterByCapsAndRuns(pRecords, pCaps, pRunHashes)
+	{
+		if ((!pCaps || pCaps.length === 0) && (!pRunHashes || pRunHashes.length === 0))
+		{
+			return pRecords;
+		}
+		let tmpCapSet = new Set(pCaps || []);
+		let tmpRunSet = new Set(pRunHashes || []);
+		return pRecords.filter(function (pR)
+		{
+			if (tmpCapSet.size > 0 && !tmpCapSet.has(pR.Capability)) return false;
+			if (tmpRunSet.size > 0 && !tmpRunSet.has(pR.RunHash)) return false;
+			return true;
+		});
+	}
+
+	_shouldIncludeArchive(pFromIso)
+	{
+		// Heuristic: include archive only when From reaches into
+		// territory the hot table doesn't cover. Hot retention is
+		// ~30 days by default; if From is older than 25 days we
+		// query both. Cheap conservatism — the archive read is a
+		// no-op when nothing's archived yet.
+		try
+		{
+			let tmpFromMs = Date.parse(pFromIso);
+			if (!Number.isFinite(tmpFromMs)) return false;
+			return (Date.now() - tmpFromMs) > 25 * 86400 * 1000;
+		}
+		catch (pErr) { return false; }
+	}
+
+	// Phase 4 — Pillar 3 helper. Shared between /Queue/Events and
+	// /Observer/Events. The bucket name distinguishes which long-poll
+	// queue the waiter goes into; the topic prefix optionally filters
+	// the returned envelopes (observer.* only, etc.).
+	_handleLongPollRequest(pRequest, pResponse, fNext, pBucketName, pTopicPrefix)
+	{
+		let tmpQuery = _parseQueryString(pRequest.url || '');
+		let tmpSince = tmpQuery.since || '';
+		let tmpLimit = parseInt(tmpQuery.limit, 10);
+		if (!Number.isFinite(tmpLimit) || tmpLimit <= 0) { tmpLimit = 500; }
+		if (tmpLimit > 5000) { tmpLimit = 5000; }
+		let tmpWaitMs = parseInt(tmpQuery.waitMs, 10);
+		if (!Number.isFinite(tmpWaitMs) || tmpWaitMs < 0) { tmpWaitMs = 0; }
+		if (tmpWaitMs > 60000) { tmpWaitMs = 60000; }
+
+		let fFilter = (pEnvelopes) =>
+		{
+			if (!pTopicPrefix) return pEnvelopes;
+			let tmpOut = [];
+			for (let i = 0; i < pEnvelopes.length; i++)
+			{
+				if (pEnvelopes[i] && pEnvelopes[i].Topic
+					&& pEnvelopes[i].Topic.indexOf(pTopicPrefix) === 0)
+				{
+					tmpOut.push(pEnvelopes[i]);
+				}
+			}
+			return tmpOut;
+		};
+
+		// 410 Gone if `since` was supplied and is no longer in the ring.
+		// The empty-since case is the cold-start path; we hand back
+		// whatever's currently buffered so the client can pick a cursor.
+		let tmpStartIdx = -1;
+		if (tmpSince)
+		{
+			tmpStartIdx = this._findQueueEventIndex(tmpSince);
+			if (tmpStartIdx < 0)
+			{
+				pResponse.send(410, {
+					Reason: 'history-too-old',
+					Hint: 'fetch /Observer/Snapshot, then resume polling from the latest Cursor'
+				});
+				return fNext();
+			}
+		}
+
+		let tmpBuffer = this._QueueEventBuffer;
+		let tmpAvailableAll = tmpStartIdx >= 0 ? tmpBuffer.slice(tmpStartIdx + 1) : tmpBuffer.slice();
+		let tmpAvailable = fFilter(tmpAvailableAll);
+
+		let fSendImmediate = (pEnvelopes, pMore) =>
+		{
+			let tmpOut = pEnvelopes.slice(0, tmpLimit);
+			let tmpMore = pMore || (pEnvelopes.length > tmpLimit);
+			let tmpCursor = tmpOut.length > 0
+				? tmpOut[tmpOut.length - 1].EventGUID
+				: tmpSince || '';
+			pResponse.send({ Events: tmpOut, Cursor: tmpCursor, More: !!tmpMore });
+			return fNext();
+		};
+
+		if (tmpAvailable.length > 0 || tmpWaitMs === 0)
+		{
+			return fSendImmediate(tmpAvailable, false);
+		}
+
+		// Long-poll path. Try to register a waiter; cap-exceeded → 503.
+		let tmpLP = this._getService('UltravisorLongPollManager');
+		if (!tmpLP)
+		{
+			return fSendImmediate([], false);
+		}
+
+		let tmpWaiter =
+		{
+			BucketName: pBucketName,
+			SinceGUID: tmpSince,
+			Limit: tmpLimit,
+			RegisteredAt: Date.now(),
+			TimeoutHandle: null,
+			fSatisfy: (pEnvelopes, pMore) =>
+			{
+				let tmpFiltered = fFilter(pEnvelopes);
+				if (tmpFiltered.length === 0)
+				{
+					// All filtered out — stay asleep by re-registering.
+					// Cheap retry; cap-exceeded handled below same as
+					// the cold path.
+					if (!tmpLP.register(tmpWaiter))
+					{
+						pResponse.send({
+							Events: [],
+							Cursor: tmpSince || '',
+							More: false
+						});
+						fNext();
+					}
+					return;
+				}
+				let tmpOut = tmpFiltered.slice(0, tmpLimit);
+				let tmpCursor = tmpOut[tmpOut.length - 1].EventGUID;
+				pResponse.send({
+					Events: tmpOut,
+					Cursor: tmpCursor,
+					More: pMore || tmpFiltered.length > tmpLimit
+				});
+				fNext();
+			},
+			fTimeout: () =>
+			{
+				pResponse.send({
+					Events: [],
+					Cursor: tmpSince || '',
+					More: false
+				});
+				fNext();
+			}
+		};
+
+		if (!tmpLP.register(tmpWaiter))
+		{
+			try { pResponse.setHeader('Retry-After', '5'); }
+			catch (pErr) { /* best effort */ }
+			pResponse.send(503, { Error: 'Too many concurrent long-poll waiters; retry shortly.' });
+			return fNext();
+		}
+
+		// Arm the per-waiter timeout. ms-precision is fine; the manager
+		// guarantees at-most-once across (fSatisfy, fTimeout).
+		tmpWaiter.TimeoutHandle = setTimeout(() =>
+		{
+			tmpLP.cancel(tmpWaiter);
+			tmpWaiter.fTimeout();
+		}, tmpWaitMs);
+
+		// Client disconnect → settle without responding (response is
+		// already broken; further writes would just throw).
+		try
+		{
+			pRequest.connection && pRequest.connection.on('close', () =>
+			{
+				tmpLP.cancel(tmpWaiter);
+			});
+		}
+		catch (pErr) { /* best effort */ }
+	}
+
+	// Phase 4 — Pillar 4 hook. Real implementation lives on the
+	// UltravisorAdmissionPolicy service; if it isn't wired up yet (older
+	// deploy or unit test fixture), this returns admitted unconditionally
+	// so the handler stays compatible with the pre-Phase-4 contract.
+	//
+	// pCategory is one of 'enqueue' | 'readonly'. Read-only routes never
+	// admission-deny — they're capped only by the per-client rate limit
+	// (also enforced inside the policy service).
+	_admissionGate(pRequest, pResponse, pCategory)
+	{
+		let tmpPolicy = this._getService('UltravisorAdmissionPolicy');
+		if (!tmpPolicy || typeof tmpPolicy.evaluate !== 'function')
+		{
+			return { Admitted: true };
+		}
+		let tmpDecision = tmpPolicy.evaluate(pRequest, pCategory || 'enqueue');
+		if (tmpDecision && tmpDecision.Admitted) { return tmpDecision; }
+		// Denied — emit 429 with Retry-After + structured body.
+		let tmpRetryAfter = tmpDecision && tmpDecision.RetryAfterSeconds
+			? tmpDecision.RetryAfterSeconds : 30;
+		try { pResponse.setHeader('Retry-After', String(tmpRetryAfter)); }
+		catch (pErr) { /* best effort */ }
+		pResponse.send(429, Object.assign(
+			{
+				Error: 'Admission denied',
+				Reason: (tmpDecision && tmpDecision.Reason) || 'admission_denied',
+				RetryAfterSeconds: tmpRetryAfter
+			}, tmpDecision && tmpDecision.Detail ? tmpDecision.Detail : {}));
+		return { Admitted: false };
 	}
 
 	_requireSession(pRequest, pResponse, fNext)
@@ -666,6 +1270,11 @@ class UltravisorAPIServer extends libPictService
 				'/Operation/:Hash/Execute/Async',
 				function (pRequest, pResponse, fNext)
 				{
+					let tmpAdmission = this._admissionGate(pRequest, pResponse, 'enqueue');
+					if (!tmpAdmission.Admitted)
+					{
+						return fNext();
+					}
 					let tmpState = this._getService('UltravisorHypervisorState');
 					let tmpEngine = this._getService('UltravisorExecutionEngine');
 
@@ -698,6 +1307,104 @@ class UltravisorAPIServer extends libPictService
 									return fNext();
 								});
 						});
+				}.bind(this)
+			);
+
+		// --- Bulk Operation Execution (Phase 4 — Pillar 2) ---
+		// Accept up to 256 (configurable cap) operation kicks in one
+		// HTTP call.  Each entry calls the same startOperationAsync path
+		// the single-row /Operation/:Hash/Execute/Async endpoint uses.
+		// Per-row errors are reported alongside successes; a request-
+		// level 4xx is reserved for malformed bodies.
+		this._OratorServer.post
+			(
+				'/Operation/Execute/Batch',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpAdmission = this._admissionGate(pRequest, pResponse, 'enqueue');
+					if (!tmpAdmission.Admitted)
+					{
+						return fNext();
+					}
+
+					let tmpBody = pRequest.body || {};
+					let tmpEntries = Array.isArray(tmpBody.Operations) ? tmpBody.Operations : null;
+					if (!tmpEntries)
+					{
+						pResponse.send(400, { Error: '"Operations" array is required.' });
+						return fNext();
+					}
+					let tmpCap = (this.options && this.options.MaxBatchSize) || 256;
+					if (tmpEntries.length > tmpCap)
+					{
+						pResponse.send(400,
+							{ Error: `Batch size ${tmpEntries.length} exceeds cap of ${tmpCap}.` });
+						return fNext();
+					}
+
+					let tmpState = this._getService('UltravisorHypervisorState');
+					let tmpEngine = this._getService('UltravisorExecutionEngine');
+					let tmpRuns = new Array(tmpEntries.length);
+					let tmpErrors = [];
+					let tmpRem = tmpEntries.length;
+					let tmpDone = false;
+					let fSendOnce = () =>
+					{
+						if (tmpDone) return;
+						tmpDone = true;
+						let tmpFiltered = tmpRuns.filter((pV) => !!pV);
+						pResponse.send({ Runs: tmpFiltered, Errors: tmpErrors });
+						return fNext();
+					};
+					if (tmpEntries.length === 0) { return fSendOnce(); }
+
+					for (let i = 0; i < tmpEntries.length; i++)
+					{
+						let tmpIdx = i;
+						let tmpEntry = tmpEntries[i] || {};
+						let tmpHash = tmpEntry.Hash || tmpEntry.OperationHash || '';
+						if (!tmpHash)
+						{
+							tmpErrors.push({ Index: tmpIdx, Error: 'Hash is required.' });
+							tmpRem--;
+							if (tmpRem === 0) { fSendOnce(); }
+							continue;
+						}
+						tmpState.getOperation(tmpHash, function (pErr, pOperation)
+						{
+							if (pErr)
+							{
+								tmpErrors.push({ Index: tmpIdx, Error: pErr.message });
+								tmpRem--;
+								if (tmpRem === 0) { fSendOnce(); }
+								return;
+							}
+							let tmpInitialState = {};
+							if (tmpEntry.RunMode) { tmpInitialState.RunMode = tmpEntry.RunMode; }
+							if (tmpEntry.Settings && typeof tmpEntry.Settings === 'object')
+							{
+								tmpInitialState.OperationState = tmpEntry.Settings;
+							}
+							tmpEngine.startOperationAsync(pOperation, tmpInitialState,
+								function (pExecError, pContext)
+								{
+									if (pExecError)
+									{
+										tmpErrors.push({ Index: tmpIdx, Error: pExecError.message });
+									}
+									else
+									{
+										tmpRuns[tmpIdx] = {
+											RunHash:       pContext.Hash,
+											OperationHash: pContext.OperationHash,
+											Status:        pContext.Status
+										};
+									}
+									tmpRem--;
+									if (tmpRem === 0) { fSendOnce(); }
+								});
+						});
+					}
 				}.bind(this)
 			);
 
@@ -999,6 +1706,20 @@ class UltravisorAPIServer extends libPictService
 				'/Manifest',
 				function (pRequest, pResponse, fNext)
 				{
+					// Phase 4 — Pillar 2: when ?hashes=a,b,c is present,
+					// fan in to the same per-hash read path the single-row
+					// /Manifest/:RunHash endpoint uses and return
+					// { Manifests, NotFound }.  Without ?hashes, the
+					// historical "list everything" behavior stays intact.
+					let tmpQuery = _parseQueryString(pRequest.url || '');
+					if (tmpQuery && tmpQuery.hashes)
+					{
+						let tmpHashes = tmpQuery.hashes
+							.split(',')
+							.map((pH) => pH.trim())
+							.filter((pH) => pH.length > 0);
+						return this._handleManifestBatchRead(tmpHashes, pResponse, fNext);
+					}
 					let tmpManifest = this._getService('UltravisorExecutionManifest');
 					let tmpBridge = this._getService('UltravisorManifestStoreBridge');
 					let tmpLiveRuns = tmpManifest ? (tmpManifest.listRuns() || []) : [];
@@ -1032,6 +1753,34 @@ class UltravisorAPIServer extends libPictService
 						pResponse.send(tmpLiveRuns);
 						return fNext();
 					});
+				}.bind(this)
+			);
+
+		// --- Bulk Manifest Read (Phase 4 — Pillar 2) ---
+		// POST counterpart to GET /Manifest?hashes=...  The query-string
+		// form is convenient for shell + curl callers; the POST form
+		// avoids URL length caps for very long hash lists (browsers and
+		// proxies vary, but ~2K is the practical wall).
+		this._OratorServer.post
+			(
+				'/Manifest/Batch',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpBody = pRequest.body || {};
+					let tmpHashes = Array.isArray(tmpBody.Hashes) ? tmpBody.Hashes : null;
+					if (!tmpHashes)
+					{
+						pResponse.send(400, { Error: '"Hashes" array is required.' });
+						return fNext();
+					}
+					let tmpCap = (this.options && this.options.MaxBatchSize) || 256;
+					if (tmpHashes.length > tmpCap)
+					{
+						pResponse.send(400,
+							{ Error: `Batch size ${tmpHashes.length} exceeds cap of ${tmpCap}.` });
+						return fNext();
+					}
+					return this._handleManifestBatchRead(tmpHashes, pResponse, fNext);
 				}.bind(this)
 			);
 
@@ -1755,6 +2504,143 @@ class UltravisorAPIServer extends libPictService
 				}.bind(this)
 			);
 
+		// --- Bulk Complete (Phase 4 — Pillar 2) ---
+		// Polling-mode beacons that pulled N work items via /Beacon/Work/Poll
+		// report N completions in one HTTP call.  Each entry mirrors the
+		// single-completion shape: { WorkItemHash, Outputs, Log }.
+		this._OratorServer.post
+			(
+				'/Beacon/Work/Complete/Batch',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send(500, { Error: 'BeaconCoordinator service not available.' });
+						return fNext();
+					}
+
+					let tmpBody = pRequest.body || {};
+					let tmpEntries = Array.isArray(tmpBody.Items) ? tmpBody.Items
+						: (Array.isArray(tmpBody.Completions) ? tmpBody.Completions : null);
+					if (!tmpEntries)
+					{
+						pResponse.send(400, { Error: '"Items" array is required.' });
+						return fNext();
+					}
+					let tmpCap = (this.options && this.options.MaxBatchSize) || 256;
+					if (tmpEntries.length > tmpCap)
+					{
+						pResponse.send(400,
+							{ Error: `Batch size ${tmpEntries.length} exceeds cap of ${tmpCap}.` });
+						return fNext();
+					}
+					let tmpResults = new Array(tmpEntries.length);
+					let tmpErrors = [];
+					let tmpRem = tmpEntries.length;
+					let tmpDone = false;
+					let fSendOnce = () =>
+					{
+						if (tmpDone) return;
+						tmpDone = true;
+						let tmpFiltered = tmpResults.filter((pV) => !!pV);
+						pResponse.send({ Items: tmpFiltered, Errors: tmpErrors });
+						return fNext();
+					};
+					if (tmpEntries.length === 0) { return fSendOnce(); }
+					for (let i = 0; i < tmpEntries.length; i++)
+					{
+						let tmpIdx = i;
+						let tmpEntry = tmpEntries[i] || {};
+						let tmpHash = tmpEntry.WorkItemHash || '';
+						if (!tmpHash)
+						{
+							tmpErrors.push({ Index: tmpIdx, Error: 'WorkItemHash is required.' });
+							tmpRem--;
+							if (tmpRem === 0) { fSendOnce(); }
+							continue;
+						}
+						tmpCoordinator.completeWorkItem(tmpHash,
+							{ Outputs: tmpEntry.Outputs || {}, Log: tmpEntry.Log || [] },
+							function (pErr)
+							{
+								if (pErr)
+								{
+									tmpErrors.push({ Index: tmpIdx, Error: pErr.message });
+								}
+								else
+								{
+									tmpResults[tmpIdx] = { WorkItemHash: tmpHash, Status: 'Completed' };
+								}
+								tmpRem--;
+								if (tmpRem === 0) { fSendOnce(); }
+							});
+					}
+				}.bind(this)
+			);
+
+		// --- Bulk Progress (Phase 4 — Pillar 2) ---
+		// Same shape, for in-flight progress reports.  Polling beacons
+		// batch their heartbeats this way to avoid per-item HTTP fanout.
+		this._OratorServer.post
+			(
+				'/Beacon/Work/Progress/Batch',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send(500, { Error: 'BeaconCoordinator service not available.' });
+						return fNext();
+					}
+
+					let tmpBody = pRequest.body || {};
+					let tmpEntries = Array.isArray(tmpBody.Items) ? tmpBody.Items
+						: (Array.isArray(tmpBody.Progress) ? tmpBody.Progress : null);
+					if (!tmpEntries)
+					{
+						pResponse.send(400, { Error: '"Items" array is required.' });
+						return fNext();
+					}
+					let tmpCap = (this.options && this.options.MaxBatchSize) || 256;
+					if (tmpEntries.length > tmpCap)
+					{
+						pResponse.send(400,
+							{ Error: `Batch size ${tmpEntries.length} exceeds cap of ${tmpCap}.` });
+						return fNext();
+					}
+					let tmpResults = [];
+					let tmpErrors = [];
+					for (let i = 0; i < tmpEntries.length; i++)
+					{
+						let tmpEntry = tmpEntries[i] || {};
+						let tmpHash = tmpEntry.WorkItemHash || '';
+						if (!tmpHash)
+						{
+							tmpErrors.push({ Index: i, Error: 'WorkItemHash is required.' });
+							continue;
+						}
+						let tmpUpdated = tmpCoordinator.updateProgress(tmpHash, tmpEntry);
+						if (!tmpUpdated)
+						{
+							tmpErrors.push({ Index: i, Error: `Work item [${tmpHash}] not found or not running.` });
+						}
+						else
+						{
+							tmpResults.push({ WorkItemHash: tmpHash, Updated: true });
+						}
+					}
+					pResponse.send({ Items: tmpResults, Errors: tmpErrors });
+					return fNext();
+				}.bind(this)
+			);
+
 		// --- Upload Binary Result ---
 		this._OratorServer.post
 			(
@@ -1898,6 +2784,12 @@ class UltravisorAPIServer extends libPictService
 				{
 					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
 					if (!tmpSession) { return; }
+
+					let tmpAdmission = this._admissionGate(pRequest, pResponse, 'enqueue');
+					if (!tmpAdmission.Admitted)
+					{
+						return fNext();
+					}
 
 					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 					if (!tmpCoordinator)
@@ -2183,6 +3075,45 @@ class UltravisorAPIServer extends libPictService
 						pResponse.send(500, { Error: pErr.message });
 					}
 					return fNext();
+				}.bind(this)
+			);
+
+		// --- Long-poll event streams (Phase 4 — Pillar 3) ---
+		// Same envelope shape WS subscribers see; same EventGUID cursor
+		// protocol. waitMs=0 → short-poll (return immediately with
+		// whatever's after `since`). waitMs>0 → long-poll (server holds
+		// the request until either an envelope arrives or waitMs
+		// elapses). 410 Gone when the cursor is older than the ring.
+		this._OratorServer.get
+			(
+				'/Queue/Events',
+				function (pRequest, pResponse, fNext)
+				{
+					return this._handleLongPollRequest(pRequest, pResponse, fNext, 'queue', null);
+				}.bind(this)
+			);
+
+		this._OratorServer.get
+			(
+				'/Observer/Events',
+				function (pRequest, pResponse, fNext)
+				{
+					return this._handleLongPollRequest(pRequest, pResponse, fNext, 'observer', 'observer.');
+				}.bind(this)
+			);
+
+		// --- Unified timeline (Phase 5) ---
+		// Returns a normalized event stream covering past (from the
+		// historical store), present (in-flight from the work queue),
+		// and future (predicted dispatch from the projector). Live
+		// tailing via waitMs uses the broadcast tap; replay mode is
+		// the same response with waitMs=0 and a fixed time range.
+		this._OratorServer.get
+			(
+				'/Timeline',
+				function (pRequest, pResponse, fNext)
+				{
+					return this._handleTimelineRequest(pRequest, pResponse, fNext);
 				}.bind(this)
 			);
 
@@ -2867,6 +3798,26 @@ class UltravisorAPIServer extends libPictService
 				return fNext();
 			}.bind(this));
 
+		// Phase 4 — Pillar 4: force `Connection: keep-alive` on every
+		// response so any HTTP/1.1 client respecting RFC 9112 §9.3 gets
+		// pooled "by accident" — eliminates the EADDRNOTAVAIL failure
+		// mode for clients that don't configure their own keep-alive
+		// agent. Idempotent if the underlying server already sets it.
+		tmpAnticipate.anticipate(
+			function (fNext)
+			{
+				try
+				{
+					this._OratorServer.server.use(function (pReq, pRes, fGo)
+					{
+						pRes.setHeader('Connection', 'keep-alive');
+						return fGo();
+					});
+				}
+				catch (pErr) { /* best effort */ }
+				return fNext();
+			}.bind(this));
+
 		tmpAnticipate.anticipate(
 			function (fNext)
 			{
@@ -3312,6 +4263,23 @@ class UltravisorAPIServer extends libPictService
 				tmpObserver.handleExecutionEvent.bind(tmpObserver));
 		}
 
+		// Phase 5 — wire the Timeline aggregator's broadcast tap +
+		// manifest listener. The aggregator buffers + flushes via Meadow;
+		// it doesn't interpose on the broadcast path or the WS fan-out.
+		let tmpTimelineAgg = this._getService('UltravisorTimelineAggregator');
+		if (tmpTimelineAgg)
+		{
+			if (typeof tmpTimelineAgg.handleQueueBroadcast === 'function')
+			{
+				this.addBroadcastTap(tmpTimelineAgg.handleQueueBroadcast.bind(tmpTimelineAgg));
+			}
+			if (tmpManifestService && typeof tmpTimelineAgg.handleExecutionEvent === 'function')
+			{
+				tmpManifestService.addExecutionEventListener(
+					tmpTimelineAgg.handleExecutionEvent.bind(tmpTimelineAgg));
+			}
+		}
+
 		this.log.info('Ultravisor WebSocket: execution event WebSocket server initialized.');
 	}
 
@@ -3363,6 +4331,44 @@ class UltravisorAPIServer extends libPictService
 		// Always stamp — even if no current subscribers — so the buffer
 		// captures history that a future reconnect can replay against.
 		let tmpEnvelope = this._stampQueueEvent(pTopic, pPayload);
+
+		// Phase 4 — Pillar 3: notify HTTP long-poll waiters before WS
+		// fan-out so a polling subscriber gets near-WS latency. The
+		// drainOnBroadcast handler resolves any waiter whose SinceGUID
+		// is now satisfiable from the ring; everyone else stays asleep
+		// until either timeout or a later broadcast wakes them.
+		if (this._isReplayableQueueTopic(pTopic))
+		{
+			let tmpLP = this._getService('UltravisorLongPollManager');
+			if (tmpLP)
+			{
+				try
+				{
+					tmpLP.drainOnBroadcast('queue', this._QueueEventBuffer,
+						(pGUID) => this._findQueueEventIndex(pGUID));
+					if (pTopic && pTopic.indexOf('observer.') === 0)
+					{
+						tmpLP.drainOnBroadcast('observer', this._QueueEventBuffer,
+							(pGUID) => this._findQueueEventIndex(pGUID));
+					}
+				}
+				catch (pErr) { /* best effort */ }
+			}
+
+			// Phase 5 — broadcast taps + timeline waiters.
+			if (this._BroadcastTaps && this._BroadcastTaps.size > 0)
+			{
+				this._BroadcastTaps.forEach(function (fTap)
+				{
+					try { fTap(tmpEnvelope); } catch (pErr) { /* best effort */ }
+				});
+			}
+			if (this._TimelineWaiters && this._TimelineWaiters.size > 0)
+			{
+				this._drainTimelineWaiters();
+			}
+		}
+
 		if (!this._QueueSubscribers || this._QueueSubscribers.size === 0) return;
 		let tmpMessage = JSON.stringify(tmpEnvelope);
 		this._QueueSubscribers.forEach(

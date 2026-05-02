@@ -276,6 +276,15 @@ class UltravisorBeaconScheduler extends libPictService
 		pItem.AssignedBeaconID = pBeacon.BeaconID;
 		pItem.AssignedAt = pItem.AssignedAt || tmpNowIso;
 		pItem.DispatchedAt = tmpNowIso;
+		// Phase 4 — Pillar 1 follow-up: reset LastEventAt on dispatch.
+		// _maybeMarkStalled reads LastEventAt || DispatchedAt; without
+		// this reset, an item that sat Pending for >120s gets stalled
+		// the same tick it dispatches because LastEventAt still points
+		// to the original enqueue. The huge-stress workload (~600 ops
+		// queued for a single-slot DI beacon) makes that queue wait
+		// the norm, not the exception, and the false stalls cascade
+		// into Operation-level Stalled finalization.
+		pItem.LastEventAt = tmpNowIso;
 		pItem.QueueWaitMs = tmpQueueWaitMs;
 		pItem.LastEventAt = tmpNowIso;
 		pItem.AttemptNumber = (pItem.AttemptNumber || 0) + 1;
