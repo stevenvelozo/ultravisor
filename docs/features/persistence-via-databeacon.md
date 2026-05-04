@@ -1,10 +1,12 @@
 # Persistence via retold-databeacon
 
-**Status: planned + foundations in progress.** This doc is the cross-session plan
-for routing ultravisor's queue and manifest persistence through retold-databeacon
-instead of the specialized `ultravisor-queue-beacon` and `ultravisor-manifest-beacon`
-modules. It captures the architectural decision, the work breakdown, and the
-hand-off state so a fresh context can resume from here.
+**Status: shipped. Legacy modules removed 2026-05-03.** This doc is the
+cross-session plan for routing ultravisor's queue and manifest persistence
+through retold-databeacon instead of the specialized `ultravisor-queue-beacon`
+and `ultravisor-manifest-beacon` modules (now deleted from the monorepo —
+see [What changed and why](#what-changed-and-why) for the historical context).
+It captures the architectural decision, the work breakdown, and the hand-off
+state so a fresh context can resume from here.
 
 If you are picking this up cold, read this doc top-to-bottom before touching
 code — the decisions below are load-bearing and the cross-module dependencies
@@ -12,15 +14,18 @@ are not obvious from the source.
 
 ## What changed and why
 
-Before this redesign:
-- `ultravisor-queue-beacon` advertises capability `QueuePersistence` with
-  `QP_*` actions. Ships a `QueuePersistenceProviderBase` and a default
+Before this redesign (the modules described here have since been deleted from
+the monorepo on 2026-05-03 — kept here for historical context):
+- `ultravisor-queue-beacon` advertised capability `QueuePersistence` with
+  `QP_*` actions. Shipped a `QueuePersistenceProviderBase` and a default
   `MemoryQueuePersistenceProvider`.
-- `ultravisor-manifest-beacon` advertises `ManifestStore` with `MS_*` actions.
-  Ships a `ManifestStoreProviderBase` and `MemoryManifestStoreProvider`.
+- `ultravisor-manifest-beacon` advertised `ManifestStore` with `MS_*` actions.
+  Shipped a `ManifestStoreProviderBase` and `MemoryManifestStoreProvider`.
 - `Ultravisor-QueuePersistenceBridge.cjs` and
-  `Ultravisor-ManifestStoreBridge.cjs` dispatch into the corresponding
-  capability when a beacon is connected, fall back to local storage otherwise.
+  `Ultravisor-ManifestStoreBridge.cjs` dispatched into the corresponding
+  capability when a beacon was connected, fell back to local storage otherwise.
+  Both bridges still exist inside ultravisor — they now translate `QP_*` /
+  `MS_*` semantics into `MeadowProxy` calls against retold-databeacon.
 - `bootstrap-flush` (already shipped) replays locally-buffered writes into a
   newly-connected beacon via per-beacon HWM tracking persisted to
   `<DataPath>/persistence-bridge-hwm.json`.
@@ -36,10 +41,12 @@ The redesign:
   `Request` calls** (Method + Path + Body) instead of dispatching to a
   specialized capability. The schema (table names, column shapes) is owned
   by ultravisor; retold-databeacon is a generic gateway.
-- **The two specialized beacon modules are not deleted.** They stay as the
-  reference implementation of the Provider pattern, useful for embedded /
-  niche deployments that don't want retold-databeacon's REST surface. They
-  are no longer the lab's recommended path.
+- **The two specialized beacon modules have been deleted (2026-05-03).**
+  They were marked legacy throughout Session 4 and the migration path proved
+  out across all retold-databeacon-supported engines (mysql / mssql / postgres
+  / sqlite). Embedded deployments that prefer in-process Provider-pattern
+  persistence can still subclass the bridges' fallback path; the QP/MS
+  capability surfaces themselves are gone from the monorepo.
 - **The lab's UV detail view gains a "persistence databeacon" picker.** The
   operator picks a running retold-databeacon (which itself has an
   engine+database picker via `lab-engine-database-picker`); ultravisor's
@@ -1120,21 +1127,31 @@ engine-coverage work — same files get touched.
 
 #### Legacy beacon deprecation
 
-`ultravisor-queue-beacon` and `ultravisor-manifest-beacon` are still
-selectable in the lab's beacon-create form. They stay as-is in the
-codebase (they're the reference Provider implementations and useful for
-embedded deployments that don't want retold-databeacon's REST surface).
-Session 4 just makes the recommended path obvious to operators:
+Originally Session 4 just labeled `ultravisor-queue-beacon` and
+`ultravisor-manifest-beacon` as `(legacy)` in the lab UI while keeping
+the modules selectable. As of 2026-05-03 the modules have been deleted
+outright — the migration path proved out across every retold-databeacon
+engine and there are no remaining users.
 
-- `Service-BeaconTypeRegistry.js` — append `(legacy)` to the
-  `DisplayName` of both types and add a `Deprecated: true` field on
-  the public descriptor.
-- `PictView-Lab-Beacons.js` — when the form's BeaconType dropdown
-  shows a deprecated type, render a tooltip / inline note: "Legacy
-  type. New deployments should use `retold-databeacon` + the lab's
-  Persistence assignment for queue / manifest persistence."
-- The seed-dataset and other paths that filter by `BeaconType ===
-  'retold-databeacon'` already do the right thing; no other changes.
+What's gone:
+
+- The two module directories (`modules/apps/ultravisor-queue-beacon`,
+  `modules/apps/ultravisor-manifest-beacon`).
+- Manifest entries in `Retold-Modules-Manifest.json` and
+  `modules/Include-Retold-Module-List.sh`.
+- Lab registry entries — `Service-BeaconTypeRegistry.js`'s
+  `SCANNED_MODULES` no longer scans them and `DEPRECATED_BEACON_TYPES`
+  is now an empty Set (kept for future per-module deprecations).
+
+What stayed:
+
+- `Ultravisor-QueuePersistenceBridge.cjs` and
+  `Ultravisor-ManifestStoreBridge.cjs` inside ultravisor — they still
+  dispatch `QP_*` / `MS_*` semantics, just into MeadowProxy now.
+- The `LEGACY_TOOLTIP` constant + per-stanza
+  `retoldBeacon.deprecated: true` plumbing in
+  `Service-BeaconTypeRegistry.js` — useful infrastructure for whatever
+  the next deprecation needs.
 
 #### Test-fable cleanup (tangential hygiene)
 
