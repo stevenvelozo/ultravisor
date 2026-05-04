@@ -1108,25 +1108,34 @@ class UltravisorExecutionEngine extends libPictService
 			fProcessNextDownstream();
 		};
 
-		// Execute the task
+		// Execute the task. Wrap the synchronous portion of the call in
+		// try/catch — a misbehaving executor that throws synchronously
+		// (e.g. simple-get's ERR_INVALID_ARG_TYPE on a non-string body)
+		// would otherwise tear down the entire UV process. Treating the
+		// throw as a task error fires the Error edge and lets the rest
+		// of the operation graph clean up gracefully.
 		this.log.info(`[Engine] executeTask: running task type="${tmpNode.Type}" node=${pNodeHash}`);
-		tmpTaskInstance.execute(tmpResolvedSettings, tmpTaskContext, (pError, pResult) =>
+		let fHandleTaskError = (pError) =>
 		{
-			if (pError)
+			this.log.warn(`[Engine] executeTask: TASK ERROR node=${pNodeHash}: ${pError.message}`);
+			this._log(pContext, `Task [${pNodeHash}] error: ${pError.message}`, 'error');
+			if (tmpManifestService)
 			{
-				this.log.warn(`[Engine] executeTask: TASK ERROR node=${pNodeHash}: ${pError.message}`);
-				this._log(pContext, `Task [${pNodeHash}] error: ${pError.message}`, 'error');
-				if (tmpManifestService)
-				{
-					tmpManifestService.recordTaskError(pContext, pNodeHash, pError);
-					tmpManifestService.recordEvent(pContext, pNodeHash, 'TaskError',
-						`Error in [${pNodeHash}]: ${pError.message}`, 0);
-				}
-
-				// Fire error event if the task has one
-				this._enqueueDownstreamEvents(pNodeHash, 'Error', pContext);
-				return fCallback(null);
+				tmpManifestService.recordTaskError(pContext, pNodeHash, pError);
+				tmpManifestService.recordEvent(pContext, pNodeHash, 'TaskError',
+					`Error in [${pNodeHash}]: ${pError.message}`, 0);
 			}
+			this._enqueueDownstreamEvents(pNodeHash, 'Error', pContext);
+			return fCallback(null);
+		};
+		try
+		{
+			tmpTaskInstance.execute(tmpResolvedSettings, tmpTaskContext, (pError, pResult) =>
+			{
+				if (pError)
+				{
+					return fHandleTaskError(pError);
+				}
 
 			if (!pResult)
 			{
@@ -1257,6 +1266,11 @@ class UltravisorExecutionEngine extends libPictService
 			return fCallback(null);
 		},
 		fFireIntermediateEvent);
+		}
+		catch (pSyncError)
+		{
+			return fHandleTaskError(pSyncError);
+		}
 	}
 
 	// ====================================================================

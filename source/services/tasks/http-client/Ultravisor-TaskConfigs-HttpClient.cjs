@@ -305,16 +305,24 @@ module.exports =
 
 			let tmpRequestOptions = { url: tmpURL, method: tmpMethod, headers: tmpHeaders, timeout: pResolvedSettings.TimeoutMs || 30000 };
 
-			// Parse body for non-GET methods
+			// Body for non-GET methods. The HTTP client's `body` option
+			// expects a string (or Buffer / stream); object bodies cause
+			// `Buffer.byteLength(object)` to throw ERR_INVALID_ARG_TYPE
+			// inside simple-get and crash the engine. Pass the configured
+			// Body through verbatim — Content-Type tells the server how
+			// to interpret it. (Validating-parse the JSON for an early
+			// clearer error, but always serialize back to a string.)
 			if (tmpMethod !== 'GET' && pResolvedSettings.Body)
 			{
-				try
+				if (typeof pResolvedSettings.Body === 'string')
 				{
-					tmpRequestOptions.body = JSON.parse(pResolvedSettings.Body);
-				}
-				catch (pParseError)
-				{
+					try { JSON.parse(pResolvedSettings.Body); }
+					catch (pParseError) { /* ok — non-JSON bodies (e.g. form-encoded) pass through too */ }
 					tmpRequestOptions.body = pResolvedSettings.Body;
+				}
+				else
+				{
+					tmpRequestOptions.body = JSON.stringify(pResolvedSettings.Body);
 				}
 			}
 
