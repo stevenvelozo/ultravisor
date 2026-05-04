@@ -227,6 +227,19 @@ class UltravisorBeaconScheduler extends libPictService
 			return null;
 		}
 
+		// Name-based routing: AffinityKey may designate a specific
+		// beacon by Name. Mirrors the resolution Coordinator does at
+		// enqueue time; we repeat it here so paths that bypass
+		// enqueueWorkItem (e.g. requeue) still honor it.
+		if (pItem.AffinityKey && typeof pCoordinator.findBeaconByName === 'function')
+		{
+			let tmpNamed = pCoordinator.findBeaconByName(pItem.AffinityKey);
+			if (tmpNamed)
+			{
+				return this._beaconCanTake(tmpNamed, pItem) ? tmpNamed : null;
+			}
+		}
+
 		let tmpBestBeacon = null;
 		let tmpBestLoad = Infinity;
 		let tmpBeacons = pCoordinator._Beacons || {};

@@ -1154,29 +1154,51 @@ class UltravisorBeaconCoordinator extends libPictService
 			tmpDefaults.applyToWorkItem(tmpWorkItem, tmpSettings);
 		}
 
-		// Check for affinity binding — pre-assign to a specific Beacon
+		// Routing for AffinityKey:
+		//   1) Name resolution — if AffinityKey matches a registered
+		//      beacon's Name, route directly to that beacon. This is
+		//      the explicit "send to this specific beacon" path the
+		//      data-platform initiative needs (many beacons of the
+		//      same capability, callers must designate which one).
+		//   2) Sticky binding fallback — if no name match, behave like
+		//      a session-affinity key: the first item picks any
+		//      beacon, subsequent items with the same key go to the
+		//      same beacon (existing behavior).
 		if (tmpWorkItem.AffinityKey)
 		{
-			let tmpBinding = this._AffinityBindings[tmpWorkItem.AffinityKey];
-
-			if (tmpBinding && this._Beacons[tmpBinding.BeaconID])
+			let tmpNamedBeacon = this.findBeaconByName(tmpWorkItem.AffinityKey);
+			if (tmpNamedBeacon)
 			{
-				// Check if the binding has expired
-				if (new Date(tmpBinding.ExpiresAt) > new Date())
-				{
-					tmpWorkItem.AssignedBeaconID = tmpBinding.BeaconID;
-					tmpWorkItem.Status = 'Assigned';
-					tmpWorkItem.ClaimedAt = new Date().toISOString();
+				tmpWorkItem.AssignedBeaconID = tmpNamedBeacon.BeaconID;
+				tmpWorkItem.Status = 'Assigned';
+				tmpWorkItem.ClaimedAt = new Date().toISOString();
+				if (!tmpNamedBeacon.CurrentWorkItems) tmpNamedBeacon.CurrentWorkItems = [];
+				tmpNamedBeacon.CurrentWorkItems.push(tmpWorkItemHash);
+				this.log.info(`BeaconCoordinator: work item [${tmpWorkItemHash}] routed by name to beacon [${tmpNamedBeacon.BeaconID}] (Name=${tmpNamedBeacon.Name}) via AffinityKey [${tmpWorkItem.AffinityKey}].`);
+			}
+			else
+			{
+				let tmpBinding = this._AffinityBindings[tmpWorkItem.AffinityKey];
 
-					let tmpBeacon = this._Beacons[tmpBinding.BeaconID];
-					tmpBeacon.CurrentWorkItems.push(tmpWorkItemHash);
-
-					this.log.info(`BeaconCoordinator: work item [${tmpWorkItemHash}] pre-assigned to beacon [${tmpBinding.BeaconID}] via affinity [${tmpWorkItem.AffinityKey}].`);
-				}
-				else
+				if (tmpBinding && this._Beacons[tmpBinding.BeaconID])
 				{
-					// Binding expired, clean it up
-					delete this._AffinityBindings[tmpWorkItem.AffinityKey];
+					// Check if the binding has expired
+					if (new Date(tmpBinding.ExpiresAt) > new Date())
+					{
+						tmpWorkItem.AssignedBeaconID = tmpBinding.BeaconID;
+						tmpWorkItem.Status = 'Assigned';
+						tmpWorkItem.ClaimedAt = new Date().toISOString();
+
+						let tmpBeacon = this._Beacons[tmpBinding.BeaconID];
+						tmpBeacon.CurrentWorkItems.push(tmpWorkItemHash);
+
+						this.log.info(`BeaconCoordinator: work item [${tmpWorkItemHash}] pre-assigned to beacon [${tmpBinding.BeaconID}] via affinity [${tmpWorkItem.AffinityKey}].`);
+					}
+					else
+					{
+						// Binding expired, clean it up
+						delete this._AffinityBindings[tmpWorkItem.AffinityKey];
+					}
 				}
 			}
 		}

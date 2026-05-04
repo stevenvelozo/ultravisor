@@ -57,7 +57,7 @@
         "cron": "^4.4.0",
         "meadow": "^2.0.37",
         "meadow-connection-sqlite": "^1.0.19",
-        "meadow-migrationmanager": "^0.0.14",
+        "meadow-migrationmanager": "^0.0.15",
         "orator": "^6.1.1",
         "orator-authentication": "^1.0.1",
         "orator-serviceserver-restify": "^2.0.10",
@@ -71,7 +71,7 @@
     "devDependencies": {
         "pict-docuserve": "^0.1.5",
         "puppeteer": "^24.40.0",
-        "quackage": "^1.2.0"
+        "quackage": "^1.2.2"
     },
     "mocha": {
         "diff": true,
