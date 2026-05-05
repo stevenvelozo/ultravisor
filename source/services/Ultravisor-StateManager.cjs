@@ -1,4 +1,5 @@
 const libPictService = require('pict-serviceproviderbase');
+const libOutputStore = require('./Ultravisor-OutputStore.cjs');
 
 /**
  * Manages three-level state (Global, Operation, Task) and provides
@@ -67,9 +68,9 @@ class UltravisorStateManager extends libPictService
 					this.log.warn(`UltravisorStateManager: resolveAddress for Task.X requires a current node hash.`);
 					return undefined;
 				}
-				return this._resolveFromObject(
+				return this._materializeIfRef(pExecutionContext, this._resolveFromObject(
 					pExecutionContext.TaskOutputs[pCurrentNodeHash] || {},
-					tmpRemainder);
+					tmpRemainder));
 
 			case 'TaskOutput':
 			{
@@ -77,14 +78,19 @@ class UltravisorStateManager extends libPictService
 				let tmpSecondDot = tmpRemainder.indexOf('.');
 				if (tmpSecondDot < 0)
 				{
-					// Just TaskOutput.{NodeHash} -- return the whole output object
+					// Just TaskOutput.{NodeHash} -- return the whole output object.
+					// Whole-node return ships ref shapes through to the
+					// caller — single-port reads materialize, but a
+					// "give me the whole bag" caller has to handle refs
+					// itself (or use Task.X / TaskOutput.X.Y to get the
+					// materialized leaf).
 					return pExecutionContext.TaskOutputs[tmpRemainder] || {};
 				}
 				let tmpNodeHash = tmpRemainder.substring(0, tmpSecondDot);
 				let tmpPath = tmpRemainder.substring(tmpSecondDot + 1);
-				return this._resolveFromObject(
+				return this._materializeIfRef(pExecutionContext, this._resolveFromObject(
 					pExecutionContext.TaskOutputs[tmpNodeHash] || {},
-					tmpPath);
+					tmpPath));
 			}
 
 			case 'Output':
@@ -247,6 +253,20 @@ class UltravisorStateManager extends libPictService
 
 		this._Manyfest.setValueAtAddress(pObject, pPath, pValue);
 		return true;
+	}
+
+	// Resolve $$ref payloads to their materialized value when reading
+	// from TaskOutputs. Per-leaf reads (Task.X, TaskOutput.X.Y) go
+	// through this; whole-node reads (TaskOutput.X) deliberately do not
+	// — see the case-handler comment.
+	_materializeIfRef(pExecutionContext, pValue)
+	{
+		if (!libOutputStore.isOutputRef(pValue))
+		{
+			return pValue;
+		}
+		return libOutputStore.materializeRefValue(
+			pExecutionContext.StagingPath, pValue, this.log);
 	}
 }
 

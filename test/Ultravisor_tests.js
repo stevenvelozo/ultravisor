@@ -1028,7 +1028,7 @@ suite
 							{ Hash: 'OPR-MANIFEST-TEST', Name: 'Manifest Test' }, 'debug');
 
 						Expect(tmpContext.Hash).to.contain('run-OPR-MANIFEST-TEST');
-						Expect(tmpContext.Status).to.equal('Pending');
+						Expect(tmpContext.Status).to.equal('Queued');
 						Expect(tmpContext.RunMode).to.equal('debug');
 						Expect(tmpContext.StagingPath).to.not.equal('');
 						Expect(libFS.existsSync(tmpContext.StagingPath)).to.equal(true);
@@ -1571,7 +1571,7 @@ suite
 							(pError, pContext) =>
 							{
 								Expect(pError).to.equal(null);
-								Expect(pContext.Status).to.equal('WaitingForInput');
+								Expect(pContext.Status).to.equal('Waiting');
 								Expect(pContext.WaitingTasks['node-input']).to.not.equal(undefined);
 
 								// Now resume with user input
@@ -4123,7 +4123,7 @@ suite
 								{
 									Expect(pError).to.equal(null);
 									// Should be WaitingForInput (beacon-dispatch pauses until Beacon completes)
-									Expect(pContext.Status).to.equal('WaitingForInput');
+									Expect(pContext.Status).to.equal('Waiting');
 
 									// Verify WaitingTasks has the dispatch node
 									Expect(pContext.WaitingTasks['dispatch-1']).to.not.equal(undefined);
@@ -4185,7 +4185,7 @@ suite
 							tmpEngine.executeOperation(tmpOperation,
 								function (pError, pContext)
 								{
-									Expect(pContext.Status).to.equal('WaitingForInput');
+									Expect(pContext.Status).to.equal('Waiting');
 									let tmpRunHash = pContext.Hash;
 
 									// Simulate Beacon polling for work
@@ -4260,7 +4260,7 @@ suite
 							tmpEngine.executeOperation(tmpOperation,
 								function (pError, pContext)
 								{
-									Expect(pContext.Status).to.equal('WaitingForInput');
+									Expect(pContext.Status).to.equal('Waiting');
 									let tmpRunHash = pContext.Hash;
 
 									let tmpWorkItem = tmpCoordinator.pollForWork(tmpBeacon.BeaconID);
@@ -4273,10 +4273,16 @@ suite
 										{
 											Expect(pFailError).to.equal(null);
 
-											// The operation should have resumed via Error event path
+											// The operation should have resumed via Error event path.
+											// finalizeExecution rolls up the _BeaconError flag set by
+											// failWorkItem to a terminal Failed status (see the
+											// defensive check in Ultravisor-ExecutionManifest.cjs ~535
+											// and Ultravisor-ExecutionEngine.cjs ~746) — a wired Error
+											// edge fires the downstream graph but does NOT mask the
+											// failure from the operation's terminal status.
 											let tmpManifest = Object.values(tmpFable.servicesMap['UltravisorExecutionManifest'])[0];
 											let tmpFinalContext = tmpManifest.getRun(tmpRunHash);
-											Expect(tmpFinalContext.Status).to.equal('Complete');
+											Expect(tmpFinalContext.Status).to.equal('Failed');
 
 											// Error outputs should be in TaskOutputs
 											Expect(tmpFinalContext.TaskOutputs['dispatch-1']._BeaconError).to.equal(true);
@@ -4324,7 +4330,7 @@ suite
 							tmpEngine.executeOperation(tmpOperation,
 								function (pError, pContext)
 								{
-									Expect(pContext.Status).to.equal('WaitingForInput');
+									Expect(pContext.Status).to.equal('Waiting');
 									let tmpRunHash = pContext.Hash;
 
 									// Resume with a scalar value (backward compat)
@@ -4386,7 +4392,7 @@ suite
 							tmpEngine.executeOperation(tmpOperation,
 								function (pError, pContext)
 								{
-									Expect(pContext.Status).to.equal('WaitingForInput');
+									Expect(pContext.Status).to.equal('Waiting');
 									let tmpRunHash = pContext.Hash;
 
 									// Poll for work

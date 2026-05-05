@@ -1,5 +1,6 @@
 const libPictService = require('pict-serviceproviderbase');
 const libStatus = require('./Ultravisor-Status.cjs');
+const libOutputStore = require('./Ultravisor-OutputStore.cjs');
 
 /**
  * Event-driven graph executor for Ultravisor operations.
@@ -449,21 +450,17 @@ class UltravisorExecutionEngine extends libPictService
 			tmpStateManager.setAddress(tmpWaitingInfo.OutputAddress, pValue, tmpContext, pNodeHash);
 		}
 
-		// Store in task outputs
-		if (!tmpContext.TaskOutputs[pNodeHash])
-		{
-			tmpContext.TaskOutputs[pNodeHash] = {};
-		}
-
-		// If pValue is a structured object, merge all keys into TaskOutputs (beacon results)
-		// If pValue is a scalar, store as InputValue (backward compat for value-input)
+		// Store in task outputs. Routes through OutputStore so beacon
+		// results that arrive with a multi-megabyte field (typed-op
+		// `Result` etc.) get lifted to the run's staging dir instead of
+		// pinning the payload in the manifest.
 		if (typeof pValue === 'object' && pValue !== null && !Array.isArray(pValue))
 		{
-			Object.assign(tmpContext.TaskOutputs[pNodeHash], pValue);
+			libOutputStore.mergeAndLift(tmpContext, pNodeHash, pValue, { Fable: this.fable, Logger: this.log });
 		}
 		else
 		{
-			tmpContext.TaskOutputs[pNodeHash].InputValue = pValue;
+			libOutputStore.mergeAndLift(tmpContext, pNodeHash, { InputValue: pValue }, { Fable: this.fable, Logger: this.log });
 		}
 
 		// Update the task's ElapsedMs to include the time spent waiting for input
@@ -1060,12 +1057,8 @@ class UltravisorExecutionEngine extends libPictService
 					`Intermediate event [${pIntermediateEventName}] from [${pNodeHash}]`, 1);
 			}
 
-			// Store the intermediate outputs
-			if (!pContext.TaskOutputs[pNodeHash])
-			{
-				pContext.TaskOutputs[pNodeHash] = {};
-			}
-			Object.assign(pContext.TaskOutputs[pNodeHash], pIntermediateOutputs);
+			// Store the intermediate outputs (lift large fields per OutputStore policy)
+			libOutputStore.mergeAndLift(pContext, pNodeHash, pIntermediateOutputs, { Fable: this.fable, Logger: this.log });
 
 			// Find downstream nodes for this intermediate event
 			let tmpDownstreamEvents = this._getDownstreamEvents(pNodeHash, pIntermediateEventName, pContext);
@@ -1167,14 +1160,10 @@ class UltravisorExecutionEngine extends libPictService
 				return fCallback(null);
 			}
 
-			// Store outputs in TaskOutputs
+			// Store outputs in TaskOutputs (lift large fields per OutputStore policy)
 			if (pResult.Outputs && typeof(pResult.Outputs) === 'object')
 			{
-				if (!pContext.TaskOutputs[pNodeHash])
-				{
-					pContext.TaskOutputs[pNodeHash] = {};
-				}
-				Object.assign(pContext.TaskOutputs[pNodeHash], pResult.Outputs);
+				libOutputStore.mergeAndLift(pContext, pNodeHash, pResult.Outputs, { Fable: this.fable, Logger: this.log });
 			}
 
 			// Store any state writes from the result
@@ -1313,9 +1302,17 @@ class UltravisorExecutionEngine extends libPictService
 			let tmpSourcePortName = this._extractPortName(tmpConn.SourcePortHash, tmpPortLabelMap);
 			let tmpTargetPortName = this._extractPortName(tmpConn.TargetPortHash, tmpPortLabelMap);
 
-			// Read the source value from the source node's outputs
+			// Read the source value from the source node's outputs.
+			// Large outputs are stored as $$ref objects pointing into the
+			// run's staging dir — materialize before the value reaches a
+			// downstream task handler so the State edge contract stays
+			// transparent (handlers never see a ref).
 			let tmpSourceNodeOutputs = pContext.TaskOutputs[tmpConn.SourceNodeHash] || {};
 			let tmpSourceValue = tmpSourceNodeOutputs[tmpSourcePortName];
+			if (libOutputStore.isOutputRef(tmpSourceValue))
+			{
+				tmpSourceValue = libOutputStore.materializeRefValue(pContext.StagingPath, tmpSourceValue, this.log);
+			}
 
 			// Apply template if defined
 			if (tmpConn.Data && tmpConn.Data.Template && typeof(tmpConn.Data.Template) === 'string')

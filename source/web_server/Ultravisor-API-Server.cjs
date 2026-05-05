@@ -8,6 +8,7 @@ const libOratorServiceServerRestify = require(`orator-serviceserver-restify`);
 const libOratorAuthentication = require('orator-authentication');
 const libWebSocket = require('ws');
 const libStatus = require('../services/Ultravisor-Status.cjs');
+const libOutputStore = require('../services/Ultravisor-OutputStore.cjs');
 
 // Strip a manifest down to the JSON-serializable shape the wire
 // expects. The in-memory ExecutionContext can carry closures in
@@ -39,6 +40,18 @@ function _cleanManifestForWire(pManifest)
 		Errors: pManifest.Errors || [],
 		Log: pManifest.Log || []
 	};
+}
+
+// Optional follow-the-refs pass for /Manifest/:RunHash?inline=outputs.
+// Default response ships ref shapes; this helper is invoked only when
+// the caller explicitly asks for materialized payloads. Reads files
+// synchronously off the staging dir — fine for the rare inspection
+// case but not something to call from a hot path.
+function _inlineIfRequested(pCleanManifest, pStagingPath, pInlineOutputs, pLogger)
+{
+	if (!pInlineOutputs || !pCleanManifest) return pCleanManifest;
+	pCleanManifest.TaskOutputs = libOutputStore.inlineAllRefs(pStagingPath, pCleanManifest.TaskOutputs, pLogger);
+	return pCleanManifest;
 }
 
 // Lightweight query-string parser. Restify's queryParser plugin is
@@ -1895,11 +1908,19 @@ class UltravisorAPIServer extends libPictService
 				function (pRequest, pResponse, fNext)
 				{
 					let tmpHash = pRequest.params.RunHash;
+					// Default ships TaskOutputs with ref shapes inline. The
+					// `?inline=outputs` flag follows refs to materialized
+					// values for UIs that need to see the full payload —
+					// this is the rare case (e.g. raw inspection in the
+					// manifest viewer) and bypasses the OOM guard, so
+					// callers should know what they're asking for.
+					let tmpQuery = _parseQueryString(pRequest.url);
+					let tmpInlineOutputs = (tmpQuery.inline === 'outputs');
 					let tmpManifest = this._getService('UltravisorExecutionManifest');
 					let tmpRun = tmpManifest ? tmpManifest.getRun(tmpHash) : null;
 					if (tmpRun)
 					{
-						pResponse.send(_cleanManifestForWire(tmpRun));
+						pResponse.send(_inlineIfRequested(_cleanManifestForWire(tmpRun), tmpRun.StagingPath, tmpInlineOutputs, this.log));
 						return fNext();
 					}
 					// Not in memory — try the bridge (beacon-backed history).
@@ -1913,7 +1934,8 @@ class UltravisorAPIServer extends libPictService
 					{
 						if (pResult && pResult.Success && pResult.Manifest)
 						{
-							pResponse.send(_cleanManifestForWire(pResult.Manifest));
+							let tmpClean = _cleanManifestForWire(pResult.Manifest);
+							pResponse.send(_inlineIfRequested(tmpClean, pResult.Manifest.StagingPath, tmpInlineOutputs, this.log));
 						}
 						else
 						{

@@ -2081,7 +2081,7 @@ suite
 						this.timeout(15000);
 
 						let tmpResult = await apiExecuteOperation(_PendingOpHash);
-						libAssert.strictEqual(tmpResult.body.Status, 'WaitingForInput', 'Should be waiting for input');
+						libAssert.strictEqual(tmpResult.body.Status, 'Waiting', 'Should be waiting for input');
 						libAssert.ok(tmpResult.body.WaitingTasks, 'Should have WaitingTasks');
 						libAssert.ok(tmpResult.body.WaitingTasks['pi-input'], 'Should be waiting on pi-input node');
 						libAssert.strictEqual(tmpResult.body.WaitingTasks['pi-input'].PromptMessage, 'Enter test value', 'PromptMessage should match');
