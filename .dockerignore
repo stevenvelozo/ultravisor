@@ -20,7 +20,12 @@ webinterface/dist
 **/*.log
 **/npm-debug.log*
 **/.npm
-**/data
+# Don't blanket-exclude `**/data` — that also catches
+# `webinterface/source/data/` (ExampleFlow-*.js source files the
+# webinterface build pulls in) and breaks the bundle. Use specific
+# paths for the actual runtime data dirs we want excluded.
+data/
+**/.data
 **/*.sqlite
 **/*.sqlite-*
 
