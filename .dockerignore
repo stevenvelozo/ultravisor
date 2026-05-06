@@ -1,0 +1,33 @@
+# Never copy host node_modules into the build context — the Dockerfile
+# does its own `npm install` against the package.json. Without this,
+# `ADD webinterface /service_root/webinterface` slurps in 1+ GB of host
+# node_modules and bakes them into a layer.
+**/node_modules
+
+# Build artifacts — regenerated inside the image.
+webinterface/dist
+
+# Local-only / test / scratch.
+.git
+.github
+.claude
+.vscode
+.idea
+**/.DS_Store
+**/.test_*/
+**/coverage
+**/test/.test_*
+**/*.log
+**/npm-debug.log*
+**/.npm
+**/data
+**/*.sqlite
+**/*.sqlite-*
+
+# Quack scratch
+.quackage.json.bak
+
+# Editor / OS noise
+*.swp
+*.swo
+.DS_Store

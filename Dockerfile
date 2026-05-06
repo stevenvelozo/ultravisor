@@ -1,42 +1,47 @@
-FROM node:20-bookworm AS base
-MAINTAINER steven velozo <steven@velozo.com>
-
-# build-essential + python3 are needed for native node-gyp builds
-# (better-sqlite3 etc.) when no prebuilt binary matches the host.
-RUN apt-get update && apt-get -y --force-yes install \
-	curl wget vim nano less tmux uuid-runtime \
-	build-essential python3
-
-# ── Webinterface bundle ────────────────────────────────────────────
-# Install webinterface deps WITH dev deps (needed for `quack build`),
-# then build the dist bundle. We do this in its own layer so parent
-# source changes don't bust the webinterface cache.
-ADD webinterface /service_root/webinterface
-RUN cd /service_root/webinterface && npm install --include=dev \
-	&& npm run build
-
-# ── Service install ────────────────────────────────────────────────
-# `--ignore-scripts` so npm doesn't re-run the parent's postinstall
-# (which would `cd webinterface && npm install && npm run build`,
-# duplicating what we already did above and failing because dev deps
-# weren't propagated into nested installs).
-# `npm rebuild` afterwards rebuilds native modules (better-sqlite3)
-# that the ignore-scripts skipped.
-ADD package.json      /service_root/package.json
-ADD source            /service_root/source
-ADD operation-library /service_root/operation-library
-
+# Stage 1: Build the webinterface bundle + install runtime deps.
+# build-essential + python3 are needed here so npm rebuild can compile
+# native bindings (better-sqlite3, etc.). They never make it into the
+# runtime image — see Stage 2.
+FROM node:20-bookworm AS builder
 WORKDIR /service_root
-RUN npm install --omit=dev --ignore-scripts \
-	&& npm rebuild
 
-RUN rm -rf package-lock.json .git test webinterface/node_modules/.cache
+RUN apt-get update && apt-get -y install build-essential python3 && rm -rf /var/lib/apt/lists/*
 
-FROM base AS production
+# ── Webinterface ──────────────────────────────────────────────────
+# Install with devDeps so quack can run the build, then prune. The
+# .dockerignore prevents the host's webinterface/node_modules from
+# being copied in — we always install fresh.
+COPY webinterface /service_root/webinterface
+RUN cd /service_root/webinterface \
+	&& npm install --include=dev \
+	&& npm run build \
+	&& npm prune --omit=dev --ignore-scripts
+
+# ── Service install ───────────────────────────────────────────────
+# `--ignore-scripts` so npm doesn't re-run the parent's postinstall
+# (`cd webinterface && npm install && npm run build`) — already done
+# above. `npm rebuild` afterwards rebuilds native modules.
+COPY package.json      /service_root/package.json
+COPY source            /service_root/source
+COPY operation-library /service_root/operation-library
+RUN npm install --omit=dev --ignore-scripts && npm rebuild
+
+# Stage 2: Runtime — node + the lean prebuilt trees from Stage 1.
+# No compilers, no editor conveniences, no fresh npm install.
+FROM node:20-bookworm-slim AS production
+LABEL maintainer="steven velozo <steven@velozo.com>"
+WORKDIR /service_root
+
+COPY --from=builder /service_root/package.json      ./package.json
+COPY --from=builder /service_root/source            ./source
+COPY --from=builder /service_root/operation-library ./operation-library
+COPY --from=builder /service_root/node_modules      ./node_modules
+COPY --from=builder /service_root/webinterface      ./webinterface
 
 RUN date -u +"%Y-%m-%dT%H:%M:%SZ" > ./build.date
 
 EXPOSE 54321
+
 # `start` is the actual server subcommand; without it the CLI prints
 # help and exits, which docker reads as a crash and restarts forever.
 CMD ["node", "source/cli/Ultravisor-Run.cjs", "start"]
