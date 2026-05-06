@@ -966,8 +966,11 @@ class UltravisorApplication extends libPictApplication
 	// --- Theme ---
 	applyTheme(pThemeKey)
 	{
-		let tmpThemeKey = pThemeKey || 'desert-dusk';
+		let tmpThemeKey = pThemeKey || 'professional-dark';
 
+		// 'desert-dusk' is the CSS baseline (no [data-theme] selector
+		// matches it). Every other theme applies via a `[data-theme=...]`
+		// rule, including the new default 'professional-dark'.
 		if (tmpThemeKey === 'desert-dusk')
 		{
 			delete document.body.dataset.theme;
@@ -987,7 +990,7 @@ class UltravisorApplication extends libPictApplication
 
 	loadSavedTheme()
 	{
-		let tmpSavedTheme = localStorage.getItem('ultravisor-theme') || 'desert-dusk';
+		let tmpSavedTheme = localStorage.getItem('ultravisor-theme') || 'professional-dark';
 		this.applyTheme(tmpSavedTheme);
 	}
 
