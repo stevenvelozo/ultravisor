@@ -20,6 +20,7 @@
         "postversion": "npx quack release postversion",
         "postpublish": "npx quack release postpublish",
         "publish:docker": "npx quack release publish --image",
+        "publish:docker:local": "bash bin/publish-image-local.sh",
         "release:patch": "npx quack release patch",
         "release:minor": "npx quack release minor",
         "release:major": "npx quack release major",
