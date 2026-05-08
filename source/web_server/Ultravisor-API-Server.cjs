@@ -4128,7 +4128,20 @@ class UltravisorAPIServer extends libPictService
 			return;
 		}
 
-		this._WebSocketServer = new libWebSocket.Server({ noServer: true });
+		// maxPayload: at 250K-row scale a typed-op State edge ships
+		// ~40-60 MB JSON over a single WS frame. The `ws` library's
+		// default of 100 MB is silently violated by larger payloads,
+		// throwing RangeError("Max payload size exceeded") which crashes
+		// the UV process under restart-loop pressure. Default raised to
+		// 256 MB; override via env UltravisorWebSocketMaxPayloadMB so an
+		// operator can dial it up further without recompiling.
+		let tmpMaxPayloadMB = parseInt(process.env.UltravisorWebSocketMaxPayloadMB, 10);
+		if (!Number.isFinite(tmpMaxPayloadMB) || tmpMaxPayloadMB <= 0) tmpMaxPayloadMB = 256;
+		this._WebSocketServer = new libWebSocket.Server(
+			{
+				noServer: true,
+				maxPayload: tmpMaxPayloadMB * 1024 * 1024
+			});
 
 		// Handle HTTP upgrade requests for WebSocket
 		tmpHTTPServer.on('upgrade',
