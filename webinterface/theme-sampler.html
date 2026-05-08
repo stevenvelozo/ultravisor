@@ -9,13 +9,13 @@
 	*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 	body {
 		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-		background: #1a1a1a;
-		color: #e0e0e0;
+		background: var(--theme-color-text-primary, #1a1a1a);
+		color: var(--theme-color-border-default, #e0e0e0);
 		padding: 32px;
 		line-height: 1.5;
 	}
-	h1 { text-align: center; font-size: 28px; margin-bottom: 8px; color: #fff; }
-	.subtitle { text-align: center; color: #999; margin-bottom: 40px; font-size: 14px; }
+	h1 { text-align: center; font-size: 28px; margin-bottom: 8px; color: var(--theme-color-background-panel, #fff); }
+	.subtitle { text-align: center; color: var(--theme-color-text-muted, #999); margin-bottom: 40px; font-size: 14px; }
 
 	/* ── Theme Card Container ────────────────────────────── */
 	.theme-grid {
@@ -207,18 +207,18 @@
 <div class="theme-card" style="background: #faf6f0;">
 	<h2 style="background: #e8ddd0; color: #5c3d2e;">Desert Day</h2>
 	<div class="swatches">
-		<div class="swatch" style="background: #d4a46a; color: #fff;">Sand</div>
-		<div class="swatch" style="background: #c2703e; color: #fff;">Terracotta</div>
-		<div class="swatch" style="background: #7a2e3a; color: #fff;">Burgundy</div>
-		<div class="swatch" style="background: #3a8a8c; color: #fff;">Turquoise</div>
-		<div class="swatch" style="background: #6b8f4a; color: #fff;">Sage</div>
-		<div class="swatch" style="background: #5c3d2e; color: #fff;">Earth</div>
+		<div class="swatch" style="background: #d4a46a; color: var(--theme-color-background-panel, #fff);">Sand</div>
+		<div class="swatch" style="background: #c2703e; color: var(--theme-color-background-panel, #fff);">Terracotta</div>
+		<div class="swatch" style="background: #7a2e3a; color: var(--theme-color-background-panel, #fff);">Burgundy</div>
+		<div class="swatch" style="background: #3a8a8c; color: var(--theme-color-background-panel, #fff);">Turquoise</div>
+		<div class="swatch" style="background: #6b8f4a; color: var(--theme-color-background-panel, #fff);">Sage</div>
+		<div class="swatch" style="background: #5c3d2e; color: var(--theme-color-background-panel, #fff);">Earth</div>
 	</div>
 	<div class="mock-ui" style="color: #3d2b1f;">
 		<div class="mock-topbar" style="background: #5c3d2e;">
 			<span class="brand" style="color: #d4a46a;">Ultravisor</span>
 			<span class="nav-link" style="color: #e8ddd0;">Dashboard</span>
-			<span class="nav-link active" style="color: #fff;">Operations</span>
+			<span class="nav-link active" style="color: var(--theme-color-background-panel, #fff);">Operations</span>
 			<span class="nav-link" style="color: #e8ddd0;">Schedule</span>
 			<span class="nav-link" style="color: #e8ddd0;">Manifests</span>
 		</div>
@@ -248,21 +248,21 @@
 			<div class="timing-row">
 				<span class="task-name" style="color: #5c3d2e;">Read File</span>
 				<div class="bar-track" style="background: #e8ddd0;">
-					<div class="bar-fill" style="width:35%; background: linear-gradient(90deg, #3a8a8c, #4a9a9c); color: #fff;">Read File</div>
+					<div class="bar-fill" style="width:35%; background: linear-gradient(90deg, #3a8a8c, #4a9a9c); color: var(--theme-color-background-panel, #fff);">Read File</div>
 				</div>
 				<span class="duration" style="color: #8a7560;">1ms</span>
 			</div>
 			<div class="timing-row">
 				<span class="task-name" style="color: #5c3d2e;">Replace</span>
 				<div class="bar-track" style="background: #e8ddd0;">
-					<div class="bar-fill" style="width:25%; background: linear-gradient(90deg, #7a2e3a, #8a3e4a); color: #fff;">Replace</div>
+					<div class="bar-fill" style="width:25%; background: linear-gradient(90deg, #7a2e3a, #8a3e4a); color: var(--theme-color-background-panel, #fff);">Replace</div>
 				</div>
 				<span class="duration" style="color: #8a7560;">1ms</span>
 			</div>
 		</div>
 		<div class="mock-buttons">
-			<div class="mock-btn" style="background: #3a8a8c; color: #fff;">Run Operation</div>
-			<div class="mock-btn" style="background: #c2703e; color: #fff;">Refresh</div>
+			<div class="mock-btn" style="background: #3a8a8c; color: var(--theme-color-background-panel, #fff);">Run Operation</div>
+			<div class="mock-btn" style="background: #c2703e; color: var(--theme-color-background-panel, #fff);">Refresh</div>
 			<div class="mock-btn-outline mock-btn" style="border-color: #5c3d2e; color: #5c3d2e;">Export</div>
 		</div>
 	</div>
@@ -275,11 +275,11 @@
 	<h2 style="background: #2a1e15; color: #d4a46a;">Desert Sunset</h2>
 	<div class="swatches">
 		<div class="swatch" style="background: #e8943a; color: #1e1610;">Amber</div>
-		<div class="swatch" style="background: #c44e2a; color: #fff;">Burnt Orange</div>
-		<div class="swatch" style="background: #8b2442; color: #fff;">Crimson</div>
-		<div class="swatch" style="background: #2a8a8a; color: #fff;">Teal</div>
+		<div class="swatch" style="background: #c44e2a; color: var(--theme-color-background-panel, #fff);">Burnt Orange</div>
+		<div class="swatch" style="background: #8b2442; color: var(--theme-color-background-panel, #fff);">Crimson</div>
+		<div class="swatch" style="background: #2a8a8a; color: var(--theme-color-background-panel, #fff);">Teal</div>
 		<div class="swatch" style="background: #d4a46a; color: #1e1610;">Sand</div>
-		<div class="swatch" style="background: #6b4f3a; color: #fff;">Dusk</div>
+		<div class="swatch" style="background: #6b4f3a; color: var(--theme-color-background-panel, #fff);">Dusk</div>
 	</div>
 	<div class="mock-ui" style="color: #d4c4aa;">
 		<div class="mock-topbar" style="background: #2a1e15;">
@@ -315,21 +315,21 @@
 			<div class="timing-row">
 				<span class="task-name" style="color: #d4c4aa;">Read File</span>
 				<div class="bar-track" style="background: #3a2e22;">
-					<div class="bar-fill" style="width:35%; background: linear-gradient(90deg, #2a8a8a, #3a9a9a); color: #fff;">Read File</div>
+					<div class="bar-fill" style="width:35%; background: linear-gradient(90deg, #2a8a8a, #3a9a9a); color: var(--theme-color-background-panel, #fff);">Read File</div>
 				</div>
 				<span class="duration" style="color: #8a7560;">1ms</span>
 			</div>
 			<div class="timing-row">
 				<span class="task-name" style="color: #d4c4aa;">Replace</span>
 				<div class="bar-track" style="background: #3a2e22;">
-					<div class="bar-fill" style="width:25%; background: linear-gradient(90deg, #8b2442, #a03050); color: #fff;">Replace</div>
+					<div class="bar-fill" style="width:25%; background: linear-gradient(90deg, #8b2442, #a03050); color: var(--theme-color-background-panel, #fff);">Replace</div>
 				</div>
 				<span class="duration" style="color: #8a7560;">1ms</span>
 			</div>
 		</div>
 		<div class="mock-buttons">
-			<div class="mock-btn" style="background: #2a8a8a; color: #fff;">Run Operation</div>
-			<div class="mock-btn" style="background: #c44e2a; color: #fff;">Refresh</div>
+			<div class="mock-btn" style="background: #2a8a8a; color: var(--theme-color-background-panel, #fff);">Run Operation</div>
+			<div class="mock-btn" style="background: #c44e2a; color: var(--theme-color-background-panel, #fff);">Refresh</div>
 			<div class="mock-btn-outline mock-btn" style="border-color: #d4a46a; color: #d4a46a;">Export</div>
 		</div>
 	</div>
@@ -341,15 +341,15 @@
 <div class="theme-card" style="background: #f5f6f8;">
 	<h2 style="background: #e4e7ec; color: #2d3748;">Professional Light</h2>
 	<div class="swatches">
-		<div class="swatch" style="background: #3b82f6; color: #fff;">Primary</div>
-		<div class="swatch" style="background: #10b981; color: #fff;">Success</div>
-		<div class="swatch" style="background: #ef4444; color: #fff;">Error</div>
-		<div class="swatch" style="background: #f59e0b; color: #fff;">Warning</div>
-		<div class="swatch" style="background: #6366f1; color: #fff;">Accent</div>
-		<div class="swatch" style="background: #2d3748; color: #fff;">Text</div>
+		<div class="swatch" style="background: #3b82f6; color: var(--theme-color-background-panel, #fff);">Primary</div>
+		<div class="swatch" style="background: #10b981; color: var(--theme-color-background-panel, #fff);">Success</div>
+		<div class="swatch" style="background: #ef4444; color: var(--theme-color-background-panel, #fff);">Error</div>
+		<div class="swatch" style="background: #f59e0b; color: var(--theme-color-background-panel, #fff);">Warning</div>
+		<div class="swatch" style="background: #6366f1; color: var(--theme-color-background-panel, #fff);">Accent</div>
+		<div class="swatch" style="background: #2d3748; color: var(--theme-color-background-panel, #fff);">Text</div>
 	</div>
 	<div class="mock-ui" style="color: #2d3748;">
-		<div class="mock-topbar" style="background: #fff; border: 1px solid #e2e5ea; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+		<div class="mock-topbar" style="background: var(--theme-color-background-panel, #fff); border: 1px solid #e2e5ea; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
 			<span class="brand" style="color: #3b82f6;">Ultravisor</span>
 			<span class="nav-link" style="color: #6b7280;">Dashboard</span>
 			<span class="nav-link active" style="color: #2d3748;">Operations</span>
@@ -357,45 +357,45 @@
 			<span class="nav-link" style="color: #6b7280;">Manifests</span>
 		</div>
 		<div class="mock-cards">
-			<div class="mock-stat" style="background: #fff; border: 1px solid #e2e5ea;">
+			<div class="mock-stat" style="background: var(--theme-color-background-panel, #fff); border: 1px solid #e2e5ea;">
 				<div class="label" style="color: #6b7280;">Server Status</div>
 				<div class="value" style="color: #10b981;">Running</div>
 			</div>
-			<div class="mock-stat" style="background: #fff; border: 1px solid #e2e5ea;">
+			<div class="mock-stat" style="background: var(--theme-color-background-panel, #fff); border: 1px solid #e2e5ea;">
 				<div class="label" style="color: #6b7280;">Templates</div>
 				<div class="value" style="color: #2d3748;">12</div>
 			</div>
-			<div class="mock-stat" style="background: #fff; border: 1px solid #e2e5ea;">
+			<div class="mock-stat" style="background: var(--theme-color-background-panel, #fff); border: 1px solid #e2e5ea;">
 				<div class="label" style="color: #6b7280;">Operations</div>
 				<div class="value" style="color: #2d3748;">8</div>
 			</div>
 		</div>
-		<div class="mock-timing" style="background: #fff; border: 1px solid #e2e5ea;">
+		<div class="mock-timing" style="background: var(--theme-color-background-panel, #fff); border: 1px solid #e2e5ea;">
 			<h3 style="color: #6b7280;">Task Timeline</h3>
 			<div class="timing-row">
 				<span class="task-name" style="color: #374151;">Value Input</span>
 				<div class="bar-track" style="background: #f0f1f4;">
-					<div class="bar-fill" style="width:80%; background: linear-gradient(90deg, #3b82f6, #60a5fa); color: #fff;">Value Input</div>
+					<div class="bar-fill" style="width:80%; background: linear-gradient(90deg, #3b82f6, #60a5fa); color: var(--theme-color-background-panel, #fff);">Value Input</div>
 				</div>
 				<span class="duration" style="color: #9ca3af;">23s</span>
 			</div>
 			<div class="timing-row">
 				<span class="task-name" style="color: #374151;">Read File</span>
 				<div class="bar-track" style="background: #f0f1f4;">
-					<div class="bar-fill" style="width:35%; background: linear-gradient(90deg, #10b981, #34d399); color: #fff;">Read File</div>
+					<div class="bar-fill" style="width:35%; background: linear-gradient(90deg, #10b981, #34d399); color: var(--theme-color-background-panel, #fff);">Read File</div>
 				</div>
 				<span class="duration" style="color: #9ca3af;">1ms</span>
 			</div>
 			<div class="timing-row">
 				<span class="task-name" style="color: #374151;">Replace</span>
 				<div class="bar-track" style="background: #f0f1f4;">
-					<div class="bar-fill" style="width:25%; background: linear-gradient(90deg, #6366f1, #818cf8); color: #fff;">Replace</div>
+					<div class="bar-fill" style="width:25%; background: linear-gradient(90deg, #6366f1, #818cf8); color: var(--theme-color-background-panel, #fff);">Replace</div>
 				</div>
 				<span class="duration" style="color: #9ca3af;">1ms</span>
 			</div>
 		</div>
 		<div class="mock-buttons">
-			<div class="mock-btn" style="background: #3b82f6; color: #fff;">Run Operation</div>
+			<div class="mock-btn" style="background: #3b82f6; color: var(--theme-color-background-panel, #fff);">Run Operation</div>
 			<div class="mock-btn" style="background: #e5e7eb; color: #374151;">Refresh</div>
 			<div class="mock-btn-outline mock-btn" style="border-color: #d1d5db; color: #374151;">Export</div>
 		</div>
@@ -442,7 +442,7 @@
 			<div class="timing-row">
 				<span class="task-name" style="color: #c8cdd5;">Value Input</span>
 				<div class="bar-track" style="background: #22252e;">
-					<div class="bar-fill" style="width:80%; background: linear-gradient(90deg, #3b82f6, #60a5fa); color: #fff;">Value Input</div>
+					<div class="bar-fill" style="width:80%; background: linear-gradient(90deg, #3b82f6, #60a5fa); color: var(--theme-color-background-panel, #fff);">Value Input</div>
 				</div>
 				<span class="duration" style="color: #5a6070;">23s</span>
 			</div>
@@ -456,13 +456,13 @@
 			<div class="timing-row">
 				<span class="task-name" style="color: #c8cdd5;">Replace</span>
 				<div class="bar-track" style="background: #22252e;">
-					<div class="bar-fill" style="width:25%; background: linear-gradient(90deg, #7c3aed, #a78bfa); color: #fff;">Replace</div>
+					<div class="bar-fill" style="width:25%; background: linear-gradient(90deg, #7c3aed, #a78bfa); color: var(--theme-color-background-panel, #fff);">Replace</div>
 				</div>
 				<span class="duration" style="color: #5a6070;">1ms</span>
 			</div>
 		</div>
 		<div class="mock-buttons">
-			<div class="mock-btn" style="background: #3b82f6; color: #fff;">Run Operation</div>
+			<div class="mock-btn" style="background: #3b82f6; color: var(--theme-color-background-panel, #fff);">Run Operation</div>
 			<div class="mock-btn" style="background: #282c34; color: #c8cdd5;">Refresh</div>
 			<div class="mock-btn-outline mock-btn" style="border-color: #3a3f4a; color: #c8cdd5;">Export</div>
 		</div>
@@ -476,9 +476,9 @@
 	<h2 style="background: #252018; color: #c4956a;">Desert Dusk</h2>
 	<div class="swatches">
 		<div class="swatch" style="background: #c4956a; color: #1a1714;">Sandstone</div>
-		<div class="swatch" style="background: #d47a3e; color: #fff;">Adobe</div>
-		<div class="swatch" style="background: #6a3040; color: #fff;">Merlot</div>
-		<div class="swatch" style="background: #4a9090; color: #fff;">Oasis</div>
+		<div class="swatch" style="background: #d47a3e; color: var(--theme-color-background-panel, #fff);">Adobe</div>
+		<div class="swatch" style="background: #6a3040; color: var(--theme-color-background-panel, #fff);">Merlot</div>
+		<div class="swatch" style="background: #4a9090; color: var(--theme-color-background-panel, #fff);">Oasis</div>
 		<div class="swatch" style="background: #8a9a5a; color: #1a1714;">Mesquite</div>
 		<div class="swatch" style="background: #c0a050; color: #1a1714;">Ochre</div>
 	</div>
@@ -516,7 +516,7 @@
 			<div class="timing-row">
 				<span class="task-name" style="color: #c8b8a0;">Read File</span>
 				<div class="bar-track" style="background: #302820;">
-					<div class="bar-fill" style="width:35%; background: linear-gradient(90deg, #4a9090, #5aa0a0); color: #fff;">Read File</div>
+					<div class="bar-fill" style="width:35%; background: linear-gradient(90deg, #4a9090, #5aa0a0); color: var(--theme-color-background-panel, #fff);">Read File</div>
 				</div>
 				<span class="duration" style="color: #706050;">1ms</span>
 			</div>
@@ -536,8 +536,8 @@
 			</div>
 		</div>
 		<div class="mock-buttons">
-			<div class="mock-btn" style="background: #4a9090; color: #fff;">Run Operation</div>
-			<div class="mock-btn" style="background: #d47a3e; color: #fff;">Refresh</div>
+			<div class="mock-btn" style="background: #4a9090; color: var(--theme-color-background-panel, #fff);">Run Operation</div>
+			<div class="mock-btn" style="background: #d47a3e; color: var(--theme-color-background-panel, #fff);">Refresh</div>
 			<div class="mock-btn-outline mock-btn" style="border-color: #c4956a; color: #c4956a;">Export</div>
 		</div>
 	</div>
@@ -550,11 +550,11 @@
 	<h2 style="background: #221a14; color: #e8943a;">Desert Canyon</h2>
 	<div class="swatches">
 		<div class="swatch" style="background: #e8943a; color: #18120e;">Marigold</div>
-		<div class="swatch" style="background: #e05830; color: #fff;">Canyon Red</div>
-		<div class="swatch" style="background: #9a2850; color: #fff;">Prickly Pear</div>
+		<div class="swatch" style="background: #e05830; color: var(--theme-color-background-panel, #fff);">Canyon Red</div>
+		<div class="swatch" style="background: #9a2850; color: var(--theme-color-background-panel, #fff);">Prickly Pear</div>
 		<div class="swatch" style="background: #18a0a0; color: #18120e;">Turquoise</div>
 		<div class="swatch" style="background: #e0c870; color: #18120e;">Yucca</div>
-		<div class="swatch" style="background: #a06030; color: #fff;">Copper</div>
+		<div class="swatch" style="background: #a06030; color: var(--theme-color-background-panel, #fff);">Copper</div>
 	</div>
 	<div class="mock-ui" style="color: #d8c8b0;">
 		<div class="mock-topbar" style="background: linear-gradient(90deg, #221a14, #2e2018);">
@@ -604,14 +604,14 @@
 			<div class="timing-row">
 				<span class="task-name" style="color: #d8c8b0;">Write File</span>
 				<div class="bar-track" style="background: #2e2018;">
-					<div class="bar-fill" style="width:45%; background: linear-gradient(90deg, #a06030, #c08040); color: #fff;">Write File</div>
+					<div class="bar-fill" style="width:45%; background: linear-gradient(90deg, #a06030, #c08040); color: var(--theme-color-background-panel, #fff);">Write File</div>
 				</div>
 				<span class="duration" style="color: #685040;">2ms</span>
 			</div>
 		</div>
 		<div class="mock-buttons">
 			<div class="mock-btn" style="background: #18a0a0; color: #18120e; font-weight: 700;">Run Operation</div>
-			<div class="mock-btn" style="background: #e05830; color: #fff;">Refresh</div>
+			<div class="mock-btn" style="background: #e05830; color: var(--theme-color-background-panel, #fff);">Refresh</div>
 			<div class="mock-btn-outline mock-btn" style="border-color: #e8943a; color: #e8943a;">Export</div>
 		</div>
 		<table class="mock-table" style="margin-top: 4px;">

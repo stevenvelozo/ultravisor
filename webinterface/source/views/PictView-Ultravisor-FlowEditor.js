@@ -222,7 +222,7 @@ const _ViewConfiguration =
 		 * blue pulse.  Only fires when the scheduler's stall detection
 		 * has flipped the node's beacon work item to Stalled. */
 		.uv-exec-stalled .pict-flow-node-body {
-			stroke: #b45309 !important;
+			stroke: var(--theme-color-status-warning, #b45309) !important;
 			stroke-width: 2.5 !important;
 		}
 		.uv-exec-stalled {

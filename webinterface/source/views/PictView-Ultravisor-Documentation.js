@@ -61,14 +61,14 @@ const _ViewConfiguration =
 		}
 		.ultravisor-docs-search-results a:hover {
 			background-color: var(--uv-topbar-hover);
-			color: #fff;
+			color: var(--theme-color-background-panel, #fff);
 		}
 		.ultravisor-docs-search-result-title {
 			font-weight: 600;
 			color: var(--uv-text);
 		}
 		.ultravisor-docs-search-results a:hover .ultravisor-docs-search-result-title {
-			color: #fff;
+			color: var(--theme-color-background-panel, #fff);
 		}
 		.ultravisor-docs-search-result-meta {
 			font-size: 0.9em;
@@ -131,7 +131,7 @@ const _ViewConfiguration =
 		}
 		.ultravisor-docs-module-list a:hover {
 			background-color: #1a2744;
-			color: #fff;
+			color: var(--theme-color-background-panel, #fff);
 		}
 		.ultravisor-docs-module-list a.active {
 			color: var(--uv-link);

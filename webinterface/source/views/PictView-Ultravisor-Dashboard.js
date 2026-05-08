@@ -88,7 +88,7 @@ const _ViewConfiguration =
 		}
 		.ultravisor-btn-danger {
 			background-color: var(--uv-error);
-			color: #fff;
+			color: var(--theme-color-background-panel, #fff);
 			font-weight: 600;
 		}
 		.ultravisor-btn-danger:hover {

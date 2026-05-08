@@ -130,7 +130,7 @@ const _ViewConfiguration =
 		}
 		.ultravisor-timing-row-bar-text {
 			font-size: 0.75em;
-			color: #fff;
+			color: var(--theme-color-background-panel, #fff);
 			white-space: nowrap;
 			text-shadow: 0 1px 2px var(--uv-shadow-heavy);
 		}

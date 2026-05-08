@@ -402,7 +402,7 @@ body[data-theme="desert-day"] .pict-flow-container
 	--pf-text-placeholder: #a09080;
 	--pf-canvas-bg: #faf6f0;
 	--pf-grid-stroke: #e8ddd0;
-	--pf-node-body-fill: #fff;
+	--pf-node-body-fill: var(--theme-color-background-panel, #fff);
 	--pf-node-body-stroke: #e0d0b8;
 	--pf-node-body-stroke-hover: #c8b8a0;
 	--pf-node-title-fill: #3d2b1f;
@@ -412,7 +412,7 @@ body[data-theme="desert-day"] .pict-flow-container
 	--pf-node-shadow-hover: drop-shadow(0 2px 6px rgba(92, 61, 46, 0.15));
 	--pf-port-label-bg: rgba(250, 246, 240, 0.7);
 	--pf-port-label-text: #3d2b1f;
-	--pf-port-stroke: #fff;
+	--pf-port-stroke: var(--theme-color-background-panel, #fff);
 	--pf-panel-bg: #fff;
 	--pf-panel-border: #e0d0b8;
 	--pf-panel-shadow: 0 4px 12px rgba(92, 61, 46, 0.10);
@@ -512,7 +512,7 @@ body[data-theme="professional-light"] .pict-flow-container
 	--pf-text-placeholder: #9ca3af;
 	--pf-canvas-bg: #f5f6f8;
 	--pf-grid-stroke: #e2e5ea;
-	--pf-node-body-fill: #fff;
+	--pf-node-body-fill: var(--theme-color-background-panel, #fff);
 	--pf-node-body-stroke: #e2e5ea;
 	--pf-node-body-stroke-hover: #c8cdd5;
 	--pf-node-title-fill: #2d3748;
@@ -522,7 +522,7 @@ body[data-theme="professional-light"] .pict-flow-container
 	--pf-node-shadow-hover: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.10));
 	--pf-port-label-bg: rgba(245, 246, 248, 0.7);
 	--pf-port-label-text: #2d3748;
-	--pf-port-stroke: #fff;
+	--pf-port-stroke: var(--theme-color-background-panel, #fff);
 	--pf-panel-bg: #fff;
 	--pf-panel-border: #e2e5ea;
 	--pf-panel-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);

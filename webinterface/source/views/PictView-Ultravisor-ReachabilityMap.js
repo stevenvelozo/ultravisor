@@ -74,7 +74,7 @@ const _ViewConfiguration =
 			width: 16px;
 			height: 16px;
 			border-radius: 50%;
-			border: 2px dashed #b45309;
+			border: 2px dashed var(--theme-color-status-warning, #b45309);
 			background: transparent;
 		}
 

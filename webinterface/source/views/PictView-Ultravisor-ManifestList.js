@@ -66,7 +66,7 @@ const _ViewConfiguration =
 			color: #ffcdd2;
 		}
 		.ultravisor-manifest-status.stalled {
-			background-color: #b45309;
+			background-color: var(--theme-color-status-warning, #b45309);
 			color: #fef3c7;
 		}
 		.ultravisor-manifest-status.waiting,
@@ -80,7 +80,7 @@ const _ViewConfiguration =
 		}
 		.ultravisor-manifest-status.abandoned {
 			background-color: #3a3a3a;
-			color: #999;
+			color: var(--theme-color-text-muted, #999);
 		}
 
 		/* Filter tabs */
