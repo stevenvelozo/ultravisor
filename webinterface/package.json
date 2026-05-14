@@ -5,7 +5,8 @@
 	"main": "source/Pict-Application-Ultravisor.js",
 	"scripts": {
 		"start": "node source/Pict-Application-Ultravisor.js",
-		"prebuild": "node ./node_modules/pict-section-flow/scripts/generate-card-help.js ./docs/card-help ./source/card-help-content.js",
+		"brand": "node node_modules/pict-section-theme/bin/pict-section-theme-brand.js --manifest ../../../../Retold-Modules-Manifest.json --module ultravisor --package ./package.json --favicons html/favicons",
+		"prebuild": "npm run brand && node ./node_modules/pict-section-flow/scripts/generate-card-help.js ./docs/card-help ./source/card-help-content.js",
 		"build": "npx quack build && node build/build-codemirror-bundle.js && npx quack copy"
 	},
 	"author": "steven velozo <steven@velozo.com>",
@@ -16,12 +17,14 @@
 		"pict-docuserve": "^0.0.32",
 		"pict-provider": "^1.0.12",
 		"pict-router": "^1.0.9",
+		"pict-section-code": "^1.0.7",
 		"pict-section-content": "^0.0.11",
 		"pict-section-flow": "^0.0.17",
 		"pict-section-form": "^1.0.195",
 		"pict-section-markdowneditor": "^1.0.7",
-		"pict-section-modal": "^0.0.1",
+		"pict-section-modal": "^0.0.9",
 		"pict-section-objecteditor": "^1.0.1",
+		"pict-section-theme": "^0.0.3",
 		"pict-section-usermanagement": "^0.0.1",
 		"pict-view": "^1.0.67"
 	},
@@ -42,6 +45,10 @@
 			"to": "./dist/"
 		},
 		{
+			"from": "./html/favicons/*",
+			"to": "./dist/favicons/"
+		},
+		{
 			"from": "./css/**",
 			"to": "./dist/css/"
 		},
@@ -53,5 +60,25 @@
 			"from": "../docs/**",
 			"to": "./dist/docs/"
 		}
-	]
+	],
+	"retold": {
+		"brand": {
+			"Hash": "ultravisor",
+			"Name": "Ultravisor",
+			"Tagline": "Process supervision and workflow automation",
+			"Palette": "desert",
+			"Icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 96 96\" width=\"96\" height=\"96\">\n\t\t<defs>\n\t\t\t<clipPath id=\"frame-ultravisor-filled-light\">\n\t\t\t\t<path d=\"M 2 48\n\t\t\tA 46 46 0 1 0 94 48\n\t\t\tA 46 46 0 1 0 2 48 Z\"/>\n\t\t\t</clipPath>\n\t\t</defs>\n\t\t<path d=\"M 2 48\n\t\t\tA 46 46 0 1 0 94 48\n\t\t\tA 46 46 0 1 0 2 48 Z\" fill=\"#cc8821\"/>\n\t\t<g clip-path=\"url(#frame-ultravisor-filled-light)\"><path d=\"M 48.00,12.00 L 79.18,30.00 L 79.18,66.00 L 48.00,84.00 L 16.82,66.00 L 16.82,30.00 Z\" fill=\"rgba(255,255,255,0.18)\"/>\n\t\t\t\t\t<circle cx=\"48\" cy=\"48\" r=\"24\" fill=\"#5a9ec0\"/></g>\n\t\t<text x=\"48\" y=\"50\" text-anchor=\"middle\" dominant-baseline=\"central\"\n\t\t\tfont-family=\"-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif\"\n\t\t\tfont-size=\"56\" font-weight=\"600\"\n\t\t\tfill=\"#ffffff\" letter-spacing=\"-1\">U</text>\n\t</svg>",
+			"IconType": "svg",
+			"Favicon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 96 96\" width=\"96\" height=\"96\">\n\t\t<defs>\n\t\t\t<clipPath id=\"fav-ultravisor-light\">\n\t\t\t\t<path d=\"M 2 48\n\t\t\tA 46 46 0 1 0 94 48\n\t\t\tA 46 46 0 1 0 2 48 Z\"/>\n\t\t\t</clipPath>\n\t\t</defs>\n\t\t<path d=\"M 2 48\n\t\t\tA 46 46 0 1 0 94 48\n\t\t\tA 46 46 0 1 0 2 48 Z\" fill=\"#cc8821\"/>\n\t\t<g clip-path=\"url(#fav-ultravisor-light)\"><path d=\"M 48.00,12.00 L 79.18,30.00 L 79.18,66.00 L 48.00,84.00 L 16.82,66.00 L 16.82,30.00 Z\" fill=\"rgba(255,255,255,0.22)\"/></g>\n\t\t<text x=\"48\" y=\"50\" text-anchor=\"middle\" dominant-baseline=\"central\"\n\t\t\tfont-family=\"-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif\"\n\t\t\tfont-size=\"60\" font-weight=\"800\"\n\t\t\tfill=\"#ffffff\" letter-spacing=\"-1\">U</text>\n\t</svg>",
+			"FaviconDark": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 96 96\" width=\"96\" height=\"96\">\n\t\t<defs>\n\t\t\t<clipPath id=\"fav-ultravisor-dark\">\n\t\t\t\t<path d=\"M 2 48\n\t\t\tA 46 46 0 1 0 94 48\n\t\t\tA 46 46 0 1 0 2 48 Z\"/>\n\t\t\t</clipPath>\n\t\t</defs>\n\t\t<path d=\"M 2 48\n\t\t\tA 46 46 0 1 0 94 48\n\t\t\tA 46 46 0 1 0 2 48 Z\" fill=\"#e0b169\"/>\n\t\t<g clip-path=\"url(#fav-ultravisor-dark)\"><path d=\"M 48.00,12.00 L 79.18,30.00 L 79.18,66.00 L 48.00,84.00 L 16.82,66.00 L 16.82,30.00 Z\" fill=\"rgba(255,255,255,0.22)\"/></g>\n\t\t<text x=\"48\" y=\"50\" text-anchor=\"middle\" dominant-baseline=\"central\"\n\t\t\tfont-family=\"-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif\"\n\t\t\tfont-size=\"60\" font-weight=\"800\"\n\t\t\tfill=\"#101418\" letter-spacing=\"-1\">U</text>\n\t</svg>",
+			"Colors": {
+				"Primary": "#cc8821",
+				"Secondary": "#5a9ec0",
+				"PrimaryLight": "#cc8821",
+				"PrimaryDark": "#e0b169",
+				"SecondaryLight": "#5a9ec0",
+				"SecondaryDark": "#a0c4d5"
+			}
+		}
+	}
 }

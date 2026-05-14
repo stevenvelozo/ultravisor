@@ -1,0 +1,11 @@
+{
+	"version": "0.0.1",
+	"configurations": [
+		{
+			"name": "ultravisor-webinterface",
+			"runtimeExecutable": "npx",
+			"runtimeArgs": ["http-server", "./dist", "-p", "44430", "-c-1", "--silent"],
+			"port": 44430
+		}
+	]
+}

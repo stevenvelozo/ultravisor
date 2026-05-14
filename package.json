@@ -1,96 +1,96 @@
 {
-    "name": "ultravisor",
-    "version": "1.3.10",
-    "description": "Cyclic process execution with ai integration.",
-    "main": "source/Ultravisor.cjs",
-    "bin": {
-        "ultravisor": "./source/cli/Ultravisor-Run.cjs"
-    },
-    "scripts": {
-        "start": "node source/cli/Ultravisor-Run.cjs",
-        "test": "npx quack test",
-        "tests": "npx mocha -u tdd --exit -R spec --grep",
-        "coverage": "npx quack coverage",
-        "postinstall": "cd webinterface && npm install && npm run build && cd ..",
-        "build": "npx quack build && cd webinterface && npm install && npm run build && cd ..",
-        "prepack": "npm run build",
-        "docs": "npx quack prepare-docs ./docs -d ./modules",
-        "docs-serve": "npx quack docs-serve ./docs",
-        "prepublishOnly": "npm test",
-        "postversion": "npx quack release postversion",
-        "postpublish": "npx quack release postpublish",
-        "publish:docker": "npx quack release publish --image",
-        "publish:docker:local": "bash bin/publish-image-local.sh",
-        "release:patch": "npx quack release patch",
-        "release:minor": "npx quack release minor",
-        "release:major": "npx quack release major",
-        "release:patch:image": "npx quack release patch --image",
-        "release:minor:image": "npx quack release minor --image",
-        "release:major:image": "npx quack release major --image"
-    },
-    "files": [
-        "source/",
-        "operation-library/",
-        "webinterface/dist/",
-        "webinterface/css/",
-        "webinterface/build/",
-        "webinterface/docs/",
-        "webinterface/source/",
-        "webinterface/html/",
-        "webinterface/package.json",
-        "webinterface/package-lock.json",
-        "docs/",
-        "README.md",
-        "LICENSE"
-    ],
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/stevenvelozo/ultravisor.git"
-    },
-    "author": "steven@velozo.com",
-    "license": "MIT",
-    "bugs": {
-        "url": "https://github.com/stevenvelozo/ultravisor/issues"
-    },
-    "homepage": "https://github.com/stevenvelozo/ultravisor#readme",
-    "dependencies": {
-        "better-sqlite3": "^11.10.0",
-        "cron": "^4.4.0",
-        "meadow": "^2.0.39",
-        "meadow-connection-sqlite": "^1.0.20",
-        "meadow-migrationmanager": "^0.0.16",
-        "orator": "^6.1.2",
-        "orator-authentication": "^1.0.2",
-        "orator-serviceserver-restify": "^2.0.11",
-        "pict": "^1.0.368",
-        "pict-service-commandlineutility": "^1.0.19",
-        "pict-serviceproviderbase": "^1.0.4",
-        "ultravisor-beacon": "^0.0.15",
-        "ultravisor-file-stream": "^0.0.1",
-        "ws": "^8.20.0"
-    },
-    "devDependencies": {
-        "pict-docuserve": "^1.0.1",
-        "puppeteer": "^24.40.0",
-        "quackage": "^1.2.3"
-    },
-    "mocha": {
-        "diff": true,
-        "extension": [
-            "js"
-        ],
-        "package": "./package.json",
-        "reporter": "spec",
-        "slow": "75",
-        "timeout": "5000",
-        "ui": "tdd",
-        "watch-files": [
-            "source/**/*.js",
-            "source/**/*.cjs",
-            "test/**/*.js"
-        ],
-        "watch-ignore": [
-            "lib/vendor"
-        ]
-    }
+	"name": "ultravisor",
+	"version": "1.3.10",
+	"description": "Cyclic process execution with ai integration.",
+	"main": "source/Ultravisor.cjs",
+	"bin": {
+		"ultravisor": "./source/cli/Ultravisor-Run.cjs"
+	},
+	"scripts": {
+		"start": "node source/cli/Ultravisor-Run.cjs",
+		"test": "npx quack test",
+		"tests": "npx mocha -u tdd --exit -R spec --grep",
+		"coverage": "npx quack coverage",
+		"postinstall": "cd webinterface && npm install && npm run build && cd ..",
+		"build": "npx quack build && cd webinterface && npm install && npm run build && cd ..",
+		"prepack": "npm run build",
+		"docs": "npx quack prepare-docs ./docs -d ./modules",
+		"docs-serve": "npx quack docs-serve ./docs",
+		"prepublishOnly": "npm test",
+		"postversion": "npx quack release postversion",
+		"postpublish": "npx quack release postpublish",
+		"publish:docker": "npx quack release publish --image",
+		"publish:docker:local": "bash bin/publish-image-local.sh",
+		"release:patch": "npx quack release patch",
+		"release:minor": "npx quack release minor",
+		"release:major": "npx quack release major",
+		"release:patch:image": "npx quack release patch --image",
+		"release:minor:image": "npx quack release minor --image",
+		"release:major:image": "npx quack release major --image"
+	},
+	"files": [
+		"source/",
+		"operation-library/",
+		"webinterface/dist/",
+		"webinterface/css/",
+		"webinterface/build/",
+		"webinterface/docs/",
+		"webinterface/source/",
+		"webinterface/html/",
+		"webinterface/package.json",
+		"webinterface/package-lock.json",
+		"docs/",
+		"README.md",
+		"LICENSE"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/stevenvelozo/ultravisor.git"
+	},
+	"author": "steven@velozo.com",
+	"license": "MIT",
+	"bugs": {
+		"url": "https://github.com/stevenvelozo/ultravisor/issues"
+	},
+	"homepage": "https://github.com/stevenvelozo/ultravisor#readme",
+	"dependencies": {
+		"better-sqlite3": "^11.10.0",
+		"cron": "^4.4.0",
+		"meadow": "^2.0.39",
+		"meadow-connection-sqlite": "^1.0.20",
+		"meadow-migrationmanager": "^0.0.16",
+		"orator": "^6.1.2",
+		"orator-authentication": "^1.0.2",
+		"orator-serviceserver-restify": "^2.0.11",
+		"pict": "^1.0.368",
+		"pict-service-commandlineutility": "^1.0.19",
+		"pict-serviceproviderbase": "^1.0.4",
+		"ultravisor-beacon": "^0.0.15",
+		"ultravisor-file-stream": "^0.0.1",
+		"ws": "^8.20.0"
+	},
+	"devDependencies": {
+		"pict-docuserve": "^1.0.1",
+		"puppeteer": "^24.40.0",
+		"quackage": "^1.2.3"
+	},
+	"mocha": {
+		"diff": true,
+		"extension": [
+			"js"
+		],
+		"package": "./package.json",
+		"reporter": "spec",
+		"slow": "75",
+		"timeout": "5000",
+		"ui": "tdd",
+		"watch-files": [
+			"source/**/*.js",
+			"source/**/*.cjs",
+			"test/**/*.js"
+		],
+		"watch-ignore": [
+			"lib/vendor"
+		]
+	}
 }

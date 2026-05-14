@@ -2,20 +2,15 @@ const libPictApplication = require('pict-application');
 const libPictRouter = require('pict-router');
 const libPictSectionForm = require('pict-section-form');
 const libPictSectionContent = require('pict-section-content');
-
-const THEME_LIST =
-[
-	{ Key: 'desert-dusk', Label: 'Desert Dusk', Colors: ['#252018', '#c4956a', '#4a9090', '#6a3040', '#8a9a5a'] },
-	{ Key: 'desert-day', Label: 'Desert Day', Colors: ['#faf6f0', '#5c3d2e', '#3a8a8c', '#7a2e3a', '#6b8f4a'] },
-	{ Key: 'desert-sunset', Label: 'Desert Sunset', Colors: ['#1e1610', '#e8943a', '#2a8a8a', '#8b2442', '#d4a46a'] },
-	{ Key: 'professional-light', Label: 'Professional Light', Colors: ['#f5f6f8', '#3b82f6', '#10b981', '#ef4444', '#6366f1'] },
-	{ Key: 'professional-dark', Label: 'Professional Dark', Colors: ['#111318', '#60a5fa', '#34d399', '#f87171', '#a78bfa'] },
-	{ Key: 'desert-canyon', Label: 'Desert Canyon', Colors: ['#18120e', '#e8943a', '#18a0a0', '#e05830', '#e0c870'] }
-];
+const libPictSectionTheme = require('pict-section-theme');
+const libUltravisorBrand = require('./Ultravisor-Brand.js');
 
 // Views
 const libViewLayout = require('./views/PictView-Ultravisor-Layout.js');
-const libViewTopBar = require('./views/PictView-Ultravisor-TopBar.js');
+const libViewTopBarNav = require('./views/PictView-Ultravisor-TopBar-Nav.js');
+const libViewTopBarUser = require('./views/PictView-Ultravisor-TopBar-User.js');
+const libViewSidebar = require('./views/PictView-Ultravisor-Sidebar.js');
+const libViewSettingsPanel = require('./views/PictView-Ultravisor-SettingsPanel.js');
 const libViewBottomBar = require('./views/PictView-Ultravisor-BottomBar.js');
 const libViewDashboard = require('./views/PictView-Ultravisor-Dashboard.js');
 const libViewOperationList = require('./views/PictView-Ultravisor-OperationList.js');
@@ -54,12 +49,19 @@ class UltravisorApplication extends libPictApplication
 		// Add the router provider with routes
 		this.pict.addProvider('PictRouter', require('./providers/PictRouter-Ultravisor-Configuration.json'), libPictRouter);
 
-		// Add the layout view (the shell that contains top bar, workspace, bottom bar)
+		// Add the layout view (the shell that contains topbar, sidebar, bottombar,
+		// settings panel, and the workspace center).
 		this.pict.addView('Ultravisor-Layout', libViewLayout.default_configuration, libViewLayout);
 
-		// Add the top bar and bottom bar views
-		this.pict.addView('Ultravisor-TopBar', libViewTopBar.default_configuration, libViewTopBar);
+		// Bottom bar (existing status view) — used as the StatusView slot below.
 		this.pict.addView('Ultravisor-BottomBar', libViewBottomBar.default_configuration, libViewBottomBar);
+
+		// Theme-TopBar / Theme-BottomBar slot views must be registered BEFORE
+		// the Theme-Section provider — _bootstrap looks them up by hash.
+		this.pict.addView('Ultravisor-TopBar-Nav',  libViewTopBarNav.default_configuration,  libViewTopBarNav);
+		this.pict.addView('Ultravisor-TopBar-User', libViewTopBarUser.default_configuration, libViewTopBarUser);
+		this.pict.addView('Ultravisor-Sidebar',     libViewSidebar.default_configuration,    libViewSidebar);
+		this.pict.addView('Ultravisor-SettingsPanel', libViewSettingsPanel.default_configuration, libViewSettingsPanel);
 
 		// Add content views
 		this.pict.addView('Ultravisor-Dashboard', libViewDashboard.default_configuration, libViewDashboard);
@@ -98,8 +100,29 @@ class UltravisorApplication extends libPictApplication
 		// confirm/toast hooks look up. Both addView calls produce
 		// independent instances of the same section, which is fine because
 		// the modal section is stateless across constructions.
+		// 'Pict-Section-Modal' also exposes the shell() + addPanel() API
+		// the Layout view consumes to build its panels.
 		this.pict.addView('Modal', {}, libPictSectionModal);
 		this.pict.addView('Pict-Section-Modal', {}, libPictSectionModal);
+
+		// Theme-Section — registers the topbar/bottombar chrome, the
+		// theme catalog, persistence, and brand. ApplyDefault is the
+		// shared ecosystem identity; the six ultravisor-* palettes in
+		// pict-section-theme/source/themes/ are pickable from the
+		// settings panel.
+		this.pict.addProvider('Theme-Section',
+		{
+			ApplyDefault: 'retold-default',
+			DefaultMode:  'system',
+			DefaultScale: 1.0,
+			Brand:        libUltravisorBrand,
+			Views: ['Picker', 'ModeToggle', 'ScaleSelect', 'BrandMark', 'TopBar', 'BottomBar'],
+			ViewOptions:
+			{
+				TopBar:    { NavView: 'Ultravisor-TopBar-Nav', UserView: 'Ultravisor-TopBar-User', Height: 56 },
+				BottomBar: { StatusView: 'Ultravisor-BottomBar', Height: 28 }
+			}
+		}, libPictSectionTheme);
 
 		// pict-section-usermanagement — install() registers the provider
 		// + 5 views (Login, CurrentUser, UserList, UserEdit,
@@ -133,10 +156,8 @@ class UltravisorApplication extends libPictApplication
 
 	onAfterInitializeAsync(fCallback)
 	{
-		// Apply saved theme before first render
-		this.loadSavedTheme();
-
-		// Initialize application state
+		// Initialize application state. Theme/mode/scale persistence is
+		// owned by pict-section-theme — no theme keys live in AppData.
 		this.pict.AppData.Ultravisor =
 		{
 			APIBaseURL: '',
@@ -158,6 +179,7 @@ class UltravisorApplication extends libPictApplication
 			ReachabilityBeacons: [],
 			ReachabilityHub: null,
 			CurrentEditOperation: null,
+			CurrentRoute: this._readHashRoute(),
 			Flows: {},
 			OperationDescriptionSegments: [{ Content: '' }],
 			DebugMode: false
@@ -186,19 +208,55 @@ class UltravisorApplication extends libPictApplication
 
 	navigateTo(pRoute)
 	{
+		this.pict.AppData.Ultravisor.CurrentRoute = pRoute;
 		this.pict.providers.PictRouter.navigate(pRoute);
+		this.renderTopBar();
+		this.renderSidebar();
+	}
+
+	/**
+	 * Called when the URL hash changes (back/forward/manual edit). Keeps
+	 * AppData.Ultravisor.CurrentRoute in sync and re-renders the topbar
+	 * + sidebar so active-tab highlighting and sidebar context match.
+	 */
+	onRouteChanged()
+	{
+		this.pict.AppData.Ultravisor.CurrentRoute = this._readHashRoute();
+		this.renderTopBar();
+		this.renderSidebar();
+	}
+
+	_readHashRoute()
+	{
+		if (typeof window === 'undefined' || !window.location || !window.location.hash) { return '/Home'; }
+		let tmpHash = window.location.hash;
+		if (tmpHash.charAt(0) === '#') { tmpHash = tmpHash.slice(1); }
+		if (!tmpHash || tmpHash === '/') { return '/Home'; }
+		return tmpHash;
+	}
+
+	renderTopBar()
+	{
+		let tmpNav  = this.pict.views['Ultravisor-TopBar-Nav'];
+		let tmpUser = this.pict.views['Ultravisor-TopBar-User'];
+		if (tmpNav)  { tmpNav.render(); }
+		if (tmpUser) { tmpUser.render(); }
+	}
+
+	renderSidebar()
+	{
+		let tmpSidebar = this.pict.views['Ultravisor-Sidebar'];
+		if (tmpSidebar) { tmpSidebar.render(); }
 	}
 
 	/**
 	 * Hook fired by pict-section-usermanagement's Login view after a
-	 * successful sign-in. Re-render the TopBar so the CurrentUser badge
-	 * appears, then bounce to the dashboard so the user lands on a
-	 * useful page rather than the login form's success message.
+	 * successful sign-in. Re-render the topbar so the CurrentUser badge
+	 * appears, then bounce to the dashboard.
 	 */
 	_afterLogin()
 	{
-		let tmpTopBar = this.pict.views['Ultravisor-TopBar'];
-		if (tmpTopBar) tmpTopBar.render();
+		this.renderTopBar();
 		this.navigateTo('/Home');
 	}
 
@@ -209,8 +267,7 @@ class UltravisorApplication extends libPictApplication
 	 */
 	_afterLogout()
 	{
-		let tmpTopBar = this.pict.views['Ultravisor-TopBar'];
-		if (tmpTopBar) tmpTopBar.render();
+		this.renderTopBar();
 		this.navigateTo('/Login');
 	}
 
@@ -289,11 +346,11 @@ class UltravisorApplication extends libPictApplication
 				tmpStatus.StatusClass = 'error';
 				tmpStatus.StatusText = 'Disconnected';
 
-				// Update status indicator
+				// Update status indicator in the TopBar-User slot.
 				let tmpContent = this.pict.parseTemplateByHash('Ultravisor-TopBar-Status-Template', {}, null, this.pict);
 				this.pict.ContentAssignment.assignContent('#Ultravisor-TopBar-StatusArea', tmpContent);
 
-				// Show a prominent banner in the content area
+				// Show a prominent banner in the content area.
 				let tmpContentContainer = document.getElementById('Ultravisor-Content-Container');
 				if (tmpContentContainer)
 				{
@@ -312,11 +369,9 @@ class UltravisorApplication extends libPictApplication
 				tmpStatus.StatusClass = 'connected';
 				tmpStatus.StatusText = tmpStatus.Status || 'Connected';
 
-				// Update status indicator
 				let tmpContent = this.pict.parseTemplateByHash('Ultravisor-TopBar-Status-Template', {}, null, this.pict);
 				this.pict.ContentAssignment.assignContent('#Ultravisor-TopBar-StatusArea', tmpContent);
 
-				// Remove the disconnected banner if present
 				let tmpBanner = document.querySelector('.ultravisor-disconnected-banner');
 				if (tmpBanner)
 				{
@@ -961,42 +1016,6 @@ class UltravisorApplication extends libPictApplication
 					fCallback(null, pData);
 				}
 			}.bind(this));
-	}
-
-	// --- Theme ---
-	applyTheme(pThemeKey)
-	{
-		let tmpThemeKey = pThemeKey || 'professional-dark';
-
-		// 'desert-dusk' is the CSS baseline (no [data-theme] selector
-		// matches it). Every other theme applies via a `[data-theme=...]`
-		// rule, including the new default 'professional-dark'.
-		if (tmpThemeKey === 'desert-dusk')
-		{
-			delete document.body.dataset.theme;
-		}
-		else
-		{
-			document.body.dataset.theme = tmpThemeKey;
-		}
-
-		localStorage.setItem('ultravisor-theme', tmpThemeKey);
-
-		if (this.pict.AppData.Ultravisor)
-		{
-			this.pict.AppData.Ultravisor.CurrentTheme = tmpThemeKey;
-		}
-	}
-
-	loadSavedTheme()
-	{
-		let tmpSavedTheme = localStorage.getItem('ultravisor-theme') || 'professional-dark';
-		this.applyTheme(tmpSavedTheme);
-	}
-
-	getThemeList()
-	{
-		return THEME_LIST;
 	}
 
 	// --- Edit helpers ---

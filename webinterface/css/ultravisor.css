@@ -1,16 +1,73 @@
 /* ============================================================================
-   Ultravisor Web Interface - Base Styles
+   Ultravisor Web Interface — Base Styles
+   ============================================================================
+
+   The historical --uv-* tokens are now a thin alias layer that reads from
+   --theme-color-* tokens set by pict-section-theme. Switching themes (via
+   the picker in the settings panel) re-skins everything that still
+   references --uv-*. Phase-out of the alias layer in favor of direct
+   --theme-color-* references is a follow-up.
    ============================================================================ */
 
-/* Reset and base */
-*, *::before, *::after {
-	box-sizing: border-box;
+:root
+{
+	--uv-bg-base:        var(--theme-color-background-primary,    #1a1714);
+	--uv-bg-surface:     var(--theme-color-background-secondary,  #252018);
+	--uv-bg-elevated:    var(--theme-color-background-tertiary,   #302818);
+	--uv-bg-input:       var(--theme-color-background-primary,    #1a1714);
+	--uv-bg-code:        var(--theme-color-background-tertiary,   #151210);
+
+	--uv-border:         var(--theme-color-border-default,        #3a3028);
+	--uv-border-subtle:  var(--theme-color-border-light,          #302818);
+	--uv-border-focus:   var(--theme-color-focus-outline,         var(--theme-color-brand-primary, #c4956a));
+
+	--uv-text:           var(--theme-color-text-primary,          #c8b8a0);
+	--uv-text-heading:   var(--theme-color-text-secondary,        #d8c8a8);
+	--uv-text-secondary: var(--theme-color-text-muted,            #907860);
+	--uv-text-tertiary:  var(--theme-color-text-placeholder,      #706050);
+
+	--uv-brand:          var(--theme-color-brand-primary,         #c4956a);
+	--uv-brand-hover:    var(--theme-color-brand-primary-hover,   #d4a57a);
+
+	--uv-link:           var(--theme-color-brand-accent,          var(--theme-color-brand-primary, #4a9090));
+	--uv-link-hover:     var(--theme-color-brand-accent-hover,    var(--theme-color-brand-primary-hover, #5aacac));
+
+	--uv-btn-primary-bg:    var(--theme-color-brand-primary,      #4a9090);
+	--uv-btn-primary-text:  var(--theme-color-text-on-brand,      #ffffff);
+	--uv-btn-danger-bg:     var(--theme-color-status-error,       #6a3040);
+	--uv-btn-danger-text:   var(--theme-color-text-on-brand,      #eeccc8);
+	--uv-btn-secondary-bg:  var(--theme-color-background-hover,   #3a3028);
+	--uv-btn-secondary-text:var(--theme-color-text-primary,       #c8b8a0);
+
+	--uv-success: var(--theme-color-status-success, #8a9a5a);
+	--uv-error:   var(--theme-color-status-error,   #b04050);
+	--uv-warning: var(--theme-color-status-warning, #c0a050);
+	--uv-info:    var(--theme-color-status-info,    #4a9090);
+
+	--uv-topbar-bg:    var(--theme-color-background-panel,        #252018);
+	--uv-topbar-text:  var(--theme-color-text-on-brand,            var(--theme-color-text-primary, #c8b8a0));
+	--uv-topbar-hover: var(--theme-color-background-hover,        #3a3028);
+
+	--uv-scrollbar-track:       var(--theme-color-scrollbar-track, #252018);
+	--uv-scrollbar-thumb:       var(--theme-color-scrollbar-thumb, #3a3028);
+	--uv-scrollbar-thumb-hover: var(--theme-color-scrollbar-hover, #4a4038);
+
+	--uv-shadow:       var(--theme-color-shadow-color,            rgba(0, 0, 0, 0.30));
+	--uv-shadow-heavy: var(--theme-color-shadow-color,            rgba(0, 0, 0, 0.50));
+
+	--uv-table-header-bg: var(--theme-color-background-tertiary,  #302818);
+	--uv-table-row-hover: var(--theme-color-background-hover,     #302818);
+	--uv-table-stripe:    var(--theme-color-background-tertiary,  rgba(58, 48, 40, 0.30));
 }
 
-html, body {
+/* Reset and base */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body
+{
 	margin: 0;
 	padding: 0;
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	font-family: var(--theme-typography-family-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
 	font-size: 16px;
 	line-height: 1.5;
 	color: var(--uv-text);
@@ -20,23 +77,19 @@ html, body {
 }
 
 /* Typography */
-h1, h2, h3, h4, h5, h6 {
+h1, h2, h3, h4, h5, h6
+{
 	margin-top: 0;
 	line-height: 1.3;
 	color: var(--uv-text-heading);
 }
 
-a {
-	color: var(--uv-link);
-	text-decoration: none;
-}
-
-a:hover {
-	color: var(--uv-link-hover);
-}
+a            { color: var(--uv-link); text-decoration: none; }
+a:hover      { color: var(--uv-link-hover); }
 
 /* Form elements */
-input, select, textarea {
+input, select, textarea
+{
 	font-family: inherit;
 	font-size: 0.9em;
 	padding: 0.5em 0.75em;
@@ -47,16 +100,11 @@ input, select, textarea {
 	outline: none;
 	transition: border-color 0.15s;
 }
+input:focus, select:focus, textarea:focus { border-color: var(--uv-border-focus); }
+textarea { resize: vertical; }
 
-input:focus, select:focus, textarea:focus {
-	border-color: var(--uv-border-focus);
-}
-
-textarea {
-	resize: vertical;
-}
-
-button {
+button
+{
 	font-family: inherit;
 	font-size: 0.85em;
 	padding: 0.5em 1em;
@@ -65,24 +113,18 @@ button {
 	cursor: pointer;
 	transition: background-color 0.15s, opacity 0.15s;
 }
-
-button:hover {
-	opacity: 0.9;
-}
+button:hover { opacity: 0.9; }
 
 /* Tables */
-table {
-	width: 100%;
-	border-collapse: collapse;
-}
-
-th, td {
+table { width: 100%; border-collapse: collapse; }
+th, td
+{
 	text-align: left;
 	padding: 0.6em 0.75em;
 	border-bottom: 1px solid var(--uv-border-subtle);
 }
-
-th {
+th
+{
 	color: var(--uv-text-secondary);
 	font-weight: 600;
 	font-size: 0.8em;
@@ -90,55 +132,32 @@ th {
 	letter-spacing: 0.05em;
 }
 
-/* Application container */
-#Ultravisor-Application-Container {
-	min-height: 100vh;
-}
-
-/* Utility: scrollbar styling */
-::-webkit-scrollbar {
-	width: 8px;
-}
-
-::-webkit-scrollbar-track {
-	background: var(--uv-scrollbar-track);
-}
-
-::-webkit-scrollbar-thumb {
-	background: var(--uv-scrollbar-thumb);
-	border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-	background: var(--uv-scrollbar-thumb-hover);
-}
+/* Scrollbar styling */
+::-webkit-scrollbar       { width: 8px; }
+::-webkit-scrollbar-track { background: var(--uv-scrollbar-track); }
+::-webkit-scrollbar-thumb { background: var(--uv-scrollbar-thumb); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--uv-scrollbar-thumb-hover); }
 
 /* Flow panel overrides — restore light inputs inside the white panel */
 .pict-flow-panel input,
 .pict-flow-panel select,
-.pict-flow-panel textarea {
+.pict-flow-panel textarea
+{
 	background-color: var(--theme-color-background-panel, #fff);
 	color: var(--theme-color-text-primary, #333);
 	border: 1px solid var(--theme-color-border-default, #ccc);
 }
-
 .pict-flow-panel input:focus,
 .pict-flow-panel select:focus,
-.pict-flow-panel textarea:focus {
+.pict-flow-panel textarea:focus
+{
 	border-color: var(--uv-border-focus);
 }
-
-.pict-flow-panel label {
-	color: var(--theme-color-text-secondary, #555);
-}
-
-.pict-flow-panel-body {
-	color: var(--theme-color-text-primary, #333);
-}
+.pict-flow-panel label { color: var(--theme-color-text-secondary, #555); }
+.pict-flow-panel-body  { color: var(--theme-color-text-primary,   #333); }
 
 /* Responsive adjustments */
-@media (max-width: 768px) {
-	html {
-		font-size: 14px;
-	}
+@media (max-width: 768px)
+{
+	html { font-size: 14px; }
 }
