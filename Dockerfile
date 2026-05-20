@@ -2,7 +2,7 @@
 # build-essential + python3 are needed here so npm rebuild can compile
 # native bindings (better-sqlite3, etc.). They never make it into the
 # runtime image — see Stage 2.
-FROM node:20-bookworm AS builder
+FROM node:22-bookworm AS builder
 WORKDIR /service_root
 
 RUN apt-get update && apt-get -y install build-essential python3 && rm -rf /var/lib/apt/lists/*
@@ -30,7 +30,7 @@ RUN npm install --omit=dev --ignore-scripts && npm rebuild
 
 # Stage 2: Runtime — node + the lean prebuilt trees from Stage 1.
 # No compilers, no editor conveniences, no fresh npm install.
-FROM node:20-bookworm-slim AS production
+FROM node:22-bookworm-slim AS production
 LABEL maintainer="steven velozo <steven@velozo.com>"
 WORKDIR /service_root
 
