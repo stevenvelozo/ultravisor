@@ -6,7 +6,7 @@
 	"scripts": {
 		"start": "node source/Pict-Application-Ultravisor.js",
 		"brand": "node node_modules/pict-section-theme/bin/pict-section-theme-brand.js --manifest ../../../../Retold-Modules-Manifest.json --module ultravisor --package ./package.json --favicons html/favicons",
-		"prebuild": "npm run brand && node ./node_modules/pict-section-flow/scripts/generate-card-help.js ./docs/card-help ./source/card-help-content.js",
+		"prebuild": "(npm run brand || echo 'brand skipped (manifest unavailable — using committed retold.brand block)') && node ./node_modules/pict-section-flow/scripts/generate-card-help.js ./docs/card-help ./source/card-help-content.js",
 		"build": "npx quack build && node build/build-codemirror-bundle.js && npx quack copy"
 	},
 	"author": "steven velozo <steven@velozo.com>",
@@ -22,9 +22,9 @@
 		"pict-section-flow": "^0.0.17",
 		"pict-section-form": "^1.0.195",
 		"pict-section-markdowneditor": "^1.0.7",
-		"pict-section-modal": "^0.0.9",
+		"pict-section-modal": "^1.0.0",
 		"pict-section-objecteditor": "^1.0.1",
-		"pict-section-theme": "^0.0.3",
+		"pict-section-theme": "^1.0.0",
 		"pict-section-usermanagement": "^0.0.1",
 		"pict-view": "^1.0.67"
 	},

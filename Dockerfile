@@ -10,8 +10,10 @@ RUN apt-get update && apt-get -y install build-essential python3 && rm -rf /var/
 # ── Webinterface ──────────────────────────────────────────────────
 # Install with devDeps so quack can run the build, then prune. The
 # .dockerignore prevents the host's webinterface/node_modules from
-# being copied in — we always install fresh.
+# being copied in — we always install fresh. `docs/` is copied too
+# because the webinterface's `copyFiles` step references `../docs/**`.
 COPY webinterface /service_root/webinterface
+COPY docs         /service_root/docs
 RUN cd /service_root/webinterface \
 	&& npm install --include=dev \
 	&& npm run build \
