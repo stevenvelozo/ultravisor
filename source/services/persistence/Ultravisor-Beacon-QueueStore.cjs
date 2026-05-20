@@ -162,8 +162,8 @@ class UltravisorBeaconQueueStore extends libPictService
 		// already turns WAL on; the rest are still useful.
 		try
 		{
-			this._DB.pragma('synchronous = NORMAL');
-			this._DB.pragma('foreign_keys = ON');
+			this._DB.exec('PRAGMA synchronous = NORMAL');
+			this._DB.exec('PRAGMA foreign_keys = ON');
 		}
 		catch (pError)
 		{
