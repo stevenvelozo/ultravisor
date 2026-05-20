@@ -429,7 +429,7 @@ class UltravisorTimelineStore extends libPictService
 		try
 		{
 			let tmpStmt = tmpDB.prepare(tmpSql);
-			let tmpInfo = tmpStmt.run(tmpParams);
+			let tmpInfo = tmpStmt.run(...tmpParams);
 			return tmpInfo && tmpInfo.changes ? tmpInfo.changes : tmpToInsert.length;
 		}
 		catch (pErr)
