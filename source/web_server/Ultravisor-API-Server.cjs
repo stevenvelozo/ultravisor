@@ -1042,12 +1042,28 @@ class UltravisorAPIServer extends libPictService
 					let tmpAuthEnabled = tmpBridge
 						&& typeof tmpBridge.isAvailable === 'function'
 						&& tmpBridge.isAvailable();
+					// SupportsUserManagement: derived from the auth
+					// beacon's `UserManagement` tag advertised at
+					// registration ('internal' or 'external').  Missing
+					// tag defaults to 'internal' for back-compat with
+					// older auth beacons that didn't stamp it.  In
+					// promiscuous mode the value is reported as `false`
+					// because there's no auth backend to manage users
+					// against — the UI hides admin views accordingly.
+					let tmpSupportsUM = false;
+					if (tmpAuthEnabled && typeof tmpBridge.getAuthBeaconTags === 'function')
+					{
+						let tmpTags = tmpBridge.getAuthBeaconTags();
+						let tmpTag = (tmpTags && tmpTags.UserManagement) || 'internal';
+						tmpSupportsUM = (tmpTag === 'internal');
+					}
 					pResponse.send({
 						Status: 'Running',
 						ScheduleEntries: tmpHypervisor ? tmpHypervisor.getSchedule().length : 0,
 						ScheduleRunning: tmpHypervisor ? tmpHypervisor._Running : false,
 						AuthEnabled: !!tmpAuthEnabled,
-						AuthMode: tmpAuthEnabled ? 'authenticated' : 'promiscuous'
+						AuthMode: tmpAuthEnabled ? 'authenticated' : 'promiscuous',
+						SupportsUserManagement: tmpSupportsUM
 					});
 					return fNext();
 				}.bind(this)

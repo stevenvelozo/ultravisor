@@ -1,15 +1,13 @@
 /**
  * PictView-Ultravisor-Login
  *
- * Thin host wrapper around `pict-section-usermanagement`'s Login
- * view. The section's Login renders into `#PictUM-Login`; this view
- * just provides that mount point inside ultravisor's main content
- * panel and delegates to the section view's render.
+ * Thin host wrapper around `pict-section-login`. The section view
+ * renders into `#Pict-Login-Container`; this view just paints the
+ * mount point inside ultravisor's main content panel and delegates
+ * to the section's render.
  *
- * The section's Login carries its own theme-neutral CSS, so this
- * view doesn't need to restyle the form — but does add a small
- * "Ultravisor — sign in" page heading so the page doesn't feel
- * floating.
+ * The section view ships its own theme-neutral CSS, so this wrapper
+ * only contributes layout chrome (centered card on the page).
  */
 
 const libPictView = require('pict-view');
@@ -29,7 +27,7 @@ const _ViewConfiguration =
 			Hash: 'Ultravisor-Login-Template',
 			Template: /*html*/`
 <div class="ultravisor-login-page">
-	<div id="PictUM-Login"></div>
+	<div id="Pict-Login-Container"></div>
 </div>`
 		}
 	],
@@ -57,11 +55,11 @@ class UltravisorLoginView extends libPictView
 {
 	onAfterRender(pRenderable, pAddress, pRecord, pContent)
 	{
-		// Render the section's Login view into the mount point we just
-		// painted. The section view tracks its own destination via
-		// DefaultDestinationAddress: '#PictUM-Login', so a plain render()
-		// call is enough.
-		let tmpInner = this.pict && this.pict.views && this.pict.views['PictUM-Login'];
+		// Render the pict-section-login view into the mount point we
+		// just painted.  The section tracks its own destination via
+		// DefaultDestinationAddress: '#Pict-Login-Container', so a plain
+		// render() call is enough.
+		let tmpInner = this.pict && this.pict.views && this.pict.views['Pict-Section-Login'];
 		if (tmpInner) tmpInner.render();
 		this.pict.CSSMap.injectCSS();
 		return super.onAfterRender

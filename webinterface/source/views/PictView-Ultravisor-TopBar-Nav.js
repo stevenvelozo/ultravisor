@@ -108,10 +108,19 @@ class UltravisorTopBarNavView extends libPictView
 		let tmpRoute = (this.pict.AppData.Ultravisor && this.pict.AppData.Ultravisor.CurrentRoute) || '';
 		let tmpActiveHash = this._activeTabHash(tmpRoute);
 
+		// Hide the Users tab when the connected auth backend doesn't
+		// support user management (no auth-beacon, or beacon advertises
+		// UserManagement: external).  Deep links to /Users still work
+		// — the views are always registered — but the entry point is
+		// removed so the nav doesn't lie about what's available.
+		let tmpAuth = (this.pict.AppData.Ultravisor && this.pict.AppData.Ultravisor.Auth) || {};
+		let tmpSupportsUM = !!tmpAuth.SupportsUserManagement;
+
 		let tmpTabs = [];
 		for (let i = 0; i < PRIMARY_TABS.length; i++)
 		{
 			let tmpTab = PRIMARY_TABS[i];
+			if (tmpTab.Hash === 'Users' && !tmpSupportsUM) { continue; }
 			tmpTabs.push(
 			{
 				Hash:        tmpTab.Hash,

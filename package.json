@@ -62,7 +62,7 @@
 		"orator": "^6.1.2",
 		"orator-authentication": "^1.0.3",
 		"orator-serviceserver-restify": "^2.0.11",
-		"pict": "^1.0.369",
+		"pict": "^1.0.370",
 		"pict-service-commandlineutility": "^1.0.19",
 		"pict-serviceproviderbase": "^1.0.4",
 		"ultravisor-beacon": "^1.0.0",

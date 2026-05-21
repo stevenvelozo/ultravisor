@@ -76,6 +76,33 @@ class UltravisorAuthBeaconBridge extends libPictService
 	}
 
 	/**
+	 * Return the Tags hash advertised by the active auth beacon at
+	 * registration time, or `{}` when no auth beacon is connected.
+	 *
+	 * The auth-beacon SDK stamps `{Role: 'auth', UserManagement: ...}`
+	 * (and any operator extras) into the registration payload, and the
+	 * coordinator keeps it on the beacon row.  This is the lightest-
+	 * weight way for Ultravisor's /status endpoint to learn auth-beacon
+	 * capabilities — no extra dispatcher roundtrip, just a Map lookup.
+	 */
+	getAuthBeaconTags()
+	{
+		let tmpCoord = this._coord();
+		if (!tmpCoord) return {};
+		let tmpID = this.getAuthBeaconID();
+		if (!tmpID) return {};
+		let tmpBeacons = tmpCoord.listBeacons() || [];
+		for (let i = 0; i < tmpBeacons.length; i++)
+		{
+			if (tmpBeacons[i].BeaconID === tmpID)
+			{
+				return tmpBeacons[i].Tags || {};
+			}
+		}
+		return {};
+	}
+
+	/**
 	 * Run a Login on the auth beacon. Returns the auth beacon's
 	 * Outputs unchanged so callers can read SessionToken / UserContext
 	 * / ExpiresAt directly.

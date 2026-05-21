@@ -35,6 +35,7 @@ const libViewLogin = require('./views/PictView-Ultravisor-Login.js');
 const libViewUserManagement = require('./views/PictView-Ultravisor-UserManagement.js');
 const libPictSectionModal = require('pict-section-modal');
 const libPictSectionUserManagement = require('pict-section-usermanagement');
+const libPictSectionLogin = require('pict-section-login');
 
 class UltravisorApplication extends libPictApplication
 {
@@ -125,23 +126,56 @@ class UltravisorApplication extends libPictApplication
 		}, libPictSectionTheme);
 
 		// pict-section-usermanagement — install() registers the provider
-		// + 5 views (Login, CurrentUser, UserList, UserEdit,
-		// PasswordChange). Default browser fetch() is the transport,
-		// hitting orator-authentication's /1.0/Authenticate + the
-		// auth-beacon /Users routes mounted by ultravisor's API server.
-		// OnLogin / OnLogout hooks let us re-render the topbar and
-		// reroute on session-state flips without each view subscribing
-		// to AppData.
+		// + the CRUD views (CurrentUser, UserList, UserEdit,
+		// PasswordChange).  We deliberately exclude its Login view
+		// because Ultravisor uses pict-section-login (registered below)
+		// for the actual sign-in flow.  Default browser fetch() is the
+		// transport, hitting orator-authentication's /1.0/Authenticate
+		// + the auth-beacon /Users routes mounted by ultravisor's API
+		// server.  The CRUD views only function when the connected
+		// auth-beacon's provider implements user management — the boot
+		// gate hides their UI entry points when SupportsUserManagement
+		// is false but the views are always registered so deep links
+		// don't crash.
 		let tmpSelf = this;
 		libPictSectionUserManagement.install(this.pict,
 		{
 			ProviderOptions: { BaseURL: '/1.0/' },
+			Views: ['CurrentUser', 'UserList', 'UserEdit', 'PasswordChange'],
 			ViewOptions:
 			{
-				Login:       { OnLogin:  () => tmpSelf._afterLogin() },
 				CurrentUser: { OnLogout: () => tmpSelf._afterLogout() }
 			}
 		});
+
+		// pict-section-login — the dedicated login flow.  Renders into
+		// `#Pict-Login-Container` (PictView-Ultravisor-Login paints that
+		// mount point inside the content panel).  Hooks fire after the
+		// section calls the underlying endpoints:
+		//   onLoginSuccess  → re-render topbar + bounce to /Home
+		//   onLogout        → re-render topbar + bounce back to /Login
+		//   onSessionChecked → used by _bootGate to decide initial route
+		// CheckSessionOnLoad is left at its default (true) so a stale
+		// cookie is validated automatically on first render.
+		this.pict.addView('Pict-Section-Login',
+		{
+			LoginEndpoint:        '/1.0/Authenticate',
+			LogoutEndpoint:       '/1.0/Deauthenticate',
+			CheckSessionEndpoint: '/1.0/CheckSession',
+			CheckSessionOnLoad:   true,
+			ShowOAuthProviders:   false
+		}, libPictSectionLogin);
+		// Wire the section's overridable hooks to host-side flow.  The
+		// section's class methods are inherited; we monkey-patch the
+		// instance so consumers don't need a subclass file just to
+		// connect three handlers.
+		let tmpLogin = this.pict.views['Pict-Section-Login'];
+		if (tmpLogin)
+		{
+			tmpLogin.onLoginSuccess   = (pSession) => tmpSelf._afterLogin(pSession);
+			tmpLogin.onLogout         = ()         => tmpSelf._afterLogout();
+			tmpLogin.onSessionChecked = (pSession) => tmpSelf._afterSessionChecked(pSession);
+		}
 
 		// Register pict-section-form service types so Form panels can use them
 		this.pict.addServiceType('PictFormMetacontroller', libPictSectionForm.PictFormMetacontroller);
@@ -162,6 +196,20 @@ class UltravisorApplication extends libPictApplication
 		{
 			APIBaseURL: '',
 			ServerStatus: { Status: 'Unknown', ScheduleEntries: 0, ScheduleRunning: false },
+			// Auth-mode metadata populated by _bootGate() from /status.
+			// Mode: 'promiscuous' | 'authenticated'
+			// SupportsUserManagement: true → in-app user CRUD UI visible
+			// SessionChecked: flips true after the section's first
+			// checkSession() resolves; views that gate on auth state
+			// (TopBar-User badge, Sidebar) should not paint user info
+			// until this is true to avoid a flash of "anonymous".
+			Auth:
+			{
+				Mode: 'promiscuous',
+				SupportsUserManagement: false,
+				SessionChecked: false,
+				Authenticated: false
+			},
 			NodeTemplates: {},
 			NodeTemplateList: [],
 			TaskTypes: [],
@@ -185,11 +233,36 @@ class UltravisorApplication extends libPictApplication
 			DebugMode: false
 		};
 
-		// Load task type definitions from the server BEFORE rendering the layout.
-		// The layout render triggers route resolution (via PictRouter.resolve()),
-		// and route handlers like editOperationFromRoute need TaskTypes to be
-		// populated so the FlowEditor can generate card configs with all ports.
+		// Load task type definitions + auth-mode status BEFORE rendering
+		// the layout.  The layout render triggers route resolution (via
+		// PictRouter.resolve()), and we need AuthMode in AppData before
+		// then so the gate logic + user-menu visibility paint correctly
+		// on first render.  Both fetches are independent — fan them out
+		// in parallel via a tiny join.
 		let tmpSuper = super.onAfterInitializeAsync.bind(this);
+		let tmpJoinPending = 2;
+		let tmpJoinErr = null;
+		let fJoin = (pErr) =>
+		{
+			if (pErr && !tmpJoinErr) { tmpJoinErr = pErr; }
+			if (--tmpJoinPending > 0) { return; }
+			if (tmpJoinErr)
+			{
+				this.pict.log.warn('Boot precondition failed; continuing with defaults: ' + tmpJoinErr.message);
+			}
+			this.pict.views['Ultravisor-Layout'].render();
+			// If the auth-beacon says we need a real login, force-show
+			// the Login view immediately.  pict-section-login's
+			// CheckSessionOnLoad will then validate any stored cookie
+			// and either bounce us to /Home (via _afterSessionChecked)
+			// or keep us on /Login.
+			if (this.pict.AppData.Ultravisor.Auth.Mode === 'authenticated')
+			{
+				this.navigateTo('/Login');
+			}
+			return tmpSuper(fCallback);
+		};
+		this._loadAuthStatus(fJoin.bind(this));
 		this.loadTaskTypes(
 			function (pError)
 			{
@@ -197,13 +270,37 @@ class UltravisorApplication extends libPictApplication
 				{
 					this.pict.log.warn('Failed to load task types during init; flow editor will have no cards.');
 				}
-
-				// Now render the layout shell — this resolves the current route,
-				// which may immediately render the FlowEditor if the URL matches.
-				this.pict.views['Ultravisor-Layout'].render();
-
-				return tmpSuper(fCallback);
+				// Both legs of the parallel boot done?  fJoin() renders
+				// the layout once both /status + /TaskTypes have come
+				// back, so route resolution doesn't kick off until auth
+				// state is in AppData.
+				return fJoin.call(this, null);
 			}.bind(this));
+	}
+
+	/**
+	 * Fetch /status and stash auth-mode + user-management capability in
+	 * AppData.  Used by the boot path to decide whether to send the
+	 * user to /Login on first load.  Non-fatal: a /status failure leaves
+	 * the AppData defaults (promiscuous, no user mgmt) which means the
+	 * UI behaves like an offline lab rig rather than 401-ing the whole
+	 * app.
+	 */
+	_loadAuthStatus(fCallback)
+	{
+		let tmpURL = `${this.pict.AppData.Ultravisor.APIBaseURL}/status`;
+		fetch(tmpURL, { credentials: 'include' })
+			.then((pResp) => pResp.ok ? pResp.json() : Promise.reject(new Error('HTTP ' + pResp.status)))
+			.then((pBody) =>
+			{
+				this.pict.AppData.Ultravisor.ServerStatus = pBody || {};
+				this.pict.AppData.Ultravisor.Auth.Mode =
+					(pBody && pBody.AuthMode === 'authenticated') ? 'authenticated' : 'promiscuous';
+				this.pict.AppData.Ultravisor.Auth.SupportsUserManagement =
+					!!(pBody && pBody.SupportsUserManagement);
+				fCallback(null);
+			})
+			.catch((pErr) => fCallback(pErr));
 	}
 
 	navigateTo(pRoute)
@@ -250,25 +347,59 @@ class UltravisorApplication extends libPictApplication
 	}
 
 	/**
-	 * Hook fired by pict-section-usermanagement's Login view after a
-	 * successful sign-in. Re-render the topbar so the CurrentUser badge
-	 * appears, then bounce to the dashboard.
+	 * Hook fired by pict-section-login after a successful sign-in.
+	 * Re-render the topbar so the CurrentUser badge appears, then
+	 * bounce to the dashboard.  We deliberately drop the pre-login
+	 * route here — the user can re-navigate after seeing /Home, and
+	 * remembering deep-links across a fresh authentication is a
+	 * surprisingly tricky UX in the face of expired routes.
 	 */
-	_afterLogin()
+	_afterLogin(pSessionData)
 	{
+		this.pict.AppData.Ultravisor.Auth.Authenticated = true;
+		this.pict.AppData.Ultravisor.Auth.SessionChecked = true;
 		this.renderTopBar();
 		this.navigateTo('/Home');
 	}
 
 	/**
-	 * Hook fired by pict-section-usermanagement's CurrentUser view
-	 * after a logout. Drop back to /Login so it's obvious the session
-	 * is gone (vs. seeing a stale dashboard with no badge).
+	 * Hook fired by pict-section-login (logout button on its status
+	 * card) and by pict-section-usermanagement's CurrentUser view.
+	 * Drop back to /Login so it's obvious the session is gone.
 	 */
 	_afterLogout()
 	{
+		this.pict.AppData.Ultravisor.Auth.Authenticated = false;
 		this.renderTopBar();
 		this.navigateTo('/Login');
+	}
+
+	/**
+	 * Hook fired by pict-section-login after its initial session check
+	 * resolves.  Three cases:
+	 *   - pSessionData.LoggedIn === true  → already authenticated; if
+	 *     we landed on /Login as part of the boot gate, bounce to /Home
+	 *   - pSessionData.LoggedIn === false → cookie invalid/expired; stay
+	 *     on /Login so the user can sign in
+	 *   - pSessionData === null           → server unreachable; the
+	 *     session-check endpoint flaked.  Leave the user where they are;
+	 *     gated routes will 401 on their own and the gate stays armed.
+	 */
+	_afterSessionChecked(pSessionData)
+	{
+		this.pict.AppData.Ultravisor.Auth.SessionChecked = true;
+		let tmpLoggedIn = !!(pSessionData && pSessionData.LoggedIn);
+		this.pict.AppData.Ultravisor.Auth.Authenticated = tmpLoggedIn;
+		this.renderTopBar();
+		// Only redirect away from /Login when we were force-bounced there
+		// by the boot gate.  A user explicitly opening /Login while
+		// already signed in is rare but valid — leave them alone.
+		if (tmpLoggedIn
+			&& this.pict.AppData.Ultravisor.Auth.Mode === 'authenticated'
+			&& this._readHashRoute() === '/Login')
+		{
+			this.navigateTo('/Home');
+		}
 	}
 
 	showView(pViewIdentifier)
@@ -390,6 +521,15 @@ class UltravisorApplication extends libPictApplication
 				if (!pError && pData)
 				{
 					this.pict.AppData.Ultravisor.ServerStatus = pData;
+					// Mirror auth mode + user-mgmt capability into the
+					// dedicated Auth state slot so polling refreshes
+					// keep nav visibility in sync with the server (an
+					// auth-beacon hot-attach/detach mid-session flips
+					// SupportsUserManagement without a UI reload).
+					this.pict.AppData.Ultravisor.Auth.Mode =
+						(pData.AuthMode === 'authenticated') ? 'authenticated' : 'promiscuous';
+					this.pict.AppData.Ultravisor.Auth.SupportsUserManagement =
+						!!pData.SupportsUserManagement;
 				}
 				if (typeof fCallback === 'function')
 				{

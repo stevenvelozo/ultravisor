@@ -21,6 +21,7 @@
 		"pict-section-content": "^0.0.11",
 		"pict-section-flow": "^0.0.17",
 		"pict-section-form": "^1.0.195",
+		"pict-section-login": "^1.0.0",
 		"pict-section-markdowneditor": "^1.0.7",
 		"pict-section-modal": "^1.0.0",
 		"pict-section-objecteditor": "^1.0.1",
