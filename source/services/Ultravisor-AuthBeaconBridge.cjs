@@ -106,31 +106,52 @@ class UltravisorAuthBeaconBridge extends libPictService
 	 * Run a Login on the auth beacon. Returns the auth beacon's
 	 * Outputs unchanged so callers can read SessionToken / UserContext
 	 * / ExpiresAt directly.
+	 *
+	 * pRequestingBeacon is an optional `{ Name, BeaconID, UserAgent? }`
+	 * hash identifying which beacon's web app initiated the login.  The
+	 * auth beacon includes it in its audit log; no behavior changes.
 	 */
-	login(pUsername, pPassword, pMethod)
+	login(pUsername, pPassword, pMethod, pRequestingBeacon)
 	{
 		return this._dispatchAuthAction('AUTH_Login',
-		{
-			Username: pUsername,
-			Password: pPassword,
-			Method: pMethod || 'password'
-		});
+			this._withRequestingBeacon(
+			{
+				Username: pUsername,
+				Password: pPassword,
+				Method: pMethod || 'password'
+			}, pRequestingBeacon));
 	}
 
-	validateSession(pSessionToken)
+	validateSession(pSessionToken, pRequestingBeacon)
 	{
 		return this._dispatchAuthAction('AUTH_ValidateSession',
-		{
-			SessionToken: pSessionToken || ''
-		});
+			this._withRequestingBeacon(
+			{
+				SessionToken: pSessionToken || ''
+			}, pRequestingBeacon));
 	}
 
-	logout(pSessionToken)
+	logout(pSessionToken, pRequestingBeacon)
 	{
 		return this._dispatchAuthAction('AUTH_Logout',
+			this._withRequestingBeacon(
+			{
+				SessionToken: pSessionToken || ''
+			}, pRequestingBeacon));
+	}
+
+	/**
+	 * Merge an optional `RequestingBeacon` descriptor into a Settings
+	 * object the bridge is about to dispatch.  Centralized so any future
+	 * action that wants to forward it gets the same shape.
+	 */
+	_withRequestingBeacon(pSettings, pRequestingBeacon)
+	{
+		if (pRequestingBeacon && typeof pRequestingBeacon === 'object')
 		{
-			SessionToken: pSessionToken || ''
-		});
+			pSettings.RequestingBeacon = pRequestingBeacon;
+		}
+		return pSettings;
 	}
 
 	authorizeAction(pSessionToken, pCapability, pAction)
