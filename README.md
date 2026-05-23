@@ -1,5 +1,7 @@
 # Ultravisor
 
+> **[&#9654; Read the Ultravisor Documentation](https://stevenvelozo.github.io/ultravisor/)** &mdash; interactive docs with the full API reference.
+
 Like a supervisor, only instead of super it's ULTRA.  The hidden sixth hero of
 Voltron.  This tool allows you to run commands on schedule and process output
 with llm models, providing user-friendly summaries and links back to the full
