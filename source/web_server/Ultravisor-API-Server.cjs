@@ -4166,6 +4166,27 @@ class UltravisorAPIServer extends libPictService
 				this._WebSocketServer.handleUpgrade(pRequest, pSocket, pHead,
 					function (pWebSocket)
 					{
+						// Capture the session cookie from the HTTP upgrade
+						// request and pin it to the resulting WebSocket so
+						// downstream handlers (specifically _completeBeacon-
+						// WSRegister) can pass it to registerBeacon. Without
+						// this, WS-registered beacons always have
+						// SessionID: null even when the client authenticated
+						// via /1.0/Authenticate before the WS upgrade — only
+						// the HTTP register path was propagating the session.
+						// Symptoms: UI's beacon-list view filters by session
+						// and hides the unbound beacon; deauth doesn't reach
+						// it; per-session work-routing doesn't apply.
+						let tmpUpgradeSession = null;
+						try
+						{
+							if (this._OratorAuth && typeof this._OratorAuth.getSessionForRequest === 'function')
+							{
+								tmpUpgradeSession = this._OratorAuth.getSessionForRequest(pRequest);
+							}
+						}
+						catch (pErr) { /* best-effort — never block the upgrade on auth lookup */ }
+						pWebSocket._UpgradeSessionID = (tmpUpgradeSession && tmpUpgradeSession.SessionID) || null;
 						this._WebSocketServer.emit('connection', pWebSocket, pRequest);
 					}.bind(this));
 			}.bind(this));
@@ -4806,6 +4827,12 @@ class UltravisorAPIServer extends libPictService
 		// reachability auto-detect). Forgetting to forward a field here means
 		// the WebSocket-registered beacon record will have that field set to
 		// null/empty in the coordinator, even though the client sent the value.
+		//
+		// pWebSocket._UpgradeSessionID was captured at HTTP-upgrade time
+		// (see tmpHTTPServer.on('upgrade') above). Passing it through pairs
+		// the beacon record with the user session that authenticated the
+		// upgrade — matches what the HTTP /Beacon/Register path does and
+		// is what the UI's beacon-list view + session-scoped routes rely on.
 		let tmpBeacon = pCoordinator.registerBeacon({
 			Name: pData.Name,
 			Capabilities: pData.Capabilities,
@@ -4817,7 +4844,7 @@ class UltravisorAPIServer extends libPictService
 			BindAddresses: pData.BindAddresses,
 			HostID: pData.HostID,
 			SharedMounts: pData.SharedMounts
-		});
+		}, pWebSocket._UpgradeSessionID || null);
 
 		// Diagnostic: confirm what was actually STORED on the beacon record.
 		if (tmpNoisy >= 2)
