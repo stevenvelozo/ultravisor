@@ -22,16 +22,13 @@ const libPictService = require('pict-serviceproviderbase');
 const libFS = require('fs');
 const libPath = require('path');
 
-let libBetterSqlite = null;
-try
-{
-	libBetterSqlite = require('better-sqlite3');
-}
-catch (pError)
-{
-	// Same as QueueStore: defer the failure to initialize() so unit
-	// tests that don't touch persistence can still load this module.
-}
+// Switched from better-sqlite3 to node:sqlite — Node 22.5+ ships SQLite
+// in the runtime, so we don't need the native addon (which broke fresh
+// checkouts without build-essential + python3 installed). The API
+// surface we use is identical: prepare/run/get/all + exec; the one
+// difference is .pragma() doesn't exist on node:sqlite, so PRAGMAs go
+// through .exec('PRAGMA ...') below.
+const { DatabaseSync: libSQLite } = require('node:sqlite');
 
 const TYPE_INTEGER_RE = /^(Integer|Int|FK|AutoID|AutoIdentity|ID|CreateIDUser|UpdateIDUser|DeleteIDUser|Boolean|Deleted)$/i;
 const TYPE_NUMERIC_INT_SIZES = new Set(['int', 'integer', 'smallint', 'bigint', 'tinyint']);
@@ -78,12 +75,6 @@ class UltravisorBeaconFleetStore extends libPictService
 			this.log.warn('BeaconFleetStore: no store path; persistence disabled.');
 			return false;
 		}
-		if (!libBetterSqlite)
-		{
-			this.log.error('BeaconFleetStore: better-sqlite3 not installed; persistence disabled.');
-			return false;
-		}
-
 		let tmpDir = libPath.join(pStorePath, 'beacon');
 		try
 		{
@@ -99,10 +90,12 @@ class UltravisorBeaconFleetStore extends libPictService
 
 		try
 		{
-			this._DB = new libBetterSqlite(this._DBPath);
-			this._DB.pragma('journal_mode = WAL');
-			this._DB.pragma('synchronous = NORMAL');
-			this._DB.pragma('foreign_keys = ON');
+			this._DB = new libSQLite(this._DBPath);
+			// node:sqlite has no .pragma() helper — route PRAGMAs through
+			// .exec() instead. Same WAL/synchronous/foreign_keys tuning.
+			this._DB.exec('PRAGMA journal_mode = WAL');
+			this._DB.exec('PRAGMA synchronous = NORMAL');
+			this._DB.exec('PRAGMA foreign_keys = ON');
 		}
 		catch (pError)
 		{

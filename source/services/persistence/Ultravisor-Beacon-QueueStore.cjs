@@ -454,19 +454,54 @@ class UltravisorBeaconQueueStore extends libPictService
 	}
 
 	/**
-	 * Insert a record via the meadow DAL and return the auto-incremented
-	 * row id. Mirror of the lab's insert helper, scoped to our tables.
+	 * Insert a record and return the inserted row's primary-key value.
+	 *
+	 * Previously this called meadow's `doCreate` via _runSync, exploiting
+	 * the fact that meadow-connection-sqlite was synchronous (better-
+	 * sqlite3, then node:sqlite) so the callback fired before the call
+	 * returned. That contract held for years — until meadow added a
+	 * deliberate `setImmediate(fStageComplete)` inside the Create
+	 * behavior (Meadow-Create.js:50-54) to break long synchronous chains
+	 * of bulk INSERTs. doCreate is the ONE meadow DAL method that's now
+	 * async; doReads / doCount / doUpdate / doDelete still fire sync.
+	 *
+	 * Effect on production: BeaconQueueStore.initialize() succeeded, but
+	 * the first _insert call threw "meadow callback did not fire
+	 * synchronously". QueuePersistenceBridge caught that and silently
+	 * fell back to in-memory queue state — so short-lived flows (e.g.
+	 * lastrada clones) appeared to work end-to-end, but crash recovery,
+	 * RunManager idempotency, action-default persistence, and any
+	 * persistent queue state were quietly disabled.
+	 *
+	 * Fix: bypass meadow's Create behavior for our owned tables and
+	 * INSERT directly via node:sqlite's prepared-statement API. We
+	 * already keep `this._DB` from connectAsync for the pragma + schema
+	 * paths; reuse it here. Everything _coerceRecord guarantees about
+	 * the value types (booleans -> 0/1, objects -> JSON, etc.) is
+	 * compatible with node:sqlite's bind types.
 	 */
 	_insert(pTable, pRecord)
 	{
-		let tmpDAL = this._dal(pTable);
 		let tmpClean = this._coerceRecord(pRecord);
-		let tmpQuery = tmpDAL.query.clone().setIDUser(0).addRecord(tmpClean);
-		let tmpArgs = this._runSync((cb) => tmpDAL.doCreate(tmpQuery, cb));
-		// doCreate callback: (err, query, queryRead, inserted).
-		let tmpInserted = tmpArgs[2];
+		let tmpColumns = Object.keys(tmpClean);
+		if (tmpColumns.length === 0) { return null; }
+
+		let tmpColumnList = tmpColumns.map((pCol) => `"${pCol}"`).join(', ');
+		let tmpPlaceholders = tmpColumns.map(() => '?').join(', ');
+		let tmpValues = tmpColumns.map((pCol) => tmpClean[pCol]);
+		let tmpSQL = `INSERT INTO "${pTable}" (${tmpColumnList}) VALUES (${tmpPlaceholders})`;
+
+		let tmpStmt = this._DB.prepare(tmpSQL);
+		let tmpResult = tmpStmt.run(...tmpValues);
+
 		let tmpIDCol = this._idColumn(pTable);
-		return (tmpInserted && tmpIDCol) ? tmpInserted[tmpIDCol] : null;
+		if (!tmpIDCol) { return null; }
+		// node:sqlite's RunResult.lastInsertRowid is a bigint. Callers
+		// expect a JS number (it's used in subsequent SQL parameters
+		// where bigints would force the parameter type to BIGINT rather
+		// than the column's INTEGER affinity).
+		let tmpRowID = tmpResult.lastInsertRowid;
+		return (typeof tmpRowID === 'bigint') ? Number(tmpRowID) : tmpRowID;
 	}
 
 	/**

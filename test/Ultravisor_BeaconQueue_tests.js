@@ -22,7 +22,19 @@ const libUltravisorBeaconRunManager = require('../source/services/Ultravisor-Bea
 const libUltravisorBeaconActionDefaults = require('../source/services/Ultravisor-Beacon-ActionDefaults.cjs');
 const libUltravisorBeaconScheduler = require('../source/services/Ultravisor-Beacon-Scheduler.cjs');
 const libUltravisorQueuePersistenceBridge = require('../source/services/Ultravisor-QueuePersistenceBridge.cjs');
-const libQueuePhases = require('../../retold-labs/source/RetoldLabs-QueuePhases.cjs');
+// (Previously this file required('../../retold-labs/source/RetoldLabs-
+// QueuePhases.cjs') and ran tests against retold-labs' internal emitter
+// functions. That was wrong on two counts:
+//   1. retold-labs isn't part of the published retold ecosystem (no npm,
+//      no manifest entry, no devDep) — only Steven's local dev machine
+//      has it cloned as a sibling. Anyone else's `npm test` blew up at
+//      file-load time, which broke prepublishOnly.
+//   2. Even if the path worked everywhere, UV's test suite shouldn't be
+//      verifying retold-labs' internal behavior. Those assertions
+//      belong in retold-labs' own test suite where the implementation
+//      lives. UV provides the contract (RunID, WorkItemHash, EnqueuedAt
+//      meta on enqueued work items); retold-labs consumes it.
+// The RetoldLabs-QueuePhases suite below was removed accordingly.
 
 const TEST_BASE = libPath.resolve(__dirname, '..', '.test_staging_queue');
 
@@ -447,62 +459,4 @@ suite('Ultravisor Beacon Queue', () =>
 		});
 	});
 
-	suite('RetoldLabs-QueuePhases', () =>
-	{
-		test('emitPreWorkerPhases writes queue_wait + worker_spinup lines', () =>
-		{
-			let tmpDir = libPath.join(_TestDir, 'staging-1');
-			libFS.mkdirSync(tmpDir, { recursive: true });
-
-			let tmpMeta = {
-				RunID: 'rn-p-1',
-				WorkItemHash: 'wi-p-1',
-				EnqueuedAt: new Date(Date.now() - 5000).toISOString(),
-				DispatchedAt: new Date(Date.now() - 1000).toISOString(),
-				QueueWaitMs: 4000,
-				AttemptNumber: 1
-			};
-
-			let tmpOut = libQueuePhases.emitPreWorkerPhases(tmpDir, tmpMeta, { spinupStartMs: Date.now() });
-			Expect(tmpOut.QueueWaitMs).to.equal(4000);
-			Expect(tmpOut.WorkerSpinupMs).to.be.at.least(0);
-
-			let tmpText = libFS.readFileSync(libPath.join(tmpDir, 'phases.jsonl'), 'utf8');
-			let tmpLines = tmpText.trim().split(/\n/).map((l) => JSON.parse(l));
-			Expect(tmpLines).to.have.length(2);
-			Expect(tmpLines[0].name).to.equal('queue_wait');
-			Expect(tmpLines[0].run_id).to.equal('rn-p-1');
-			Expect(tmpLines[0].duration_ms).to.equal(4000);
-			Expect(tmpLines[1].name).to.equal('worker_spinup');
-		});
-
-		test('emitAssetCapturePhase appends the post-worker phase', () =>
-		{
-			let tmpDir = libPath.join(_TestDir, 'staging-2');
-			libFS.mkdirSync(tmpDir, { recursive: true });
-
-			let tmpMeta = { RunID: 'rn-p-2', WorkItemHash: 'wi-p-2', AttemptNumber: 1 };
-			let tmpStart = Date.now() - 250;
-			libQueuePhases.emitAssetCapturePhase(tmpDir, tmpMeta, tmpStart, Date.now());
-
-			let tmpText = libFS.readFileSync(libPath.join(tmpDir, 'phases.jsonl'), 'utf8');
-			let tmpLines = tmpText.trim().split(/\n/).map((l) => JSON.parse(l));
-			Expect(tmpLines).to.have.length(1);
-			Expect(tmpLines[0].name).to.equal('asset_capture');
-			Expect(tmpLines[0].duration_ms).to.be.at.least(0);
-		});
-
-		test('envForWorker merges RETOLD_RUN_ID without clobbering existing env', () =>
-		{
-			let tmpEnv = libQueuePhases.envForWorker({ EXISTING: '1' },
-				{ RunID: 'rn-env', WorkItemHash: 'wi-env' });
-			Expect(tmpEnv.EXISTING).to.equal('1');
-			Expect(tmpEnv.RETOLD_RUN_ID).to.equal('rn-env');
-			Expect(tmpEnv.RETOLD_WORK_ITEM_HASH).to.equal('wi-env');
-
-			let tmpNoClobber = libQueuePhases.envForWorker({ RETOLD_RUN_ID: 'already-set' },
-				{ RunID: 'new-id' });
-			Expect(tmpNoClobber.RETOLD_RUN_ID).to.equal('already-set');
-		});
-	});
 });

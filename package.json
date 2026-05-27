@@ -54,7 +54,6 @@
 	},
 	"homepage": "https://github.com/stevenvelozo/ultravisor#readme",
 	"dependencies": {
-		"better-sqlite3": "^11.10.0",
 		"cron": "^4.4.0",
 		"meadow": "^2.0.41",
 		"meadow-connection-sqlite": "^1.0.20",
