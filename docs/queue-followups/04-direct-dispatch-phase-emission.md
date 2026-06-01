@@ -1,6 +1,6 @@
 # Follow-up: Phase emission for `/Beacon/Work/Dispatch` (sync path)
 
-**Status:** deferred — the synchronous dispatch path bypasses the
+**Status:** deferred - the synchronous dispatch path bypasses the
 scheduler and therefore never populates `Settings.QueueMetadata`.
 Workers routed via `/Beacon/Work/Dispatch` still write their own
 phases, but the hub-owned `queue_wait` / `worker_spinup` /
@@ -12,12 +12,12 @@ There are three dispatch paths in the hub today:
 
 | Path | Route | Queue/metadata? | Phases? |
 |---|---|---|---|
-| Async queue | `POST /Beacon/Work/Enqueue` | Yes (via Scheduler) | Yes — beacon-side emits all three |
-| Polling claim | `POST /Beacon/Work/Poll` | Yes (Coordinator stamps metadata in `_sanitizeWorkItemForBeacon`) | Yes — same |
-| **Direct dispatch** | `POST /Beacon/Work/Dispatch` | **No** — calls `Coordinator.dispatchAndWait` which builds the work item inline and blocks the caller on the response | **No** — Settings.QueueMetadata is never set |
+| Async queue | `POST /Beacon/Work/Enqueue` | Yes (via Scheduler) | Yes - beacon-side emits all three |
+| Polling claim | `POST /Beacon/Work/Poll` | Yes (Coordinator stamps metadata in `_sanitizeWorkItemForBeacon`) | Yes - same |
+| **Direct dispatch** | `POST /Beacon/Work/Dispatch` | **No** - calls `Coordinator.dispatchAndWait` which builds the work item inline and blocks the caller on the response | **No** - Settings.QueueMetadata is never set |
 
 The direct-dispatch path is used for synchronous RPC-style calls
-where the caller wants the result inline. It's rare but real — a
+where the caller wants the result inline. It's rare but real - a
 handful of retold-labs call sites and any external integration that
 chose the sync contract for simplicity.
 
@@ -28,7 +28,7 @@ and resolves to the caller via `_DirectDispatchCallbacks`. It
 intentionally skips the scheduler tick because the caller is
 blocked waiting. Retrofitting it requires either:
 
-1. Routing it through the same scheduler pass (adds latency — the
+1. Routing it through the same scheduler pass (adds latency - the
    whole point of direct dispatch is "don't queue"), or
 2. Populating `QueueMetadata` inline in the Coordinator when building
    the work item and calling the beacon-side phase emit path directly.
@@ -69,7 +69,7 @@ tmpWorkItem.Settings.QueueMetadata = {
 };
 ```
 
-Note the extra `DispatchPath: 'sync'` marker — useful for analytics
+Note the extra `DispatchPath: 'sync'` marker - useful for analytics
 that want to separate sync-call latency from async-queue latency.
 
 ### 2. Stream the same metadata through `DispatchStream`
@@ -85,7 +85,7 @@ method that parallels `dispatchAndWait` for streams (grep for
 
 ### 3. Add a `POST /Beacon/Work/Dispatch` body field for `RunID`
 
-The sync path doesn't call `/Beacon/Run/Start` before dispatching —
+The sync path doesn't call `/Beacon/Run/Start` before dispatching -
 it's a one-shot. Either:
 
 - Accept an optional `RunID` in the request body; if absent, mint one
@@ -123,6 +123,6 @@ retold-labs changes needed.
 ## Non-goals
 
 - Retrofitting existing direct-dispatch callers to switch to async
-  enqueue. Sync contracts exist for a reason — let callers choose.
+  enqueue. Sync contracts exist for a reason - let callers choose.
 - Differentiating `queue_wait` reason for sync vs. async in the UI.
   0ms queue waits tell the right story on their own.

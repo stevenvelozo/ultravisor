@@ -21,7 +21,7 @@ worker that can handle it.
 
 An Action is a verb within a capability. For example the **File System**
 capability has actions like Read, Write, List, and Copy. A capability may
-have one action (Shell &rarr; Execute) or many (Data Transform has nine).
+have one action (Shell -> Execute) or many (Data Transform has nine).
 
 ### Tier
 
@@ -42,7 +42,7 @@ capability is likely to be at runtime.
 | | |
 |---|---|
 | **Tier** | Engine |
-| **Description** | In-memory data manipulation &mdash; setting values, string operations, template rendering, expression evaluation, and tabular transforms. No I/O required. |
+| **Description** | In-memory data manipulation - setting values, string operations, template rendering, expression evaluation, and tabular transforms. No I/O required. |
 
 | Action | Task Type | What it Does |
 |--------|-----------|--------------|
@@ -61,7 +61,7 @@ capability is likely to be at runtime.
 | | |
 |---|---|
 | **Tier** | Engine |
-| **Description** | Orchestration primitives &mdash; branching, looping, sub-operation dispatch, and operation entry/exit markers. |
+| **Description** | Orchestration primitives - branching, looping, sub-operation dispatch, and operation entry/exit markers. |
 
 | Action | Task Type | What it Does |
 |--------|-----------|--------------|
@@ -76,7 +76,7 @@ capability is likely to be at runtime.
 | | |
 |---|---|
 | **Tier** | Platform |
-| **Description** | Local file system access &mdash; reading, writing, listing, and copying files. Paths can be absolute or relative to the operation staging folder. |
+| **Description** | Local file system access - reading, writing, listing, and copying files. Paths can be absolute or relative to the operation staging folder. |
 
 | Action | Task Type | What it Does |
 |--------|-----------|--------------|
@@ -117,7 +117,7 @@ capability is likely to be at runtime.
 | | |
 |---|---|
 | **Tier** | Platform |
-| **Description** | Interactions with an end user &mdash; displaying messages and requesting input. |
+| **Description** | Interactions with an end user - displaying messages and requesting input. |
 
 | Action | Task Type | What it Does |
 |--------|-----------|--------------|
@@ -182,12 +182,12 @@ execution model:
 1. Workers connect to Ultravisor and advertise their capabilities.
 2. When the engine needs to execute a task, it looks up the task's
    `Capability` and `Tier`.
-3. **Engine** tier tasks always run locally &mdash; no worker required.
+3. **Engine** tier tasks always run locally - no worker required.
 4. **Platform** and higher tasks are dispatched to a connected worker
    that advertises the matching capability.
 5. If no capable worker is available the task enters a waiting state.
 
 Extension-tier capabilities will be the primary mechanism for adding new
-types of work &mdash; machine-learning inference, headless browser
+types of work - machine-learning inference, headless browser
 automation, hardware control, media processing, and anything else that
 requires a specialized runtime environment.

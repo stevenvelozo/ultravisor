@@ -1,6 +1,6 @@
 # Follow-up: Migrate per-action config into `BeaconActionDefault`
 
-**Status:** deferred — table and service are live; rows need populating.
+**Status:** deferred - table and service are live; rows need populating.
 
 ## Why this exists
 
@@ -20,7 +20,7 @@ The resolver already falls back in this order:
    `UltravisorBeaconHeartbeatMs`)
 5. Hard defaults in `HARD_DEFAULTS`
 
-So today everything still works via step 4–5. This follow-up replaces
+So today everything still works via step 4-5. This follow-up replaces
 the shim with real rows and retires the Fable settings.
 
 ## What's in the table today
@@ -63,20 +63,20 @@ Write `source/services/tasks/extension/Ultravisor-BeaconActionDefault-Seed.cjs`
 (Capability, Action) pair the hub knows about. Source of truth is
 the action catalog on the coordinator
 ([`Ultravisor-Beacon-Coordinator.cjs`](../../source/services/Ultravisor-Beacon-Coordinator.cjs)
-`_ActionCatalog`) — iterate it and call
+`_ActionCatalog`) - iterate it and call
 `store.upsertActionDefault({ Capability, Action, ...hard_defaults })`
 only when no row exists. Use `getActionDefault` first so operator-set
 rows aren't clobbered on every restart.
 
-The seed should **not** overwrite existing rows — it's a bootstrap,
+The seed should **not** overwrite existing rows - it's a bootstrap,
 not a reset.
 
 ### 3. Admin endpoints (optional, small)
 
 If the `/queue` UI wants live knobs, add:
 
-- `GET /Beacon/ActionDefaults` → `store.listActionDefaults()`
-- `PUT /Beacon/ActionDefaults/:Capability/:Action` → upsert
+- `GET /Beacon/ActionDefaults` -> `store.listActionDefaults()`
+- `PUT /Beacon/ActionDefaults/:Capability/:Action` -> upsert
   (call `store.upsertActionDefault` + `defaults.invalidate()`)
 
 Both gated by `_requireSession`.
@@ -100,7 +100,7 @@ the `_fableSettingFallback` in
 [`Ultravisor-Beacon-ActionDefaults.cjs`](../../source/services/Ultravisor-Beacon-ActionDefaults.cjs).
 Grep-clean the retired setting names from the codebase in the same PR
 so nobody reintroduces them. This is the step that makes the
-migration irreversible — don't do it in the same PR as the seeder.
+migration irreversible - don't do it in the same PR as the seeder.
 
 ## Verification
 

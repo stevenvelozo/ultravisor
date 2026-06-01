@@ -8,7 +8,7 @@ Phase 4 hardens UV against client misbehavior, but it can't make a misbehaving c
 
 ### 1. Use a keep-alive HTTP agent with bounded `maxSockets`
 
-The single biggest cause of mid-burst failures we've seen is a client that opens a fresh TCP connection per request, then exhausts the local ephemeral-port table. macOS gives you ~16K ports total and TIME_WAIT holds each one for 60s after a close — so a sustained ~270 fresh-socket reqs/sec is enough to fill it.
+The single biggest cause of mid-burst failures we've seen is a client that opens a fresh TCP connection per request, then exhausts the local ephemeral-port table. macOS gives you ~16K ports total and TIME_WAIT holds each one for 60s after a close - so a sustained ~270 fresh-socket reqs/sec is enough to fill it.
 
 In Node:
 
@@ -25,7 +25,7 @@ libHttp.request({ hostname, port, path, method, headers, agent: HTTP_AGENT }, ..
 
 Reuse the same agent across the entire process. The pool tops out at `maxSockets` simultaneous connections and Node hands idle sockets back to subsequent requests for 30s.
 
-UV forces `Connection: keep-alive` on every response (see Pillar 4), so any HTTP/1.1 client that respects RFC 9112 §9.3 will get pooled "by accident" — but you should not rely on that. Configure your agent explicitly.
+UV forces `Connection: keep-alive` on every response (see Pillar 4), so any HTTP/1.1 client that respects RFC 9112 §9.3 will get pooled "by accident" - but you should not rely on that. Configure your agent explicitly.
 
 ### 2. Use bulk endpoints when N > 1
 
@@ -52,9 +52,9 @@ Every batch endpoint returns 200 with a body that contains both successes and pe
 }
 ```
 
-A 4xx is reserved for malformed *requests* (no body, body too large, etc.). Per-row failures are reported in `Errors` and do **not** fail the rest of the batch — partial success is the norm, not an exception. **Always check the `Errors` array.** A blind "200 means everything succeeded" implementation will silently lose work.
+A 4xx is reserved for malformed *requests* (no body, body too large, etc.). Per-row failures are reported in `Errors` and do **not** fail the rest of the batch - partial success is the norm, not an exception. **Always check the `Errors` array.** A blind "200 means everything succeeded" implementation will silently lose work.
 
-### 3. Use the event stream — don't poll N manifests in a fan-out loop
+### 3. Use the event stream - don't poll N manifests in a fan-out loop
 
 Whether you can hold a WebSocket open or not, there is one cursored event stream: `EventGUID` is the cursor, and you can consume it via WS push or HTTP long-poll using the same envelope shape.
 
@@ -66,7 +66,7 @@ Open one WS to `/ws`, send `{Action: "QueueSubscribe", LastEventGUID: <last GUID
 { "Topic": "queue.dispatched", "Payload": {...}, "EventGUID": "...", "Seq": 1234, "EmittedAt": "..." }
 ```
 
-On reconnect, send the GUID of the last envelope you persisted. UV catches you up. If your GUID has aged out of the ring buffer, you receive `queue.reset { Reason: "history-too-old", LastEventGUID: <yours> }` — fetch `/Observer/Snapshot`, then resubscribe with `LastEventGUID: null`.
+On reconnect, send the GUID of the last envelope you persisted. UV catches you up. If your GUID has aged out of the ring buffer, you receive `queue.reset { Reason: "history-too-old", LastEventGUID: <yours> }` - fetch `/Observer/Snapshot`, then resubscribe with `LastEventGUID: null`.
 
 #### HTTP long-poll consumers (firewall-restricted, ephemeral, IoT-style)
 
@@ -86,7 +86,7 @@ UV holds the request open until either a matching event arrives or `waitMs` elap
 }
 ```
 
-Or `410 Gone` with `{ Reason: "history-too-old", Hint: "fetch /Observer/Snapshot, then resume polling" }` if your `since` is older than the buffer. Same recovery path as the WS `queue.reset` — fetch the snapshot, then resume polling from the latest cursor.
+Or `410 Gone` with `{ Reason: "history-too-old", Hint: "fetch /Observer/Snapshot, then resume polling" }` if your `since` is older than the buffer. Same recovery path as the WS `queue.reset` - fetch the snapshot, then resume polling from the latest cursor.
 
 `waitMs=0` is also valid for short-poll: returns immediately with whatever's in the buffer.
 
@@ -114,7 +114,7 @@ Content-Type: application/json
 
 **Wait `Retry-After` seconds, then retry.** A client that ignores 429s and retries immediately will be rate-limited per-IP / per-session by the next layer (200 RPS, burst 500), which is a much harder failure to debug.
 
-Read-only routes (`/Manifest/*`, `/Observer/*`, `/Queue/Events`, `/Beacon/Queue`) never admission-deny — only enqueue routes do.
+Read-only routes (`/Manifest/*`, `/Observer/*`, `/Queue/Events`, `/Beacon/Queue`) never admission-deny - only enqueue routes do.
 
 ## Putting it together
 
@@ -122,7 +122,7 @@ A well-behaved Ultravisor client looks like this:
 
 1. One process-wide keep-alive HTTP agent (Pillar 1).
 2. Batched enqueue / batched manifest reads (Pillar 2).
-3. One subscriber to the event stream (WS or long-poll) — never a manifest fan-out poll loop (Pillar 3).
+3. One subscriber to the event stream (WS or long-poll) - never a manifest fan-out poll loop (Pillar 3).
 4. Honors 429 with backoff (Pillar 4).
 
 Following all four, a client can sustain >5K ops/min on a single Mac+Colima deployment without hitting EADDRNOTAVAIL, and gracefully degrades when UV asks it to.

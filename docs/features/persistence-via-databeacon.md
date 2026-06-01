@@ -3,19 +3,19 @@
 **Status: shipped. Legacy modules removed 2026-05-03.** This doc is the
 cross-session plan for routing ultravisor's queue and manifest persistence
 through retold-databeacon instead of the specialized `ultravisor-queue-beacon`
-and `ultravisor-manifest-beacon` modules (now deleted from the monorepo —
+and `ultravisor-manifest-beacon` modules (now deleted from the monorepo -
 see [What changed and why](#what-changed-and-why) for the historical context).
 It captures the architectural decision, the work breakdown, and the hand-off
 state so a fresh context can resume from here.
 
 If you are picking this up cold, read this doc top-to-bottom before touching
-code — the decisions below are load-bearing and the cross-module dependencies
+code - the decisions below are load-bearing and the cross-module dependencies
 are not obvious from the source.
 
 ## What changed and why
 
 Before this redesign (the modules described here have since been deleted from
-the monorepo on 2026-05-03 — kept here for historical context):
+the monorepo on 2026-05-03 - kept here for historical context):
 - `ultravisor-queue-beacon` advertised capability `QueuePersistence` with
   `QP_*` actions. Shipped a `QueuePersistenceProviderBase` and a default
   `MemoryQueuePersistenceProvider`.
@@ -24,7 +24,7 @@ the monorepo on 2026-05-03 — kept here for historical context):
 - `Ultravisor-QueuePersistenceBridge.cjs` and
   `Ultravisor-ManifestStoreBridge.cjs` dispatched into the corresponding
   capability when a beacon was connected, fell back to local storage otherwise.
-  Both bridges still exist inside ultravisor — they now translate `QP_*` /
+  Both bridges still exist inside ultravisor - they now translate `QP_*` /
   `MS_*` semantics into `MeadowProxy` calls against retold-databeacon.
 - `bootstrap-flush` (already shipped) replays locally-buffered writes into a
   newly-connected beacon via per-beacon HWM tracking persisted to
@@ -64,7 +64,7 @@ through the mesh; building `ultravisor-persistence-beacon` would duplicate
 The right unit of work is "make ultravisor talk to retold-databeacon" rather
 than "build a parallel persistence beacon."
 
-### Why not collapse all the way — let ultravisor use meadow directly?
+### Why not collapse all the way - let ultravisor use meadow directly?
 
 Considered and rejected. The bridge architecture exists so ultravisor stays
 unopinionated about its persistence layer. Going direct couples ultravisor to
@@ -74,17 +74,17 @@ the beacon is the gateway).
 
 ## Gaps in retold-databeacon's current surface
 
-Three things needed to make this work — none of which retold-databeacon
+Three things needed to make this work - none of which retold-databeacon
 provides today:
 
 1. **DDL / schema management.** retold-databeacon's `DataBeaconManagement`
-   capability has `Introspect`, `EnableEndpoint`, `DisableEndpoint` — all
+   capability has `Introspect`, `EnableEndpoint`, `DisableEndpoint` - all
    read-or-expose, no create. To bootstrap ultravisor's tables in a fresh
    database we need a new action.
 
 2. **MeadowProxy path allowlist.** The default allowlist
    (`/^\/?1\.0\/[a-z0-9][a-z0-9-]{0,63}\//`) requires the first segment after
-   `/1.0/` to be lowercase alphanumeric. This is intentional — it keeps mesh
+   `/1.0/` to be lowercase alphanumeric. This is intentional - it keeps mesh
    clients away from the databeacon's internal entities (`/1.0/User`,
    `/1.0/BeaconConnection`). PascalCase ultravisor tables like
    `BeaconWorkItem` are blocked. The fix is operator-configurable: when the
@@ -92,7 +92,7 @@ provides today:
    that extends the allowlist.
 
 3. **Schema migration.** Forward-only ADD COLUMN on existing tables, version
-   tracking. Less urgent than (1) — ultravisor can ship without this on day
+   tracking. Less urgent than (1) - ultravisor can ship without this on day
    one and add it when the schema first changes.
 
 ## The new wiring
@@ -144,7 +144,7 @@ For each existing bridge method, the equivalent MeadowProxy call:
 
 Notes:
 - Table names use the `UV` prefix to avoid collision with retold-databeacon's
-  internal `Beacon*` tables. Confirmed by reading `Retold-DataBeacon.js` —
+  internal `Beacon*` tables. Confirmed by reading `Retold-DataBeacon.js` -
   it has its own `BeaconConnection` etc.
 - Body is JSON-stringified and the Outputs come back as `{Status, Body}`
   where Body is the raw response string the caller parses.
@@ -156,12 +156,12 @@ Notes:
 Lives at `modules/apps/ultravisor/source/persistence/UltravisorPersistenceSchema.json`
 (to be created). Meadow JSON schema format. Tables:
 
-- **`UVQueueWorkItem`** — one row per work item.
-  - `IDUVQueueWorkItem` — auto-increment PK
-  - `WorkItemHash` — unique, indexed
+- **`UVQueueWorkItem`** - one row per work item.
+  - `IDUVQueueWorkItem` - auto-increment PK
+  - `WorkItemHash` - unique, indexed
   - `RunID`, `RunHash`, `NodeHash`, `OperationHash`
   - `Capability`, `Action`
-  - `Settings` — JSON column
+  - `Settings` - JSON column
   - `AffinityKey`, `AssignedBeaconID`
   - `Status`, `Priority`, `EnqueuedAt`, `DispatchedAt`, `CompletedAt`,
     `CanceledAt`, `LastEventAt`
@@ -173,26 +173,26 @@ Lives at `modules/apps/ultravisor/source/persistence/UltravisorPersistenceSchema
   - Indexes: `(Status, Priority, EnqueuedAt)`, `(AssignedBeaconID, Status)`,
     `RunID`, `WorkItemHash`
 
-- **`UVQueueWorkItemEvent`** — append-only event log per work item.
-  - `IDUVQueueWorkItemEvent` — auto-increment PK
-  - `EventGUID` — UUID v4, **unique** (idempotency on re-flush)
-  - `WorkItemHash` — indexed
+- **`UVQueueWorkItemEvent`** - append-only event log per work item.
+  - `IDUVQueueWorkItemEvent` - auto-increment PK
+  - `EventGUID` - UUID v4, **unique** (idempotency on re-flush)
+  - `WorkItemHash` - indexed
   - `EventType`, `Payload` (JSON), `EmittedAt`
-  - `Seq` — per-process monotonic ordering hint (NOT identity)
+  - `Seq` - per-process monotonic ordering hint (NOT identity)
   - Indexes: `WorkItemHash`, `EventGUID` (unique)
 
-- **`UVQueueWorkItemAttempt`** — one row per dispatch attempt.
-  - `IDUVQueueWorkItemAttempt` — PK
+- **`UVQueueWorkItemAttempt`** - one row per dispatch attempt.
+  - `IDUVQueueWorkItemAttempt` - PK
   - `WorkItemHash`, `AttemptNumber`
   - `BeaconID`, `StartedAt`, `EndedAt`, `Outcome`, `Error`
   - Indexes: `(WorkItemHash, AttemptNumber)` unique
 
-- **`UVManifest`** — one row per execution run.
-  - `IDUVManifest` — PK
-  - `Hash` — RunHash, **unique**
+- **`UVManifest`** - one row per execution run.
+  - `IDUVManifest` - PK
+  - `Hash` - RunHash, **unique**
   - `OperationHash`, `OperationName`, `Status`, `RunMode`
   - `StartTime`, `StopTime`, `ElapsedMs`
-  - `ManifestJSON` — full manifest blob (stripped via `_cleanManifestForWire`
+  - `ManifestJSON` - full manifest blob (stripped via `_cleanManifestForWire`
     before write)
   - Indexes: `Hash` unique, `(Status, StopTime)`, `OperationHash`
 
@@ -214,7 +214,7 @@ When ultravisor first detects a databeacon assigned for persistence:
    each table so MeadowProxy's REST surface is wired up.
 5. Push a `PathAllowlist` config update to the databeacon (or include it in
    the EnsureSchema settings) so MeadowProxy accepts the `/1.0/UV*/` routes.
-6. Mark the bridge as "ready for MeadowProxy mode" — subsequent calls go via
+6. Mark the bridge as "ready for MeadowProxy mode" - subsequent calls go via
    the new path. Bootstrap-flush replays accumulated local writes into the
    freshly-prepared tables.
 
@@ -243,14 +243,14 @@ stay unchanged. The persistence picker is a sibling row, not a replacement.
 
 The bootstrap-flush HWM file already keys by `beaconID`. With this redesign,
 the same HWM tracking just happens to point at the assigned databeacon's
-beaconID. No code change needed in the HWM logic itself — only in the
+beaconID. No code change needed in the HWM logic itself - only in the
 *detection* (`getBeaconID()` should return the assigned databeacon's ID
 when one is configured, falling back to the legacy QueuePersistence /
 ManifestStore lookup otherwise).
 
 ## Cross-session work plan
 
-### Session 1 (complete) — foundation
+### Session 1 (complete) - foundation
 
 Shipped:
 
@@ -294,7 +294,7 @@ What's intentionally narrow today:
   `_introspectSchemaSqlite` emit DDL directly. MySQL / MSSQL / Postgres
   return a clear "not yet supported" error. Session 2 generalizes by
   delegating to each connector's `Meadow-Schema-<engine>.js` service
-  (which already exists — see e.g.
+  (which already exists - see e.g.
   `modules/meadow/meadow-connection-sqlite/source/Meadow-Schema-SQLite.js`,
   methods `createTables` / `createTable` / `createAllIndices` /
   `getIndexDefinitionsFromSchema`).
@@ -303,7 +303,7 @@ What's intentionally narrow today:
   shape from `DataBeacon-ConnectionBridge.js:100-114`. The Session 2
   refactor to per-engine delegation removes this assumption.
 - **Bridges still dispatch to legacy `QP_*` / `MS_*` actions.** Nothing
-  in ultravisor uses `DataBeaconSchema` yet — that's Session 2's job.
+  in ultravisor uses `DataBeaconSchema` yet - that's Session 2's job.
   Existing bootstrap-flush + resync paths unchanged.
 - **No PathAllowlist update yet.** When Session 2 wires up MeadowProxy
   routing for the bridges, the `/1.0/UV*/` paths will be blocked by
@@ -311,27 +311,27 @@ What's intentionally narrow today:
   config-update mechanism, or it ships an option on the beacon's
   registration config that the lab populates. See "Open question 1" below.
 
-### Session 2 (complete) — bridge dispatch + bootstrap
+### Session 2 (complete) - bridge dispatch + bootstrap
 
 Shipped:
 
 - [x] `DataBeacon-SchemaManager.js` generalized past SQLite. The
   `_ensureSchemaSqlite` / `_introspectSchemaSqlite` methods are gone;
   in their place is a thin orchestration that resolves the connector's
-  `schemaProvider` (every meadow connector exposes one — confirmed for
+  `schemaProvider` (every meadow connector exposes one - confirmed for
   sqlite / mysql / mssql / postgresql by inspection), translates our
   descriptor (`Scope/Schema/Indexes` + high-level `Type` values like
   `AutoIdentity`, `Integer`, `Float`, `Deleted`, `CreateDate`) into the
   meadow shape (`TableName/Columns/Indices` + lower-level
   `DataType`), then delegates `createTables` + `createAllIndices` to
-  the engine service. Forward-only ADD COLUMN remains SQLite-only —
+  the engine service. Forward-only ADD COLUMN remains SQLite-only -
   Session 4 generalizes that path. Introspect uses the engine-agnostic
   `listTables` + `introspectTableColumns` for all four engines.
 - [x] `DataBeaconManagement.UpdateProxyConfig` action added in
   `DataBeacon-BeaconProvider.js`. `DataBeacon-MeadowProxyProvider.js`
   now exposes `extendPathAllowlist`, `setPathAllowlist`,
   `setAllowWrites`, `getActiveConfig` helpers that mutate a closure-
-  scoped runtime config the Request handler consults on every call —
+  scoped runtime config the Request handler consults on every call -
   no re-registration needed.
 - [x] `EnableEndpoint` / `DisableEndpoint` action handlers in
   `DataBeacon-BeaconProvider.js` now wrap their callbacks in the
@@ -344,7 +344,7 @@ Shipped:
   each bridge's source comment and matches the table above with two
   Session-3-deferred items: `QP_UpdateWorkItem` /
   `QP_UpdateAttemptOutcome` / `MS_RemoveManifest` need a
-  hash→IDRecord lookup helper that lands with the lab assignment
+  hash->IDRecord lookup helper that lands with the lab assignment
   endpoint. For Session 2 those branches return null and fall through
   to the legacy bridge's no-op result.
 - [x] Detection: bridges scan registered beacons for one that
@@ -357,7 +357,7 @@ Shipped:
 - [x] Schema bootstrap state machine wired into the existing
   `onBeaconConnected` hook. The bridge loads the descriptor once at
   construction, then on every relevant connect runs
-  `EnsureSchema → Introspect → UpdateProxyConfig → EnableEndpoint(per-table)`.
+  `EnsureSchema -> Introspect -> UpdateProxyConfig -> EnableEndpoint(per-table)`.
   Per-beacon `_BootstrappedBeacons` set guards against re-running the
   flow on reconnect; `_BootstrapInFlight` guards against concurrent
   notifications. Each step is idempotent on the databeacon side.
@@ -369,10 +369,10 @@ Shipped:
   `DataBeaconManagement` work items in addition to the original
   `QueuePersistence` / `ManifestStore`. Without this, every
   MeadowProxy.Request dispatched by the bridge would itself be
-  persisted via the bridge → MeadowProxy.Request → ... loop.
+  persisted via the bridge -> MeadowProxy.Request -> ... loop.
 - [x] End-to-end smoke test at
   `modules/apps/retold-databeacon/test/Persistence_Bridge_Smoke_tests.js`
-  (opt-in — not part of the default mocha spec). Boots a real
+  (opt-in - not part of the default mocha spec). Boots a real
   retold-databeacon (with its own internal SQLite + Orator REST surface
   on port 28389), an external SQLite file the UV tables land in, and
   an in-process ultravisor coordinator + bridges. A synchronous push
@@ -387,7 +387,7 @@ Shipped:
   2. Bootstrap creates the four UV* tables + 11 indices in the
      external SQLite file (verified via direct better-sqlite3 reads).
   3. `bridge.upsertWorkItem(item)` lands a row in `UVQueueWorkItem`
-     via MeadowProxy → loopback HTTP → meadow REST → SQL INSERT.
+     via MeadowProxy -> loopback HTTP -> meadow REST -> SQL INSERT.
   4. `bridge.appendEvent(event)` lands a row in
      `UVQueueWorkItemEvent`.
   5. `manifestBridge.upsertManifest(manifest)` lands a row in
@@ -396,7 +396,7 @@ Shipped:
 Notes / sharp edges encountered:
 
 - `dispatchAndWait` registers its direct-dispatch callback AFTER
-  `enqueueWorkItem` returns — the same call that fires the push
+  `enqueueWorkItem` returns - the same call that fires the push
   handler. A synchronous push handler that completes the work item
   before `dispatchAndWait` returns will race the registration and
   leave the awaiter hanging forever. The smoke test wraps each
@@ -410,20 +410,20 @@ Notes / sharp edges encountered:
   default allowlist patch (`UV_PROXY_PATH_PATTERNS`) accommodates
   this with a non-greedy middle segment (`/1.0/[^/]+/UV[A-Za-z0-9]*`).
 - `_isMetaCapability` had to be extended on the coordinator (see
-  above) — easy to miss when adding new dispatch backends through
+  above) - easy to miss when adding new dispatch backends through
   the bridge.
 
 What's still narrow today:
 
 - **Update / remove paths return null.** `QP_UpdateWorkItem`,
-  `QP_UpdateAttemptOutcome`, `MS_RemoveManifest` need a hash→IDRecord
+  `QP_UpdateAttemptOutcome`, `MS_RemoveManifest` need a hash->IDRecord
   lookup before they can PUT/DELETE. Lands with the lab UI work
   (Session 3), where the assignment endpoint will give us a natural
   spot to wire a small `_lookupIDByHash(beaconID, table, hash)` helper.
 - **Detection still capability+tag, no UV row yet.** The `IDPersistenceBeacon`
   field on `UltravisorInstance` and the assignment endpoint are
   Session 3. Today the bridge picks the first registered MeadowProxy
-  beacon with the persistence tag — fine for single-UV mode (which
+  beacon with the persistence tag - fine for single-UV mode (which
   is all we support per "Open question 2" anyway) but the lab will
   promote this to an explicit per-UV assignment.
 - **Forward-only ADD COLUMN is SQLite-only.** MySQL / MSSQL / Postgres
@@ -432,7 +432,7 @@ What's still narrow today:
   descriptor against an existing non-SQLite database surfaces a Note
   in the EnsureSchema result and skips the migration. Session 4.
 
-### Session 3 (complete) — lab assignment + UI + remaining bridge surface
+### Session 3 (complete) - lab assignment + UI + remaining bridge surface
 
 Shipped:
 
@@ -441,7 +441,7 @@ Shipped:
   `Ultravisor-QueuePersistenceBridge.cjs` and
   `Ultravisor-ManifestStoreBridge.cjs`. Status object shape:
   `{State, AssignedBeaconID, IDBeaconConnection, LastError, BootstrappedAt, AssignedAt}`.
-  State machine `unassigned → waiting-for-beacon → bootstrapping → bootstrapped`
+  State machine `unassigned -> waiting-for-beacon -> bootstrapping -> bootstrapped`
   (or `error`) derives from `_PersistenceAssignment` plus the existing
   `_BootstrappedBeacons` / `_BootstrapInFlight` sets and a new
   `_LastBootstrapError` / `_BootstrappedAt` pair. Reassignment to a
@@ -456,7 +456,7 @@ Shipped:
 - [x] **`getPersistenceBeacon` consults explicit assignment first.**
   Tag-scan stays as the CLI-only fallback (sidecar-databeacon
   deployments where an env-var registers the tag). When an assignment is
-  set, online-state filtering moves to the bootstrap state machine —
+  set, online-state filtering moves to the bootstrap state machine -
   `getPersistenceBeacon` returns the assignment regardless of the
   beacon's status, but `isMeadowProxyMode()` still gates dispatch on
   `_BootstrappedBeacons`.
@@ -467,7 +467,7 @@ Shipped:
   auto-soft-deletes when the schema declares a `Deleted` column).
   Lookup helpers `_lookupIDByHash` / `_lookupIDByTwoColumns` issue a
   filtered `GET <base>s/FilteredTo/FBV~<col>~EQ~<val>` (and stack
-  `~FBV~` for two-column AND filters), then PUT-by-id (`PUT <base>` —
+  `~FBV~` for two-column AND filters), then PUT-by-id (`PUT <base>` -
   meadow's update endpoint takes the PK in the body, NOT the URL).
 - [x] **UV runtime endpoints.** `POST /Ultravisor/Persistence/Assign`
   (body `{BeaconID, IDBeaconConnection}`) calls `setPersistenceAssignment`
@@ -508,8 +508,8 @@ Shipped:
   `Persistence: <pill> ... [Assign|Change persistence]` button.
   `PictRouter-Lab-Configuration.json` gets the new
   `/ultravisor/:id/set-persistence-beacon` route.
-  `Lab-Browser-Application.js` ships `setPersistenceBeacon(pID)` —
-  modal-driven flow with two dropdowns (databeacon → connection); the
+  `Lab-Browser-Application.js` ships `setPersistenceBeacon(pID)` -
+  modal-driven flow with two dropdowns (databeacon -> connection); the
   connection list fetches lazily via `listBeaconConnections` after the
   beacon is picked. Modal carries `Cancel` / `Clear assignment` (when
   one is set) / `Save` buttons. Fast-poll: `_pumpPersistencePollers` /
@@ -528,7 +528,7 @@ Shipped:
   `modules/apps/retold-databeacon/test/Persistence_Bridge_Smoke_tests.js`
   picked up three new cases (one each for
   `bridge.updateWorkItem`, `bridge.updateAttemptOutcome`,
-  `manifestBridge.removeManifest`) plus two assignment-state cases —
+  `manifestBridge.removeManifest`) plus two assignment-state cases -
   51 passing total. A new lab-side smoke at
   `modules/apps/ultravisor-lab/test/Persistence_Lab_Smoke_tests.js`
   covers `setInstancePersistence` / `getInstancePersistence` /
@@ -554,7 +554,7 @@ Notes / sharp edges encountered:
 - **The `addAuthBeacon` lab path uses the lab beacon row's `Name` as
   the mesh BeaconID implicitly** (the spawned ultravisor-beacon
   registers itself under that name). Session 3 reuses the same
-  convention for persistence assignment — the lab passes `BeaconRow.Name`
+  convention for persistence assignment - the lab passes `BeaconRow.Name`
   as `BeaconID` to the UV's `/Ultravisor/Persistence/Assign`. Documented
   inline in `Service-UltravisorManager.setInstancePersistence`.
 
@@ -576,7 +576,7 @@ Deferred to Session 4:
 
 Operator opens the UV detail view in the lab, picks a running databeacon
 plus an engine/database within it, hits "Save", and watches a status
-pill flip `unassigned → waiting-for-beacon → bootstrapping → bootstrapped`.
+pill flip `unassigned -> waiting-for-beacon -> bootstrapping -> bootstrapped`.
 Subsequent operations on that UV land queue + manifest rows in the
 chosen database; operator can SQL into it directly.
 
@@ -586,19 +586,19 @@ Session 2's bridges discover persistence beacons by scanning for
 `MeadowProxy` capability + `Tags.PersistenceConnectionID`. That
 mechanism stays as a CLI-only fallback (bare `ultravisor start` with a
 sidecar databeacon configured via env vars), but the lab path uses
-**explicit assignment** — the lab pushes `{BeaconID, IDBeaconConnection}`
+**explicit assignment** - the lab pushes `{BeaconID, IDBeaconConnection}`
 to the bridge directly. Tag discovery doesn't have a clean cross-process
 mutation API today; explicit assignment sidesteps it. The bridge's
 `getPersistenceBeacon()` consults the explicit assignment first and
 falls through to the tag scan if none is set.
 
-#### Data model — UltravisorInstance row gains two columns
+#### Data model - UltravisorInstance row gains two columns
 
 The lab's `UltravisorInstance` table grows:
-- `IDPersistenceBeacon` (Number, default 0) — references the lab's
+- `IDPersistenceBeacon` (Number, default 0) - references the lab's
   beacon record (the same `IDBeacon` keyspace `addAuthBeacon` /
   `bootstrapAdmin` already use). 0 = unassigned.
-- `IDPersistenceConnection` (Number, default 0) — the
+- `IDPersistenceConnection` (Number, default 0) - the
   `IDBeaconConnection` inside that databeacon's internal SQLite. The
   existing `lab-engine-database-picker` writes this.
 
@@ -702,9 +702,9 @@ addresses rows by primary key, not by our natural keys. With
 
 | Bridge action | Path |
 |---|---|
-| `QP_UpdateWorkItem(hash, patch)` | `lookup(WorkItemHash) → PUT /1.0/<rh>/UVQueueWorkItem` (body includes `IDUVQueueWorkItem` + patch) |
-| `QP_UpdateAttemptOutcome(hash, n, patch)` | `lookup` via two-column filter `(WorkItemHash, AttemptNumber)` → `PUT /1.0/<rh>/UVQueueWorkItemAttempt` |
-| `MS_RemoveManifest(runHash)` | `lookup(Hash) → PUT` with `Deleted=1` (soft-delete) |
+| `QP_UpdateWorkItem(hash, patch)` | `lookup(WorkItemHash) -> PUT /1.0/<rh>/UVQueueWorkItem` (body includes `IDUVQueueWorkItem` + patch) |
+| `QP_UpdateAttemptOutcome(hash, n, patch)` | `lookup` via two-column filter `(WorkItemHash, AttemptNumber)` -> `PUT /1.0/<rh>/UVQueueWorkItemAttempt` |
+| `MS_RemoveManifest(runHash)` | `lookup(Hash) -> PUT` with `Deleted=1` (soft-delete) |
 
 Each costs two MeadowProxy round-trips. Acceptable for queue / manifest
 write rates. Future optimization: if the descriptor declares an
@@ -738,7 +738,7 @@ existing `addAuthBeacon` / `bootstrapAdmin` shortcuts:
   `lab-engine-database-picker` widget, scoped to the chosen beacon's
   `/beacon/connections` surface.
 - **Save / Clear** buttons (explicit commit; no auto-apply on dropdown
-  change — too easy to misclick).
+  change - too easy to misclick).
 - **Status pill** beside the row, color-coded by state.
 - **Tooltip** showing `LastError` when `state === 'error'`.
 
@@ -766,7 +766,7 @@ local cache.
    the old beacon, run bootstrap on the new one. Old database's tables
    stay (per Open question 2).
 2. **Reassignment within the same beacon to a different connection.**
-   Treat as a fresh bootstrap — the new connection's tables may not
+   Treat as a fresh bootstrap - the new connection's tables may not
    exist yet.
 3. **Beacon disappears mid-session.** Bridge falls back to local for
    new writes (existing behavior); pill goes `waiting-for-beacon`. On
@@ -777,7 +777,7 @@ local cache.
    local. No data loss.
 5. **Two UVs assigned to the same beacon.** Per Open question 2,
    single-UV mode only. Picker UI surfaces a "this databeacon is
-   already in use by UV X" warning but doesn't block — operator can
+   already in use by UV X" warning but doesn't block - operator can
    override knowingly.
 
 #### RemoteUser pass-through (closes Open question 6)
@@ -816,7 +816,7 @@ log so operators can distinguish UV writes from manual mesh activity.
    lab API. Replaces the Session 2 bridge-only smoke test as the
    default integration test.
 
-### Session 4 (complete) — engine coverage via meadow-migrationmanager + Docker-driven smoke + polish
+### Session 4 (complete) - engine coverage via meadow-migrationmanager + Docker-driven smoke + polish
 
 Shipped:
 
@@ -825,7 +825,7 @@ Shipped:
   `MigrationGenerator` / `SchemaDeployer` on an isolated MM Pict
   context (no TUI / WebUI / Orator deps loaded). The Session 2
   SQLite-only `_alterTablesIfChanged` body is gone; in its place is
-  the `introspect → diff → forward-only filter → generate → execute`
+  the `introspect -> diff -> forward-only filter -> generate -> execute`
   pipeline. Forward-only filter strips `TablesRemoved` /
   `ColumnsRemoved` / `ColumnsModified` / `IndicesRemoved` from the
   diff and surfaces them on `pResult.SkippedDestructive` for operator
@@ -860,18 +860,18 @@ Shipped:
   second call.
 - [x] **Read-shape normalization** via `_arrayResult(pAction, pParsed,
   pSuccess, pListKey)` on both `Ultravisor-QueuePersistenceBridge.cjs`
-  and `Ultravisor-ManifestStoreBridge.cjs`. Closes Open question 3 —
+  and `Ultravisor-ManifestStoreBridge.cjs`. Closes Open question 3 -
   the array-wrapping switch branches collapse into one helper. Behavior
   is unchanged; no consumer audit changes needed.
 - [x] **Docker-driven lab smoke** at
   `modules/apps/ultravisor-lab/test/Persistence_Lab_Docker_Smoke_tests.js`.
   Opt-in via `SMOKE_DOCKER=1`; suite skips cleanly when Docker isn't
   reachable (clear console message). Three test cases (SQLite / MySQL /
-  Postgres) — when an engine isn't reachable, that case skips while
+  Postgres) - when an engine isn't reachable, that case skips while
   others still run. The orchestration (spawn databeacon container,
   spawn UV container, push assignment, drive operation, verify rows)
   is scaffolded but the full `runEngineCase` body is documented as a
-  stretch — Docker isn't reachable in CI today and the bridge-level
+  stretch - Docker isn't reachable in CI today and the bridge-level
   smoke + per-engine SchemaManager suite already cover the
   introspect / diff / migrate path. The case prints a banner and
   returns success when run.
@@ -887,7 +887,7 @@ Shipped:
   show "(legacy)" since they bind to `DisplayName`.
 - [x] **Test-fable cleanup.** `Ultravisor_BeaconQueue_tests.js`'s
   `buildFable()` now registers `UltravisorQueuePersistenceBridge`
-  alongside the existing services — the coordinator's
+  alongside the existing services - the coordinator's
   `_getQueuePersistenceBridge()` finds it and persistence runs on
   the test path. The three `=== 56` assertions in `Ultravisor_tests.js`
   now derive the expected count from
@@ -897,7 +897,7 @@ Shipped:
 Doc-level effects:
 
 - The Session 2 "Forward-only ADD COLUMN is SQLite-only" caveat is
-  resolved — all four engines now share the same path through
+  resolved - all four engines now share the same path through
   meadow-migrationmanager.
 - The Session 4 "Concrete starting steps" list is the canonical record
   of intent; everything in the list landed.
@@ -910,14 +910,14 @@ What stayed narrow today (intentional):
   green.** The suite skips cleanly without Docker, runs cleanly with
   it, and the per-engine cases each call `runEngineCase` which today
   prints a banner and returns success. The actual container-spawn
-  → assignment → operation-drive → row-verify cycle is feature work
+  -> assignment -> operation-drive -> row-verify cycle is feature work
   that needs a working Docker daemon to validate. Deferred until the
   full Docker harness is wired into CI; in the meantime the bridge
   smoke (51 cases) + per-engine SchemaManager tests cover the
   introspect / diff / migrate paths, and the Session 3 in-process lab
   smoke (7 cases) covers the lab assignment plumbing.
-- **Documentation only — `Version: 1` field in `UltravisorPersistenceSchema.json`.**
-  The introspect → diff loop is the source of truth; the version
+- **Documentation only - `Version: 1` field in `UltravisorPersistenceSchema.json`.**
+  The introspect -> diff loop is the source of truth; the version
   number is informational and not consulted on the EnsureSchema path.
 
 #### Goal
@@ -928,7 +928,7 @@ already supports in production". The big shift: instead of building
 custom per-engine `addColumn` shims plus a `_UVSchemaVersion` table
 inside `DataBeacon-SchemaManager`, embed the existing
 `meadow-migrationmanager` services and let them own the
-introspect → diff → generate-migration → deploy cycle. Same engine
+introspect -> diff -> generate-migration -> deploy cycle. Same engine
 coverage, less custom code, and we get migration-script auditability
 for free. The lab's integration smoke exercises real Docker-spawned
 UV + retold-databeacon; the legacy
@@ -942,17 +942,17 @@ for any UV that wants beacon-routed persistence.
 
 `meadow-migrationmanager` already ships exactly the services we need:
 
-- `MigrationManager-Service-SchemaIntrospector.js` — reads the current
+- `MigrationManager-Service-SchemaIntrospector.js` - reads the current
   column / index / FK shape out of any meadow-supported engine.
-- `MigrationManager-Service-SchemaDiff.js` —
+- `MigrationManager-Service-SchemaDiff.js` -
   `diffSchemas(introspected, descriptor)` returns a structured diff
   (`TablesAdded`, `TablesModified.{ColumnsAdded, ColumnsRemoved,
   ColumnsModified, IndicesAdded, IndicesRemoved}`, etc.).
-- `MigrationManager-Service-MigrationGenerator.js` —
+- `MigrationManager-Service-MigrationGenerator.js` -
   `generateMigrationStatements(diff, engineType)` emits the
   engine-specific DDL (already handles SQLite / MySQL / MSSQL /
-  PostgreSQL — that's the whole point of the module).
-- `MigrationManager-Service-SchemaDeployer.js` — runs the DDL via the
+  PostgreSQL - that's the whole point of the module).
+- `MigrationManager-Service-SchemaDeployer.js` - runs the DDL via the
   connector's schemaProvider.
 
 The retold-data-service glue at
@@ -968,12 +968,12 @@ small.
 EnsureSchema flow becomes:
 
 1. **Translate the descriptor.** The Session 2 inline translator
-   (`Scope/Schema/Indexes` + high-level `Type` → `TableName/Columns/Indices`
+   (`Scope/Schema/Indexes` + high-level `Type` -> `TableName/Columns/Indices`
    + lower-level `DataType`) stays as a thin adapter that produces the
    shape `SchemaDiff` expects.
 2. **Introspect the current database** via `SchemaIntrospector` (same
    shape as the descriptor; comparable apples-to-apples).
-3. **`diffSchemas(introspected, descriptor)`** → structured diff.
+3. **`diffSchemas(introspected, descriptor)`** -> structured diff.
 4. **Forward-only filter.** Drop entries from `TablesRemoved`,
    `ColumnsRemoved`, and `ColumnsModified` (where the modification
    isn't purely a default-value change) from the diff before
@@ -981,7 +981,7 @@ EnsureSchema flow becomes:
    per-engine DDL guards. Log skipped entries as warnings so an
    operator who actually wants a breaking change knows they need to
    issue it out-of-band.
-5. **`generateMigrationStatements(filteredDiff, engineType)`** →
+5. **`generateMigrationStatements(filteredDiff, engineType)`** ->
    array of DDL statements.
 6. **Execute via the connector's schemaProvider.** For ADD-only diffs
    we can also short-circuit through `SchemaDeployer.deployTable`
@@ -1041,7 +1041,7 @@ instantiated; the four services we use don't reach them.
 #### Docker-driven lab smoke
 
 Session 3's `Persistence_Lab_Smoke_tests.js` uses in-process stub HTTP
-servers for the UV and databeacon — fast, runs in CI without Docker.
+servers for the UV and databeacon - fast, runs in CI without Docker.
 Session 4 ships a sibling `Persistence_Lab_Docker_Smoke_tests.js` that
 exercises the full Docker-spawned chain:
 
@@ -1058,7 +1058,7 @@ exercises the full Docker-spawned chain:
    spawned databeacon's `IDBeacon` and the new connection's
    `IDBeaconConnection`.
 6. Poll `/api/lab/ultravisor-instances/:id/persistence-status` until
-   `Persistence.State === 'bootstrapped'` (timeout 60s — image pulls +
+   `Persistence.State === 'bootstrapped'` (timeout 60s - image pulls +
    container cold-start add latency).
 7. Trigger a no-op operation through the UV's `/Operation/<hash>/Execute/Async`
    path. Reuse whatever the existing manifest tests use as the no-op
@@ -1071,7 +1071,7 @@ exercises the full Docker-spawned chain:
 
 The Session 3 stub smoke stays as the Docker-free integration test
 (runs in CI, stays fast). The Docker smoke is opt-in via env var
-(`SMOKE_DOCKER=1 npm test` — pattern matches the existing
+(`SMOKE_DOCKER=1 npm test` - pattern matches the existing
 `test-browser` opt-in for puppeteer tests).
 
 Once the Docker smoke is green, also exercise it against MySQL and
@@ -1084,7 +1084,7 @@ same harness.
 Open question 4 made it onto Session 4. The `UVQueueWorkItemEvent.EventGUID`
 column is unique; bootstrap-flush re-pushes events on every reconnect.
 Today a `409` from the meadow REST endpoint surfaces as
-`{Available: true, Success: false, Status: 409}` — the flush sweep
+`{Available: true, Success: false, Status: 409}` - the flush sweep
 treats that as a hard failure and aborts.
 
 Fix: extend `_normalizeMeadowProxyResult` in
@@ -1097,13 +1097,13 @@ actions still treat 409 as an error.
 
 Ensure the flush-sweep loop in
 `Ultravisor-QueuePersistenceBridge._flushQueueToBeacon` advances the
-HWM on `AlreadyPresent: true` results — the row is already on the
+HWM on `AlreadyPresent: true` results - the row is already on the
 beacon, so the HWM should march forward.
 
 #### Read-shape normalization audit (closes Open question 3)
 
 `QP_ListWorkItems` / `QP_GetEvents` / `MS_ListManifests` go through
-MeadowProxy → meadow's bulk-read endpoint, which returns a bare array.
+MeadowProxy -> meadow's bulk-read endpoint, which returns a bare array.
 Session 2's `_normalizeMeadowProxyResult` already wraps the array into
 the `{Available, Success, WorkItems: [...]}` shape `_readOrLocal`'s
 callers expect, but the wrapping is duplicated across the queue and
@@ -1123,14 +1123,14 @@ Plan:
    path is exercised end-to-end).
 
 Tangential to Session 4's main thrust but cheap to land alongside the
-engine-coverage work — same files get touched.
+engine-coverage work - same files get touched.
 
 #### Legacy beacon deprecation
 
 Originally Session 4 just labeled `ultravisor-queue-beacon` and
 `ultravisor-manifest-beacon` as `(legacy)` in the lab UI while keeping
 the modules selectable. As of 2026-05-03 the modules have been deleted
-outright — the migration path proved out across every retold-databeacon
+outright - the migration path proved out across every retold-databeacon
 engine and there are no remaining users.
 
 What's gone:
@@ -1139,18 +1139,18 @@ What's gone:
   `modules/apps/ultravisor-manifest-beacon`).
 - Manifest entries in `Retold-Modules-Manifest.json` and
   `modules/Include-Retold-Module-List.sh`.
-- Lab registry entries — `Service-BeaconTypeRegistry.js`'s
+- Lab registry entries - `Service-BeaconTypeRegistry.js`'s
   `SCANNED_MODULES` no longer scans them and `DEPRECATED_BEACON_TYPES`
   is now an empty Set (kept for future per-module deprecations).
 
 What stayed:
 
 - `Ultravisor-QueuePersistenceBridge.cjs` and
-  `Ultravisor-ManifestStoreBridge.cjs` inside ultravisor — they still
+  `Ultravisor-ManifestStoreBridge.cjs` inside ultravisor - they still
   dispatch `QP_*` / `MS_*` semantics, just into MeadowProxy now.
 - The `LEGACY_TOOLTIP` constant + per-stanza
   `retoldBeacon.deprecated: true` plumbing in
-  `Service-BeaconTypeRegistry.js` — useful infrastructure for whatever
+  `Service-BeaconTypeRegistry.js` - useful infrastructure for whatever
   the next deprecation needs.
 
 #### Test-fable cleanup (tangential hygiene)
@@ -1159,7 +1159,7 @@ Session 3 verification surfaced 6 pre-existing failures in
 `modules/apps/ultravisor/test/Ultravisor_BeaconQueue_tests.js` and
 `Ultravisor_tests.js`:
 
-- **Coordinator integration tests** — `enqueueWorkItem populates new
+- **Coordinator integration tests** - `enqueueWorkItem populates new
   fields and persists to store` and `dispatch tick promotes Queued
   items to Dispatched`. Both fail because `buildFable()` doesn't
   register `UltravisorQueuePersistenceBridge`, so the coordinator's
@@ -1167,7 +1167,7 @@ Session 3 verification surfaced 6 pre-existing failures in
   skipped. Fix: register the bridge service alongside the existing
   `UltravisorBeaconQueueStore` / `UltravisorBeaconCoordinator` /
   `UltravisorBeaconScheduler` registrations.
-- **TaskTypeRegistry count tests** — three tests asserting
+- **TaskTypeRegistry count tests** - three tests asserting
   `registry.size === 56` while the registry now has 57. Fix: bump the
   expected count, or better, derive it from the config array so the
   next addition doesn't break the test.
@@ -1182,7 +1182,7 @@ since it's pure hygiene work.
    (`SchemaIntrospector` / `SchemaDiff` / `MigrationGenerator` /
    `SchemaDeployer`) on an isolated MM Pict context. Replace the
    Session 2 SQLite-only `_alterTablesIfChanged` body with the
-   introspect → diff → forward-only filter → generate → execute
+   introspect -> diff -> forward-only filter -> generate -> execute
    pipeline. Keep the existing descriptor translator that produces
    the shape SchemaDiff expects.
 2. **Per-engine integration tests.** Extend
@@ -1197,7 +1197,7 @@ since it's pure hygiene work.
 4. **Read-shape normalization.** Pull array-wrapping logic into
    `_arrayResult` on both bridges; audit consumers.
 5. **Docker-driven lab smoke.** New
-   `Persistence_Lab_Docker_Smoke_tests.js` — opt-in via `SMOKE_DOCKER=1`.
+   `Persistence_Lab_Docker_Smoke_tests.js` - opt-in via `SMOKE_DOCKER=1`.
    Skip cleanly when Docker isn't reachable. Run against SQLite +
    MySQL + Postgres via the lab's existing engine spawning.
 6. **Legacy beacon deprecation labels.** `(legacy)` suffix in
@@ -1211,7 +1211,7 @@ since it's pure hygiene work.
 - **Real session-user `RemoteUser` threading.** Today's bridges send
   the synthetic `'ultravisor-system'`. Wiring the originating session
   user through the
-  `/Ultravisor/Persistence/*` → bridge → MeadowProxy audit path
+  `/Ultravisor/Persistence/*` -> bridge -> MeadowProxy audit path
   requires threading a context arg through the bridge dispatch API
   (currently fire-and-forget). Lands when audit-log fidelity becomes a
   customer-facing requirement.
@@ -1235,37 +1235,37 @@ since it's pure hygiene work.
 ## Files this work touches (reference)
 
 ### retold-databeacon
-- `source/services/DataBeacon-BeaconProvider.js` — register the
+- `source/services/DataBeacon-BeaconProvider.js` - register the
   `DataBeaconSchema` capability alongside the existing three.
-- `source/services/DataBeacon-SchemaManager.js` — Session 4 reshapes
+- `source/services/DataBeacon-SchemaManager.js` - Session 4 reshapes
   the EnsureSchema body around `meadow-migrationmanager`'s
   `SchemaIntrospector` + `SchemaDiff` + `MigrationGenerator` +
   `SchemaDeployer` services. The Session 2 inline descriptor translator
   stays as a thin adapter; the SQLite-only `_alterTablesIfChanged`
   body goes away.
-- `source/services/DataBeacon-MeadowProxyProvider.js` — accept a
+- `source/services/DataBeacon-MeadowProxyProvider.js` - accept a
   `PathAllowlist` config update at runtime.
-- `package.json` — Session 4 adds `meadow-migrationmanager` as a runtime
+- `package.json` - Session 4 adds `meadow-migrationmanager` as a runtime
   dep. `stricture` is already present (Session 1).
 
 ### ultravisor
-- `source/persistence/UltravisorPersistenceSchema.json` (new) —
+- `source/persistence/UltravisorPersistenceSchema.json` (new) -
   the schema source-of-truth.
-- `source/services/Ultravisor-QueuePersistenceBridge.cjs` —
+- `source/services/Ultravisor-QueuePersistenceBridge.cjs` -
   add `_dispatchViaMeadowProxy`, schema-bootstrap state machine.
-- `source/services/Ultravisor-ManifestStoreBridge.cjs` — same.
-- `source/services/Ultravisor-Beacon-Coordinator.cjs` — already calls
+- `source/services/Ultravisor-ManifestStoreBridge.cjs` - same.
+- `source/services/Ultravisor-Beacon-Coordinator.cjs` - already calls
   `_notifyPersistenceBridgesOnConnect` from bootstrap-flush; the bridges'
   internal logic just grows new branches. No coordinator changes expected.
 
 ### ultravisor-lab
-- `source/services/Service-UltravisorManager.js` — add `IDPersistenceBeacon`
+- `source/services/Service-UltravisorManager.js` - add `IDPersistenceBeacon`
   field to the row schema + getter/setter.
-- `source/web_server/routes/Lab-Api-Ultravisor.js` — assignment endpoint.
-- `source/browser_bundle/views/PictView-Lab-Ultravisor.js` — picker UI.
-- `source/browser_bundle/Lab-Browser-Application.js` —
+- `source/web_server/routes/Lab-Api-Ultravisor.js` - assignment endpoint.
+- `source/browser_bundle/views/PictView-Lab-Ultravisor.js` - picker UI.
+- `source/browser_bundle/Lab-Browser-Application.js` -
   `setPersistenceBeacon(pUvID, pBeaconID)` action.
-- `source/browser_bundle/providers/PictRouter-Lab-Configuration.json` —
+- `source/browser_bundle/providers/PictRouter-Lab-Configuration.json` -
   route for the picker change.
 
 ## Open questions for future sessions
@@ -1274,7 +1274,7 @@ since it's pure hygiene work.
    allowlist as a constructor option. To update it at runtime we either
    (a) restart the beacon, or (b) add a new `DataBeaconManagement.UpdateConfig`
    action that the BeaconProvider forwards into the MeadowProxy options.
-   Probably (b) — but flag this for the implementer.
+   Probably (b) - but flag this for the implementer.
 
 2. **Shared persistence database vs separate.** When multiple UVs assign
    the same databeacon, do their tables collide? Right now the schema uses
@@ -1282,7 +1282,7 @@ since it's pure hygiene work.
    wrong if UVs are supposed to be isolated. Two options:
    - Per-UV table prefix (e.g. `UV_<UltravisorInstanceHash>_QueueWorkItem`).
    - Add a `UltravisorInstanceID` column on every row.
-   Decision deferred — easier to make once we're closer to multi-UV
+   Decision deferred - easier to make once we're closer to multi-UV
    deployments. For now: single-UV mode only.
 
 3. **Read shape on `getEvents` / `listWorkItems`.** Meadow's bulk-read REST
@@ -1299,16 +1299,16 @@ since it's pure hygiene work.
    we can write `SELECT ... FROM UVQueueWorkItem JOIN UVManifest ...` for
    things like "show me all events for runs of operation X". The current
    bridges expose only single-table operations. A future capability could
-   add `MeadowProxy.Query` (raw SQL) or `DataBeaconManagement.Join` — but
+   add `MeadowProxy.Query` (raw SQL) or `DataBeaconManagement.Join` - but
    that's a feature, not a refactor item.
 
 6. **Auth between ultravisor and the assigned databeacon.** Partially
    addressed in Session 3: the bridges now thread a synthetic
    `'ultravisor-system'` value through `RemoteUser` on every dispatched
    `MeadowProxy.Request`, surfacing in MeadowProxy's audit trail. The
-   real session-user pass-through (Secure-mode operator → UV
-   `/Ultravisor/Persistence/*` → bridge → databeacon audit log) is still
-   deferred — `_resolveRemoteUser()` is the single hook to wire it
+   real session-user pass-through (Secure-mode operator -> UV
+   `/Ultravisor/Persistence/*` -> bridge -> databeacon audit log) is still
+   deferred - `_resolveRemoteUser()` is the single hook to wire it
    through once the UV API server starts threading the resolved
    session user into bridge dispatches.
 
@@ -1317,7 +1317,7 @@ since it's pure hygiene work.
 - **bootstrap-flush.** The mechanism (already shipped) that replays locally-
   buffered writes into a freshly-connected persistence beacon. See the
   per-bridge `_FlushHWMs` state and `<DataPath>/persistence-bridge-hwm.json`.
-- **HWM.** High-water mark — the timestamp of the most recent item
+- **HWM.** High-water mark - the timestamp of the most recent item
   successfully pushed to a particular beacon. Per-beacon, persisted to disk.
 - **MeadowProxy.** Capability on retold-databeacon that proxies HTTP requests
   to its localhost meadow REST API. The mesh-callable equivalent of "make
