@@ -1,0 +1,12 @@
+sequenceDiagram
+    participant OG as Operation Graph
+    participant BC as BeaconCoordinator<br/>(server-side)
+    participant B as Beacon<br/>(remote)
+    OG->>BC: beacon-dispatch (enqueue)
+    Note left of OG: Returns WaitingForInput<br/>(graph paused)
+    B->>BC: poll loop
+    BC->>B: assign work item
+    B->>B: execute locally
+    B->>BC: report result
+    BC->>OG: resumeOperation()
+    Note left of OG: Graph continues

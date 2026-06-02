@@ -1,0 +1,18 @@
+sequenceDiagram
+    participant OC as orator-conversion
+    participant UV as Ultravisor
+    participant RR as retold-remote
+
+    OC->>UV: POST /Beacon/Register (BindAddresses: [{IP: "127.0.0.1", Port: 8765}])
+    UV->>UV: registerBeacon() stores BindAddresses
+    UV->>UV: onBeaconRegistered("bcn-orator-conversion-...")
+
+    Note over UV: Probe orator-conversion -> retold-remote
+    UV->>RR: HTTP GET http://127.0.0.1:7827/
+    RR-->>UV: 200 OK (any response = reachable)
+    UV->>UV: Matrix: orator-conversion->retold-remote = REACHABLE (12ms)
+
+    Note over UV: Probe retold-remote -> orator-conversion
+    UV->>OC: HTTP GET http://127.0.0.1:8765/
+    OC-->>UV: 200 OK
+    UV->>UV: Matrix: retold-remote->orator-conversion = REACHABLE (8ms)

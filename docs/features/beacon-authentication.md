@@ -10,22 +10,8 @@ Ultravisor uses Orator Authentication to manage beacon identity and connectivity
 
 Rather than a custom identity scheme, beacons use Orator's cookie-based session system:
 
-```mermaid
-sequenceDiagram
-    participant BC as Beacon Client
-    participant UV as Ultravisor Server
-    BC->>UV: POST /1.0/Authenticate<br/>{ UserName: "gpu-worker-1" }
-    Note right of UV: Create session
-    UV-->>BC: 200 { LoggedIn: true }<br/>Set-Cookie: SessionID
-    BC->>UV: POST /Beacon/Register<br/>Cookie: SessionID<br/>{ Capabilities, MaxConcurrent, Tags }
-    Note right of UV: Create/reclaim beacon record<br/>Associate with session
-    UV-->>BC: 200 { BeaconID: "bcn-..." }
-    loop Every 5s
-        BC->>UV: POST /Beacon/Work/Poll<br/>Cookie: SessionID
-        Note right of UV: Validate session
-        UV-->>BC: 200 { WorkItem } or null
-    end
-```
+<!-- bespoke diagram: edit diagrams/session-based-identity.mmd or .hints.json, then: npx pict-renderer-graph build modules/apps/ultravisor/docs/features -->
+![Session-Based Identity](diagrams/session-based-identity.svg)
 
 ### Separation of Concerns
 

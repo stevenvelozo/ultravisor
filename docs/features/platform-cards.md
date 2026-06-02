@@ -76,11 +76,8 @@ When a beacon registers with action schemas, Ultravisor auto-generates typed tas
 
 **`beacon-mediaconversion-imageresize`**
 
-```mermaid
-flowchart LR
-    A[Action Schema<br/>from beacon registration] --> B[_registerCatalogTaskTypes]
-    B --> C["Task type: beacon-mediaconversion-imageresize<br/>Settings: InputFile, OutputFile, Width, Height, Format, Quality<br/>Execute: beaconDispatch -> enqueueWorkItem -> WaitingForInput"]
-```
+<!-- bespoke diagram: edit diagrams/auto-generated-beacon-cards.mmd or .hints.json, then: npx pict-renderer-graph build modules/apps/ultravisor/docs/features -->
+![Auto-Generated Beacon Cards](diagrams/auto-generated-beacon-cards.svg)
 
 The naming convention is: `beacon-{capability}-{action}` (lowercased, non-alphanumeric replaced with hyphens).
 
@@ -118,28 +115,5 @@ The naming convention is: `beacon-{capability}-{action}` (lowercased, non-alphan
 
 When a beacon processes a work item that produces a file output, the result is transferred back to Ultravisor's staging directory as raw binary -- no base64 encoding.
 
-```mermaid
-sequenceDiagram
-    participant Beacon as Beacon Worker
-    participant Exec as Beacon Executor
-    participant Client as Beacon Client
-    participant UV as Ultravisor
-
-    Beacon->>Exec: execute(workItem)
-    Exec->>Exec: Download source file
-    Exec->>Beacon: provider.execute(action, workItem, context)
-    Beacon-->>Exec: { Outputs: { Result: outputPath }, Log }
-    Exec->>Exec: _collectOutputFiles -> set OutputFilePath
-
-    alt HTTP Transport
-        Client->>UV: POST /Beacon/Work/{hash}/Upload<br/>Content-Type: application/octet-stream<br/>X-Output-Filename: thumbnail.jpg<br/>Body: raw bytes
-        UV->>UV: recordResultUpload -> write to operation staging
-    else WebSocket Transport
-        Client->>UV: JSON: { Action: "WorkResultUpload", WorkItemHash, OutputFilename, OutputSize }
-        Client->>UV: Binary frame: raw file bytes
-        UV->>UV: recordResultUpload -> write to operation staging
-    end
-
-    Client->>UV: JSON completion: { Outputs, Log }
-    UV->>UV: resumeOperation -> send-result finds file in staging
-```
+<!-- bespoke diagram: edit diagrams/binary-output-return.mmd or .hints.json, then: npx pict-renderer-graph build modules/apps/ultravisor/docs/features -->
+![Binary Output Return](diagrams/binary-output-return.svg)

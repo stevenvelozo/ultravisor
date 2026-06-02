@@ -4,33 +4,8 @@ This case study shows how retold-remote (a media browser) and orator-conversion 
 
 ## System Overview
 
-```mermaid
-graph TB
-    subgraph "retold-remote (NAS)"
-        RR[retold-remote server]
-        FS[(Media Files<br/>/Users/steven)]
-        RR --- FS
-    end
-
-    subgraph "Ultravisor (Coordinator)"
-        UV[Ultravisor API Server]
-        OPS[(Operation Graphs)]
-        RM[Reachability Matrix]
-        UV --- OPS
-        UV --- RM
-    end
-
-    subgraph "orator-conversion (Worker)"
-        OC[orator-conversion beacon]
-        SHARP[Sharp / ffmpeg / pdftoppm]
-        OC --- SHARP
-    end
-
-    RR -->|"triggerOperation('rr-image-thumbnail', params)"| UV
-    UV -->|"Enqueue MediaConversion/ImageResize"| OC
-    OC -->|"Upload result binary"| UV
-    UV -->|"Stream binary response"| RR
-```
+<!-- bespoke diagram: edit diagrams/system-overview.mmd or .hints.json, then: npx pict-renderer-graph build modules/apps/ultravisor/docs/features -->
+![System Overview](diagrams/system-overview.svg)
 
 ## How It Connects
 
@@ -51,23 +26,8 @@ npm start -- -u -l
 
 ### 2. Registration
 
-```mermaid
-sequenceDiagram
-    participant RR as retold-remote
-    participant UV as Ultravisor
-    participant OC as orator-conversion
-
-    OC->>UV: POST /Beacon/Register<br/>{Name: "orator-conversion", Capabilities: ["MediaConversion"],<br/>ActionSchemas: [ImageResize, VideoThumbnail, ...],<br/>BindAddresses: [{IP: "127.0.0.1", Port: 8765}]}
-    UV->>UV: Register beacon, auto-generate 14 task types
-    UV->>UV: Probe reachability (no other beacons yet)
-    UV-->>OC: {BeaconID: "bcn-orator-conversion-..."}
-
-    RR->>UV: WebSocket: BeaconRegister<br/>{Name: "retold-remote", Contexts: {File: {BaseURL: "http://localhost:7827/content/"}},<br/>BindAddresses: [{IP: "127.0.0.1", Port: 7827}],<br/>Operations: [rr-image-thumbnail, rr-video-thumbnail, ...]}
-    UV->>UV: Register beacon, store 9 operation definitions
-    UV->>UV: Probe: retold-remote <-> orator-conversion = REACHABLE
-
-    Note over UV: Both beacons registered.<br/>14 beacon task types available.<br/>9 operations from retold-remote.<br/>Reachability: all pairs reachable.
-```
+<!-- bespoke diagram: edit diagrams/2-registration.mmd or .hints.json, then: npx pict-renderer-graph build modules/apps/ultravisor/docs/features -->
+![2. Registration](diagrams/2-registration.svg)
 
 ### 3. Auto-Generated Operations
 
@@ -87,19 +47,8 @@ retold-remote registers 9 operation definitions during beacon connection. These 
 
 Each pipeline follows the same pattern:
 
-```mermaid
-graph LR
-    S[Start] --> R[resolve-address]
-    R -->|URL, Filename| T[file-transfer]
-    T -->|LocalPath| P[beacon-mediaconversion-*]
-    P -->|OutputFile| SR[send-result]
-    SR --> E[End]
-
-    R -.->|Error| E
-    T -.->|Error| E
-    P -.->|Error| E
-    SR -.->|Error| E
-```
+<!-- bespoke diagram: edit diagrams/3-auto-generated-operations.mmd or .hints.json, then: npx pict-renderer-graph build modules/apps/ultravisor/docs/features -->
+![3. Auto-Generated Operations](diagrams/3-auto-generated-operations.svg)
 
 State connections wire outputs from earlier nodes into inputs of later nodes:
 - `resolve.URL` -> `transfer.SourceURL`
@@ -110,44 +59,8 @@ State connections wire outputs from earlier nodes into inputs of later nodes:
 
 When a user navigates to a folder in retold-remote, the browser requests thumbnails. Here's the complete flow:
 
-```mermaid
-sequenceDiagram
-    participant Browser
-    participant RR as retold-remote
-    participant UV as Ultravisor
-    participant OC as orator-conversion
-
-    Browser->>RR: GET /content/preview/photo.jpg?w=400&h=300
-
-    Note over RR: Check cache -> miss
-
-    RR->>UV: POST /Operation/rr-image-thumbnail/Trigger<br/>{Parameters: {ImageAddress: ">retold-remote/File/photo.jpg",<br/>Width: 400, Height: 300, Format: "webp", Quality: 80}}
-
-    Note over UV: Start operation (sync mode)
-
-    UV->>UV: resolve-address<br/>>retold-remote/File/photo.jpg<br/>-> http://localhost:7827/content/photo.jpg
-
-    UV->>RR: HTTP GET http://localhost:7827/content/photo.jpg
-    RR-->>UV: 200 OK (image bytes)
-    UV->>UV: file-transfer saves to staging<br/>/staging/rr-image-thumbnail-.../photo.jpg
-
-    UV->>UV: beacon-mediaconversion-imageresize<br/>enqueue work item, WaitingForInput
-
-    OC->>UV: POST /Beacon/Work/Poll
-    UV-->>OC: WorkItem: {Action: "ImageResize",<br/>Settings: {InputFile: "/.../photo.jpg",<br/>OutputFile: "/.../thumbnail.jpg", Width: 400, ...}}
-
-    OC->>OC: Sharp: resize photo.jpg -> thumbnail.jpg
-    OC->>UV: POST /Beacon/Work/{hash}/Upload<br/>(raw binary: thumbnail.jpg)
-    UV->>UV: Write to operation staging
-
-    OC->>UV: POST /Beacon/Work/{hash}/Complete
-    UV->>UV: resumeOperation -> send-result<br/>finds thumbnail.jpg in staging
-
-    UV-->>RR: 200 OK<br/>Content-Type: application/octet-stream<br/>Body: (thumbnail bytes)
-
-    RR->>RR: Cache the thumbnail
-    RR-->>Browser: 200 OK (thumbnail image)
-```
+<!-- bespoke diagram: edit diagrams/end-to-end-image-thumbnail-generation.mmd or .hints.json, then: npx pict-renderer-graph build modules/apps/ultravisor/docs/features -->
+![End-to-End: Image Thumbnail Generation](diagrams/end-to-end-image-thumbnail-generation.svg)
 
 ### Timing
 
@@ -192,17 +105,8 @@ orator-conversion handles arbitrarily large images (including 256MB+ scans):
 
 When a beacon reports a non-zero exit code (e.g., Sharp can't process a corrupt file), the beacon client reports it as an error. The operation graph's Error event fires, routing to the End node. The trigger returns a JSON response with `Success: false`, and retold-remote falls back to local processing.
 
-```mermaid
-flowchart TD
-    A[Beacon processes work item] --> B{ExitCode == 0?}
-    B -->|Yes| C[Upload output file]
-    C --> D[Report completion]
-    D --> E[Operation resumes -> send-result -> binary stream]
-    B -->|No| F[Report error]
-    F --> G[Operation resumes -> Error event -> End node]
-    G --> H[Trigger returns JSON with Success: false]
-    H --> I[retold-remote falls back to local processing]
-```
+<!-- bespoke diagram: edit diagrams/error-handling.mmd or .hints.json, then: npx pict-renderer-graph build modules/apps/ultravisor/docs/features -->
+![Error Handling](diagrams/error-handling.svg)
 
 ## Logging
 

@@ -1,0 +1,9 @@
+flowchart TD
+    A[Beacon processes work item] --> B{ExitCode == 0?}
+    B -->|Yes| C[Upload output file]
+    C --> D[Report completion]
+    D --> E[Operation resumes -> send-result -> binary stream]
+    B -->|No| F[Report error]
+    F --> G[Operation resumes -> Error event -> End node]
+    G --> H[Trigger returns JSON with Success: false]
+    H --> I[retold-remote falls back to local processing]

@@ -1,0 +1,13 @@
+graph TD
+    subgraph "Strategy: local"
+        A1[Beacon A] -->|"Same host, shared filesystem"| A2[Beacon A]
+    end
+
+    subgraph "Strategy: direct"
+        B1[Beacon A] -->|"HTTP GET to B's IP:port"| B2[Beacon B]
+    end
+
+    subgraph "Strategy: proxy"
+        C1[Beacon A] -->|"1. Download from source"| C3[Ultravisor]
+        C3 -->|"2. Upload to destination"| C2[Beacon B]
+    end

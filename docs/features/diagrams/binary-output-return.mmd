@@ -1,0 +1,23 @@
+sequenceDiagram
+    participant Beacon as Beacon Worker
+    participant Exec as Beacon Executor
+    participant Client as Beacon Client
+    participant UV as Ultravisor
+
+    Beacon->>Exec: execute(workItem)
+    Exec->>Exec: Download source file
+    Exec->>Beacon: provider.execute(action, workItem, context)
+    Beacon-->>Exec: { Outputs: { Result: outputPath }, Log }
+    Exec->>Exec: _collectOutputFiles -> set OutputFilePath
+
+    alt HTTP Transport
+        Client->>UV: POST /Beacon/Work/{hash}/Upload<br/>Content-Type: application/octet-stream<br/>X-Output-Filename: thumbnail.jpg<br/>Body: raw bytes
+        UV->>UV: recordResultUpload -> write to operation staging
+    else WebSocket Transport
+        Client->>UV: JSON: { Action: "WorkResultUpload", WorkItemHash, OutputFilename, OutputSize }
+        Client->>UV: Binary frame: raw file bytes
+        UV->>UV: recordResultUpload -> write to operation staging
+    end
+
+    Client->>UV: JSON completion: { Outputs, Log }
+    UV->>UV: resumeOperation -> send-result finds file in staging

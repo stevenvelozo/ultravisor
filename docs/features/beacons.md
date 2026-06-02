@@ -20,20 +20,8 @@ a Beacon picks up the work, executes it remotely, and reports results.
 
 The full cycle looks like this:
 
-```mermaid
-sequenceDiagram
-    participant OG as Operation Graph
-    participant BC as BeaconCoordinator<br/>(server-side)
-    participant B as Beacon<br/>(remote)
-    OG->>BC: beacon-dispatch (enqueue)
-    Note left of OG: Returns WaitingForInput<br/>(graph paused)
-    B->>BC: poll loop
-    BC->>B: assign work item
-    B->>B: execute locally
-    B->>BC: report result
-    BC->>OG: resumeOperation()
-    Note left of OG: Graph continues
-```
+<!-- bespoke diagram: edit diagrams/architecture.mmd or .hints.json, then: npx pict-renderer-graph build modules/apps/ultravisor/docs/features -->
+![Architecture](diagrams/architecture.svg)
 
 ### Transport Agnostic
 

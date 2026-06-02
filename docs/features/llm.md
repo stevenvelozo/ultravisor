@@ -23,22 +23,8 @@ The LLM functionality has two layers:
    LLM Beacon, manage conversation history, and route results back into
    the operation state.
 
-```mermaid
-sequenceDiagram
-    participant OG as Operation Graph
-    participant BC as BeaconCoordinator
-    participant LB as LLM Beacon
-    participant API as LLM API<br/>(OpenAI / Anthropic / Ollama)
-    OG->>BC: llm-chat-completion (enqueue)<br/>builds messages, manages history
-    Note left of OG: WaitingForInput...
-    LB->>BC: poll
-    BC->>LB: assign work
-    LB->>API: HTTP call
-    API-->>LB: response
-    LB->>BC: result
-    BC->>OG: resumeOperation()
-    Note left of OG: Updates history,<br/>writes to state
-```
+<!-- bespoke diagram: edit diagrams/how-it-works.mmd or .hints.json, then: npx pict-renderer-graph build modules/apps/ultravisor/docs/features -->
+![How It Works](diagrams/how-it-works.svg)
 
 ## Supported Backends
 

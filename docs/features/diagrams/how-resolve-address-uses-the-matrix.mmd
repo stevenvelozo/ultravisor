@@ -1,0 +1,6 @@
+flowchart TD
+    A[resolve-address receives Address + RequestingBeaconID] --> B{Same beacon?}
+    B -->|Yes| C["Strategy: local<br/>URL: context BaseURL"]
+    B -->|No| D{Check matrix:<br/>requesting -> source}
+    D -->|reachable| E["Strategy: direct<br/>URL: source BindAddress + context path"]
+    D -->|unreachable / untested| F["Strategy: proxy<br/>URL: Ultravisor proxy endpoint"]

@@ -1,0 +1,15 @@
+sequenceDiagram
+    participant RR as retold-remote
+    participant UV as Ultravisor
+    participant OC as orator-conversion
+
+    OC->>UV: POST /Beacon/Register<br/>{Name: "orator-conversion", Capabilities: ["MediaConversion"],<br/>ActionSchemas: [ImageResize, VideoThumbnail, ...],<br/>BindAddresses: [{IP: "127.0.0.1", Port: 8765}]}
+    UV->>UV: Register beacon, auto-generate 14 task types
+    UV->>UV: Probe reachability (no other beacons yet)
+    UV-->>OC: {BeaconID: "bcn-orator-conversion-..."}
+
+    RR->>UV: WebSocket: BeaconRegister<br/>{Name: "retold-remote", Contexts: {File: {BaseURL: "http://localhost:7827/content/"}},<br/>BindAddresses: [{IP: "127.0.0.1", Port: 7827}],<br/>Operations: [rr-image-thumbnail, rr-video-thumbnail, ...]}
+    UV->>UV: Register beacon, store 9 operation definitions
+    UV->>UV: Probe: retold-remote <-> orator-conversion = REACHABLE
+
+    Note over UV: Both beacons registered.<br/>14 beacon task types available.<br/>9 operations from retold-remote.<br/>Reachability: all pairs reachable.

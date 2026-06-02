@@ -1,0 +1,11 @@
+graph LR
+    S[Start] --> R[resolve-address]
+    R -->|URL, Filename| T[file-transfer]
+    T -->|LocalPath| P[beacon-mediaconversion-*]
+    P -->|OutputFile| SR[send-result]
+    SR --> E[End]
+
+    R -.->|Error| E
+    T -.->|Error| E
+    P -.->|Error| E
+    SR -.->|Error| E

@@ -25,28 +25,8 @@ Ultravisor's universal addressing system provides a single, human-readable schem
 
 The `resolve-address` platform card resolves a universal address to a concrete URL that downstream cards (like `file-transfer`) can use to fetch the resource.
 
-```mermaid
-sequenceDiagram
-    participant Op as Operation Graph
-    participant RA as resolve-address Card
-    participant BC as BeaconCoordinator
-    participant RM as ReachabilityMatrix
-
-    Op->>RA: Address: >retold-remote/File/photo.jpg
-    RA->>BC: resolveUniversalAddress(address)
-    BC->>BC: Parse: beacon="retold-remote", context="File", path="photo.jpg"
-    BC->>BC: findBeaconByName("retold-remote")
-    BC->>BC: Look up Context "File" -> BaseURL
-    BC-->>RA: { URL, BeaconID, BeaconName, Context, Path, Filename }
-
-    alt RequestingBeaconID provided
-        RA->>RM: resolveStrategy(sourceBeaconID, requestingBeaconID)
-        RM-->>RA: { Strategy: "direct"|"proxy"|"local", DirectURL }
-        RA->>RA: Build strategy-specific URL
-    end
-
-    RA-->>Op: URL, Strategy, DirectURL, ProxyURL, Filename, etc.
-```
+<!-- bespoke diagram: edit diagrams/how-resolution-works.mmd or .hints.json, then: npx pict-renderer-graph build modules/apps/ultravisor/docs/features -->
+![How Resolution Works](diagrams/how-resolution-works.svg)
 
 ### Resolution Steps
 
@@ -81,14 +61,8 @@ beacon.registerContext('File', {
 
 Operation pipelines use universal addresses as their primary input mechanism. When a caller triggers an operation, it passes addresses as parameters -- the operation graph handles resolution, transfer, processing, and result delivery automatically.
 
-```mermaid
-graph LR
-    A[Trigger] -->|"ImageAddress: >retold-remote/File/photo.jpg"| B[resolve-address]
-    B -->|URL| C[file-transfer]
-    C -->|LocalPath| D[beacon-mediaconversion-imageresize]
-    D -->|OutputFile| E[send-result]
-    E -->|Binary stream| F[Caller]
-```
+<!-- bespoke diagram: edit diagrams/operations-as-universal-data-locators.mmd or .hints.json, then: npx pict-renderer-graph build modules/apps/ultravisor/docs/features -->
+![Operations as Universal Data Locators](diagrams/operations-as-universal-data-locators.svg)
 
 This decouples the caller from knowing where files are or how to reach them. The address `>retold-remote/File/photo.jpg` works whether the beacon is on localhost, across a LAN, or behind a proxy -- the resolve-address card and reachability matrix handle the routing.
 

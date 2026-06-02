@@ -1,0 +1,3 @@
+flowchart LR
+    A[Action Schema<br/>from beacon registration] --> B[_registerCatalogTaskTypes]
+    B --> C["Task type: beacon-mediaconversion-imageresize<br/>Settings: InputFile, OutputFile, Width, Height, Format, Quality<br/>Execute: beaconDispatch -> enqueueWorkItem -> WaitingForInput"]

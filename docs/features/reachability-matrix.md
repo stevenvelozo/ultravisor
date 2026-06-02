@@ -14,21 +14,8 @@ The NAS can't reach the cloud VM directly, and vice versa. But both can reach Ul
 
 ## Transfer Strategies
 
-```mermaid
-graph TD
-    subgraph "Strategy: local"
-        A1[Beacon A] -->|"Same host, shared filesystem"| A2[Beacon A]
-    end
-
-    subgraph "Strategy: direct"
-        B1[Beacon A] -->|"HTTP GET to B's IP:port"| B2[Beacon B]
-    end
-
-    subgraph "Strategy: proxy"
-        C1[Beacon A] -->|"1. Download from source"| C3[Ultravisor]
-        C3 -->|"2. Upload to destination"| C2[Beacon B]
-    end
-```
+<!-- bespoke diagram: edit diagrams/transfer-strategies.mmd or .hints.json, then: npx pict-renderer-graph build modules/apps/ultravisor/docs/features -->
+![Transfer Strategies](diagrams/transfer-strategies.svg)
 
 | Strategy | When Used | Hops | Latency |
 |----------|-----------|------|---------|
@@ -40,26 +27,8 @@ graph TD
 
 When a beacon registers (or reconnects), the `UltravisorBeaconReachability` service probes connectivity between the new beacon and all existing online beacons.
 
-```mermaid
-sequenceDiagram
-    participant OC as orator-conversion
-    participant UV as Ultravisor
-    participant RR as retold-remote
-
-    OC->>UV: POST /Beacon/Register (BindAddresses: [{IP: "127.0.0.1", Port: 8765}])
-    UV->>UV: registerBeacon() stores BindAddresses
-    UV->>UV: onBeaconRegistered("bcn-orator-conversion-...")
-
-    Note over UV: Probe orator-conversion -> retold-remote
-    UV->>RR: HTTP GET http://127.0.0.1:7827/
-    RR-->>UV: 200 OK (any response = reachable)
-    UV->>UV: Matrix: orator-conversion->retold-remote = REACHABLE (12ms)
-
-    Note over UV: Probe retold-remote -> orator-conversion
-    UV->>OC: HTTP GET http://127.0.0.1:8765/
-    OC-->>UV: 200 OK
-    UV->>UV: Matrix: retold-remote->orator-conversion = REACHABLE (8ms)
-```
+<!-- bespoke diagram: edit diagrams/how-probing-works.mmd or .hints.json, then: npx pict-renderer-graph build modules/apps/ultravisor/docs/features -->
+![How Probing Works](diagrams/how-probing-works.svg)
 
 ### Probe Details
 
@@ -103,14 +72,8 @@ Probing is **directional** -- A reaching B doesn't guarantee B can reach A (asym
 
 When the resolve-address card receives a `RequestingBeaconID`, it consults the reachability service:
 
-```mermaid
-flowchart TD
-    A[resolve-address receives Address + RequestingBeaconID] --> B{Same beacon?}
-    B -->|Yes| C["Strategy: local<br/>URL: context BaseURL"]
-    B -->|No| D{Check matrix:<br/>requesting -> source}
-    D -->|reachable| E["Strategy: direct<br/>URL: source BindAddress + context path"]
-    D -->|unreachable / untested| F["Strategy: proxy<br/>URL: Ultravisor proxy endpoint"]
-```
+<!-- bespoke diagram: edit diagrams/how-resolve-address-uses-the-matrix.mmd or .hints.json, then: npx pict-renderer-graph build modules/apps/ultravisor/docs/features -->
+![How resolve-address Uses the Matrix](diagrams/how-resolve-address-uses-the-matrix.svg)
 
 For `direct` strategy, the resolve-address card builds a URL from the source beacon's BindAddress combined with the context's path:
 

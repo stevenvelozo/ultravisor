@@ -1,0 +1,25 @@
+graph TB
+    subgraph "retold-remote (NAS)"
+        RR[retold-remote server]
+        FS[(Media Files<br/>/Users/steven)]
+        RR --- FS
+    end
+
+    subgraph "Ultravisor (Coordinator)"
+        UV[Ultravisor API Server]
+        OPS[(Operation Graphs)]
+        RM[Reachability Matrix]
+        UV --- OPS
+        UV --- RM
+    end
+
+    subgraph "orator-conversion (Worker)"
+        OC[orator-conversion beacon]
+        SHARP[Sharp / ffmpeg / pdftoppm]
+        OC --- SHARP
+    end
+
+    RR -->|"triggerOperation('rr-image-thumbnail', params)"| UV
+    UV -->|"Enqueue MediaConversion/ImageResize"| OC
+    OC -->|"Upload result binary"| UV
+    UV -->|"Stream binary response"| RR

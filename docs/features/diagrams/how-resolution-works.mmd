@@ -1,0 +1,20 @@
+sequenceDiagram
+    participant Op as Operation Graph
+    participant RA as resolve-address Card
+    participant BC as BeaconCoordinator
+    participant RM as ReachabilityMatrix
+
+    Op->>RA: Address: >retold-remote/File/photo.jpg
+    RA->>BC: resolveUniversalAddress(address)
+    BC->>BC: Parse: beacon="retold-remote", context="File", path="photo.jpg"
+    BC->>BC: findBeaconByName("retold-remote")
+    BC->>BC: Look up Context "File" -> BaseURL
+    BC-->>RA: { URL, BeaconID, BeaconName, Context, Path, Filename }
+
+    alt RequestingBeaconID provided
+        RA->>RM: resolveStrategy(sourceBeaconID, requestingBeaconID)
+        RM-->>RA: { Strategy: "direct"|"proxy"|"local", DirectURL }
+        RA->>RA: Build strategy-specific URL
+    end
+
+    RA-->>Op: URL, Strategy, DirectURL, ProxyURL, Filename, etc.

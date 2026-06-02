@@ -1,0 +1,36 @@
+sequenceDiagram
+    participant Browser
+    participant RR as retold-remote
+    participant UV as Ultravisor
+    participant OC as orator-conversion
+
+    Browser->>RR: GET /content/preview/photo.jpg?w=400&h=300
+
+    Note over RR: Check cache -> miss
+
+    RR->>UV: POST /Operation/rr-image-thumbnail/Trigger<br/>{Parameters: {ImageAddress: ">retold-remote/File/photo.jpg",<br/>Width: 400, Height: 300, Format: "webp", Quality: 80}}
+
+    Note over UV: Start operation (sync mode)
+
+    UV->>UV: resolve-address<br/>>retold-remote/File/photo.jpg<br/>-> http://localhost:7827/content/photo.jpg
+
+    UV->>RR: HTTP GET http://localhost:7827/content/photo.jpg
+    RR-->>UV: 200 OK (image bytes)
+    UV->>UV: file-transfer saves to staging<br/>/staging/rr-image-thumbnail-.../photo.jpg
+
+    UV->>UV: beacon-mediaconversion-imageresize<br/>enqueue work item, WaitingForInput
+
+    OC->>UV: POST /Beacon/Work/Poll
+    UV-->>OC: WorkItem: {Action: "ImageResize",<br/>Settings: {InputFile: "/.../photo.jpg",<br/>OutputFile: "/.../thumbnail.jpg", Width: 400, ...}}
+
+    OC->>OC: Sharp: resize photo.jpg -> thumbnail.jpg
+    OC->>UV: POST /Beacon/Work/{hash}/Upload<br/>(raw binary: thumbnail.jpg)
+    UV->>UV: Write to operation staging
+
+    OC->>UV: POST /Beacon/Work/{hash}/Complete
+    UV->>UV: resumeOperation -> send-result<br/>finds thumbnail.jpg in staging
+
+    UV-->>RR: 200 OK<br/>Content-Type: application/octet-stream<br/>Body: (thumbnail bytes)
+
+    RR->>RR: Cache the thumbnail
+    RR-->>Browser: 200 OK (thumbnail image)
