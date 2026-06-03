@@ -4290,6 +4290,49 @@ class UltravisorAPIServer extends libPictService
 	// ====================================================================
 
 	/**
+	 * Whether a WebSocket connection may subscribe to consumer event streams
+	 * (execution + queue).  Those streams expose operational data, so in
+	 * secured (non-promiscuous) mode they require a valid session — captured
+	 * from the cookie/token on the HTTP upgrade (pWebSocket._Authenticated).
+	 * In promiscuous mode every connection may subscribe (unchanged).
+	 *
+	 * This is the WebSocket half of the HTTP auth gate, keyed off the same
+	 * _isSecuredMode().  Beacons are unaffected: they never send
+	 * Subscribe/QueueSubscribe — they authenticate at the frame level
+	 * (BeaconRegister + join-secret admission), which this does not touch.
+	 */
+	_wsConsumerAuthorized(pWebSocket)
+	{
+		if (!this._isSecuredMode())
+		{
+			return true;
+		}
+		return !!(pWebSocket && pWebSocket._Authenticated);
+	}
+
+	/**
+	 * Reject an unauthenticated consumer subscription: emit an auth-required
+	 * control frame on the requested stream ('execution' | 'queue'), then
+	 * close the socket with 1008 (policy violation) — the WS analogue of the
+	 * HTTP gate's 401.
+	 */
+	_rejectWSUnauthenticatedSubscription(pWebSocket, pStream)
+	{
+		try
+		{
+			pWebSocket.send(JSON.stringify(
+			{
+				EventType: (pStream === 'queue') ? 'queue.auth_required' : 'execution.auth_required',
+				Error: 'Authentication required.',
+				LoggedIn: false
+			}));
+		}
+		catch (pErr) { /* socket already dying */ }
+		try { pWebSocket.close(1008, 'Authentication required'); }
+		catch (pErr) { /* ignore */ }
+	}
+
+	/**
 	 * Initialize a WebSocket server on the same HTTP server used by Restify.
 	 * Clients connect and subscribe to a RunHash to receive real-time
 	 * execution events (TaskStart, TaskComplete, TaskError, ExecutionComplete).
@@ -4348,6 +4391,17 @@ class UltravisorAPIServer extends libPictService
 						}
 						catch (pErr) { /* best-effort — never block the upgrade on auth lookup */ }
 						pWebSocket._UpgradeSessionID = (tmpUpgradeSession && tmpUpgradeSession.SessionID) || null;
+						// Pin whether a *valid* session (real cookie/token, not
+						// anonymous) was presented on the upgrade.  The WS
+						// consumer gate (_wsConsumerAuthorized) uses this to
+						// require credentials for event-stream subscriptions when
+						// the UV is secured.  We never block the upgrade itself —
+						// beacons authenticate at the frame level (BeaconRegister
+						// + join-secret admission), so gating must be per-frame.
+						pWebSocket._Authenticated = !!(tmpUpgradeSession
+							&& tmpUpgradeSession.SessionID
+							&& tmpUpgradeSession.SessionID !== 'anonymous'
+							&& !tmpUpgradeSession.Anonymous);
 						this._WebSocketServer.emit('connection', pWebSocket, pRequest);
 					}.bind(this));
 			}.bind(this));
@@ -4393,6 +4447,14 @@ class UltravisorAPIServer extends libPictService
 
 						if (tmpData.Action === 'Subscribe' && tmpData.RunHash)
 						{
+							// Auth gate: in secured mode an execution-event
+							// subscription requires a valid session on the
+							// connection.  Beacons never send this frame.
+							if (!this._wsConsumerAuthorized(pWebSocket))
+							{
+								this._rejectWSUnauthenticatedSubscription(pWebSocket, 'execution');
+								return;
+							}
 							// --- Execution event subscription (web UI) ---
 							//
 							// Mirrors the QueueSubscribe resync protocol:
@@ -4487,6 +4549,14 @@ class UltravisorAPIServer extends libPictService
 						}
 						else if (tmpData.Action === 'QueueSubscribe')
 						{
+							// Auth gate: in secured mode a queue-event
+							// subscription requires a valid session on the
+							// connection.  Beacons never send this frame.
+							if (!this._wsConsumerAuthorized(pWebSocket))
+							{
+								this._rejectWSUnauthenticatedSubscription(pWebSocket, 'queue');
+								return;
+							}
 							// QueueSubscribe doubles as a resync request:
 							// callers that pass LastEventGUID get a
 							// replay block (replay_begin / events after

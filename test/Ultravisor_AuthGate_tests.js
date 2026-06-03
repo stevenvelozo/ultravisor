@@ -360,7 +360,8 @@ function _buildApiSelf(pBridge, pSession, pNonPromiscuous)
 			return (pName === 'UltravisorAuthBeaconBridge') ? pBridge : null;
 		}
 	};
-	['_anonymousSession', '_isSecuredMode', '_resolveSession', '_isAuthExemptRoute', '_enforceAuthentication'].forEach(
+	['_anonymousSession', '_isSecuredMode', '_resolveSession', '_isAuthExemptRoute', '_enforceAuthentication',
+		'_wsConsumerAuthorized', '_rejectWSUnauthenticatedSubscription'].forEach(
 		function (pMethod) { tmpSelf[pMethod] = libAPIServer.prototype[pMethod].bind(tmpSelf); });
 	return tmpSelf;
 }
@@ -566,6 +567,105 @@ suite
 						let tmp = _buildHarness([]);
 						let tmpSelf = _buildApiSelf(tmp.bridge, null, false);
 						Expect(tmpSelf._isSecuredMode()).to.equal(false);
+					}
+				);
+			}
+		);
+	}
+);
+
+/**
+ * WebSocket consumer-subscription gate.  WS upgrades bypass the HTTP gate, so
+ * event-stream subscriptions (Subscribe / QueueSubscribe) are gated at the
+ * frame level by _wsConsumerAuthorized(), keyed off the same _isSecuredMode().
+ * Beacons authenticate at the frame level (BeaconRegister) and never send a
+ * subscription frame, so they are unaffected.
+ */
+function _mockWS()
+{
+	let tmpWS =
+	{
+		_Authenticated: false,
+		sent: [],
+		closed: null,
+		send: function (pStr) { this.sent.push(JSON.parse(pStr)); },
+		close: function (pCode, pReason) { this.closed = { code: pCode, reason: pReason }; }
+	};
+	return tmpWS;
+}
+
+suite
+(
+	'Ultravisor Auth Gate — WebSocket subscriptions',
+	function ()
+	{
+		suite
+		(
+			'Secured mode',
+			function ()
+			{
+				test
+				(
+					'A connection that authenticated on upgrade MAY subscribe',
+					function ()
+					{
+						let tmpSelf = _buildApiSelf(_buildHarness([]).bridge, null, true);
+						Expect(tmpSelf._wsConsumerAuthorized({ _Authenticated: true })).to.equal(true);
+					}
+				);
+
+				test
+				(
+					'A connection with no valid session MAY NOT subscribe',
+					function ()
+					{
+						let tmpSelf = _buildApiSelf(_buildHarness([]).bridge, null, true);
+						Expect(tmpSelf._wsConsumerAuthorized({ _Authenticated: false })).to.equal(false);
+					}
+				);
+
+				test
+				(
+					'Rejection emits execution.auth_required and closes with 1008',
+					function ()
+					{
+						let tmpSelf = _buildApiSelf(_buildHarness([]).bridge, null, true);
+						let tmpWS = _mockWS();
+						tmpSelf._rejectWSUnauthenticatedSubscription(tmpWS, 'execution');
+						Expect(tmpWS.sent.length).to.equal(1);
+						Expect(tmpWS.sent[0].EventType).to.equal('execution.auth_required');
+						Expect(tmpWS.sent[0].LoggedIn).to.equal(false);
+						Expect(tmpWS.closed.code).to.equal(1008);
+					}
+				);
+
+				test
+				(
+					'Queue-stream rejection emits queue.auth_required',
+					function ()
+					{
+						let tmpSelf = _buildApiSelf(_buildHarness([]).bridge, null, true);
+						let tmpWS = _mockWS();
+						tmpSelf._rejectWSUnauthenticatedSubscription(tmpWS, 'queue');
+						Expect(tmpWS.sent[0].EventType).to.equal('queue.auth_required');
+						Expect(tmpWS.closed.code).to.equal(1008);
+					}
+				);
+			}
+		);
+
+		suite
+		(
+			'Promiscuous mode',
+			function ()
+			{
+				test
+				(
+					'Any connection may subscribe — no session needed (unchanged)',
+					function ()
+					{
+						let tmpSelf = _buildApiSelf(_buildHarness([]).bridge, null, false);
+						Expect(tmpSelf._wsConsumerAuthorized({ _Authenticated: false })).to.equal(true);
 					}
 				);
 			}
