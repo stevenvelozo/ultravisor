@@ -378,19 +378,8 @@ You can run multiple Beacons, each wrapping a different model or
 provider. They all register independently with the same Ultravisor
 server.
 
-```
-Machine A (GPU server)
-  └── Beacon: ollama + llama3.1:70b
-       ServerURL: http://ultravisor-host:54321
-
-Machine B (your laptop)
-  └── Beacon: ollama + llama3.2
-       ServerURL: http://ultravisor-host:54321
-
-Machine C (any machine with internet)
-  └── Beacon: anthropic + claude-sonnet-4-20250514
-       ServerURL: http://ultravisor-host:54321
-```
+<!-- bespoke diagram: edit diagrams/running-multiple-llms.mmd or .hints.json, then: npx pict-renderer-graph build modules/apps/ultravisor/docs/features -->
+![Running Multiple LLMs](diagrams/running-multiple-llms.svg)
 
 Each Beacon advertises `Capability: "LLM"`. The coordinator sends work
 to whichever Beacon is available. To target a specific Beacon, use
@@ -431,18 +420,8 @@ requirement is network connectivity to the server's port (default 54321).
 
 The Beacon needs these files from the Ultravisor source tree:
 
-```
-source/beacon/
-  ├── Ultravisor-Beacon-CLI.cjs
-  ├── Ultravisor-Beacon-Client.cjs
-  ├── Ultravisor-Beacon-Executor.cjs
-  ├── Ultravisor-Beacon-CapabilityProvider.cjs
-  ├── Ultravisor-Beacon-ProviderRegistry.cjs
-  └── providers/
-      ├── Ultravisor-Beacon-Provider-Shell.cjs
-      ├── Ultravisor-Beacon-Provider-FileSystem.cjs
-      └── Ultravisor-Beacon-Provider-LLM.cjs
-```
+<!-- bespoke diagram: edit diagrams/remote-beacons.mmd or .hints.json, then: npx pict-renderer-graph build modules/apps/ultravisor/docs/features -->
+![Remote Beacons](diagrams/remote-beacons.svg)
 
 These files have zero npm dependencies -- they use only Node.js built-in
 modules. Copy the `source/beacon/` directory to your remote machine,
