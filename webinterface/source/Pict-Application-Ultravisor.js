@@ -303,8 +303,42 @@ class UltravisorApplication extends libPictApplication
 			.catch((pErr) => fCallback(pErr));
 	}
 
+	/**
+	 * True when the connected mesh requires a real login and this browser
+	 * session has not provided one yet — i.e. an auth-beacon is advertising
+	 * the Authentication capability ('authenticated' mode) and the session
+	 * check has not (yet) confirmed a logged-in user.
+	 *
+	 * While this holds the UI is locked to the login screen: the top-bar
+	 * navigation is emptied, the sidebar shows a sign-in prompt, the
+	 * settings gear is hidden, every content route collapses to
+	 * Ultravisor-Login, and navigation / deep-links are redirected to
+	 * /Login.  The API server independently 401s session-gated routes, so
+	 * this is the UI half of a defense-in-depth gate, not the only line of
+	 * defense.
+	 *
+	 * Fail-closed: before the first session check resolves (Authenticated
+	 * still false) the app is treated as locked, so a signed-out reload
+	 * never flashes the full UI.  Promiscuous mode (no auth-beacon) never
+	 * locks.
+	 */
+	isLoginRequired()
+	{
+		let tmpAuth = (this.pict.AppData.Ultravisor && this.pict.AppData.Ultravisor.Auth) || {};
+		return (tmpAuth.Mode === 'authenticated') && !tmpAuth.Authenticated;
+	}
+
 	navigateTo(pRoute)
 	{
+		// Auth gate: while signed out in authenticated mode every navigation
+		// collapses to the login route.  _afterLogin() and
+		// _afterSessionChecked() flip Authenticated true *before* their
+		// navigateTo('/Home') calls, so a successful sign-in is not trapped
+		// here.
+		if (this.isLoginRequired())
+		{
+			pRoute = '/Login';
+		}
 		this.pict.AppData.Ultravisor.CurrentRoute = pRoute;
 		this.pict.providers.PictRouter.navigate(pRoute);
 		this.renderTopBar();
@@ -318,7 +352,16 @@ class UltravisorApplication extends libPictApplication
 	 */
 	onRouteChanged()
 	{
-		this.pict.AppData.Ultravisor.CurrentRoute = this._readHashRoute();
+		let tmpRoute = this._readHashRoute();
+		// Auth gate: a hand-edited hash or a pasted deep-link reaches the
+		// router directly, bypassing navigateTo().  If we are locked and the
+		// URL points anywhere but /Login, bounce it back so the address bar
+		// cannot disagree with the locked content panel.
+		if (this.isLoginRequired() && tmpRoute !== '/Login')
+		{
+			return this.navigateTo('/Login');
+		}
+		this.pict.AppData.Ultravisor.CurrentRoute = tmpRoute;
 		this.renderTopBar();
 		this.renderSidebar();
 	}
@@ -404,6 +447,15 @@ class UltravisorApplication extends libPictApplication
 
 	showView(pViewIdentifier)
 	{
+		// Auth gate: while a login is required the content panel may only
+		// show the login screen — every other view collapses to
+		// Ultravisor-Login so the application cannot be operated while
+		// signed out (see isLoginRequired()).
+		if (this.isLoginRequired())
+		{
+			pViewIdentifier = 'Ultravisor-Login';
+		}
+
 		if (pViewIdentifier in this.pict.views)
 		{
 			this.pict.views[pViewIdentifier].render();
@@ -1201,6 +1253,7 @@ class UltravisorApplication extends libPictApplication
 	 */
 	showManifestDetail(pRunHash)
 	{
+		if (this.isLoginRequired()) { return this.showView('Ultravisor-Login'); }
 		if (this.pict.views['Ultravisor-ManifestDetail'])
 		{
 			this.pict.views['Ultravisor-ManifestDetail'].setRunHash(decodeURIComponent(pRunHash));
@@ -1214,6 +1267,7 @@ class UltravisorApplication extends libPictApplication
 	 */
 	showManifestsFiltered(pFilter)
 	{
+		if (this.isLoginRequired()) { return this.showView('Ultravisor-Login'); }
 		if (this.pict.views['Ultravisor-ManifestList'])
 		{
 			this.pict.views['Ultravisor-ManifestList'].setFilterFromRoute(pFilter || 'all');
@@ -1300,6 +1354,7 @@ class UltravisorApplication extends libPictApplication
 	 */
 	editOperationFromRoute(pHash)
 	{
+		if (this.isLoginRequired()) { return this.showView('Ultravisor-Login'); }
 		let tmpHash = decodeURIComponent(pHash);
 
 		let tmpNeedOperations = (this.pict.AppData.Ultravisor.OperationList.length < 1);

@@ -106,11 +106,15 @@ const _ViewConfiguration =
 	<!-- pict-section-usermanagement's CurrentUser badge -->
 	<span id="PictUM-CurrentUser"></span>
 	<div class="uv-user-status" id="Ultravisor-TopBar-StatusArea"></div>
-	<button class="uv-user-btn uv-user-btn-gear"
-		onclick="{~P~}.views['Ultravisor-Layout'].toggleSettingsPanel()"
-		title="Settings" aria-label="Settings">{~I:Settings~}</button>
+	{~TS:Ultravisor-TopBar-User-Gear:AppData.Ultravisor.TopBarUser.GearItems~}
 </div>
 `
+		},
+		{
+			Hash: "Ultravisor-TopBar-User-Gear",
+			Template: /*html*/`<button class="uv-user-btn uv-user-btn-gear"
+		onclick="{~P~}.views['Ultravisor-Layout'].toggleSettingsPanel()"
+		title="Settings" aria-label="Settings">{~I:Settings~}</button>`
 		},
 		{
 			Hash: "Ultravisor-TopBar-Status-Template",
@@ -134,6 +138,21 @@ class UltravisorTopBarUserView extends libPictView
 	constructor(pFable, pOptions, pServiceHash)
 	{
 		super(pFable, pOptions, pServiceHash);
+	}
+
+	onBeforeRender(pRenderable, pRenderDestinationAddress, pRecord)
+	{
+		if (!this.pict.AppData.Ultravisor) { this.pict.AppData.Ultravisor = {}; }
+		if (!this.pict.AppData.Ultravisor.TopBarUser) { this.pict.AppData.Ultravisor.TopBarUser = {}; }
+
+		// Auth gate: hide the settings gear while signed out in
+		// authenticated mode so the login screen is the only thing the UI
+		// exposes.  An empty GearItems array renders no button.
+		let tmpApp = this.pict.PictApplication;
+		let tmpLoginRequired = !!(tmpApp && typeof tmpApp.isLoginRequired === 'function' && tmpApp.isLoginRequired());
+		this.pict.AppData.Ultravisor.TopBarUser.GearItems = tmpLoginRequired ? [] : [{}];
+
+		return super.onBeforeRender(pRenderable, pRenderDestinationAddress, pRecord);
 	}
 
 	onAfterRender(pRenderable, pRenderDestinationAddress, pRecord, pContent)

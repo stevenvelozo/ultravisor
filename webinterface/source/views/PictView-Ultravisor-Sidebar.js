@@ -119,9 +119,15 @@ const _ViewConfiguration =
 			Template: /*html*/`
 <div class="uv-sidebar">
 	<div class="uv-sidebar-header">{~D:AppData.Ultravisor.Sidebar.HeaderLabel~}</div>
+	{~TS:Ultravisor-Sidebar-LockedBlock:AppData.Ultravisor.Sidebar.LockedBlock~}
 	{~TS:Ultravisor-Sidebar-DashboardListBlock:AppData.Ultravisor.Sidebar.DashboardListBlock~}
 	{~TS:Ultravisor-Sidebar-SectionContextBlock:AppData.Ultravisor.Sidebar.SectionContextBlock~}
 </div>`
+		},
+		{
+			Hash: "Ultravisor-Sidebar-LockedBlock",
+			Template: /*html*/`
+<div class="uv-sidebar-placeholder">Sign in to access Ultravisor.</div>`
 		},
 		{
 			Hash: "Ultravisor-Sidebar-DashboardListBlock",
@@ -175,6 +181,21 @@ class UltravisorSidebarView extends libPictView
 		if (!this.pict.AppData.Ultravisor) { this.pict.AppData.Ultravisor = {}; }
 		if (!this.pict.AppData.Ultravisor.Sidebar) { this.pict.AppData.Ultravisor.Sidebar = {}; }
 		let tmpSidebar = this.pict.AppData.Ultravisor.Sidebar;
+
+		// Auth gate: while signed out in authenticated mode the sidebar
+		// offers no navigation — just a sign-in prompt.  Clearing the
+		// dashboard + section blocks and showing the locked block keeps the
+		// context panel from exposing any of the application surface.
+		let tmpApp = this.pict.PictApplication;
+		if (tmpApp && typeof tmpApp.isLoginRequired === 'function' && tmpApp.isLoginRequired())
+		{
+			tmpSidebar.HeaderLabel = 'Sign In';
+			tmpSidebar.LockedBlock = [{}];
+			tmpSidebar.DashboardListBlock = [];
+			tmpSidebar.SectionContextBlock = [];
+			return super.onBeforeRender(pRenderable, pRenderDestinationAddress, pRecord);
+		}
+		tmpSidebar.LockedBlock = [];
 
 		let tmpIsDashboardRoute = this._isDashboardRoute(tmpRoute);
 

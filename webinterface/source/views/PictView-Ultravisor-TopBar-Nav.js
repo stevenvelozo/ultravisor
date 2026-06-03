@@ -105,6 +105,19 @@ class UltravisorTopBarNavView extends libPictView
 
 	onBeforeRender(pRenderable, pRenderDestinationAddress, pRecord)
 	{
+		if (!this.pict.AppData.Ultravisor) { this.pict.AppData.Ultravisor = {}; }
+		if (!this.pict.AppData.Ultravisor.TopBarNav) { this.pict.AppData.Ultravisor.TopBarNav = {}; }
+
+		// Auth gate: while signed out in authenticated mode the primary
+		// navigation is hidden entirely — signing in is the only available
+		// action.  An empty Tabs array paints an empty nav strip.
+		let tmpApp = this.pict.PictApplication;
+		if (tmpApp && typeof tmpApp.isLoginRequired === 'function' && tmpApp.isLoginRequired())
+		{
+			this.pict.AppData.Ultravisor.TopBarNav.Tabs = [];
+			return super.onBeforeRender(pRenderable, pRenderDestinationAddress, pRecord);
+		}
+
 		let tmpRoute = (this.pict.AppData.Ultravisor && this.pict.AppData.Ultravisor.CurrentRoute) || '';
 		let tmpActiveHash = this._activeTabHash(tmpRoute);
 
