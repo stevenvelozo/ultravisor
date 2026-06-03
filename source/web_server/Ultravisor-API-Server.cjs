@@ -947,41 +947,92 @@ class UltravisorAPIServer extends libPictService
 		return { Admitted: false };
 	}
 
-	_requireSession(pRequest, pResponse, fNext)
+	/**
+	 * True when this UV is running secured (non-promiscuous) and therefore
+	 * must require credentials on the protected surface.
+	 *
+	 * The authoritative signal is the operator's explicit
+	 * `UltravisorNonPromiscuous` config flag — the SAME switch that already
+	 * gates beacon-join admission (_admitBeaconForRegistration).  That flag,
+	 * not the incidental presence of an auth-beacon, is what declares the
+	 * mesh secured: with it set we fail closed immediately, including during
+	 * the bootstrap window before the auth-beacon has connected.
+	 *
+	 * A connected auth-beacon is also honoured as a safety net so the
+	 * protected surface is never served unauthenticated merely because the
+	 * flag was missed — enforcement is thus never weaker than the flag
+	 * alone.  (If you want the flag to be the *sole* signal, drop the bridge
+	 * check below.)
+	 */
+	_isSecuredMode()
 	{
-		// `_OratorAuth` is wired unconditionally during wireEndpoints
-		// startup, so the legacy `if (!this._OratorAuth)` escape hatch
-		// is dead code in practice -- but it's preserved for any
-		// theoretical pre-init request.  Treat it the same as the
-		// "no auth provider connected" path: hand back an anonymous
-		// session rather than 401.
-		if (!this._OratorAuth)
+		let tmpConfig = (this.fable && this.fable.ProgramConfiguration) || {};
+		if (tmpConfig.UltravisorNonPromiscuous)
 		{
-			return this._anonymousSession();
+			return true;
+		}
+		let tmpBridge = this._getService('UltravisorAuthBeaconBridge');
+		return !!(tmpBridge
+			&& typeof tmpBridge.isAvailable === 'function'
+			&& tmpBridge.isAvailable());
+	}
+
+	/**
+	 * Resolve the principal for a request WITHOUT emitting any response.
+	 *
+	 * Returns:
+	 *   - a real session object when a valid cookie/token is presented,
+	 *   - a synthetic anonymous session (Anonymous: true) when this UV is
+	 *     running promiscuously (not secured — see _isSecuredMode()),
+	 *   - null when this UV is secured (non-promiscuous) and no valid session
+	 *     was presented (the caller decides how to reject).
+	 *
+	 * This is the single source of truth for "who is this request?" -- both
+	 * the per-route _requireSession() guard and the global
+	 * _enforceAuthentication() gate flow through it, so the two can never
+	 * drift.  The resolved value is memoized on the request so a request
+	 * that passes the gate and then hits a route which also calls
+	 * _requireSession() resolves the session only once.
+	 */
+	_resolveSession(pRequest)
+	{
+		if (pRequest && pRequest._UltravisorSession)
+		{
+			return pRequest._UltravisorSession;
 		}
 
-		let tmpSession = this._OratorAuth.getSessionForRequest(pRequest);
+		// Resolve the orator-auth session (cookie/token) if one is present.
+		// `_OratorAuth` is wired unconditionally during startup; the guard
+		// is preserved only for a theoretical pre-init request.
+		let tmpResolved = null;
+		let tmpSession = this._OratorAuth ? this._OratorAuth.getSessionForRequest(pRequest) : null;
+		if (tmpSession)
+		{
+			tmpResolved = tmpSession;
+		}
+		else
+		{
+			// No valid session.  In secured (non-promiscuous) mode a missing
+			// session is a hard failure -- return null so the caller 401s,
+			// failing closed even before an auth-beacon has connected.  In
+			// promiscuous mode, synthesize an anonymous session so a
+			// beacon-less UV stays genuinely open.
+			tmpResolved = this._isSecuredMode() ? null : this._anonymousSession();
+		}
+
+		if (pRequest && tmpResolved)
+		{
+			pRequest._UltravisorSession = tmpResolved;
+		}
+		return tmpResolved;
+	}
+
+	_requireSession(pRequest, pResponse, fNext)
+	{
+		let tmpSession = this._resolveSession(pRequest);
 		if (tmpSession)
 		{
 			return tmpSession;
-		}
-
-		// No valid cookie.  If no auth-beacon currently advertises the
-		// `Authentication` capability, there is no provider that could
-		// ever issue a session against this UV -- 401-ing would be a
-		// permanent block on every session-gated route.  Synthesize an
-		// anonymous session instead, so a UV running without an auth-
-		// beacon is genuinely promiscuous.  When an auth-beacon IS
-		// connected, fall through to 401 so the operator knows login
-		// is possible.  Routes that need real auth should explicitly
-		// check `session.Anonymous` and reject when appropriate.
-		let tmpBridge = this._getService('UltravisorAuthBeaconBridge');
-		let tmpAuthProviderAvailable = tmpBridge
-			&& typeof tmpBridge.isAvailable === 'function'
-			&& tmpBridge.isAvailable();
-		if (!tmpAuthProviderAvailable)
-		{
-			return this._anonymousSession();
 		}
 
 		pResponse.send(401, { Error: 'Authentication required.', LoggedIn: false });
@@ -1004,6 +1055,96 @@ class UltravisorAPIServer extends libPictService
 			Anonymous:     true,
 			Authenticated: false
 		};
+	}
+
+	/**
+	 * Global authentication gate.  Registered as an Orator/restify `use`
+	 * handler so it runs after routing but before every route's own
+	 * handlers, across the entire HTTP surface of this server.
+	 *
+	 * This is the server-side half of "enforce login when not promiscuous".
+	 * Historically only the ~19 beacon worker-protocol routes called
+	 * _requireSession(); the whole human-facing management/API surface
+	 * (GET /Beacon, /Operation, /Schedule, /Manifest, /Timeline, /Fleet and
+	 * their writes) was reachable by any unauthenticated client, with the
+	 * web UI as the only gate.  This gate closes that.
+	 *
+	 * Mode-aware, mirroring _resolveSession() / _isSecuredMode():
+	 *   - Promiscuous (not secured): every request resolves to an anonymous
+	 *     session and passes -- behaviour identical to before.
+	 *   - Secured (UltravisorNonPromiscuous set, or an auth-beacon connected):
+	 *     a valid session is required for everything except the exempt routes
+	 *     (see _isAuthExemptRoute); anything else gets a 401.  Beacons
+	 *     register and authenticate over WebSocket (which bypasses this HTTP
+	 *     gate), and their HTTP worker routes already required a session in
+	 *     secured mode -- so the mesh is unaffected.
+	 */
+	_enforceAuthentication(pRequest, pResponse, fNext)
+	{
+		if (this._isAuthExemptRoute(pRequest))
+		{
+			return fNext();
+		}
+
+		// Promiscuous -> anonymous session (passes); authenticated with a
+		// valid session -> passes; authenticated without one -> null.
+		let tmpSession = this._resolveSession(pRequest);
+		if (tmpSession)
+		{
+			return fNext();
+		}
+
+		// Authenticated mode, no valid session: reject and stop the chain.
+		// next(false) short-circuits restify's use-chain so the matched
+		// route handler never runs.
+		pResponse.send(401, { Error: 'Authentication required.', LoggedIn: false });
+		return fNext(false);
+	}
+
+	/**
+	 * Routes that must stay reachable without a session even in
+	 * authenticated mode -- otherwise the UV would be unusable (you could
+	 * never load the login page or sign in).  Decided from the routed path
+	 * pattern (pRequest.route.path) and the raw request URL:
+	 *
+	 *   - the static web UI ('/*') and the root redirect ('/') -- the
+	 *     browser must fetch these to render the login screen at all;
+	 *   - GET /status and /package -- the UI reads these before login to
+	 *     discover the auth mode (and thus whether to show the login screen);
+	 *   - POST /Beacon/BootstrapAdmin -- the one-time first-admin bootstrap,
+	 *     the chicken-and-egg path that necessarily precedes any session;
+	 *   - the orator-auth namespace ('/1.0/...') -- login, session check,
+	 *     logout, and the admin-gated /Users CRUD, all of which enforce
+	 *     their own session/IsAdmin checks downstream.
+	 */
+	_isAuthExemptRoute(pRequest)
+	{
+		let tmpRoutePath = (pRequest && pRequest.route && pRequest.route.path) ? pRequest.route.path : '';
+
+		// Static web UI catch-all + root redirect.
+		if (tmpRoutePath === '/*' || tmpRoutePath === '/')
+		{
+			return true;
+		}
+
+		// Bootstrap metadata the UI reads before any session exists.
+		if (tmpRoutePath === '/status' || tmpRoutePath === '/package' || tmpRoutePath === '/Beacon/BootstrapAdmin')
+		{
+			return true;
+		}
+
+		// orator-auth namespace (login / session / user management).  Match
+		// the raw URL prefix too, since these routes are mounted by
+		// orator-auth and we don't want to depend solely on route.path.
+		let tmpUrlPath = (pRequest && pRequest.url) ? pRequest.url : '';
+		let tmpQueryAt = tmpUrlPath.indexOf('?');
+		if (tmpQueryAt >= 0) { tmpUrlPath = tmpUrlPath.slice(0, tmpQueryAt); }
+		if (tmpRoutePath.indexOf('/1.0/') === 0 || tmpUrlPath.indexOf('/1.0/') === 0)
+		{
+			return true;
+		}
+
+		return false;
 	}
 
 	wireEndpoints(fCallback)
@@ -1030,28 +1171,26 @@ class UltravisorAPIServer extends libPictService
 				function (pRequest, pResponse, fNext)
 				{
 					let tmpHypervisor = this._getService('UltravisorHypervisor');
-					// AuthEnabled tracks whether an auth-beacon is
-					// currently advertising the Authentication
-					// capability.  When false the UV runs in
-					// promiscuous mode -- session-gated routes
-					// synthesize an anonymous session via
-					// _requireSession's anonymous-fallback path.
-					// UI components surface this so operators don't
-					// have to infer it from "no auth-beacon connected".
+					// AuthEnabled / AuthMode track whether this UV is secured
+					// (non-promiscuous).  Driven by _isSecuredMode() — the
+					// UltravisorNonPromiscuous flag, with a connected
+					// auth-beacon as a safety net — so the UI's login screen
+					// and the server's HTTP auth gate always agree on whether
+					// credentials are required.
 					let tmpBridge = this._getService('UltravisorAuthBeaconBridge');
-					let tmpAuthEnabled = tmpBridge
+					let tmpSecured = this._isSecuredMode();
+					// SupportsUserManagement: derived from the auth beacon's
+					// `UserManagement` tag advertised at registration
+					// ('internal' or 'external').  Missing tag defaults to
+					// 'internal' for back-compat.  Independent of the secured
+					// flag — it tracks whether an auth-beacon is actually
+					// connected to manage users against, so the UI hides admin
+					// views when there is no beacon.
+					let tmpAuthBeaconPresent = tmpBridge
 						&& typeof tmpBridge.isAvailable === 'function'
 						&& tmpBridge.isAvailable();
-					// SupportsUserManagement: derived from the auth
-					// beacon's `UserManagement` tag advertised at
-					// registration ('internal' or 'external').  Missing
-					// tag defaults to 'internal' for back-compat with
-					// older auth beacons that didn't stamp it.  In
-					// promiscuous mode the value is reported as `false`
-					// because there's no auth backend to manage users
-					// against — the UI hides admin views accordingly.
 					let tmpSupportsUM = false;
-					if (tmpAuthEnabled && typeof tmpBridge.getAuthBeaconTags === 'function')
+					if (tmpAuthBeaconPresent && typeof tmpBridge.getAuthBeaconTags === 'function')
 					{
 						let tmpTags = tmpBridge.getAuthBeaconTags();
 						let tmpTag = (tmpTags && tmpTags.UserManagement) || 'internal';
@@ -1061,8 +1200,8 @@ class UltravisorAPIServer extends libPictService
 						Status: 'Running',
 						ScheduleEntries: tmpHypervisor ? tmpHypervisor.getSchedule().length : 0,
 						ScheduleRunning: tmpHypervisor ? tmpHypervisor._Running : false,
-						AuthEnabled: !!tmpAuthEnabled,
-						AuthMode: tmpAuthEnabled ? 'authenticated' : 'promiscuous',
+						AuthEnabled: !!tmpSecured,
+						AuthMode: tmpSecured ? 'authenticated' : 'promiscuous',
 						SupportsUserManagement: tmpSupportsUM
 					});
 					return fNext();
@@ -3974,6 +4113,28 @@ class UltravisorAPIServer extends libPictService
 					});
 				}
 				catch (pErr) { /* best effort */ }
+				return fNext();
+			}.bind(this));
+
+		// Global authentication gate — see _enforceAuthentication(). Registered
+		// as a `use` handler so it covers every routed request (restify's
+		// use-chain is consulted at request time, independent of route
+		// registration order). The handler reads `_OratorAuth` lazily at
+		// request time, so installing it here — before that provider is
+		// instantiated in the next step — is safe: nothing is served until
+		// listen().
+		tmpAnticipate.anticipate(
+			function (fNext)
+			{
+				try
+				{
+					this._OratorServer.server.use(this._enforceAuthentication.bind(this));
+					this.log.info('Ultravisor: authentication gate installed (enforced when an auth-beacon is connected; promiscuous otherwise).');
+				}
+				catch (pErr)
+				{
+					this.log.error('Ultravisor: failed to install authentication gate: ' + (pErr && pErr.message));
+				}
 				return fNext();
 			}.bind(this));
 

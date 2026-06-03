@@ -27,6 +27,7 @@
 
 const libPict = require('pict');
 const libBridge = require('../source/services/Ultravisor-AuthBeaconBridge.cjs');
+const libAPIServer = require('../source/web_server/Ultravisor-API-Server.cjs');
 
 var Chai = require('chai');
 var Expect = Chai.expect;
@@ -324,6 +325,247 @@ suite
 							}
 						]);
 						Expect(_statusSnapshot(tmp.bridge).SupportsUserManagement).to.equal(false);
+					}
+				);
+			}
+		);
+	}
+);
+
+/**
+ * HTTP route-enforcement coverage for the global authentication gate
+ * (_enforceAuthentication / _isAuthExemptRoute / _resolveSession on
+ * Ultravisor-API-Server).  Uses the REAL bridge wired to a mock
+ * coordinator — so authenticated mode is armed exactly as production does
+ * it, by a beacon advertising the Authentication capability — and the REAL
+ * API-server methods, with only _OratorAuth's session lookup stubbed.
+ *
+ * This gate is what stops an unauthenticated client from reading /Beacon,
+ * /Operation, /Schedule, ... directly over HTTP when an auth-beacon is
+ * connected, while leaving promiscuous mode wide open and keeping the
+ * login/bootstrap/static surface reachable.
+ */
+function _buildApiSelf(pBridge, pSession, pNonPromiscuous)
+{
+	let tmpSelf =
+	{
+		// The UltravisorNonPromiscuous flag lives in ProgramConfiguration —
+		// the authoritative "secured" signal that _isSecuredMode() reads.
+		fable: { ProgramConfiguration: { UltravisorNonPromiscuous: !!pNonPromiscuous } },
+		// Stubbed session lookup — the only orator-auth surface the gate
+		// touches.  Returns whatever session the test wants to simulate.
+		_OratorAuth: { getSessionForRequest: function () { return pSession; } },
+		_getService: function (pName)
+		{
+			return (pName === 'UltravisorAuthBeaconBridge') ? pBridge : null;
+		}
+	};
+	['_anonymousSession', '_isSecuredMode', '_resolveSession', '_isAuthExemptRoute', '_enforceAuthentication'].forEach(
+		function (pMethod) { tmpSelf[pMethod] = libAPIServer.prototype[pMethod].bind(tmpSelf); });
+	return tmpSelf;
+}
+
+function _mockRequest(pRoutePath, pUrl)
+{
+	return { route: pRoutePath ? { path: pRoutePath } : undefined, url: pUrl || pRoutePath || '' };
+}
+
+function _runGate(pSelf, pRequest)
+{
+	let tmpOutcome = { next: 'UNCALLED', code: null };
+	let tmpResponse = { send: function (pCode) { tmpOutcome.code = pCode; } };
+	let tmpNext = function (pArg) { tmpOutcome.next = (pArg === undefined) ? 'PASS' : pArg; };
+	pSelf._enforceAuthentication(pRequest, tmpResponse, tmpNext);
+	return tmpOutcome;
+}
+
+const _AUTH_BEACON = [{ BeaconID: 'b-auth', Capabilities: ['Authentication'], Tags: { Role: 'auth', UserManagement: 'internal' } }];
+
+suite
+(
+	'Ultravisor Auth Gate — HTTP route enforcement',
+	function ()
+	{
+		suite
+		(
+			'Secured mode (armed by a connected auth-beacon — safety net)',
+			function ()
+			{
+				test
+				(
+					'Management read (GET /Beacon) with NO session → 401 and chain stops',
+					function ()
+					{
+						let tmp = _buildHarness(_AUTH_BEACON);
+						let tmpSelf = _buildApiSelf(tmp.bridge, null);
+						let tmpOut = _runGate(tmpSelf, _mockRequest('/Beacon'));
+						Expect(tmpOut.code).to.equal(401);
+						// next(false) short-circuits restify's use-chain so the
+						// matched route handler never runs.
+						Expect(tmpOut.next).to.equal(false);
+					}
+				);
+
+				test
+				(
+					'Management read (GET /Beacon) WITH a valid session → passes through',
+					function ()
+					{
+						let tmp = _buildHarness(_AUTH_BEACON);
+						let tmpSelf = _buildApiSelf(tmp.bridge, { SessionID: 'u1', Authenticated: true });
+						let tmpOut = _runGate(tmpSelf, _mockRequest('/Beacon'));
+						Expect(tmpOut.code).to.equal(null);
+						Expect(tmpOut.next).to.equal('PASS');
+					}
+				);
+
+				test
+				(
+					'The wider management surface is gated too (no session → 401)',
+					function ()
+					{
+						let tmp = _buildHarness(_AUTH_BEACON);
+						let tmpSelf = _buildApiSelf(tmp.bridge, null);
+						['/Operation', '/Schedule', '/Manifest', '/Fleet', '/Timeline', '/TaskType'].forEach(
+							function (pPath)
+							{
+								let tmpOut = _runGate(tmpSelf, _mockRequest(pPath));
+								Expect(tmpOut.code, pPath + ' should 401').to.equal(401);
+							});
+					}
+				);
+
+				test
+				(
+					'Exempt routes stay open without a session (so login can happen)',
+					function ()
+					{
+						let tmp = _buildHarness(_AUTH_BEACON);
+						let tmpSelf = _buildApiSelf(tmp.bridge, null);
+						let tmpCases =
+						[
+							_mockRequest('/*', '/js/pict.min.js'),        // static UI asset
+							_mockRequest('/', '/'),                        // root redirect
+							_mockRequest('/status', '/status'),           // UI auth-mode probe
+							_mockRequest('/package', '/package'),
+							_mockRequest('/Beacon/BootstrapAdmin', '/Beacon/BootstrapAdmin'),
+							_mockRequest('/1.0/Authenticate', '/1.0/Authenticate'),
+							_mockRequest(undefined, '/1.0/CheckSession')   // route.path absent → URL fallback
+						];
+						tmpCases.forEach(function (pReq)
+						{
+							let tmpOut = _runGate(tmpSelf, pReq);
+							Expect(tmpOut.code, (pReq.url || '') + ' should not 401').to.equal(null);
+							Expect(tmpOut.next, (pReq.url || '') + ' should pass').to.equal('PASS');
+						});
+					}
+				);
+			}
+		);
+
+		suite
+		(
+			'Promiscuous mode (no auth-beacon)',
+			function ()
+			{
+				test
+				(
+					'Management read (GET /Beacon) with no session → passes (anonymous)',
+					function ()
+					{
+						let tmp = _buildHarness([]); // nothing advertises Authentication
+						let tmpSelf = _buildApiSelf(tmp.bridge, null);
+						let tmpOut = _runGate(tmpSelf, _mockRequest('/Beacon'));
+						Expect(tmpOut.code).to.equal(null);
+						Expect(tmpOut.next).to.equal('PASS');
+					}
+				);
+			}
+		);
+
+		suite
+		(
+			'Secured mode (armed by the UltravisorNonPromiscuous flag, no auth-beacon)',
+			function ()
+			{
+				test
+				(
+					'Flag set + no auth-beacon + no session → still 401 (hard-armed, fails closed)',
+					function ()
+					{
+						let tmp = _buildHarness([]); // NO auth-beacon connected
+						let tmpSelf = _buildApiSelf(tmp.bridge, null, true); // UltravisorNonPromiscuous = true
+						let tmpOut = _runGate(tmpSelf, _mockRequest('/Beacon'));
+						Expect(tmpOut.code).to.equal(401);
+						Expect(tmpOut.next).to.equal(false);
+					}
+				);
+
+				test
+				(
+					'Flag set + a valid session → passes once credentials are presented',
+					function ()
+					{
+						let tmp = _buildHarness([]);
+						let tmpSelf = _buildApiSelf(tmp.bridge, { SessionID: 'u1' }, true);
+						let tmpOut = _runGate(tmpSelf, _mockRequest('/Beacon'));
+						Expect(tmpOut.code).to.equal(null);
+						Expect(tmpOut.next).to.equal('PASS');
+					}
+				);
+
+				test
+				(
+					'Flag set → exempt routes (/status, /1.0/*, static) stay open so login can happen',
+					function ()
+					{
+						let tmp = _buildHarness([]);
+						let tmpSelf = _buildApiSelf(tmp.bridge, null, true);
+						['/status', '/1.0/Authenticate', '/*', '/'].forEach(function (pPath)
+						{
+							let tmpOut = _runGate(tmpSelf, _mockRequest(pPath, pPath));
+							Expect(tmpOut.code, pPath + ' should not 401').to.equal(null);
+						});
+					}
+				);
+			}
+		);
+
+		suite
+		(
+			'_isSecuredMode() decision',
+			function ()
+			{
+				test
+				(
+					'NonPromiscuous flag set → secured, even with no auth-beacon',
+					function ()
+					{
+						let tmp = _buildHarness([]);
+						let tmpSelf = _buildApiSelf(tmp.bridge, null, true);
+						Expect(tmpSelf._isSecuredMode()).to.equal(true);
+					}
+				);
+
+				test
+				(
+					'No flag + a connected auth-beacon → secured (safety net)',
+					function ()
+					{
+						let tmp = _buildHarness(_AUTH_BEACON);
+						let tmpSelf = _buildApiSelf(tmp.bridge, null, false);
+						Expect(tmpSelf._isSecuredMode()).to.equal(true);
+					}
+				);
+
+				test
+				(
+					'No flag + no auth-beacon → promiscuous (open)',
+					function ()
+					{
+						let tmp = _buildHarness([]);
+						let tmpSelf = _buildApiSelf(tmp.bridge, null, false);
+						Expect(tmpSelf._isSecuredMode()).to.equal(false);
 					}
 				);
 			}
