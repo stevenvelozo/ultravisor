@@ -97,32 +97,8 @@ provides today:
 
 ## The new wiring
 
-```
-  ┌─ ultravisor (host process) ──────────────────────────────────────┐
-  │                                                                  │
-  │   QueuePersistenceBridge ──┐                                     │
-  │                            ├──► dispatch(MeadowProxy.Request,    │
-  │   ManifestStoreBridge ─────┘     {Method, Path, Body})           │
-  │                                                                  │
-  │   ┌─ persistence-bridge-hwm.json ─┐                              │
-  │   │ Queue:    {<beaconID>: HWM}   │  unchanged from              │
-  │   │ Manifest: {<beaconID>: HWM}   │  bootstrap-flush             │
-  │   └───────────────────────────────┘                              │
-  │                                                                  │
-  └──────┬───────────────────────────────────────────────────────────┘
-         │ beacon protocol
-         ▼
-  ┌─ retold-databeacon (assigned for persistence) ───────────────────┐
-  │                                                                  │
-  │   MeadowProxy.Request ──► HTTP to /1.0/<UVTable>/...             │
-  │   DataBeaconManagement.Introspect / EnableEndpoint               │
-  │   DataBeaconSchema.EnsureSchema  ◄── NEW                         │
-  │                                                                  │
-  └──────┬───────────────────────────────────────────────────────────┘
-         │ meadow connector (mysql/mssql/postgres/sqlite/...)
-         ▼
-       <user-chosen database>
-```
+<!-- bespoke diagram: edit diagrams/the-new-wiring.mmd or .hints.json, then: npx pict-renderer-graph build modules/apps/ultravisor/docs/features -->
+![The new wiring](diagrams/the-new-wiring.svg)
 
 ### Bridge dispatch translation
 

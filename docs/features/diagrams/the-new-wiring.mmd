@@ -1,0 +1,11 @@
+graph TD
+    subgraph UV["ultravisor (host process)"]
+        Bridges["QueuePersistenceBridge<br/>ManifestStoreBridge<br/>→ dispatch(MeadowProxy.Request, {Method, Path, Body})"]
+        HWM["persistence-bridge-hwm.json<br/>Queue: {&lt;beaconID&gt;: HWM}<br/>Manifest: {&lt;beaconID&gt;: HWM}"]
+    end
+    subgraph DB["retold-databeacon (assigned for persistence)"]
+        Proxy["MeadowProxy.Request → HTTP to /1.0/&lt;UVTable&gt;/...<br/>DataBeaconManagement.Introspect / EnableEndpoint<br/>DataBeaconSchema.EnsureSchema ← NEW"]
+    end
+    UserDB["&lt;user-chosen database&gt;"]
+    UV -->|beacon protocol| DB
+    DB -->|meadow connector (mysql/mssql/postgres/sqlite/...)| UserDB
