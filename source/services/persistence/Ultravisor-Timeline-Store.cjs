@@ -591,13 +591,23 @@ class UltravisorTimelineStore extends libPictService
 				WHERE At < ?
 			`);
 			let tmpDelete = tmpDB.prepare('DELETE FROM TimelineRecord WHERE At < ?');
-			let tmpTx = tmpDB.transaction((pCutoff, pNowIso) =>
+			// node:sqlite's DatabaseSync has no `.transaction(fn)` helper (that
+			// was a better-sqlite3 idiom).  Bracket the INSERT-then-DELETE
+			// manually to keep the archive move atomic.
+			let tmpResult;
+			tmpDB.exec('BEGIN');
+			try
 			{
-				let tmpRes = tmpInsert.run(pNowIso, pCutoff);
-				let tmpDelRes = tmpDelete.run(pCutoff);
-				return { Inserted: tmpRes.changes, Deleted: tmpDelRes.changes };
-			});
-			let tmpResult = tmpTx(pCutoffIso, tmpNow);
+				let tmpRes = tmpInsert.run(tmpNow, pCutoffIso);
+				let tmpDelRes = tmpDelete.run(pCutoffIso);
+				tmpDB.exec('COMMIT');
+				tmpResult = { Inserted: tmpRes.changes, Deleted: tmpDelRes.changes };
+			}
+			catch (pTxError)
+			{
+				tmpDB.exec('ROLLBACK');
+				throw pTxError;
+			}
 			if (tmpResult.Inserted !== tmpResult.Deleted)
 			{
 				this.log.warn(`TimelineStore: archive insert/delete mismatch (${tmpResult.Inserted}/${tmpResult.Deleted})`);
