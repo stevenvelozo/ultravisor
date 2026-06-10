@@ -76,9 +76,27 @@ resume) + `Ultravisor_BeaconQueue_tests.js` + `Ultravisor_operation_library_test
 | L3-C lab | ✅ programmatic value-input auto-resolve routes downstream (`ec-solve` ran with the seeded value). Bonus negative control: re-running against the pre-fix UV image reproduced the stranding exactly, and the new warn named it in the live log (`Node [ec-input] fired event [complete]…`) |
 | L4 sweep | ✅ 362 passing, 0 failing |
 
-**New pre-existing bug found during L3-C (out of scope, needs its own fix+test):**
-the stock `expression-solver` task fails on every execution with
+**New pre-existing bug found during L3-C — now FIXED (2026-06-10):**
+the stock `expression-solver` task failed on every execution with
 `pTask.fable.ExpressionParser.resolve is not a function` (fable's API is `solve`).
-The operation-library suite does not execute graphs, so this was invisible until
-a live run. The unrouted-event warn also correctly flagged `ec-solve` firing
-`Error` with no wired Error edge.
+Fixed in `Ultravisor-TaskConfigs-DataTransform.cjs` (solve + a data-source scope
+mirroring the StateManager address roots: `Operation.* / Global.* / TaskOutput.*`);
+covered by `Ultravisor_ExpressionSolver_tests.js` (U1-U5 executor + E1 engine
+integration). With both fixes in, the stock expression-calculator completes a
+programmatic run end-to-end (`ec-input → ec-solve "42" → ec-format → ec-write`,
+Status `Complete`) — verified live in the lab (`test-valueinput-fix.js`, strong
+full-chain assertion). The operation-library suite does not execute graphs,
+which is why this was invisible until a live run — an "execute each library
+operation programmatically" suite remains the recommended follow-up.
+
+**Addendum (2026-06-10): two more `ExpressionParser.resolve` call sites** (found
+by sweeping for the API-misuse pattern after the solver fix — credit: code
+review): the if-conditional's Expression path, in BOTH variants
+(`Ultravisor-TaskConfigs-FlowControl.cjs` + `Ultravisor-TaskType-IfConditional.cjs`).
+The throw was caught and routed `False`, so every Expression-based conditional
+silently took the False branch. Fixed with `solve` + the same StateManager-root
+data scope, plus explicit result coercion — `solve` returns `'1'`/`'0'` STRINGS
+for comparisons and `'0'` is truthy in JS, so without coercion a false
+comparison would have routed True. Covered by `Ultravisor_IfConditional_tests.js`
+(C1-C5 config executor incl. the '0' trap + DataAddress regression + throw path;
+K1-K2 class twin; E1-E2 engine branch routing). Full sweep: 377 passing.
