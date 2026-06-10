@@ -421,7 +421,17 @@ module.exports =
 			{
 				try
 				{
-					tmpResult = pTask.fable.ExpressionParser.resolve(tmpExpression, pExecutionContext);
+					// Fable's ExpressionParser API is solve(expression, dataSource,
+					// results, manifest, destination). The data source mirrors the
+					// StateManager address roots so expressions can reference
+					// Operation.X / Global.X / TaskOutput.<node>.<key> directly.
+					tmpResult = pTask.fable.ExpressionParser.solve(tmpExpression,
+						{
+							Operation: pExecutionContext.OperationState || {},
+							Global: pExecutionContext.GlobalState || {},
+							TaskOutput: pExecutionContext.TaskOutputs || {}
+						},
+						{}, pTask.fable.manifest, {});
 				}
 				catch (pError)
 				{

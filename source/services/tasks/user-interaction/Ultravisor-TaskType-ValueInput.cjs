@@ -41,7 +41,7 @@ class UltravisorTaskTypeValueInput extends libTaskTypeBase
 			if (tmpExistingValue !== undefined && tmpExistingValue !== null && tmpExistingValue !== '')
 			{
 				return fCallback(null, {
-					EventToFire: 'complete',
+					EventToFire: 'ValueInputComplete',
 					Outputs: { InputValue: tmpExistingValue },
 					Log: [`Auto-resolved from pre-seeded state: "${tmpOutputAddress}" = "${String(tmpExistingValue).substring(0, 100)}"`]
 				});
@@ -59,7 +59,7 @@ class UltravisorTaskTypeValueInput extends libTaskTypeBase
 		if (tmpIsProgrammatic && tmpDefaultValue !== undefined && tmpDefaultValue !== null && tmpDefaultValue !== '')
 		{
 			return fCallback(null, {
-				EventToFire: 'complete',
+				EventToFire: 'ValueInputComplete',
 				Outputs: { InputValue: tmpDefaultValue },
 				Log: [`Auto-resolved from default: "${tmpOutputAddress}" = "${String(tmpDefaultValue).substring(0, 100)}"`]
 			});
@@ -71,7 +71,7 @@ class UltravisorTaskTypeValueInput extends libTaskTypeBase
 		if (tmpIsProgrammatic && tmpIsOptional)
 		{
 			return fCallback(null, {
-				EventToFire: 'complete',
+				EventToFire: 'ValueInputComplete',
 				Outputs: { InputValue: '' },
 				Log: [`Auto-resolved optional field: "${tmpOutputAddress}" = "" (no value provided)`]
 			});

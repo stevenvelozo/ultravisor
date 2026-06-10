@@ -211,7 +211,21 @@ module.exports =
 				{
 					if (pTask.fable.ExpressionParser)
 					{
-						tmpResult = pTask.fable.ExpressionParser.resolve(pResolvedSettings.Expression, pExecutionContext);
+						// Fable's ExpressionParser API is solve(expression, dataSource,
+						// results, manifest, destination); the data source mirrors the
+						// StateManager address roots. solve returns STRINGS — boolean
+						// comparisons come back as '1'/'0', and '0' is truthy in JS,
+						// so coerce explicitly before branching.
+						let tmpSolved = pTask.fable.ExpressionParser.solve(pResolvedSettings.Expression,
+							{
+								Operation: pExecutionContext.OperationState || {},
+								Global: pExecutionContext.GlobalState || {},
+								TaskOutput: pExecutionContext.TaskOutputs || {}
+							},
+							{}, pTask.fable.manifest, {});
+						tmpResult = !(tmpSolved === undefined || tmpSolved === null || tmpSolved === false
+							|| tmpSolved === 0 || tmpSolved === '' || tmpSolved === '0'
+							|| String(tmpSolved).toLowerCase() === 'false');
 					}
 					else
 					{
