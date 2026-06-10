@@ -1541,6 +1541,7 @@ class UltravisorExecutionEngine extends libPictService
 		let tmpConnections = pContext._ConnectionMap.eventSources[pSourceNodeHash] || [];
 		let tmpPortLabelMap = pContext._PortLabelMap;
 
+		let tmpMatchedCount = 0;
 		for (let i = 0; i < tmpConnections.length; i++)
 		{
 			let tmpConn = tmpConnections[i];
@@ -1548,12 +1549,21 @@ class UltravisorExecutionEngine extends libPictService
 
 			if (tmpSourcePortName === pEventName)
 			{
+				tmpMatchedCount++;
 				let tmpTargetPortName = this._extractPortName(tmpConn.TargetPortHash, tmpPortLabelMap);
 				pContext.PendingEvents.push({
 					TargetNodeHash: tmpConn.TargetNodeHash,
 					EventName: tmpTargetPortName
 				});
 			}
+		}
+
+		// An event that matches none of the node's outgoing connections strands
+		// everything downstream while the run can still terminate 'Complete' —
+		// surface it (event-name/port-label matching is case-sensitive).
+		if (tmpConnections.length > 0 && tmpMatchedCount === 0)
+		{
+			this._log(pContext, `Node [${pSourceNodeHash}] fired event [${pEventName}] but none of its ${tmpConnections.length} outgoing event connection(s) match that name — downstream nodes will not run.`, 'warn');
 		}
 	}
 

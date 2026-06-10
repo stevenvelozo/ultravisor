@@ -2089,7 +2089,9 @@ class UltravisorBeaconCoordinator extends libPictService
 			{
 				if (tmpContext.WaitingTasks[tmpWorkItem.NodeHash])
 				{
-					tmpContext.WaitingTasks[tmpWorkItem.NodeHash].ResumeEventName = 'error';
+					// Must exactly match the EventOutputs Name 'Error' — the engine's
+					// downstream-event match is case-sensitive.
+					tmpContext.WaitingTasks[tmpWorkItem.NodeHash].ResumeEventName = 'Error';
 				}
 				// Push the failure into the canonical Errors[] log so
 				// finalizeExecution's roll-up sees it and the operation

@@ -4127,7 +4127,10 @@ suite
 
 									// Verify WaitingTasks has the dispatch node
 									Expect(pContext.WaitingTasks['dispatch-1']).to.not.equal(undefined);
-									Expect(pContext.WaitingTasks['dispatch-1'].ResumeEventName).to.equal('complete');
+									// Must match the definition's EventOutputs Name exactly ('Complete') —
+								// the engine's downstream-event match is case-sensitive, so a lowercase
+								// resume event strands every node wired after the dispatch.
+								Expect(pContext.WaitingTasks['dispatch-1'].ResumeEventName).to.equal('Complete');
 
 									// Verify a work item was enqueued
 									let tmpWorkItems = tmpCoordinator.listWorkItems();

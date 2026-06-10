@@ -131,10 +131,13 @@ module.exports =
 			pTask.log.info(`Beacon Dispatch: enqueued work item [${tmpWorkItem.WorkItemHash}] for capability [${tmpWorkItemInfo.Capability}/${tmpWorkItemInfo.Action}]` +
 				(tmpWorkItemInfo.AffinityKey ? ` with affinity [${tmpWorkItemInfo.AffinityKey}]` : ''));
 
-			// Pause execution — the BeaconCoordinator will call resumeOperation when the Beacon reports back
+			// Pause execution — the BeaconCoordinator will call resumeOperation when the Beacon reports back.
+			// ResumeEventName must exactly match an EventOutputs Name ('Complete') — the
+			// engine's downstream-event match is case-sensitive, so 'complete' silently
+			// strands every node wired after this one.
 			return fCallback(null, {
 				WaitingForInput: true,
-				ResumeEventName: 'complete',
+				ResumeEventName: 'Complete',
 				PromptMessage: `Waiting for Beacon worker (${tmpWorkItemInfo.Capability}/${tmpWorkItemInfo.Action})`,
 				OutputAddress: '',
 				Outputs: {},
