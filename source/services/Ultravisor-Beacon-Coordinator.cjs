@@ -640,8 +640,10 @@ class UltravisorBeaconCoordinator extends libPictService
 
 			// Add standard beacon dispatch settings
 			tmpSettingsInputs.push({ Name: 'AffinityKey', DataType: 'String', Required: false, Description: 'Sticky routing key for beacon affinity.' });
+			tmpSettingsInputs.push({ Name: 'RequireAffinityMatch', DataType: 'Boolean', Required: false, Description: 'Strict routing: AffinityKey must match a registered beacon Name; the item waits for that beacon instead of falling back to any capable one.' });
 			tmpSettingsInputs.push({ Name: 'TimeoutMs', DataType: 'Number', Required: false, Description: 'Work item timeout in milliseconds.' });
 			tmpDefaultSettings.AffinityKey = '';
+			tmpDefaultSettings.RequireAffinityMatch = false;
 			tmpDefaultSettings.TimeoutMs = 300000;
 
 			// Derive a display name from the action
@@ -713,6 +715,7 @@ class UltravisorBeaconCoordinator extends libPictService
 			// Build settings object from resolved settings, excluding beacon dispatch meta-fields
 			let tmpSettings = Object.assign({}, pResolvedSettings);
 			delete tmpSettings.AffinityKey;
+			delete tmpSettings.RequireAffinityMatch;
 			delete tmpSettings.TimeoutMs;
 
 			// Coerce types based on schema
@@ -742,6 +745,7 @@ class UltravisorBeaconCoordinator extends libPictService
 				Action: pAction,
 				Settings: tmpSettings,
 				AffinityKey: pResolvedSettings.AffinityKey || '',
+				RequireAffinityMatch: !!pResolvedSettings.RequireAffinityMatch,
 				TimeoutMs: pResolvedSettings.TimeoutMs || 300000
 			}, pExecutionContext, fCallback);
 		};
@@ -1115,6 +1119,7 @@ class UltravisorBeaconCoordinator extends libPictService
 			Action: pWorkItemInfo.Action || 'Execute',
 			Settings: tmpSettings,
 			AffinityKey: pWorkItemInfo.AffinityKey || '',
+			RequireAffinityMatch: !!pWorkItemInfo.RequireAffinityMatch,
 			AssignedBeaconID: null,
 			Status: 'Pending',
 			TimeoutMs: pWorkItemInfo.TimeoutMs || tmpDefaultTimeout,
@@ -1175,6 +1180,14 @@ class UltravisorBeaconCoordinator extends libPictService
 				if (!tmpNamedBeacon.CurrentWorkItems) tmpNamedBeacon.CurrentWorkItems = [];
 				tmpNamedBeacon.CurrentWorkItems.push(tmpWorkItemHash);
 				this.log.info(`BeaconCoordinator: work item [${tmpWorkItemHash}] routed by name to beacon [${tmpNamedBeacon.BeaconID}] (Name=${tmpNamedBeacon.Name}) via AffinityKey [${tmpWorkItem.AffinityKey}].`);
+			}
+			else if (tmpWorkItem.RequireAffinityMatch)
+			{
+				// Strict routing: the designated beacon is not registered right
+				// now (offline / mid-restart). The item stays Pending and only
+				// that beacon may claim it when it returns — never another
+				// capable beacon. The normal work-item timeout bounds the wait.
+				this.log.warn(`BeaconCoordinator: work item [${tmpWorkItemHash}] requires beacon [${tmpWorkItem.AffinityKey}], which is not registered — holding pending until it returns.`);
 			}
 			else
 			{
@@ -1275,23 +1288,101 @@ class UltravisorBeaconCoordinator extends libPictService
 		}
 		else if (tmpWorkItem.Status === 'Assigned' && tmpWorkItem.AssignedBeaconID && this._WorkItemPushHandler)
 		{
-			// Affinity pre-assigned — push directly to the assigned beacon via WebSocket
-			tmpWorkItem.Status = 'Running';
-			let tmpPushed = this._WorkItemPushHandler(tmpWorkItem.AssignedBeaconID,
-				this._sanitizeWorkItemForBeacon(tmpWorkItem));
-
-			if (tmpPushed)
-			{
-				this.log.info(`BeaconCoordinator: pushed affinity-assigned work item [${tmpWorkItemHash}] to WebSocket beacon [${tmpWorkItem.AssignedBeaconID}].`);
-			}
-			else
-			{
-				// WebSocket push failed — revert to Assigned for HTTP poll pickup
-				tmpWorkItem.Status = 'Assigned';
-			}
+			// Affinity pre-assigned — push directly to the assigned beacon via
+			// WebSocket, but only within the beacon's RUNNING capacity. The
+			// beacon SDK silently drops frames beyond its concurrency, so an
+			// ungated burst loses work items (they sit "Running" until the
+			// direct-dispatch timeout while the beacon never saw them).
+			// Over-capacity items stay Assigned; the slot-free re-dispatch in
+			// _dispatchPendingWorkItems delivers them as completions land.
+			this._pushAssignedWorkItem(tmpWorkItem);
 		}
 
 		return tmpWorkItem;
+	}
+
+	/**
+	 * Push an Assigned work item to its designated WebSocket beacon when the
+	 * beacon has Running capacity. Leaves the item Assigned (HTTP-poll
+	 * claimable, slot-free re-deliverable) when the beacon is full, offline,
+	 * or the push fails.
+	 *
+	 * @param {object} pWorkItem
+	 * @returns {boolean} True when the item was delivered.
+	 */
+	_pushAssignedWorkItem(pWorkItem)
+	{
+		if (!this._WorkItemPushHandler || !pWorkItem.AssignedBeaconID)
+		{
+			return false;
+		}
+		let tmpBeacon = this._Beacons[pWorkItem.AssignedBeaconID];
+		if (!tmpBeacon || (tmpBeacon.Status !== 'Online' && tmpBeacon.Status !== 'Busy'))
+		{
+			return false;
+		}
+		let tmpMaxConcurrent = tmpBeacon.MaxConcurrent || 1;
+		if (this._runningCountForBeacon(pWorkItem.AssignedBeaconID) >= tmpMaxConcurrent)
+		{
+			this.log.info(`BeaconCoordinator: beacon [${pWorkItem.AssignedBeaconID}] at running capacity (${tmpMaxConcurrent}) — holding assigned work item [${pWorkItem.WorkItemHash}] for slot-free delivery.`);
+			return false;
+		}
+		pWorkItem.Status = 'Running';
+		let tmpPushed = this._WorkItemPushHandler(pWorkItem.AssignedBeaconID,
+			this._sanitizeWorkItemForBeacon(pWorkItem));
+		if (tmpPushed)
+		{
+			this.log.info(`BeaconCoordinator: pushed affinity-assigned work item [${pWorkItem.WorkItemHash}] to WebSocket beacon [${pWorkItem.AssignedBeaconID}].`);
+			return true;
+		}
+		pWorkItem.Status = 'Assigned';
+		return false;
+	}
+
+	/**
+	 * Count work items currently RUNNING on a beacon. CurrentWorkItems
+	 * includes Assigned-but-not-yet-delivered items, so it overstates the
+	 * beacon's true in-flight load — pushes must be gated on Running only,
+	 * or a burst of affinity-assigned items overruns the beacon SDK's
+	 * concurrency and the overflow frames are silently dropped.
+	 *
+	 * @param {string} pBeaconID
+	 * @returns {number}
+	 */
+	_runningCountForBeacon(pBeaconID)
+	{
+		let tmpCount = 0;
+		let tmpHashes = Object.keys(this._WorkQueue);
+		for (let i = 0; i < tmpHashes.length; i++)
+		{
+			let tmpWI = this._WorkQueue[tmpHashes[i]];
+			if (tmpWI && tmpWI.AssignedBeaconID === pBeaconID && tmpWI.Status === 'Running')
+			{
+				tmpCount++;
+			}
+		}
+		return tmpCount;
+	}
+
+	/**
+	 * Whether a beacon is allowed to take a work item under affinity rules.
+	 *
+	 * RequireAffinityMatch items designate a beacon BY NAME: only that beacon
+	 * may be pushed, polled, or sticky-bound the item. Without the flag,
+	 * AffinityKey keeps its dual role (name routing when matched, otherwise a
+	 * session-stickiness hint any capable beacon can seed).
+	 *
+	 * @param {object} pWorkItem
+	 * @param {object} pBeacon - a registered beacon record
+	 * @returns {boolean}
+	 */
+	_beaconSatisfiesAffinity(pWorkItem, pBeacon)
+	{
+		if (!pWorkItem || !pWorkItem.RequireAffinityMatch || !pWorkItem.AffinityKey)
+		{
+			return true;
+		}
+		return !!(pBeacon && pBeacon.Name === pWorkItem.AffinityKey);
 	}
 
 	/**
@@ -1328,6 +1419,11 @@ class UltravisorBeaconCoordinator extends libPictService
 			{
 				continue;
 			}
+			if (!this._beaconSatisfiesAffinity(pWorkItem, tmpBeacon))
+			{
+				continue;
+			}
+
 			if (tmpBeacon.Capabilities.indexOf(pWorkItem.Capability) === -1)
 			{
 				continue;
@@ -1523,6 +1619,12 @@ class UltravisorBeaconCoordinator extends libPictService
 
 			// Skip items assigned to a different Beacon (affinity)
 			if (tmpWorkItem.AssignedBeaconID && tmpWorkItem.AssignedBeaconID !== pBeaconID)
+			{
+				continue;
+			}
+
+			// Strict affinity: only the designated beacon may claim
+			if (!this._beaconSatisfiesAffinity(tmpWorkItem, tmpBeacon))
 			{
 				continue;
 			}
@@ -2670,6 +2772,13 @@ class UltravisorBeaconCoordinator extends libPictService
 		{
 			let tmpWI = this._WorkQueue[tmpHashes[i]];
 			if (!tmpWI) continue;
+			if (tmpWI.Status === 'Assigned' && tmpWI.AssignedBeaconID)
+			{
+				// Held back at enqueue because the designated beacon was at
+				// running capacity — deliver as slots free up.
+				this._pushAssignedWorkItem(tmpWI);
+				continue;
+			}
 			if (tmpWI.Status !== 'Pending') continue;
 			if (tmpWI.AssignedBeaconID) continue; // affinity-assigned, leave it
 			this._tryPushToWebSocketBeacon(tmpWI);
