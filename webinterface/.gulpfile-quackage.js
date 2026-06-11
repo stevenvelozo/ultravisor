@@ -1,2 +1,2 @@
-require('/Users/steven/Code/retold/modules/apps/ultravisor/webinterface/node_modules/quackage/gulp/Quackage-Gulpfile.js');
-require('/Users/steven/Code/retold/modules/apps/ultravisor/webinterface/node_modules/quackage/gulp/Quackage-Gulpfile.js');
+require('/home/alex/dev/retold/modules/apps/ultravisor/webinterface/node_modules/quackage/gulp/Quackage-Gulpfile.js');
+require('/home/alex/dev/retold/modules/apps/ultravisor/webinterface/node_modules/quackage/gulp/Quackage-Gulpfile.js');
