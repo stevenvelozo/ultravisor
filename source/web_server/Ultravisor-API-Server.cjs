@@ -3114,6 +3114,7 @@ class UltravisorAPIServer extends libPictService
 						Action: tmpBody.Action || 'Execute',
 						Settings: tmpBody.Settings || {},
 						AffinityKey: tmpBody.AffinityKey || '',
+						RequireAffinityMatch: !!tmpBody.RequireAffinityMatch,
 						TimeoutMs: parseInt(tmpBody.TimeoutMs, 10) || 0,
 						Priority: (tmpBody.Priority != null) ? parseInt(tmpBody.Priority, 10) : null
 					};
@@ -3507,6 +3508,7 @@ class UltravisorAPIServer extends libPictService
 						Action: tmpBody.Action || 'Execute',
 						Settings: tmpBody.Settings || {},
 						AffinityKey: tmpBody.AffinityKey || '',
+						RequireAffinityMatch: !!tmpBody.RequireAffinityMatch,
 						TimeoutMs: tmpBody.TimeoutMs || 300000
 					};
 
@@ -3633,6 +3635,7 @@ class UltravisorAPIServer extends libPictService
 						Action: tmpBody.Action || 'Execute',
 						Settings: tmpBody.Settings || {},
 						AffinityKey: tmpBody.AffinityKey || '',
+						RequireAffinityMatch: !!tmpBody.RequireAffinityMatch,
 						TimeoutMs: tmpBody.TimeoutMs || 300000
 					};
 

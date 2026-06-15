@@ -1,6 +1,6 @@
 {
 	"name": "ultravisor",
-	"version": "1.3.23",
+	"version": "1.3.24",
 	"description": "Cyclic process execution with ai integration.",
 	"main": "source/Ultravisor.cjs",
 	"bin": {
@@ -55,13 +55,13 @@
 	"homepage": "https://github.com/stevenvelozo/ultravisor#readme",
 	"dependencies": {
 		"cron": "^4.4.0",
-		"meadow": "^2.0.45",
+		"meadow": "^2.0.46",
 		"meadow-connection-sqlite": "^1.0.20",
 		"meadow-migrationmanager": "^1.0.5",
 		"orator": "^6.1.2",
 		"orator-authentication": "^1.0.6",
 		"orator-serviceserver-restify": "^2.0.11",
-		"pict": "^1.0.382",
+		"pict": "^1.0.386",
 		"pict-service-commandlineutility": "^1.0.20",
 		"pict-serviceproviderbase": "^1.0.4",
 		"ultravisor-beacon": "^1.0.5",
