@@ -51,6 +51,16 @@ class UltravisorBeaconCoordinator extends libPictService
 		// Signature: function(pBeaconID, pSanitizedWorkItem) -> boolean
 		this._WorkItemPushHandler = null;
 
+		// --- Cancel Push Handler ---
+		// Called when an operator cancels a work item a beacon has
+		// already started.  Set by the API server, same lifecycle as
+		// _WorkItemPushHandler.  Cancellation is cooperative: this only
+		// carries the request to the beacon.  The beacon finishes the
+		// step it is in and reports the outcome itself; the hub never
+		// kills a running action out from under an agent session.
+		// Signature: function(pBeaconID, pWorkItemHash, pReason) -> boolean
+		this._CancelPushHandler = null;
+
 		// --- Queue Journal ---
 		// Cached reference to the BeaconQueueJournal service (if available).
 		// Set lazily on first use via _getJournal().
@@ -77,6 +87,92 @@ class UltravisorBeaconCoordinator extends libPictService
 	setWorkItemPushHandler(fHandler)
 	{
 		this._WorkItemPushHandler = (typeof fHandler === 'function') ? fHandler : null;
+	}
+
+	/**
+	 * Set the handler used to push cancel requests to WebSocket-connected
+	 * beacons.
+	 *
+	 * @param {function} fHandler - function(pBeaconID, pWorkItemHash, pReason) returns boolean
+	 */
+	setCancelPushHandler(fHandler)
+	{
+		this._CancelPushHandler = (typeof fHandler === 'function') ? fHandler : null;
+	}
+
+	/**
+	 * Deliver a cancel request to the beacon that is running a work item.
+	 *
+	 * Before this existed the cancel flag was recorded on the hub and
+	 * never left it: the beacon ran the action to completion and the hub
+	 * accepted the result of work it had asked to stop.  The flag is only
+	 * a request -- the beacon decides when it is safe to stop -- so all
+	 * this does is carry it, and report whether it got there.
+	 *
+	 * @param {object} pWorkItem - The work item being canceled.
+	 * @param {string} pReason - Operator-supplied cancellation reason.
+	 * @returns {boolean} True when the request reached a connected beacon.
+	 */
+	requestBeaconCancel(pWorkItem, pReason)
+	{
+		if (!this._CancelPushHandler || !pWorkItem || !pWorkItem.AssignedBeaconID)
+		{
+			return false;
+		}
+
+		let tmpDelivered = false;
+
+		try
+		{
+			tmpDelivered = !!this._CancelPushHandler(pWorkItem.AssignedBeaconID,
+				pWorkItem.WorkItemHash, pReason || '');
+		}
+		catch (pError)
+		{
+			this.log.warn(`BeaconCoordinator: cancel push for [${pWorkItem.WorkItemHash}] threw: ${pError.message}`);
+			return false;
+		}
+
+		if (tmpDelivered)
+		{
+			pWorkItem.CancelDeliveredAt = new Date().toISOString();
+			this.log.info(`BeaconCoordinator: delivered cancel request for [${pWorkItem.WorkItemHash}] to beacon [${pWorkItem.AssignedBeaconID}].`);
+		}
+		else
+		{
+			this.log.warn(`BeaconCoordinator: could not deliver cancel request for [${pWorkItem.WorkItemHash}] to beacon [${pWorkItem.AssignedBeaconID}] -- no live push channel.`);
+		}
+
+		return tmpDelivered;
+	}
+
+	/**
+	 * Record a beacon's acknowledgement that it received a cancel request
+	 * and is winding the work item down.
+	 *
+	 * The acknowledgement is what lets completeWorkItem tell "the beacon
+	 * never heard us" apart from "the beacon heard us and reported success
+	 * anyway", which is a bug in the action rather than a race.
+	 *
+	 * @param {string} pWorkItemHash
+	 * @param {string} pBeaconID - The acknowledging beacon.
+	 * @returns {boolean} True when the acknowledgement was recorded.
+	 */
+	acknowledgeCancel(pWorkItemHash, pBeaconID)
+	{
+		let tmpWorkItem = this._WorkQueue[pWorkItemHash];
+
+		if (!tmpWorkItem)
+		{
+			return false;
+		}
+
+		tmpWorkItem.CancelAcknowledgedAt = new Date().toISOString();
+		tmpWorkItem.CancelAcknowledgedBy = pBeaconID || tmpWorkItem.AssignedBeaconID || null;
+
+		this.log.info(`BeaconCoordinator: beacon [${tmpWorkItem.CancelAcknowledgedBy}] acknowledged cancel of [${pWorkItemHash}].`);
+
+		return true;
 	}
 
 	/**
@@ -889,16 +985,67 @@ class UltravisorBeaconCoordinator extends libPictService
 	/**
 	 * Deregister a Beacon and release any assigned work items.
 	 *
+	 * Two very different events arrive here and they must not be treated
+	 * the same way.
+	 *
+	 * An explicit deregister -- the admin route, or a beacon sending the
+	 * Deregister frame on its way out -- means the beacon is telling us
+	 * it is done.  Its in-flight work really is abandoned, so releasing
+	 * it back to Pending for another beacon is correct.
+	 *
+	 * A dropped WebSocket means nothing of the kind.  The beacon is
+	 * still running the work and is merely scheduling a reconnect; a
+	 * home network drops a socket as ordinary weather.  Releasing that
+	 * work to Pending hands the same job to a second beacon while the
+	 * first is still executing it, which with a fleet is not an edge
+	 * case but the steady state.  So on connection loss the work stays
+	 * pinned to the beacon and the record is kept (marked Offline)
+	 * instead of deleted, which is also what lets the reconnecting
+	 * beacon reclaim the SAME BeaconID by name rather than arriving as
+	 * a stranger its own in-flight work no longer matches.
+	 *
+	 * Genuinely dead beacons are not stranded by this: the scheduler's
+	 * existing health pass already flips a Running item whose events
+	 * have gone quiet to Stalled after HeartbeatExpectedMs x
+	 * STALL_HEARTBEAT_MULTIPLIER (120s on the defaults), and that path
+	 * frees the slot and rolls the operation up.  Reusing it beats
+	 * adding a second timer that would have to agree with it.
+	 *
 	 * @param {string} pBeaconID
+	 * @param {object} [pOptions] - { ConnectionLost: bool }
 	 * @returns {boolean} True if the Beacon was found and removed
 	 */
-	deregisterBeacon(pBeaconID)
+	deregisterBeacon(pBeaconID, pOptions)
 	{
 		let tmpBeacon = this._Beacons[pBeaconID];
 
 		if (!tmpBeacon)
 		{
 			return false;
+		}
+
+		let tmpOptions = pOptions || {};
+		let tmpConnectionLost = !!tmpOptions.ConnectionLost;
+
+		if (tmpConnectionLost)
+		{
+			// Keep the record and the assignments; only the transport died.
+			tmpBeacon.Status = 'Offline';
+			tmpBeacon.DisconnectedAt = new Date().toISOString();
+
+			let tmpHeldCount = 0;
+			for (let i = 0; i < tmpBeacon.CurrentWorkItems.length; i++)
+			{
+				let tmpHeldItem = this._WorkQueue[tmpBeacon.CurrentWorkItems[i]];
+				if (tmpHeldItem && (tmpHeldItem.Status === 'Assigned' || tmpHeldItem.Status === 'Running'))
+				{
+					tmpHeldCount++;
+				}
+			}
+
+			this.log.warn(`BeaconCoordinator: beacon [${pBeaconID}] lost its connection -- holding ${tmpHeldCount} in-flight work item(s) assigned to it rather than re-dispatching work it may still be running.`);
+
+			return true;
 		}
 
 		// Release any assigned work items back to Pending
@@ -1880,6 +2027,57 @@ class UltravisorBeaconCoordinator extends libPictService
 			return fCallback(new Error(`BeaconCoordinator: work item [${pWorkItemHash}] already finalized (${tmpWorkItem.Status}).`));
 		}
 
+		// Late completions from a superseded attempt.
+		//
+		// Once attempt 1 has been given up on and attempt 2 dispatched,
+		// attempt 1's eventual completion used to be accepted and written
+		// under attempt 2's AttemptNumber -- the record then claimed the
+		// work succeeded on the attempt that was still running, and the
+		// beacon that actually reported it was nowhere in the result.
+		//
+		// The identity is optional on purpose.  Plenty of callers
+		// (dispatchAndWait, the operation library, older beacons) have no
+		// attempt or beacon to report and must keep working, so silence
+		// is accepted.  Only a completion that carries identity
+		// CONTRADICTING the current assignment is refused.
+		let tmpReported = pResult || {};
+
+		if (tmpReported.AttemptNumber && tmpWorkItem.AttemptNumber
+			&& tmpReported.AttemptNumber !== tmpWorkItem.AttemptNumber)
+		{
+			this.log.warn(`BeaconCoordinator: REFUSED completion of [${pWorkItemHash}] reporting attempt ${tmpReported.AttemptNumber} while attempt ${tmpWorkItem.AttemptNumber} is current -- a superseded attempt finished late.`);
+			return fCallback(new Error(`BeaconCoordinator: work item [${pWorkItemHash}] completion refused -- reported attempt ${tmpReported.AttemptNumber} is not the current attempt ${tmpWorkItem.AttemptNumber}.`));
+		}
+
+		if (tmpReported.ReportingBeaconID && tmpWorkItem.AssignedBeaconID
+			&& tmpReported.ReportingBeaconID !== tmpWorkItem.AssignedBeaconID)
+		{
+			this.log.warn(`BeaconCoordinator: REFUSED completion of [${pWorkItemHash}] from beacon [${tmpReported.ReportingBeaconID}] -- the item is assigned to beacon [${tmpWorkItem.AssignedBeaconID}].`);
+			return fCallback(new Error(`BeaconCoordinator: work item [${pWorkItemHash}] completion refused -- reporting beacon [${tmpReported.ReportingBeaconID}] is not the assigned beacon [${tmpWorkItem.AssignedBeaconID}].`));
+		}
+
+		// A beacon that acknowledged a cancel and then reports success
+		// finished work the operator had already called off.  Recording
+		// that as Complete would put a successful outcome on the record
+		// for work nobody wanted, so refuse it and land the item in the
+		// terminal state the operator actually asked for.  An
+		// unacknowledged cancel is a different story -- the request may
+		// simply not have reached the beacon in time -- so that one is
+		// still allowed to complete normally.
+		if (tmpWorkItem.CancelAcknowledgedAt)
+		{
+			this.log.warn(`BeaconCoordinator: REFUSED completion of [${pWorkItemHash}] from beacon [${tmpWorkItem.AssignedBeaconID}] -- cancel was acknowledged at ${tmpWorkItem.CancelAcknowledgedAt} and the action reported success anyway.`);
+
+			let tmpCancelScheduler = this._getScheduler();
+			if (tmpCancelScheduler && typeof tmpCancelScheduler.confirmCancel === 'function')
+			{
+				tmpCancelScheduler.confirmCancel(pWorkItemHash,
+					tmpWorkItem.CancelReason || 'completion refused after cancel acknowledged');
+			}
+
+			return fCallback(new Error(`BeaconCoordinator: work item [${pWorkItemHash}] completion refused -- cancel was requested and acknowledged.`));
+		}
+
 		let tmpFromStatus = tmpWorkItem.Status;
 		tmpWorkItem.Status = 'Complete';
 		tmpWorkItem.CompletedAt = new Date().toISOString();
@@ -2048,6 +2246,15 @@ class UltravisorBeaconCoordinator extends libPictService
 		// _checkTimeouts() will re-enqueue the item after the backoff.
 		if (tmpWorkItem.AttemptNumber < tmpWorkItem.MaxAttempts - 1)
 		{
+			// Hold the beacon that was running this before the assignment
+			// is cleared.  _removeWorkItemFromBeacon early-returns on a
+			// falsy id, so reading AssignedBeaconID after nulling it
+			// released nothing: the beacon kept the slot forever and, at
+			// the default MaxConcurrent of 1, one retry quietly retired
+			// it from both dispatch paths with nothing reporting the
+			// discrepancy.
+			let tmpRetryBeaconID = tmpWorkItem.AssignedBeaconID;
+
 			tmpWorkItem.AttemptNumber++;
 			tmpWorkItem.LastError = (pError && pError.ErrorMessage) || 'Unknown error';
 			tmpWorkItem.Status = 'RetryScheduled';
@@ -2056,7 +2263,7 @@ class UltravisorBeaconCoordinator extends libPictService
 			tmpWorkItem.AssignedBeaconID = null;
 
 			// Remove from the beacon's active list so it can accept new work
-			this._removeWorkItemFromBeacon(tmpWorkItem.AssignedBeaconID, pWorkItemHash);
+			this._removeWorkItemFromBeacon(tmpRetryBeaconID, pWorkItemHash);
 
 			let tmpJournal = this._getJournal();
 			if (tmpJournal)

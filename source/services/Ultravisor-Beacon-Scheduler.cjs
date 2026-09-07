@@ -902,9 +902,69 @@ class UltravisorBeaconScheduler extends libPictService
 				RunID: tmpItem.RunID,
 				Reason: tmpItem.CancelReason
 			});
-			return { Canceled: false, CancelRequested: true, Status: tmpItem.Status };
+
+			// Carry the request to the beacon actually running the work.
+			// Setting the flag here only ever changed hub-side state; the
+			// beacon never saw it and ran to completion.  Delivery is best
+			// effort by design -- a beacon on a dropped socket picks the
+			// flag up on its next work item rather than the current one --
+			// so the caller is told whether it landed.
+			let tmpDelivered = false;
+			if (typeof tmpCoordinator.requestBeaconCancel === 'function')
+			{
+				tmpDelivered = tmpCoordinator.requestBeaconCancel(tmpItem, tmpItem.CancelReason);
+			}
+
+			return {
+				Canceled: false,
+				CancelRequested: true,
+				CancelDelivered: tmpDelivered,
+				Status: tmpItem.Status
+			};
 		}
 		return { Canceled: false, Status: tmpItem.Status, Error: 'terminal status' };
+	}
+
+	/**
+	 * Finalize a work item the beacon has confirmed it stopped.
+	 *
+	 * requestCancel only asks.  This is the other half: the beacon saw
+	 * the flag, wound the action down cooperatively, and said so.  Only
+	 * now is the item actually terminal.
+	 *
+	 * Also releases the beacon's concurrency slot -- _markCanceled alone
+	 * does not, because the statuses it was written for (Queued/Pending)
+	 * never held one.  A canceled Running item did.
+	 *
+	 * @param {string} pWorkItemHash
+	 * @param {string} [pReason] - Reason recorded on the terminal item.
+	 * @returns {object} { Canceled, Status } or { Canceled: false, Error }
+	 */
+	confirmCancel(pWorkItemHash, pReason)
+	{
+		let tmpCoordinator = this._getCoordinator();
+		if (!tmpCoordinator) return { Canceled: false, Error: 'coordinator unavailable' };
+		let tmpItem = tmpCoordinator._WorkQueue[pWorkItemHash];
+		if (!tmpItem) return { Canceled: false, Error: 'not found' };
+
+		if (tmpItem.Status === 'Canceled')
+		{
+			return { Canceled: true, Status: 'Canceled' };
+		}
+
+		let tmpBeaconID = tmpItem.AssignedBeaconID;
+
+		this._markCanceled(tmpItem, tmpCoordinator,
+			pReason || tmpItem.CancelReason || 'canceled by beacon');
+
+		if (tmpBeaconID && typeof tmpCoordinator._removeWorkItemFromBeacon === 'function')
+		{
+			tmpCoordinator._removeWorkItemFromBeacon(tmpBeaconID, pWorkItemHash);
+		}
+
+		this.log.info(`BeaconScheduler: work item [${pWorkItemHash}] canceled by beacon [${tmpBeaconID}].`);
+
+		return { Canceled: true, Status: 'Canceled' };
 	}
 
 	// ====================================================================

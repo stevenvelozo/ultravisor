@@ -2770,8 +2770,17 @@ class UltravisorAPIServer extends libPictService
 					}
 
 					let tmpBody = pRequest.body || {};
+					// Polling beacons have no persistent connection to take
+					// an identity from, so these are self-reported. They
+					// still catch the case that matters here: a superseded
+					// attempt reporting in after the hub moved on.
 					tmpCoordinator.completeWorkItem(pRequest.params.WorkItemHash,
-						{ Outputs: tmpBody.Outputs || {}, Log: tmpBody.Log || [] },
+						{
+							Outputs: tmpBody.Outputs || {},
+							Log: tmpBody.Log || [],
+							ReportingBeaconID: tmpBody.BeaconID || null,
+							AttemptNumber: tmpBody.AttemptNumber || null
+						},
 						function (pError)
 						{
 							if (pError)
@@ -3155,6 +3164,42 @@ class UltravisorAPIServer extends libPictService
 						pResponse.send(404, { Error: `Work item [${pRequest.params.WorkItemHash}] not found.` });
 						return fNext();
 					}
+					pResponse.send(Object.assign({ Success: !tmpResult.Error, WorkItemHash: pRequest.params.WorkItemHash }, tmpResult));
+					return fNext();
+				}.bind(this)
+			);
+
+		// --- Work Item Cancellation Confirmed By The Beacon ---
+		// The other half of /Cancel.  /Cancel is the operator asking;
+		// this is the beacon reporting that it actually stopped.  They
+		// are separate routes because they are separate events and a
+		// polling beacon (no WebSocket to answer on) still needs a way
+		// to say the second one.
+		this._OratorServer.post
+			(
+				'/Beacon/Work/:WorkItemHash/Canceled',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
+					let tmpScheduler = this._getService('UltravisorBeaconScheduler');
+					if (!tmpScheduler)
+					{
+						pResponse.send(500, { Error: 'BeaconScheduler service not available.' });
+						return fNext();
+					}
+
+					let tmpBody = pRequest.body || {};
+					let tmpResult = tmpScheduler.confirmCancel(pRequest.params.WorkItemHash,
+						tmpBody.Reason || '');
+
+					if (tmpResult.Error === 'not found')
+					{
+						pResponse.send(404, { Error: `Work item [${pRequest.params.WorkItemHash}] not found.` });
+						return fNext();
+					}
+
 					pResponse.send(Object.assign({ Success: !tmpResult.Error, WorkItemHash: pRequest.params.WorkItemHash }, tmpResult));
 					return fNext();
 				}.bind(this)
@@ -4526,7 +4571,7 @@ class UltravisorAPIServer extends libPictService
 						}
 						else if (tmpData.Action === 'WorkComplete')
 						{
-							this._handleBeaconWSWorkComplete(tmpData);
+							this._handleBeaconWSWorkComplete(tmpData, pWebSocket);
 						}
 						else if (tmpData.Action === 'WorkError')
 						{
@@ -4535,6 +4580,14 @@ class UltravisorAPIServer extends libPictService
 						else if (tmpData.Action === 'WorkProgress')
 						{
 							this._handleBeaconWSWorkProgress(tmpData);
+						}
+						else if (tmpData.Action === 'WorkCancelAck')
+						{
+							this._handleBeaconWSWorkCancelAck(tmpData);
+						}
+						else if (tmpData.Action === 'WorkCanceled')
+						{
+							this._handleBeaconWSWorkCanceled(tmpData);
 						}
 						else if (tmpData.Action === 'WorkResultUpload')
 						{
@@ -4658,6 +4711,8 @@ class UltravisorAPIServer extends libPictService
 		{
 			tmpCoordinator.setWorkItemPushHandler(
 				this.pushWorkItemToBeacon.bind(this));
+			tmpCoordinator.setCancelPushHandler(
+				this.pushCancelToBeacon.bind(this));
 		}
 
 		// Wire the scheduler's broadcast hook to the queue.* WebSocket topic.
@@ -5253,7 +5308,7 @@ class UltravisorAPIServer extends libPictService
 	/**
 	 * Handle work item completion reported over WebSocket.
 	 */
-	_handleBeaconWSWorkComplete(pData)
+	_handleBeaconWSWorkComplete(pData, pWebSocket)
 	{
 		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 		if (!tmpCoordinator || !pData.WorkItemHash)
@@ -5261,8 +5316,20 @@ class UltravisorAPIServer extends libPictService
 			return;
 		}
 
+		// Take the reporting beacon from the connection rather than the
+		// frame.  The socket's identity was established at registration;
+		// a self-reported BeaconID in the payload is just a claim.
+		let tmpReportingBeaconID = (pWebSocket && pWebSocket._BeaconID)
+			? pWebSocket._BeaconID
+			: (pData.BeaconID || null);
+
 		tmpCoordinator.completeWorkItem(pData.WorkItemHash,
-			{ Outputs: pData.Outputs || {}, Log: pData.Log || [] },
+			{
+				Outputs: pData.Outputs || {},
+				Log: pData.Log || [],
+				ReportingBeaconID: tmpReportingBeaconID,
+				AttemptNumber: pData.AttemptNumber || null
+			},
 			function (pError)
 			{
 				if (pError)
@@ -5368,12 +5435,17 @@ class UltravisorAPIServer extends libPictService
 			catch (pErr) { /* best effort */ }
 		}
 
-		// Deregister the beacon from the coordinator
+		// Deregister the beacon from the coordinator.  ConnectionLost
+		// distinguishes this from the explicit Deregister frame: the
+		// socket dropped, which says nothing about whether the beacon
+		// stopped working.  It keeps its in-flight work (see
+		// Coordinator.deregisterBeacon) so a second beacon cannot pick
+		// up a job the first one is still running.
 		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 		if (tmpCoordinator)
 		{
-			tmpCoordinator.deregisterBeacon(tmpBeaconID);
-			this.log.info(`Ultravisor WebSocket: beacon [${tmpBeaconID}] disconnected and deregistered.`);
+			tmpCoordinator.deregisterBeacon(tmpBeaconID, { ConnectionLost: true });
+			this.log.info(`Ultravisor WebSocket: beacon [${tmpBeaconID}] disconnected.`);
 		}
 
 		if (tmpObs)
@@ -5404,6 +5476,71 @@ class UltravisorAPIServer extends libPictService
 		}));
 
 		return true;
+	}
+
+	/**
+	 * Push a cancel request to the beacon running a work item.
+	 *
+	 * Same channel and same shape as pushWorkItemToBeacon -- the beacon
+	 * is already listening on it, so cancellation needs no second
+	 * transport and no polling route.  This asks the beacon to stop; it
+	 * does not stop it.  The beacon finishes whatever step it is in and
+	 * reports the outcome, which is the only safe contract when the work
+	 * on the other end may be an agent session partway through a commit.
+	 *
+	 * @param {string} pBeaconID - The target beacon ID.
+	 * @param {string} pWorkItemHash - The work item to cancel.
+	 * @param {string} pReason - Operator-supplied reason.
+	 * @returns {boolean} True if the cancel request was sent.
+	 */
+	pushCancelToBeacon(pBeaconID, pWorkItemHash, pReason)
+	{
+		let tmpWS = this._BeaconWebSockets[pBeaconID];
+		if (!tmpWS || tmpWS.readyState !== libWebSocket.OPEN)
+		{
+			return false;
+		}
+
+		tmpWS.send(JSON.stringify({
+			EventType: 'Cancel',
+			WorkItemHash: pWorkItemHash,
+			Reason: pReason || ''
+		}));
+
+		return true;
+	}
+
+	/**
+	 * Handle a beacon acknowledging a cancel request over WebSocket.
+	 */
+	_handleBeaconWSWorkCancelAck(pData)
+	{
+		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+		if (!tmpCoordinator || !pData.WorkItemHash)
+		{
+			return;
+		}
+
+		tmpCoordinator.acknowledgeCancel(pData.WorkItemHash, pData.BeaconID);
+	}
+
+	/**
+	 * Handle a beacon reporting that it stopped a work item cooperatively.
+	 */
+	_handleBeaconWSWorkCanceled(pData)
+	{
+		let tmpScheduler = this._getService('UltravisorBeaconScheduler');
+		if (!tmpScheduler || !pData.WorkItemHash)
+		{
+			return;
+		}
+
+		let tmpResult = tmpScheduler.confirmCancel(pData.WorkItemHash, pData.Reason || '');
+
+		if (tmpResult && tmpResult.Error)
+		{
+			this.log.warn(`Ultravisor WebSocket: could not finalize canceled work item [${pData.WorkItemHash}]: ${tmpResult.Error}`);
+		}
 	}
 }
 
