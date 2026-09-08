@@ -1,8 +1,0 @@
-{
-    "EntrypointInputSourceFile": "/home/alex/dev/retold/modules/apps/ultravisor/webinterface/source/Pict-Application-Ultravisor.js",
-    "LibraryObjectName": "UltravisorWebinterface",
-    "LibraryOutputFolder": "/home/alex/dev/retold/modules/apps/ultravisor/webinterface/dist/",
-    "LibraryUniminifiedFileName": "ultravisor-webinterface.compatible.js",
-    "LibraryMinifiedFileName": "ultravisor-webinterface.compatible.min.js",
-    "BrowserifyIgnore": []
-}

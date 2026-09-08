@@ -1,8 +1,0 @@
-{
-    "EntrypointInputSourceFile": "/Users/steven/Code/retold/modules/apps/ultravisor/source/Ultravisor.cjs",
-    "LibraryObjectName": "Ultravisor",
-    "LibraryOutputFolder": "/Users/steven/Code/retold/modules/apps/ultravisor/dist/",
-    "LibraryUniminifiedFileName": "ultravisor.compatible.js",
-    "LibraryMinifiedFileName": "ultravisor.compatible.min.js",
-    "BrowserifyIgnore": []
-}
