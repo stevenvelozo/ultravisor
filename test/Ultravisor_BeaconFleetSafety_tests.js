@@ -434,4 +434,105 @@ suite('Ultravisor Beacon Fleet Safety', () =>
 				});
 		});
 	});
+
+	suite('Cancel reaches a beacon with no push channel (WI #466)', () =>
+	{
+		// A beacon that polls over HTTP has no socket to push down. That is not exotic: a node running as a
+		// periodic oneshot cannot hold one, and any beacon between a drop and its reconnect is in the same
+		// position. The hub answers with its pending cancels on the round-trips such a beacon already makes.
+
+		test('THE HAZARD: a cancel for a beacon with no push channel is still collectable', () =>
+		{
+			let tmpFable = buildFable(_TestDir);
+			let tmpCoordinator = getService(tmpFable, 'UltravisorBeaconCoordinator');
+			let tmpScheduler = getService(tmpFable, 'UltravisorBeaconScheduler');
+
+			addStubBeacon(tmpCoordinator, 'b-poll');
+			let tmpItem = tmpCoordinator.enqueueWorkItem({ Capability: 'Shell', Action: 'Execute' });
+			dispatchToBeacon(tmpCoordinator, tmpItem.WorkItemHash, 'b-poll');
+
+			// No push handler at all, which is exactly a polling beacon's situation.
+			tmpScheduler.requestCancel(tmpItem.WorkItemHash, 'operator stopped it');
+
+			let tmpPending = tmpCoordinator.pendingCancelsForBeacon('b-poll');
+			Expect(tmpPending).to.have.length(1);
+			Expect(tmpPending[0].WorkItemHash).to.equal(tmpItem.WorkItemHash);
+			Expect(tmpPending[0].Reason).to.equal('operator stopped it');
+		});
+
+		test('an acknowledged cancel stops being offered, so the hub does not repeat itself forever', () =>
+		{
+			let tmpFable = buildFable(_TestDir);
+			let tmpCoordinator = getService(tmpFable, 'UltravisorBeaconCoordinator');
+			let tmpScheduler = getService(tmpFable, 'UltravisorBeaconScheduler');
+
+			addStubBeacon(tmpCoordinator, 'b-ack');
+			let tmpItem = tmpCoordinator.enqueueWorkItem({ Capability: 'Shell', Action: 'Execute' });
+			dispatchToBeacon(tmpCoordinator, tmpItem.WorkItemHash, 'b-ack');
+			tmpScheduler.requestCancel(tmpItem.WorkItemHash, 'stop');
+
+			Expect(tmpCoordinator.pendingCancelsForBeacon('b-ack')).to.have.length(1);
+
+			tmpCoordinator.acknowledgeCancel(tmpItem.WorkItemHash, 'b-ack');
+
+			Expect(tmpCoordinator.pendingCancelsForBeacon('b-ack')).to.have.length(0);
+		});
+
+		test('a cancel is only offered to the beacon actually holding the work', () =>
+		{
+			let tmpFable = buildFable(_TestDir);
+			let tmpCoordinator = getService(tmpFable, 'UltravisorBeaconCoordinator');
+			let tmpScheduler = getService(tmpFable, 'UltravisorBeaconScheduler');
+
+			addStubBeacon(tmpCoordinator, 'b-owner');
+			addStubBeacon(tmpCoordinator, 'b-other');
+			let tmpItem = tmpCoordinator.enqueueWorkItem({ Capability: 'Shell', Action: 'Execute' });
+			dispatchToBeacon(tmpCoordinator, tmpItem.WorkItemHash, 'b-owner');
+			tmpScheduler.requestCancel(tmpItem.WorkItemHash, 'stop');
+
+			Expect(tmpCoordinator.pendingCancelsForBeacon('b-owner')).to.have.length(1);
+			Expect(tmpCoordinator.pendingCancelsForBeacon('b-other'),
+				'a second beacon must not be told to stop work it never had').to.have.length(0);
+		});
+
+		test('an uncancelled item is never offered, so a beacon is not told to stop healthy work', () =>
+		{
+			let tmpFable = buildFable(_TestDir);
+			let tmpCoordinator = getService(tmpFable, 'UltravisorBeaconCoordinator');
+
+			addStubBeacon(tmpCoordinator, 'b-quiet');
+			let tmpItem = tmpCoordinator.enqueueWorkItem({ Capability: 'Shell', Action: 'Execute' });
+			dispatchToBeacon(tmpCoordinator, tmpItem.WorkItemHash, 'b-quiet');
+
+			Expect(tmpCoordinator.pendingCancelsForBeacon('b-quiet')).to.have.length(0);
+			Expect(tmpCoordinator.pendingCancelFor(tmpItem.WorkItemHash)).to.equal(null);
+		});
+
+		test('the per-item form answers the progress round-trip', () =>
+		{
+			let tmpFable = buildFable(_TestDir);
+			let tmpCoordinator = getService(tmpFable, 'UltravisorBeaconCoordinator');
+			let tmpScheduler = getService(tmpFable, 'UltravisorBeaconScheduler');
+
+			addStubBeacon(tmpCoordinator, 'b-prog');
+			let tmpItem = tmpCoordinator.enqueueWorkItem({ Capability: 'Shell', Action: 'Execute' });
+			dispatchToBeacon(tmpCoordinator, tmpItem.WorkItemHash, 'b-prog');
+			tmpScheduler.requestCancel(tmpItem.WorkItemHash, 'stop it');
+
+			let tmpPending = tmpCoordinator.pendingCancelFor(tmpItem.WorkItemHash);
+			Expect(tmpPending).to.not.equal(null);
+			Expect(tmpPending.Reason).to.equal('stop it');
+
+			tmpCoordinator.acknowledgeCancel(tmpItem.WorkItemHash, 'b-prog');
+			Expect(tmpCoordinator.pendingCancelFor(tmpItem.WorkItemHash)).to.equal(null);
+		});
+
+		test('a blank beacon id is answered with nothing rather than everything', () =>
+		{
+			let tmpFable = buildFable(_TestDir);
+			let tmpCoordinator = getService(tmpFable, 'UltravisorBeaconCoordinator');
+			Expect(tmpCoordinator.pendingCancelsForBeacon('')).to.have.length(0);
+			Expect(tmpCoordinator.pendingCancelsForBeacon(null)).to.have.length(0);
+		});
+	});
 });

@@ -2715,7 +2715,11 @@ class UltravisorAPIServer extends libPictService
 						return fNext();
 					}
 
-					pResponse.send(tmpBeacon);
+					// WI #466: the heartbeat is the ONLY round-trip a beacon at MaxConcurrent reliably makes --
+					// _poll() returns early when it is full, and an action that reports no progress never posts
+					// one. So this is the channel that makes cancel work without a WebSocket.
+					pResponse.send(Object.assign({}, tmpBeacon,
+						{ Cancels: tmpCoordinator.pendingCancelsForBeacon(pRequest.params.BeaconID) }));
 					return fNext();
 				}.bind(this)
 			);
@@ -2748,7 +2752,9 @@ class UltravisorAPIServer extends libPictService
 					{
 						this.log.info(`[Coordinator] Poll: beacon=${tmpBody.BeaconID} claimed work=${tmpWorkItem.WorkItemHash} capability=${tmpWorkItem.Capability} action=${tmpWorkItem.Action}`);
 					}
-					pResponse.send({ WorkItem: tmpWorkItem });
+					// WI #466: also carried here. This only helps a beacon with spare capacity, since a full one
+					// returns before it ever polls, but it costs nothing and shortens the window when it does.
+					pResponse.send({ WorkItem: tmpWorkItem, Cancels: tmpCoordinator.pendingCancelsForBeacon(tmpBody.BeaconID) });
 					return fNext();
 				}.bind(this)
 			);
@@ -2997,7 +3003,15 @@ class UltravisorAPIServer extends libPictService
 						return fNext();
 					}
 
-					pResponse.send({ Success: true, WorkItemHash: pRequest.params.WorkItemHash });
+					// WI #466: the fastest cancel channel for an action that reports progress, and the same shape
+					// plansheet's own runner already uses -- the answer to a heartbeat carries the stop.
+					let tmpPendingCancel = tmpCoordinator.pendingCancelFor(pRequest.params.WorkItemHash);
+					pResponse.send({
+						Success: true,
+						WorkItemHash: pRequest.params.WorkItemHash,
+						CancelRequested: !!tmpPendingCancel,
+						CancelReason: tmpPendingCancel ? tmpPendingCancel.Reason : ''
+					});
 					return fNext();
 				}.bind(this)
 			);
@@ -3175,6 +3189,35 @@ class UltravisorAPIServer extends libPictService
 		// are separate routes because they are separate events and a
 		// polling beacon (no WebSocket to answer on) still needs a way
 		// to say the second one.
+		// WI #466: the HTTP twin of the WorkCancelAck WebSocket frame -- "I heard you", as distinct from the
+		// Canceled route below, which is "I stopped". A polling beacon needs both, and without this one the
+		// hub never sees an acknowledgement and re-offers the cancel on every heartbeat forever.
+		this._OratorServer.post
+			(
+				'/Beacon/Work/:WorkItemHash/CancelAck',
+				function (pRequest, pResponse, fNext)
+				{
+					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+					if (!tmpSession) { return; }
+
+					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+					if (!tmpCoordinator)
+					{
+						pResponse.send(500, { Error: 'BeaconCoordinator service not available.' });
+						return fNext();
+					}
+
+					let tmpBody = pRequest.body || {};
+					let tmpAcknowledged = tmpCoordinator.acknowledgeCancel(pRequest.params.WorkItemHash, tmpBody.BeaconID);
+					pResponse.send({
+						Success: true,
+						WorkItemHash: pRequest.params.WorkItemHash,
+						Acknowledged: !!tmpAcknowledged
+					});
+					return fNext();
+				}.bind(this)
+			);
+
 		this._OratorServer.post
 			(
 				'/Beacon/Work/:WorkItemHash/Canceled',

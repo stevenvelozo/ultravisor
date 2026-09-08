@@ -113,6 +113,51 @@ class UltravisorBeaconCoordinator extends libPictService
 	 * @param {string} pReason - Operator-supplied cancellation reason.
 	 * @returns {boolean} True when the request reached a connected beacon.
 	 */
+	/**
+	 * Cancels this beacon has been asked for but has not acknowledged (Work Item #466).
+	 *
+	 * The push channel is a WebSocket, and a beacon that polls over HTTP has no socket to push down. That is
+	 * not an exotic configuration: a node running as a periodic oneshot cannot hold one at all, and any
+	 * beacon whose socket has dropped is in the same position until it reconnects. Without this, such a
+	 * beacon never learns it was cancelled and runs to completion, which is what made cancel a
+	 * transport-dependent promise rather than a guarantee.
+	 *
+	 * So the hub also ANSWERS with its pending cancels on the round-trips a beacon is already making --
+	 * heartbeat, progress and poll. No new endpoint, no new connection, no second poll loop.
+	 *
+	 * Gated on CancelAcknowledgedAt rather than CancelDeliveredAt on purpose: a delivery whose response was
+	 * lost must be re-offered, and re-offering an already-acknowledged cancel is noise. The beacon's ack is
+	 * the only evidence that the request actually arrived.
+	 */
+	pendingCancelsForBeacon(pBeaconID)
+	{
+		let tmpBeaconID = String(pBeaconID || '').trim();
+		if (!tmpBeaconID) { return []; }
+
+		let tmpPending = [];
+		let tmpHashes = Object.keys(this._WorkQueue);
+		for (let i = 0; i < tmpHashes.length; i++)
+		{
+			let tmpWorkItem = this._WorkQueue[tmpHashes[i]];
+			if (!tmpWorkItem || tmpWorkItem.AssignedBeaconID !== tmpBeaconID) { continue; }
+			if (!tmpWorkItem.CancelRequested || tmpWorkItem.CancelAcknowledgedAt) { continue; }
+			if (tmpWorkItem.Status !== 'Running' && tmpWorkItem.Status !== 'Assigned') { continue; }
+			tmpPending.push({ WorkItemHash: tmpWorkItem.WorkItemHash, Reason: tmpWorkItem.CancelReason || '' });
+		}
+		return tmpPending;
+	}
+
+	/**
+	 * Is this one work item cancelled and unacknowledged? The per-item form of pendingCancelsForBeacon, for
+	 * the progress round-trip, which already names the item it is reporting on.
+	 */
+	pendingCancelFor(pWorkItemHash)
+	{
+		let tmpWorkItem = this._WorkQueue[pWorkItemHash];
+		if (!tmpWorkItem || !tmpWorkItem.CancelRequested || tmpWorkItem.CancelAcknowledgedAt) { return null; }
+		return { WorkItemHash: pWorkItemHash, Reason: tmpWorkItem.CancelReason || '' };
+	}
+
 	requestBeaconCancel(pWorkItem, pReason)
 	{
 		if (!this._CancelPushHandler || !pWorkItem || !pWorkItem.AssignedBeaconID)
@@ -140,7 +185,9 @@ class UltravisorBeaconCoordinator extends libPictService
 		}
 		else
 		{
-			this.log.warn(`BeaconCoordinator: could not deliver cancel request for [${pWorkItem.WorkItemHash}] to beacon [${pWorkItem.AssignedBeaconID}] -- no live push channel.`);
+			// Not a failure any more. The request stays on the work item and the beacon collects it on its
+			// next heartbeat, progress report or poll (WI #466), so a polling beacon is cancellable too.
+			this.log.info(`BeaconCoordinator: no live push channel to beacon [${pWorkItem.AssignedBeaconID}] for [${pWorkItem.WorkItemHash}]; the cancel will be delivered on its next heartbeat, progress report or poll.`);
 		}
 
 		return tmpDelivered;
