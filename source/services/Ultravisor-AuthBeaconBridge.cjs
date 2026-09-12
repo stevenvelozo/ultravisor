@@ -254,6 +254,46 @@ class UltravisorAuthBeaconBridge extends libPictService
 
 	// ============== Internals ==============
 
+	/**
+	 * An opt-in hub flag: on when fable.ProgramConfiguration or
+	 * fable.settings holds true or "true" for it. Neither source outranks
+	 * the other, so a false that state persistence wrote into one cannot
+	 * hide a true set in the other. Plain property reads; never throws.
+	 */
+	_isOptInFlagOn(pKey)
+	{
+		let tmpConfig = (this.fable && this.fable.ProgramConfiguration) || {};
+		let tmpSettings = (this.fable && this.fable.settings) || {};
+		return (tmpConfig[pKey] === true || tmpConfig[pKey] === 'true'
+			|| tmpSettings[pKey] === true || tmpSettings[pKey] === 'true');
+	}
+
+	/**
+	 * UltravisorAuthDispatchPinned: the live Authentication beacon that
+	 * AUTH_* work is pinned to, or null when none is Online or Busy. A
+	 * dropped socket leaves an Offline record behind, and pinning to it
+	 * would time out every credential check, so Offline is never chosen.
+	 */
+	_getPinnedAuthBeacon()
+	{
+		let tmpCoord = this._coord();
+		if (!tmpCoord)
+		{
+			return null;
+		}
+		let tmpBeacons = tmpCoord.listBeacons() || [];
+		for (let i = 0; i < tmpBeacons.length; i++)
+		{
+			let tmpCaps = tmpBeacons[i].Capabilities || [];
+			if (tmpCaps.indexOf('Authentication') >= 0
+				&& (tmpBeacons[i].Status === 'Online' || tmpBeacons[i].Status === 'Busy'))
+			{
+				return tmpBeacons[i];
+			}
+		}
+		return null;
+	}
+
 	_coord()
 	{
 		// Resolve lazily — the coordinator can be added/replaced after
@@ -285,14 +325,30 @@ class UltravisorAuthBeaconBridge extends libPictService
 					Reason: 'No beacon currently advertises Authentication'
 				});
 			}
-			tmpCoord.dispatchAndWait(
+			let tmpWorkItemInfo =
 			{
 				Capability: 'Authentication',
 				Action: pActionName,
 				Settings: pSettings,
 				AffinityKey: 'auth',                 // single auth beacon at a time
 				TimeoutMs: this._TimeoutMs
-			},
+			};
+			// Opt-in (UltravisorAuthDispatchPinned). The coordinator matches
+			// an AffinityKey against beacon Names before it looks at
+			// capability, so the literal 'auth' hands credentials to any
+			// beacon registered under the Name 'auth'. Pin the work to the
+			// live auth beacon itself instead. With none live, keep the old
+			// shape.
+			if (this._isOptInFlagOn('UltravisorAuthDispatchPinned'))
+			{
+				let tmpPinned = this._getPinnedAuthBeacon();
+				if (tmpPinned && tmpPinned.Name)
+				{
+					tmpWorkItemInfo.AffinityKey = tmpPinned.Name;
+					tmpWorkItemInfo.RequireAffinityMatch = true;
+				}
+			}
+			tmpCoord.dispatchAndWait(tmpWorkItemInfo,
 			(pError, pResult) =>
 			{
 				if (pError)

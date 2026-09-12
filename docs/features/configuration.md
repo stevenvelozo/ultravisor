@@ -53,6 +53,16 @@ task/operation definitions.
 | `UltravisorTickIntervalMilliseconds` | Number | `60000` | Base tick interval in milliseconds |
 | `UltravisorCommandTimeoutMilliseconds` | Number | `300000` | Timeout for command task execution (5 minutes) |
 | `UltravisorCommandMaxBufferBytes` | Number | `10485760` | Max stdout/stderr buffer size for commands (10 MB) |
+| `UltravisorNonPromiscuous` | Boolean | `false` | Require a `JoinSecret` on every WebSocket beacon join. See [Beacon Authentication](beacon-authentication.md) |
+| `UltravisorBootstrapAuthSecret` | String | `""` | Secret the auth beacon presents on its own join when `UltravisorNonPromiscuous` is on |
+| `UltravisorAuthBeaconRejoinViaBootstrap` | Boolean | not set | Let the auth beacon rejoin on the bootstrap secret after its connection drops. Only `true` turns it on. Left out of the defaults file so persistence never writes it |
+| `UltravisorEphemeralAuthDispatches` | Boolean | not set | Keep the Settings and Result of the hub's calls to the auth beacon off disk. Only `true` turns it on. Left out of the defaults file so persistence never writes it |
+| `UltravisorBeaconWSFrameIdentity` | Boolean or String | not set | Which beacon a WebSocket heartbeat or deregister frame acts on: not set (the BeaconID in the frame), `"warn"` (the same, logging mismatches), or `true`/`"socket"` (the socket's own beacon). Left out of the defaults file so persistence never writes it |
+| `UltravisorHTTPBeaconAdmission` | String or Boolean | not set | Whether HTTP `POST /Beacon/Register` runs join admission: not set or `"off"`, `"audit"` (log what enforce would refuse), or `"enforce"`/`true`. Has no effect unless `UltravisorNonPromiscuous` is set. Left out of the defaults file so persistence never writes it |
+| `UltravisorAuthDispatchPinned` | Boolean | not set | Send the hub's calls to the auth beacon by that beacon's own name, so a beacon named `auth` cannot receive them. `true` or `"true"` turns it on. Left out of the defaults file |
+| `UltravisorRefuseAuthenticationDispatch` | Boolean | not set | Answer 403 to Capability `Authentication` on the HTTP dispatch routes. `true` or `"true"` turns it on. Left out of the defaults file |
+| `UltravisorBeaconWSWorkFrameIdentity` | Boolean or String | not set | Which socket may report a work item's result over WebSocket: not set (any socket, as before), `"warn"` (any socket, logging mismatches), or `true`/`"socket"` (only the item's assigned beacon's socket). Closes a forged-completion path; set it before any public exposure. Left out of the defaults file |
+| `UltravisorRedactAuthDispatchSettings` | Boolean | not set | Blank the Settings and Result of Authentication work items on `GET /Beacon/Work` and `GET /Beacon/Queue`. `true` or `"true"` turns it on. Left out of the defaults file |
 | `Tasks` | Object | `{}` | Map of task GUIDs to task definitions |
 | `Operations` | Object | `{}` | Map of operation GUIDs to operation definitions |
 

@@ -108,7 +108,9 @@ class UltravisorBeaconScheduler extends libPictService
 	{
 		// Mirror the coordinator's gate. Kept as a per-class method
 		// rather than a shared module so both classes can independently
-		// add their own meta-capabilities later.
+		// add their own meta-capabilities later. Each bridge site also
+		// skips an item stamped Ephemeral (Coordinator._isEphemeralDispatch);
+		// that check reads the item, so it sits at the site.
 		return pCapability === 'QueuePersistence' || pCapability === 'ManifestStore';
 	}
 
@@ -324,7 +326,7 @@ class UltravisorBeaconScheduler extends libPictService
 		}
 
 		let tmpDispatchBridge = this._getBridge();
-		if (tmpDispatchBridge && !this._isMetaCapability(pItem.Capability))
+		if (tmpDispatchBridge && !this._isMetaCapability(pItem.Capability) && pItem.Ephemeral !== true)
 		{
 			this._persistBest(tmpDispatchBridge.updateWorkItem(pItem.WorkItemHash, {
 				Status: 'Dispatched',
@@ -395,7 +397,7 @@ class UltravisorBeaconScheduler extends libPictService
 		pItem.LastEventAt = tmpNowIso;
 
 		let tmpCancelBridge = this._getBridge();
-		if (tmpCancelBridge && !this._isMetaCapability(pItem.Capability))
+		if (tmpCancelBridge && !this._isMetaCapability(pItem.Capability) && pItem.Ephemeral !== true)
 		{
 			this._persistBest(tmpCancelBridge.updateWorkItem(pItem.WorkItemHash, {
 				Status: 'Canceled',
@@ -501,7 +503,7 @@ class UltravisorBeaconScheduler extends libPictService
 		pItem.StalledSinceMs = tmpSinceEvent;
 
 		let tmpStallBridge = this._getBridge();
-		if (tmpStallBridge && !this._isMetaCapability(pItem.Capability))
+		if (tmpStallBridge && !this._isMetaCapability(pItem.Capability) && pItem.Ephemeral !== true)
 		{
 			this._persistBest(tmpStallBridge.updateWorkItem(pItem.WorkItemHash, {
 				Status: 'Stalled',
@@ -579,7 +581,7 @@ class UltravisorBeaconScheduler extends libPictService
 		delete pItem.StalledSinceMs;
 
 		let tmpRecoverBridge = this._getBridge();
-		if (tmpRecoverBridge && !this._isMetaCapability(pItem.Capability))
+		if (tmpRecoverBridge && !this._isMetaCapability(pItem.Capability) && pItem.Ephemeral !== true)
 		{
 			this._persistBest(tmpRecoverBridge.updateWorkItem(pItem.WorkItemHash, {
 				Status: tmpPrior
@@ -725,7 +727,7 @@ class UltravisorBeaconScheduler extends libPictService
 		pItem.HealthComputedAt = tmpNowIso;
 
 		let tmpHealthBridge = this._getBridge();
-		if (tmpHealthBridge && !this._isMetaCapability(pItem.Capability))
+		if (tmpHealthBridge && !this._isMetaCapability(pItem.Capability) && pItem.Ephemeral !== true)
 		{
 			this._persistBest(tmpHealthBridge.updateWorkItem(pItem.WorkItemHash, {
 				Health: tmpHealth.Score,
@@ -882,7 +884,7 @@ class UltravisorBeaconScheduler extends libPictService
 			tmpItem.CancelRequested = true;
 			tmpItem.CancelReason = pReason || 'cancel requested';
 			let tmpCancelReqBridge = this._getBridge();
-			if (tmpCancelReqBridge && !this._isMetaCapability(tmpItem.Capability))
+			if (tmpCancelReqBridge && !this._isMetaCapability(tmpItem.Capability) && tmpItem.Ephemeral !== true)
 			{
 				this._persistBest(tmpCancelReqBridge.updateWorkItem(pWorkItemHash, {
 					CancelRequested: true,
@@ -1028,7 +1030,7 @@ class UltravisorBeaconScheduler extends libPictService
 		tmpItem.Priority = tmpNewPriority;
 
 		let tmpReorderBridge = this._getBridge();
-		if (tmpReorderBridge && !this._isMetaCapability(tmpItem.Capability))
+		if (tmpReorderBridge && !this._isMetaCapability(tmpItem.Capability) && tmpItem.Ephemeral !== true)
 		{
 			this._persistBest(tmpReorderBridge.updateWorkItem(pWorkItemHash, { Priority: tmpNewPriority }), 'reorder update');
 			this._persistBest(tmpReorderBridge.appendEvent({

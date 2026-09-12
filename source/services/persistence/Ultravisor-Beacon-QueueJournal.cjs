@@ -400,6 +400,12 @@ class UltravisorBeaconQueueJournal extends libPictService
 		for (let i = 0; i < tmpHashes.length; i++)
 		{
 			let tmpItem = pWorkQueue[tmpHashes[i]];
+			// Opt-in ephemeral items (Coordinator._isEphemeralDispatch) never
+			// reach disk, the compaction snapshot included.
+			if (tmpItem.Ephemeral === true)
+			{
+				continue;
+			}
 			// Only persist items that haven't been finalized
 			if (tmpItem.Status !== 'Complete' && tmpItem.Status !== 'Error' && tmpItem.Status !== 'Timeout')
 			{

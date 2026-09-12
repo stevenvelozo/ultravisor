@@ -292,6 +292,45 @@ class UltravisorBeaconCoordinator extends libPictService
 	}
 
 	/**
+	 * Opt-in (UltravisorEphemeralAuthDispatches, unset by default). A
+	 * standalone Authentication work item carries credentials in its
+	 * Settings (JoinSecret, Password, Token) and in its Result
+	 * (SessionToken). With the option set to true it is kept in memory
+	 * only: never journaled, snapshotted or written through the queue
+	 * persistence bridge. Items with a RunHash belong to an operation graph,
+	 * which needs the journal to resume after a restart, so they are left
+	 * alone. Read on every call because embedders apply config overrides
+	 * after the services exist.
+	 *
+	 * @param {object} pWorkItem
+	 * @returns {boolean}
+	 */
+	_isEphemeralDispatch(pWorkItem)
+	{
+		if (!pWorkItem || pWorkItem.RunHash || pWorkItem.Capability !== 'Authentication')
+		{
+			return false;
+		}
+		let tmpConfig = (this.fable && this.fable.ProgramConfiguration) || {};
+		let tmpSettings = (this.fable && this.fable.settings) || {};
+		return (tmpConfig.UltravisorEphemeralAuthDispatches === true)
+			|| (tmpSettings.UltravisorEphemeralAuthDispatches === true);
+	}
+
+	/**
+	 * Whether a bridge write site should persist this item. With the
+	 * ephemeral option off, Ephemeral is never set, so this is exactly
+	 * !_isMetaCapability(...).
+	 *
+	 * @param {object} pWorkItem
+	 * @returns {boolean}
+	 */
+	_shouldPersistWorkItem(pWorkItem)
+	{
+		return !this._isMetaCapability(pWorkItem.Capability) && (pWorkItem.Ephemeral !== true);
+	}
+
+	/**
 	 * Centralized fire-and-forget for bridge calls. Promise rejections
 	 * land here as warnings instead of unhandled-rejection events,
 	 * matching the original `try { ... } catch (...)` best-effort
@@ -1353,6 +1392,13 @@ class UltravisorBeaconCoordinator extends libPictService
 			tmpDefaults.applyToWorkItem(tmpWorkItem, tmpSettings);
 		}
 
+		// Opt-in, see _isEphemeralDispatch. Stamped only when true, so with
+		// the option off the item is exactly what it was before.
+		if (this._isEphemeralDispatch(tmpWorkItem))
+		{
+			tmpWorkItem.Ephemeral = true;
+		}
+
 		// Routing for AffinityKey:
 		//   1) Name resolution — if AffinityKey matches a registered
 		//      beacon's Name, route directly to that beacon. This is
@@ -1413,9 +1459,10 @@ class UltravisorBeaconCoordinator extends libPictService
 		this._WorkQueue[tmpWorkItemHash] = tmpWorkItem;
 		this.log.info(`BeaconCoordinator: enqueued work item [${tmpWorkItemHash}] (${tmpWorkItem.Capability}/${tmpWorkItem.Action}) status=${tmpWorkItem.Status}.`);
 
-		// Journal the enqueue
+		// Journal the enqueue. An ephemeral item (see _isEphemeralDispatch)
+		// is not journaled, because this entry carries its Settings.
 		let tmpJournal = this._getJournal();
-		if (tmpJournal)
+		if (tmpJournal && tmpWorkItem.Ephemeral !== true)
 		{
 			tmpJournal.appendEntry('enqueue', {
 				WorkItemHash: tmpWorkItem.WorkItemHash,
@@ -1449,7 +1496,7 @@ class UltravisorBeaconCoordinator extends libPictService
 		// — recording them would create infinite recursion through the
 		// bridge → coordinator → bridge → ... loop.
 		let tmpBridge = this._getQueuePersistenceBridge();
-		if (tmpBridge && !this._isMetaCapability(tmpWorkItem.Capability))
+		if (tmpBridge && this._shouldPersistWorkItem(tmpWorkItem))
 		{
 			this._persistBest(tmpBridge.upsertWorkItem(tmpWorkItem), 'queue upsert');
 			this._persistBest(tmpBridge.appendEvent({
@@ -1769,7 +1816,7 @@ class UltravisorBeaconCoordinator extends libPictService
 				// Affinity-poll dispatch path. Bridge handles beacon-or-local
 				// routing; meta-capability skip mirrors the other write sites.
 				let tmpPollBridgeA = this._getQueuePersistenceBridge();
-				if (tmpPollBridgeA && !this._isMetaCapability(tmpWorkItem.Capability))
+				if (tmpPollBridgeA && this._shouldPersistWorkItem(tmpWorkItem))
 				{
 					this._persistBest(tmpPollBridgeA.updateWorkItem(tmpWorkItem.WorkItemHash, {
 						Status: 'Running',
@@ -1878,7 +1925,7 @@ class UltravisorBeaconCoordinator extends libPictService
 			// guard as the affinity poll above; the only difference is
 			// the FromStatus carried into the event row.
 			let tmpPollBridgeB = this._getQueuePersistenceBridge();
-			if (tmpPollBridgeB && !this._isMetaCapability(tmpWorkItem.Capability))
+			if (tmpPollBridgeB && this._shouldPersistWorkItem(tmpWorkItem))
 			{
 				this._persistBest(tmpPollBridgeB.updateWorkItem(tmpWorkItem.WorkItemHash, {
 					Status: 'Running',
@@ -2151,7 +2198,7 @@ class UltravisorBeaconCoordinator extends libPictService
 		// in-process QueueStore otherwise. Skip meta-capability
 		// dispatches to avoid the QP_*-on-QP_* recursion.
 		let tmpCompleteBridge = this._getQueuePersistenceBridge();
-		if (tmpCompleteBridge && !this._isMetaCapability(tmpWorkItem.Capability))
+		if (tmpCompleteBridge && this._shouldPersistWorkItem(tmpWorkItem))
 		{
 			this._persistBest(tmpCompleteBridge.updateWorkItem(pWorkItemHash, {
 				Status: 'Complete',
@@ -2356,7 +2403,7 @@ class UltravisorBeaconCoordinator extends libPictService
 		// in-process QueueStore otherwise. Skip meta-capability
 		// dispatches to avoid recursion.
 		let tmpFailBridge = this._getQueuePersistenceBridge();
-		if (tmpFailBridge && !this._isMetaCapability(tmpWorkItem.Capability))
+		if (tmpFailBridge && this._shouldPersistWorkItem(tmpWorkItem))
 		{
 			this._persistBest(tmpFailBridge.updateWorkItem(pWorkItemHash, {
 				Status: 'Error',
@@ -2524,7 +2571,7 @@ class UltravisorBeaconCoordinator extends libPictService
 		// 'Stalled' by the scheduler; this just stamps the rollup time.
 		let tmpStallFinalIso = new Date().toISOString();
 		let tmpStallBridge = this._getQueuePersistenceBridge();
-		if (tmpStallBridge && !this._isMetaCapability(tmpWorkItem.Capability))
+		if (tmpStallBridge && this._shouldPersistWorkItem(tmpWorkItem))
 		{
 			this._persistBest(tmpStallBridge.updateWorkItem(pWorkItemHash, {
 				Status: 'Stalled',
@@ -2852,7 +2899,7 @@ class UltravisorBeaconCoordinator extends libPictService
 		// persistence backend sees the same heartbeat trail an in-process
 		// store would. Skip meta-capabilities to avoid recursion.
 		let tmpProgressBridge = this._getQueuePersistenceBridge();
-		if (tmpProgressBridge && !this._isMetaCapability(tmpWorkItem.Capability))
+		if (tmpProgressBridge && this._shouldPersistWorkItem(tmpWorkItem))
 		{
 			this._persistBest(tmpProgressBridge.updateWorkItem(pWorkItemHash, {
 				LastEventAt: tmpWorkItem.LastEventAt,

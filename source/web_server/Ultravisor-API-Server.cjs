@@ -1041,6 +1041,80 @@ class UltravisorAPIServer extends libPictService
 	}
 
 	/**
+	 * An opt-in hub flag: on when fable.ProgramConfiguration or
+	 * fable.settings holds true or "true" for it. Neither source outranks
+	 * the other, so a false that state persistence wrote into one cannot
+	 * hide a true set in the other. Plain property reads; never throws.
+	 */
+	_isOptInFlagOn(pKey)
+	{
+		let tmpConfig = (this.fable && this.fable.ProgramConfiguration) || {};
+		let tmpSettings = (this.fable && this.fable.settings) || {};
+		return (tmpConfig[pKey] === true || tmpConfig[pKey] === 'true'
+			|| tmpSettings[pKey] === true || tmpSettings[pKey] === 'true');
+	}
+
+	/**
+	 * Opt-in (UltravisorRedactAuthDispatchSettings). The Settings of an
+	 * Authentication work item hold the credential the hub is checking (a
+	 * beacon's JoinSecret, a password, a bootstrap token) and its Result can
+	 * hold a session token, and GET /Beacon/Work and GET /Beacon/Queue return
+	 * live work items to any hub session. When the key is on, this returns a
+	 * shallow copy of the list with those fields blanked on Authentication
+	 * items; the in-memory items are never touched. Off by default: the list
+	 * is returned unchanged, so the response is byte-identical.
+	 *
+	 * @param {Array<object>} pItems
+	 * @returns {Array<object>}
+	 */
+	_redactAuthWorkItems(pItems)
+	{
+		if (!Array.isArray(pItems) || !this._isOptInFlagOn('UltravisorRedactAuthDispatchSettings'))
+		{
+			return pItems;
+		}
+		return pItems.map((pItem) =>
+		{
+			if (!pItem || pItem.Capability !== 'Authentication')
+			{
+				return pItem;
+			}
+			let tmpCopy = Object.assign({}, pItem);
+			tmpCopy.Settings = { Redacted: true };
+			if ('Outputs' in tmpCopy) { tmpCopy.Outputs = { Redacted: true }; }
+			if ('Result' in tmpCopy) { tmpCopy.Result = { Redacted: true }; }
+			return tmpCopy;
+		});
+	}
+
+	/**
+	 * Opt-in (UltravisorRefuseAuthenticationDispatch). Authentication work
+	 * is the hub's own: the auth beacon bridge dispatches it in-process.
+	 * Refusing it on the HTTP dispatch routes stops a session holder from
+	 * using the auth beacon to test passwords, tokens and join secrets, or
+	 * from reaching the AUTH_*User actions around the /1.0/Users admin
+	 * check. The capability is checked first, so other traffic reads no
+	 * config at all.
+	 *
+	 * @returns {boolean} true when refused; the response has been sent
+	 */
+	_refuseReservedCapability(pBody, pResponse, fNext)
+	{
+		if (!pBody || pBody.Capability !== 'Authentication')
+		{
+			return false;
+		}
+		if (!this._isOptInFlagOn('UltravisorRefuseAuthenticationDispatch'))
+		{
+			return false;
+		}
+		this.log.warn('Ultravisor: refused HTTP dispatch of the reserved capability [Authentication].');
+		pResponse.send(403, { Success: false, Error: 'Capability [Authentication] is reserved for the hub and cannot be dispatched over HTTP.' });
+		fNext();
+		return true;
+	}
+
+	/**
 	 * Synthetic session handed back when no auth provider can validate
 	 * a real one.  Carries an `Anonymous: true` marker so routes that
 	 * need authenticated access can detect and reject it cleanly.  A
@@ -2483,36 +2557,10 @@ class UltravisorAPIServer extends libPictService
 		this._OratorServer.post
 			(
 				'/Beacon/Register',
-				function (pRequest, pResponse, fNext)
-				{
-					let tmpSession = this._requireSession(pRequest, pResponse, fNext);
-					if (!tmpSession) { return; }
-
-					let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
-					if (!tmpCoordinator)
-					{
-						pResponse.send(500, { Error: 'BeaconCoordinator service not available.' });
-						return fNext();
-					}
-
-					let tmpBody = pRequest.body || {};
-					if (!tmpBody.Name || !tmpBody.Capabilities)
-					{
-						pResponse.send(400, { Error: 'Name and Capabilities are required.' });
-						return fNext();
-					}
-
-					let tmpBeacon = tmpCoordinator.registerBeacon(tmpBody, tmpSession.SessionID);
-					let tmpObsForReg = this._getService('UltravisorObserver');
-					if (tmpObsForReg)
-					{
-						try { tmpObsForReg.onBeaconRegistered(tmpBeacon); }
-						catch (pErr) { /* best effort */ }
-					}
-					pResponse.send(tmpBeacon);
-					return fNext();
-				}.bind(this)
+				this._handleBeaconHTTPRegister.bind(this)
 			);
+		// Logs the effective UltravisorHTTPBeaconAdmission once, when the key is set.
+		this._httpBeaconAdmissionMode();
 
 		// --- List Beacons (no auth – management UI) ---
 		this._OratorServer.get
@@ -2612,7 +2660,7 @@ class UltravisorAPIServer extends libPictService
 						return fNext();
 					}
 
-					pResponse.send(tmpCoordinator.listWorkItems());
+					pResponse.send(this._redactAuthWorkItems(tmpCoordinator.listWorkItems()));
 					return fNext();
 				}.bind(this)
 			);
@@ -3109,6 +3157,7 @@ class UltravisorAPIServer extends libPictService
 						pResponse.send(400, { Error: 'Capability is required.' });
 						return fNext();
 					}
+					if (this._refuseReservedCapability(tmpBody, pResponse, fNext)) { return; }
 
 					// If the client didn't supply a RunID, mint one on the fly so
 					// every enqueue ends up attached to a durable run record.
@@ -3356,7 +3405,7 @@ class UltravisorAPIServer extends libPictService
 					let tmpBucket = tmpQuery.bucket || null;
 					let tmpLimit = parseInt(tmpQuery.limit, 10) || 200;
 
-					let tmpItems = tmpScheduler ? tmpScheduler.listBuckets(tmpBucket, tmpLimit) : [];
+					let tmpItems = this._redactAuthWorkItems(tmpScheduler ? tmpScheduler.listBuckets(tmpBucket, tmpLimit) : []);
 
 					// History is opt-in via ?include=history. When opted in,
 					// pull through the persistence bridge so a connected
@@ -3376,7 +3425,9 @@ class UltravisorAPIServer extends libPictService
 					tmpBridge.listWorkItems({ Limit: tmpLimit, OrderBy: '-EnqueuedAt' })
 						.then((pHistResult) =>
 						{
-							let tmpHistorical = (pHistResult && pHistResult.WorkItems) || null;
+							let tmpHistorical = (pHistResult && pHistResult.WorkItems)
+								? this._redactAuthWorkItems(pHistResult.WorkItems)
+								: null;
 							pResponse.send({
 								Summary: tmpSummary,
 								Items: tmpItems,
@@ -3576,6 +3627,7 @@ class UltravisorAPIServer extends libPictService
 						pResponse.send(400, { Success: false, Error: 'Capability is required.' });
 						return fNext();
 					}
+					if (this._refuseReservedCapability(tmpBody, pResponse, fNext)) { return; }
 
 					// Check if any Beacons are registered
 					let tmpBeacons = tmpCoordinator.listBeacons();
@@ -3637,6 +3689,7 @@ class UltravisorAPIServer extends libPictService
 						pResponse.send(400, { Success: false, Error: 'Capability is required.' });
 						return fNext();
 					}
+					if (this._refuseReservedCapability(tmpBody, pResponse, fNext)) { return; }
 
 					// Check if any Beacons are registered
 					let tmpBeacons = tmpCoordinator.listBeacons();
@@ -4610,7 +4663,7 @@ class UltravisorAPIServer extends libPictService
 						}
 						else if (tmpData.Action === 'BeaconHeartbeat')
 						{
-							this._handleBeaconWSHeartbeat(tmpData);
+							this._handleBeaconWSHeartbeat(tmpData, pWebSocket);
 						}
 						else if (tmpData.Action === 'WorkComplete')
 						{
@@ -4618,29 +4671,35 @@ class UltravisorAPIServer extends libPictService
 						}
 						else if (tmpData.Action === 'WorkError')
 						{
-							this._handleBeaconWSWorkError(tmpData);
+							this._handleBeaconWSWorkError(tmpData, pWebSocket);
 						}
 						else if (tmpData.Action === 'WorkProgress')
 						{
-							this._handleBeaconWSWorkProgress(tmpData);
+							this._handleBeaconWSWorkProgress(tmpData, pWebSocket);
 						}
 						else if (tmpData.Action === 'WorkCancelAck')
 						{
-							this._handleBeaconWSWorkCancelAck(tmpData);
+							this._handleBeaconWSWorkCancelAck(tmpData, pWebSocket);
 						}
 						else if (tmpData.Action === 'WorkCanceled')
 						{
-							this._handleBeaconWSWorkCanceled(tmpData);
+							this._handleBeaconWSWorkCanceled(tmpData, pWebSocket);
 						}
 						else if (tmpData.Action === 'WorkResultUpload')
 						{
-							// Expect the next binary frame to be the file data
-							pWebSocket._PendingUpload = {
-								WorkItemHash: tmpData.WorkItemHash,
-								OutputFilename: tmpData.OutputFilename,
-								OutputSize: tmpData.OutputSize
-							};
-							this.log.info(`[Coordinator] WS: expecting binary upload for [${tmpData.WorkItemHash}] filename=${tmpData.OutputFilename} size=${tmpData.OutputSize}`);
+							// Expect the next binary frame to be the file data.
+							// The identity check runs here, at the naming frame,
+							// so an unauthorized socket never arms _PendingUpload
+							// and its following binary frame is ignored.
+							if (this._wsWorkFrameAuthorized(pWebSocket, tmpData.WorkItemHash, 'WorkResultUpload'))
+							{
+								pWebSocket._PendingUpload = {
+									WorkItemHash: tmpData.WorkItemHash,
+									OutputFilename: tmpData.OutputFilename,
+									OutputSize: tmpData.OutputSize
+								};
+								this.log.info(`[Coordinator] WS: expecting binary upload for [${tmpData.WorkItemHash}] filename=${tmpData.OutputFilename} size=${tmpData.OutputSize}`);
+							}
 						}
 						else if (tmpData.Action === 'Deregister')
 						{
@@ -5102,6 +5161,192 @@ class UltravisorAPIServer extends libPictService
 	// ====================================================================
 
 	/**
+	 * UltravisorHTTPBeaconAdmission, read per request: whether HTTP POST
+	 * /Beacon/Register runs the join admission the WebSocket path runs.
+	 *
+	 *   unset, false, null or 'off' - no admission check, exactly as before.
+	 *   'audit'                     - register as before, and log a register
+	 *                                 that 'enforce' would refuse.
+	 *   'enforce' or true           - a register must pass admission.
+	 *
+	 * Strings are matched after trimming, ignoring case. Anything else means
+	 * 'off', with a warning. It only matters when UltravisorNonPromiscuous is
+	 * true, because admission admits every beacon otherwise. The effective
+	 * mode is logged once per distinct setting; an unset key logs nothing.
+	 *
+	 * @returns {string} 'off', 'audit' or 'enforce'
+	 */
+	_httpBeaconAdmissionMode()
+	{
+		let tmpConfig = (this.fable && this.fable.ProgramConfiguration) || {};
+		let tmpValue = tmpConfig.UltravisorHTTPBeaconAdmission;
+		if (tmpValue === undefined)
+		{
+			return 'off';
+		}
+
+		let tmpMode = null;
+		if (tmpValue === true)
+		{
+			tmpMode = 'enforce';
+		}
+		else if (tmpValue === false || tmpValue === null)
+		{
+			tmpMode = 'off';
+		}
+		else if (typeof tmpValue === 'string')
+		{
+			let tmpText = tmpValue.trim().toLowerCase();
+			if (tmpText === 'off' || tmpText === 'audit' || tmpText === 'enforce')
+			{
+				tmpMode = tmpText;
+			}
+		}
+
+		let tmpLogKey = JSON.stringify(tmpValue) + '|' + !!tmpConfig.UltravisorNonPromiscuous;
+		if (this._HTTPBeaconAdmissionLogKey !== tmpLogKey)
+		{
+			this._HTTPBeaconAdmissionLogKey = tmpLogKey;
+			if (tmpMode === null)
+			{
+				this.log.warn(`[Admission] UltravisorHTTPBeaconAdmission=${JSON.stringify(tmpValue)} is not "off", "audit", "enforce" or true; HTTP beacon registration is not admission-checked.`);
+			}
+			else
+			{
+				this.log.info(`[Admission] HTTP beacon registration admission: ${tmpMode}.`);
+			}
+			if ((tmpMode === 'audit' || tmpMode === 'enforce') && !tmpConfig.UltravisorNonPromiscuous)
+			{
+				this.log.warn(`[Admission] UltravisorHTTPBeaconAdmission=${tmpMode} has no effect: UltravisorNonPromiscuous is not set, so admission admits every beacon.`);
+			}
+		}
+		return tmpMode || 'off';
+	}
+
+	/**
+	 * HTTP POST /Beacon/Register. With UltravisorHTTPBeaconAdmission unset
+	 * or 'off', this runs the same statements the inline route ran before.
+	 */
+	_handleBeaconHTTPRegister(pRequest, pResponse, fNext)
+	{
+		let tmpSession = this._requireSession(pRequest, pResponse, fNext);
+		if (!tmpSession) { return; }
+
+		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+		if (!tmpCoordinator)
+		{
+			pResponse.send(500, { Error: 'BeaconCoordinator service not available.' });
+			return fNext();
+		}
+
+		let tmpBody = pRequest.body || {};
+		if (!tmpBody.Name || !tmpBody.Capabilities)
+		{
+			pResponse.send(400, { Error: 'Name and Capabilities are required.' });
+			return fNext();
+		}
+
+		let fRegister = (fDone) =>
+		{
+			let tmpBeacon = tmpCoordinator.registerBeacon(tmpBody, tmpSession.SessionID);
+			let tmpObsForReg = this._getService('UltravisorObserver');
+			if (tmpObsForReg)
+			{
+				try { tmpObsForReg.onBeaconRegistered(tmpBeacon); }
+				catch (pErr) { /* best effort */ }
+			}
+			pResponse.send(tmpBeacon);
+			return (fDone || fNext)();
+		};
+
+		let tmpMode = this._httpBeaconAdmissionMode();
+		if (tmpMode === 'off')
+		{
+			return fRegister();
+		}
+		if (tmpMode === 'audit')
+		{
+			let tmpReturn = fRegister();
+			this._auditHTTPBeaconAdmission(tmpBody);
+			return tmpReturn;
+		}
+
+		// 'enforce'. Refused: 403 with the reason. The auth beacon bridge
+		// reports a timeout as not allowed, so an auth beacon that is down or
+		// slow also comes back 403, with the timeout as the reason. 503 only
+		// when admission itself fails. Never 401: ultravisor-beacon reads 401
+		// as an expired session and re-authenticates in a loop. The callback
+		// runs inside a promise, where a throw would go unseen, so a failure
+		// to register still answers, and fNext runs exactly once.
+		let tmpName = JSON.stringify(String(tmpBody.Name));
+		let tmpFinished = false;
+		let fFinishOnce = () =>
+		{
+			if (tmpFinished) { return; }
+			tmpFinished = true;
+			return fNext();
+		};
+		this._admitBeaconForRegistration(tmpBody, (pError, pAdmitted, pRejectReason) =>
+		{
+			if (tmpFinished)
+			{
+				return;
+			}
+			if (pError)
+			{
+				this.log.warn(`Ultravisor HTTP: beacon ${tmpName} admission errored: ${pError.message || pError}`);
+				pResponse.send(503, { Error: 'Beacon admission check failed', Reason: String(pError.message || pError) });
+				return fFinishOnce();
+			}
+			if (!pAdmitted)
+			{
+				this.log.warn(`Ultravisor HTTP: beacon ${tmpName} rejected by admission gate: ${pRejectReason || 'denied'}`);
+				pResponse.send(403, { Error: 'Beacon admission denied', Reason: pRejectReason || 'Beacon admission denied' });
+				return fFinishOnce();
+			}
+			try
+			{
+				return fRegister(fFinishOnce);
+			}
+			catch (pRegisterError)
+			{
+				this.log.error(`Ultravisor HTTP: registering beacon ${tmpName} failed: ${pRegisterError.message || pRegisterError}`);
+				if (!pResponse.headersSent)
+				{
+					pResponse.send(500, { Error: 'Beacon registration failed' });
+				}
+				return fFinishOnce();
+			}
+		});
+	}
+
+	/**
+	 * UltravisorHTTPBeaconAdmission 'audit': the register has already been
+	 * answered as before. Run admission in the background and log a register
+	 * that 'enforce' would refuse, once per beacon Name until it passes.
+	 */
+	_auditHTTPBeaconAdmission(pBody)
+	{
+		let tmpName = String(pBody.Name);
+		this._admitBeaconForRegistration(pBody, (pError, pAdmitted, pRejectReason) =>
+		{
+			this._HTTPBeaconAdmissionAudited = this._HTTPBeaconAdmissionAudited || {};
+			if (!pError && pAdmitted)
+			{
+				delete this._HTTPBeaconAdmissionAudited[tmpName];
+				return;
+			}
+			if (this._HTTPBeaconAdmissionAudited[tmpName])
+			{
+				return;
+			}
+			this._HTTPBeaconAdmissionAudited[tmpName] = true;
+			let tmpReason = pError ? (pError.message || String(pError)) : (pRejectReason || 'denied');
+			this.log.warn(`[Admission:audit] HTTP /Beacon/Register for ${JSON.stringify(tmpName)} would be refused under UltravisorHTTPBeaconAdmission=enforce: ${tmpReason}`);
+		});
+	}
+
+	/**
 	 * Handle a beacon registration over WebSocket.
 	 * Registers the beacon via the coordinator and maps its WebSocket.
 	 */
@@ -5144,6 +5389,18 @@ class UltravisorAPIServer extends libPictService
 	 */
 	_completeBeaconWSRegister(pWebSocket, pData, pCoordinator)
 	{
+		// UltravisorBeaconWSFrameIdentity=socket only; skipped when it is
+		// unset. Admission can finish after the socket has closed, or after
+		// the beacon sent Deregister on it (dropped then, because the socket
+		// had no registration to name). Binding it now would reclaim the
+		// record to Online with no live socket behind it.
+		if (this._wsFrameIdentityMode() === 'socket'
+			&& (pWebSocket._DeregisterRequested || pWebSocket.readyState !== libWebSocket.OPEN))
+		{
+			this._abandonLateWSRegister(pWebSocket, pData, pCoordinator);
+			return;
+		}
+
 		// Diagnostic: log what we RECEIVED from the client before forwarding
 		// to registerBeacon. If the client sent HostID but we're storing null,
 		// this log line pins down exactly where the drop happens (client vs
@@ -5224,7 +5481,9 @@ class UltravisorAPIServer extends libPictService
 	 *      "trust me, I'm authorized" credential the hub keeps locally.
 	 *      A beacon counts as "the auth beacon" when it advertises the
 	 *      Authentication capability AND no other auth beacon is
-	 *      currently registered.
+	 *      currently registered. With UltravisorAuthBeaconRejoinViaBootstrap
+	 *      set to true, it also counts when it is reclaiming its own record
+	 *      after its connection dropped (see _isRejoinableAuthRecord).
 	 *
 	 *   3. Non-promiscuous + any other beacon — dispatch
 	 *      AUTH_ValidateBeaconJoin to the live auth beacon via the
@@ -5261,7 +5520,22 @@ class UltravisorAPIServer extends libPictService
 		// so timing differences can't leak the secret.
 		let tmpBridge = this._getService('UltravisorAuthBeaconBridge');
 		let tmpAuthAlreadyConnected = tmpBridge && tmpBridge.isAvailable();
-		if (tmpClaimsAuth && !tmpAuthAlreadyConnected)
+
+		// Opt-in rejoin. A dropped auth beacon's record stays registered, so
+		// isAvailable() stays true and the auth beacon's own reconnect would
+		// be sent to itself to validate, which nothing answers. With
+		// UltravisorAuthBeaconRejoinViaBootstrap === true, that reconnect may
+		// present the bootstrap secret instead. Unset, this is always false
+		// and the routing below is unchanged.
+		let tmpAuthRejoin = !!(tmpClaimsAuth
+			&& tmpAuthAlreadyConnected
+			&& (tmpConfig.UltravisorAuthBeaconRejoinViaBootstrap === true)
+			&& this._isRejoinableAuthRecord(pData.Name));
+		if (tmpAuthRejoin)
+		{
+			this.log.info(`[Admission] auth beacon "${pData.Name}" is reclaiming its dropped record; checking the bootstrap secret.`);
+		}
+		if (tmpClaimsAuth && (!tmpAuthAlreadyConnected || tmpAuthRejoin))
 		{
 			let tmpExpected = tmpConfig.UltravisorBootstrapAuthSecret || '';
 			if (!tmpExpected)
@@ -5331,19 +5605,303 @@ class UltravisorAPIServer extends libPictService
 	}
 
 	/**
+	 * Whether an Authentication beacon joining under pName is the auth
+	 * beacon coming back for its own record after its WebSocket dropped.
+	 * Only _admitBeaconForRegistration calls this, and only when
+	 * UltravisorAuthBeaconRejoinViaBootstrap is true. All four must hold:
+	 *
+	 *   1. A record with this Name advertises Authentication. A new name
+	 *      never gets the bootstrap path while an auth record exists.
+	 *   2. That record has no socket entry at all. The entry is removed
+	 *      only after the old socket's close is processed, so a CLOSING
+	 *      socket still counts. Admitting before then would let the late
+	 *      close handler delete the new socket's entry.
+	 *   3. It was dropped (DisconnectedAt is set) and has not been
+	 *      reclaimed or heartbeated since. This keeps out an auth beacon on
+	 *      HTTP transport, which has no socket entry but keeps heartbeating.
+	 *      Status is not used: finishing a work item can flip a dropped
+	 *      record back to Online with no socket behind it.
+	 *   4. No other Authentication record has an OPEN socket. While a live
+	 *      auth beacon exists, it validates the join as it always has.
+	 *
+	 * Anything missing or unexpected returns false, which leaves the join
+	 * on the validate path.
+	 *
+	 * @param {string} pName - Name from the BeaconRegister frame
+	 * @returns {boolean}
+	 */
+	_isRejoinableAuthRecord(pName)
+	{
+		try
+		{
+			let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+			if (!pName || !tmpCoordinator)
+			{
+				return false;
+			}
+
+			let tmpRecord = tmpCoordinator.findBeaconByName(pName);
+			if (!tmpRecord
+				|| !Array.isArray(tmpRecord.Capabilities)
+				|| tmpRecord.Capabilities.indexOf('Authentication') < 0)
+			{
+				return false;
+			}
+
+			if (this._BeaconWebSockets[tmpRecord.BeaconID])
+			{
+				return false;
+			}
+
+			// A missing or unparseable timestamp parses to NaN, which fails.
+			if (!tmpRecord.DisconnectedAt
+				|| !(Date.parse(tmpRecord.LastHeartbeat) <= Date.parse(tmpRecord.DisconnectedAt)))
+			{
+				return false;
+			}
+
+			let tmpBeacons = tmpCoordinator.listBeacons() || [];
+			for (let i = 0; i < tmpBeacons.length; i++)
+			{
+				let tmpOther = tmpBeacons[i];
+				if (!tmpOther || tmpOther.BeaconID === tmpRecord.BeaconID)
+				{
+					continue;
+				}
+				if ((tmpOther.Capabilities || []).indexOf('Authentication') < 0)
+				{
+					continue;
+				}
+				let tmpSocket = this._BeaconWebSockets[tmpOther.BeaconID];
+				if (tmpSocket && tmpSocket.readyState === libWebSocket.OPEN)
+				{
+					return false;
+				}
+			}
+
+			return true;
+		}
+		catch (pError)
+		{
+			this.log.warn(`[Admission] rejoin check for "${pName}" failed, using the validate path: ${pError.message}`);
+			return false;
+		}
+	}
+
+	/**
+	 * UltravisorBeaconWSFrameIdentity, read per frame: which beacon a
+	 * WebSocket BeaconHeartbeat or Deregister frame acts on.
+	 *
+	 *   unset (default) - the BeaconID in the frame, exactly as before.
+	 *   'warn'          - the BeaconID in the frame, with a warning (once per
+	 *                     socket and frame type) when it is not the beacon
+	 *                     this socket registered.
+	 *   true / 'socket' - the beacon this socket registered, and only while
+	 *                     this socket is still the one mapped to it. The
+	 *                     frame's BeaconID is ignored.
+	 *
+	 * Any other value is treated as unset. Never derived from
+	 * UltravisorNonPromiscuous: on a promiscuous hub any socket can register
+	 * under another beacon's Name, so socket mode protects nothing there.
+	 *
+	 * @returns {string} 'socket', 'warn' or '' (off)
+	 */
+	_wsFrameIdentityMode()
+	{
+		let tmpConfig = (this.fable && this.fable.ProgramConfiguration) || {};
+		let tmpMode = tmpConfig.UltravisorBeaconWSFrameIdentity;
+		if (tmpMode === true || tmpMode === 'socket')
+		{
+			return 'socket';
+		}
+		return (tmpMode === 'warn') ? 'warn' : '';
+	}
+
+	/**
+	 * The BeaconID a BeaconHeartbeat or Deregister frame acts on, per
+	 * _wsFrameIdentityMode. Null means do nothing.
+	 *
+	 * @param {object} pWebSocket - the socket the frame arrived on
+	 * @param {object} pData - the frame
+	 * @param {string} pAction - 'BeaconHeartbeat' or 'Deregister'
+	 * @returns {string|null|undefined}
+	 */
+	_resolveWSFrameBeaconID(pWebSocket, pData, pAction)
+	{
+		let tmpMode = this._wsFrameIdentityMode();
+		if (tmpMode === '')
+		{
+			return pData.BeaconID;
+		}
+
+		let tmpBound = (pWebSocket && pWebSocket._BeaconID) || null;
+		let tmpNamed = pData.BeaconID || null;
+		if (tmpMode === 'warn')
+		{
+			if (tmpNamed !== tmpBound)
+			{
+				this._warnFrameIdentityOnce(pWebSocket, pAction,
+					`${pAction} named [${tmpNamed}] on the socket of [${tmpBound || 'no registered beacon'}]; acting on [${tmpNamed}] (UltravisorBeaconWSFrameIdentity=warn).`);
+			}
+			return pData.BeaconID;
+		}
+
+		// Socket mode. A socket that a newer registration under the same Name
+		// has displaced still carries the old _BeaconID, so ownership is
+		// checked against the map, not only the socket.
+		if (!tmpBound || this._BeaconWebSockets[tmpBound] !== pWebSocket)
+		{
+			if (pAction === 'Deregister' && pWebSocket)
+			{
+				// Remembered so a registration still in admission on this
+				// socket is not bound after the beacon asked to stop.
+				pWebSocket._DeregisterRequested = true;
+			}
+			this._warnFrameIdentityOnce(pWebSocket, pAction,
+				`dropped ${pAction} naming [${tmpNamed}]: this socket holds no current registration.`);
+			return null;
+		}
+		if (tmpNamed && tmpNamed !== tmpBound)
+		{
+			this._warnFrameIdentityOnce(pWebSocket, pAction,
+				`${pAction} named [${tmpNamed}] on the socket of [${tmpBound}]; acting on [${tmpBound}].`);
+		}
+		return tmpBound;
+	}
+
+	/**
+	 * Heartbeats arrive every few seconds per beacon, so a frame-identity
+	 * warning is logged once per socket and frame type.
+	 */
+	_warnFrameIdentityOnce(pWebSocket, pAction, pMessage)
+	{
+		if (pWebSocket)
+		{
+			pWebSocket._FrameIdentityWarned = pWebSocket._FrameIdentityWarned || {};
+			if (pWebSocket._FrameIdentityWarned[pAction])
+			{
+				return;
+			}
+			pWebSocket._FrameIdentityWarned[pAction] = true;
+		}
+		this.log.warn(`Ultravisor WebSocket: ${pMessage}`);
+	}
+
+	/**
+	 * Socket mode only, from _completeBeaconWSRegister: admission finished
+	 * on a socket that has closed, or on which the beacon asked to stop. A
+	 * beacon that asked to stop is deregistered, which releases its work,
+	 * unless another live socket now holds its record. A socket that only
+	 * closed leaves the record as the drop left it, holding its work for
+	 * the reconnect.
+	 */
+	_abandonLateWSRegister(pWebSocket, pData, pCoordinator)
+	{
+		let tmpExisting = pCoordinator.findBeaconByName(pData.Name);
+		if (pWebSocket._DeregisterRequested && tmpExisting && !this._BeaconWebSockets[tmpExisting.BeaconID])
+		{
+			pCoordinator.deregisterBeacon(tmpExisting.BeaconID);
+			this.log.info(`Ultravisor WebSocket: beacon [${tmpExisting.BeaconID}] "${pData.Name}" asked to stop before its registration completed; deregistered.`);
+			let tmpObs = this._getService('UltravisorObserver');
+			if (tmpObs)
+			{
+				try { tmpObs.onBeaconDeregistered(tmpExisting.BeaconID); }
+				catch (pErr) { /* best effort */ }
+			}
+			return;
+		}
+		this.log.info(`Ultravisor WebSocket: beacon "${pData.Name}" finished admission on a socket that is closed or stopping; not binding it.`);
+	}
+
+	/**
+	 * UltravisorBeaconWSWorkFrameIdentity, read per frame: which socket may
+	 * report the result of a work item (WorkComplete, WorkError, WorkProgress,
+	 * WorkCancelAck, WorkCanceled, WorkResultUpload).
+	 *
+	 *   unset (default) - act on every such frame, exactly as before.
+	 *   'warn'          - act on every frame, with a warning (once per socket
+	 *                     and frame type) when the socket is not the item's
+	 *                     assigned beacon.
+	 *   true / 'socket' - act only on a frame from the socket that holds the
+	 *                     item's assigned registration.
+	 *
+	 * Any other value is treated as unset. Never derived from
+	 * UltravisorNonPromiscuous or _isSecuredMode.
+	 *
+	 * @returns {string} 'socket', 'warn' or '' (off)
+	 */
+	_wsWorkFrameIdentityMode()
+	{
+		let tmpConfig = (this.fable && this.fable.ProgramConfiguration) || {};
+		let tmpMode = tmpConfig.UltravisorBeaconWSWorkFrameIdentity;
+		if (tmpMode === true || tmpMode === 'socket')
+		{
+			return 'socket';
+		}
+		return (tmpMode === 'warn') ? 'warn' : '';
+	}
+
+	/**
+	 * Whether the hub should act on a work-result frame that arrived on
+	 * pWebSocket for pWorkItemHash, per _wsWorkFrameIdentityMode. Without the
+	 * key this is always true, so the handlers keep their old behaviour. In
+	 * socket mode it is true only when the socket still holds a current
+	 * registration and that beacon is the item's AssignedBeaconID. A frame
+	 * from any other socket, or for an item with no assigned beacon, is
+	 * dropped, which is what stops an unregistered socket forging the result
+	 * of a dispatch (an AUTH_Login or AUTH_ValidateBeaconJoin among them).
+	 *
+	 * @param {object} pWebSocket - the socket the frame arrived on
+	 * @param {string} pWorkItemHash - the item the frame names
+	 * @param {string} pAction - the frame name, for the log line
+	 * @returns {boolean} true to act on the frame, false to drop it
+	 */
+	_wsWorkFrameAuthorized(pWebSocket, pWorkItemHash, pAction)
+	{
+		let tmpMode = this._wsWorkFrameIdentityMode();
+		if (tmpMode === '')
+		{
+			return true;
+		}
+
+		let tmpBound = (pWebSocket && pWebSocket._BeaconID) || null;
+		let tmpOwns = false;
+		if (tmpBound && this._BeaconWebSockets[tmpBound] === pWebSocket)
+		{
+			let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
+			let tmpItem = (tmpCoordinator && pWorkItemHash) ? tmpCoordinator.getWorkItem(pWorkItemHash) : null;
+			tmpOwns = !!(tmpItem && tmpItem.AssignedBeaconID && tmpItem.AssignedBeaconID === tmpBound);
+		}
+		if (tmpOwns)
+		{
+			return true;
+		}
+		if (tmpMode === 'warn')
+		{
+			this._warnFrameIdentityOnce(pWebSocket, 'work:' + pAction,
+				`${pAction} for [${pWorkItemHash}] on the socket of [${tmpBound || 'no registered beacon'}], which is not the item's assigned beacon; honoring it (UltravisorBeaconWSWorkFrameIdentity=warn).`);
+			return true;
+		}
+		this._warnFrameIdentityOnce(pWebSocket, 'work:' + pAction,
+			`dropped ${pAction} for [${pWorkItemHash}] from the socket of [${tmpBound || 'no registered beacon'}]: not the item's assigned beacon.`);
+		return false;
+	}
+
+	/**
 	 * Handle a beacon heartbeat over WebSocket.
 	 */
-	_handleBeaconWSHeartbeat(pData)
+	_handleBeaconWSHeartbeat(pData, pWebSocket)
 	{
+		let tmpBeaconID = this._resolveWSFrameBeaconID(pWebSocket, pData, 'BeaconHeartbeat');
 		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
-		if (tmpCoordinator && pData.BeaconID)
+		if (tmpCoordinator && tmpBeaconID)
 		{
-			tmpCoordinator.heartbeat(pData.BeaconID);
+			tmpCoordinator.heartbeat(tmpBeaconID);
 		}
 		let tmpObs = this._getService('UltravisorObserver');
-		if (tmpObs && pData.BeaconID)
+		if (tmpObs && tmpBeaconID)
 		{
-			try { tmpObs.onBeaconHeartbeat(pData.BeaconID); }
+			try { tmpObs.onBeaconHeartbeat(tmpBeaconID); }
 			catch (pErr) { /* best effort */ }
 		}
 	}
@@ -5355,6 +5913,10 @@ class UltravisorAPIServer extends libPictService
 	{
 		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 		if (!tmpCoordinator || !pData.WorkItemHash)
+		{
+			return;
+		}
+		if (!this._wsWorkFrameAuthorized(pWebSocket, pData.WorkItemHash, 'WorkComplete'))
 		{
 			return;
 		}
@@ -5385,10 +5947,14 @@ class UltravisorAPIServer extends libPictService
 	/**
 	 * Handle work item error reported over WebSocket.
 	 */
-	_handleBeaconWSWorkError(pData)
+	_handleBeaconWSWorkError(pData, pWebSocket)
 	{
 		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 		if (!tmpCoordinator || !pData.WorkItemHash)
+		{
+			return;
+		}
+		if (!this._wsWorkFrameAuthorized(pWebSocket, pData.WorkItemHash, 'WorkError'))
 		{
 			return;
 		}
@@ -5407,10 +5973,14 @@ class UltravisorAPIServer extends libPictService
 	/**
 	 * Handle work progress reported over WebSocket.
 	 */
-	_handleBeaconWSWorkProgress(pData)
+	_handleBeaconWSWorkProgress(pData, pWebSocket)
 	{
 		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 		if (!tmpCoordinator || !pData.WorkItemHash)
+		{
+			return;
+		}
+		if (!this._wsWorkFrameAuthorized(pWebSocket, pData.WorkItemHash, 'WorkProgress'))
 		{
 			return;
 		}
@@ -5423,27 +5993,28 @@ class UltravisorAPIServer extends libPictService
 	 */
 	_handleBeaconWSDeregister(pWebSocket, pData)
 	{
+		let tmpBeaconID = this._resolveWSFrameBeaconID(pWebSocket, pData, 'Deregister');
 		let tmpObs = this._getService('UltravisorObserver');
-		if (tmpObs && pData.BeaconID)
+		if (tmpObs && tmpBeaconID)
 		{
-			try { tmpObs.onBeaconWSClose(pData.BeaconID); }
+			try { tmpObs.onBeaconWSClose(tmpBeaconID); }
 			catch (pErr) { /* best effort */ }
 		}
 
 		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
-		if (tmpCoordinator && pData.BeaconID)
+		if (tmpCoordinator && tmpBeaconID)
 		{
-			tmpCoordinator.deregisterBeacon(pData.BeaconID);
-			this.log.info(`Ultravisor WebSocket: beacon [${pData.BeaconID}] deregistered.`);
+			tmpCoordinator.deregisterBeacon(tmpBeaconID);
+			this.log.info(`Ultravisor WebSocket: beacon [${tmpBeaconID}] deregistered.`);
 		}
 
-		if (tmpObs && pData.BeaconID)
+		if (tmpObs && tmpBeaconID)
 		{
-			try { tmpObs.onBeaconDeregistered(pData.BeaconID); }
+			try { tmpObs.onBeaconDeregistered(tmpBeaconID); }
 			catch (pErr) { /* best effort */ }
 		}
 
-		delete this._BeaconWebSockets[pData.BeaconID];
+		delete this._BeaconWebSockets[tmpBeaconID];
 		pWebSocket._BeaconID = null;
 
 		if (pWebSocket.readyState === libWebSocket.OPEN)
@@ -5556,10 +6127,14 @@ class UltravisorAPIServer extends libPictService
 	/**
 	 * Handle a beacon acknowledging a cancel request over WebSocket.
 	 */
-	_handleBeaconWSWorkCancelAck(pData)
+	_handleBeaconWSWorkCancelAck(pData, pWebSocket)
 	{
 		let tmpCoordinator = this._getService('UltravisorBeaconCoordinator');
 		if (!tmpCoordinator || !pData.WorkItemHash)
+		{
+			return;
+		}
+		if (!this._wsWorkFrameAuthorized(pWebSocket, pData.WorkItemHash, 'WorkCancelAck'))
 		{
 			return;
 		}
@@ -5570,10 +6145,14 @@ class UltravisorAPIServer extends libPictService
 	/**
 	 * Handle a beacon reporting that it stopped a work item cooperatively.
 	 */
-	_handleBeaconWSWorkCanceled(pData)
+	_handleBeaconWSWorkCanceled(pData, pWebSocket)
 	{
 		let tmpScheduler = this._getService('UltravisorBeaconScheduler');
 		if (!tmpScheduler || !pData.WorkItemHash)
+		{
+			return;
+		}
+		if (!this._wsWorkFrameAuthorized(pWebSocket, pData.WorkItemHash, 'WorkCanceled'))
 		{
 			return;
 		}
