@@ -1573,6 +1573,20 @@ class UltravisorBeaconCoordinator extends libPictService
 			this._sanitizeWorkItemForBeacon(pWorkItem));
 		if (tmpPushed)
 		{
+			// Restart the clocks at delivery, as the other dispatch paths do: a held item's enqueue-time
+			// LastEventAt would otherwise read as a stall, free its slot, and cascade the rest into a full beacon.
+			pWorkItem.ClaimedAt = new Date().toISOString();
+			pWorkItem.DispatchedAt = pWorkItem.ClaimedAt;
+			pWorkItem.LastEventAt = pWorkItem.ClaimedAt;
+			let tmpJournal = this._getJournal();
+			if (tmpJournal)
+			{
+				tmpJournal.appendEntry('claim', {
+					WorkItemHash: pWorkItem.WorkItemHash,
+					BeaconID: pWorkItem.AssignedBeaconID,
+					ClaimedAt: pWorkItem.ClaimedAt
+				});
+			}
 			this.log.info(`BeaconCoordinator: pushed affinity-assigned work item [${pWorkItem.WorkItemHash}] to WebSocket beacon [${pWorkItem.AssignedBeaconID}].`);
 			return true;
 		}

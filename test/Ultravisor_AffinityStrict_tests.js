@@ -159,6 +159,51 @@ suite('Affinity push capacity gating', function ()
 		Chai.expect(new Set(tmpPushed).size).to.equal(5, 'no duplicate deliveries');
 	});
 
+	test('a held item delivered on slot-free starts its event clock at delivery, not at enqueue', function ()
+	{
+		const tmpCoordinator = buildCoordinatorB('held-clock');
+		tmpCoordinator.registerBeacon({ Name: 'private_data_lake_beacon', Capabilities: [ 'MeadowProxy' ], MaxConcurrent: 1 }, 'session-lake');
+		const tmpPushed = [];
+		tmpCoordinator._WorkItemPushHandler = (pBeaconID, pWorkItem) => { tmpPushed.push(pWorkItem.WorkItemHash); return true; };
+
+		const tmpFirst = tmpCoordinator.enqueueWorkItem({ Capability: 'MeadowProxy', Action: 'Request', Settings: {}, AffinityKey: 'private_data_lake_beacon', RequireAffinityMatch: true });
+		const tmpHeld = tmpCoordinator.enqueueWorkItem({ Capability: 'MeadowProxy', Action: 'Request', Settings: {}, AffinityKey: 'private_data_lake_beacon', RequireAffinityMatch: true });
+		Chai.expect(tmpHeld.Status).to.equal('Assigned');
+
+		// Held well past the stall threshold (2 x the 60s default heartbeat).
+		const tmpLongAgo = new Date(Date.now() - 300000).toISOString();
+		tmpHeld.LastEventAt = tmpLongAgo;
+		tmpHeld.ClaimedAt = tmpLongAgo;
+
+		const tmpBeforeDelivery = Date.now();
+		tmpCoordinator.completeWorkItem(tmpFirst.WorkItemHash, { Outputs: {} }, () => {});
+
+		Chai.expect(tmpPushed).to.include(tmpHeld.WorkItemHash);
+		Chai.expect(tmpHeld.Status).to.equal('Running');
+		for (const tmpField of [ 'LastEventAt', 'DispatchedAt', 'ClaimedAt' ])
+		{
+			Chai.expect(Date.parse(tmpHeld[tmpField]), tmpField).to.be.at.least(tmpBeforeDelivery);
+		}
+	});
+
+	test('a failed delivery leaves a held item Assigned with its timestamps untouched', function ()
+	{
+		const tmpCoordinator = buildCoordinatorB('held-push-fail');
+		tmpCoordinator.registerBeacon({ Name: 'private_data_lake_beacon', Capabilities: [ 'MeadowProxy' ], MaxConcurrent: 1 }, 'session-lake');
+		let tmpAccept = true;
+		tmpCoordinator._WorkItemPushHandler = () => tmpAccept;
+
+		const tmpFirst = tmpCoordinator.enqueueWorkItem({ Capability: 'MeadowProxy', Action: 'Request', Settings: {}, AffinityKey: 'private_data_lake_beacon', RequireAffinityMatch: true });
+		const tmpHeld = tmpCoordinator.enqueueWorkItem({ Capability: 'MeadowProxy', Action: 'Request', Settings: {}, AffinityKey: 'private_data_lake_beacon', RequireAffinityMatch: true });
+		const tmpBefore = { LastEventAt: tmpHeld.LastEventAt, DispatchedAt: tmpHeld.DispatchedAt, ClaimedAt: tmpHeld.ClaimedAt };
+
+		tmpAccept = false;
+		tmpCoordinator.completeWorkItem(tmpFirst.WorkItemHash, { Outputs: {} }, () => {});
+
+		Chai.expect(tmpHeld.Status).to.equal('Assigned');
+		Chai.expect({ LastEventAt: tmpHeld.LastEventAt, DispatchedAt: tmpHeld.DispatchedAt, ClaimedAt: tmpHeld.ClaimedAt }).to.deep.equal(tmpBefore);
+	});
+
 	test('direct-dispatch callbacks resolve for held items once delivered and completed', function (fDone)
 	{
 		const tmpCoordinator = buildCoordinatorB('callbacks');
