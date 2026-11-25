@@ -1115,6 +1115,35 @@ class UltravisorAPIServer extends libPictService
 	}
 
 	/**
+	 * RequireAffinityMatch says only the beacon whose Name is the
+	 * AffinityKey may run the item. With a blank AffinityKey it names no
+	 * beacon, so no beacon may ever take it. Refusing it here, before
+	 * anything is queued or a run is minted, tells the caller at once: a
+	 * held item would sit Pending for good, since the work-item timeout
+	 * never runs on Pending items, and a caller that treats an accepted
+	 * enqueue as sent would wait on it forever. Before 1.3.29 such an item
+	 * went to any capable beacon.
+	 *
+	 * @returns {boolean} true when refused; the response has been sent
+	 */
+	_refuseUnnamedStrictAffinity(pBody, pResponse, fNext)
+	{
+		if (!pBody || !pBody.RequireAffinityMatch)
+		{
+			return false;
+		}
+		let tmpAffinityKey = (pBody.AffinityKey === undefined || pBody.AffinityKey === null) ? '' : String(pBody.AffinityKey).trim();
+		if (tmpAffinityKey)
+		{
+			return false;
+		}
+		this.log.warn(`Ultravisor: refused a RequireAffinityMatch work item with no AffinityKey (${pBody.Capability}/${pBody.Action || ''}).`);
+		pResponse.send(400, { Success: false, Error: 'RequireAffinityMatch is set but AffinityKey is empty: no beacon is named to run this work item, so it was not queued.' });
+		fNext();
+		return true;
+	}
+
+	/**
 	 * Synthetic session handed back when no auth provider can validate
 	 * a real one.  Carries an `Anonymous: true` marker so routes that
 	 * need authenticated access can detect and reject it cleanly.  A
@@ -3158,6 +3187,7 @@ class UltravisorAPIServer extends libPictService
 						return fNext();
 					}
 					if (this._refuseReservedCapability(tmpBody, pResponse, fNext)) { return; }
+					if (this._refuseUnnamedStrictAffinity(tmpBody, pResponse, fNext)) { return; }
 
 					// If the client didn't supply a RunID, mint one on the fly so
 					// every enqueue ends up attached to a durable run record.
@@ -3628,6 +3658,7 @@ class UltravisorAPIServer extends libPictService
 						return fNext();
 					}
 					if (this._refuseReservedCapability(tmpBody, pResponse, fNext)) { return; }
+					if (this._refuseUnnamedStrictAffinity(tmpBody, pResponse, fNext)) { return; }
 
 					// Check if any Beacons are registered
 					let tmpBeacons = tmpCoordinator.listBeacons();
@@ -3690,6 +3721,7 @@ class UltravisorAPIServer extends libPictService
 						return fNext();
 					}
 					if (this._refuseReservedCapability(tmpBody, pResponse, fNext)) { return; }
+					if (this._refuseUnnamedStrictAffinity(tmpBody, pResponse, fNext)) { return; }
 
 					// Check if any Beacons are registered
 					let tmpBeacons = tmpCoordinator.listBeacons();

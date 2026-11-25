@@ -9,10 +9,12 @@
  * silently runs on whichever beacon polls first (observed live: a schema
  * write landed on a customer source database).
  *
- * RequireAffinityMatch makes the designation strict across all three
- * assignment paths: enqueue pre-assign, WebSocket push, and HTTP poll
- * claim. The item waits (bounded by the normal work-item timeout) for the
- * named beacon instead of falling back.
+ * RequireAffinityMatch makes the designation strict across every
+ * assignment path: enqueue pre-assign, WebSocket push, HTTP poll claim,
+ * the scheduler's dispatch tick, and a hub restart that replays the queue
+ * journal. The item waits Pending for the named beacon instead of falling
+ * back. Pending items are outside the work-item timeout, so the wait lasts
+ * until that beacon joins or the item is canceled.
  */
 
 const libPict = require('pict');
@@ -24,6 +26,8 @@ const Expect = Chai.expect;
 
 const libUltravisorBeaconCoordinator = require('../source/services/Ultravisor-Beacon-Coordinator.cjs');
 const libUltravisorBeaconQueueStore = require('../source/services/persistence/Ultravisor-Beacon-QueueStore.cjs');
+const libUltravisorBeaconScheduler = require('../source/services/Ultravisor-Beacon-Scheduler.cjs');
+const libUltravisorBeaconQueueJournal = require('../source/services/persistence/Ultravisor-Beacon-QueueJournal.cjs');
 
 const TEST_BASE = libPath.resolve(__dirname, '..', '.test_staging_affinity');
 
@@ -224,5 +228,264 @@ suite('Affinity push capacity gating', function ()
 		tmpCoordinator.completeWorkItem(tmpDelivered[0], { Outputs: {} }, () => {});
 		Chai.expect(tmpDelivered.length).to.equal(2, 'held item delivered after completion');
 		tmpCoordinator.completeWorkItem(tmpDelivered[1], { Outputs: {} }, () => {});
+	});
+});
+
+// ----------------------------------------------------------------------
+// A hub wired the way the CLI wires it (coordinator, scheduler, queue
+// journal) but with no timers: each test drives the dispatch tick itself.
+// Every push is recorded, so a test can say exactly which beacon got what.
+// The items are shaped on plansheet's hub dispatch: AffinityKey
+// 'ps.<NodeKey>' with RequireAffinityMatch, so only that node's beacon may
+// run them.
+// ----------------------------------------------------------------------
+
+const TEST_BASE_PATHS = libPath.resolve(__dirname, '..', '.test_staging_affinity_paths');
+
+function cleanStorePath(pSuffix)
+{
+	const tmpPath = libPath.join(TEST_BASE_PATHS, pSuffix);
+	ensureClean(tmpPath);
+	return tmpPath;
+}
+
+function buildHub(pStorePath)
+{
+	const tmpFable = new libPict({ Product: 'Ultravisor-AffinityPaths-Test', LogLevel: 0, UltravisorFileStorePath: pStorePath, UltravisorHubInstanceID: 'testhub' });
+	tmpFable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconQueueJournal', libUltravisorBeaconQueueJournal);
+	tmpFable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconCoordinator', libUltravisorBeaconCoordinator);
+	tmpFable.addAndInstantiateServiceTypeIfNotExists('UltravisorBeaconScheduler', libUltravisorBeaconScheduler);
+	const tmpJournal = Object.values(tmpFable.servicesMap.UltravisorBeaconQueueJournal)[0];
+	tmpJournal.initialize(pStorePath);
+	const tmpHub =
+	{
+		Coordinator: Object.values(tmpFable.servicesMap.UltravisorBeaconCoordinator)[0],
+		Scheduler: Object.values(tmpFable.servicesMap.UltravisorBeaconScheduler)[0],
+		Journal: tmpJournal,
+		Pushed: []
+	};
+	tmpHub.Coordinator.setWorkItemPushHandler((pBeaconID, pWorkItem) =>
+	{
+		tmpHub.Pushed.push({ BeaconID: pBeaconID, WorkItemHash: pWorkItem.WorkItemHash });
+		return true;
+	});
+	return tmpHub;
+}
+
+function joinBeacon(pHub, pName)
+{
+	return pHub.Coordinator.registerBeacon({ Name: pName, Capabilities: [ 'plansheet.deploy' ], MaxConcurrent: 1 }, `session-${pName}`);
+}
+
+function strictDeploy(pAffinityKey)
+{
+	return { Capability: 'plansheet.deploy', Action: 'DeployProd', Settings: { IDRun: 7 }, AffinityKey: pAffinityKey, RequireAffinityMatch: true };
+}
+
+suite('Strict affinity on every dispatch path', function ()
+{
+	suiteTeardown(function () { if (libFS.existsSync(TEST_BASE_PATHS)) { libFS.rmSync(TEST_BASE_PATHS, { recursive: true, force: true }); } });
+
+	test('named beacon absent: the item holds Pending and no other capable beacon gets it (scheduler, push, poll)', function ()
+	{
+		const tmpHub = buildHub(cleanStorePath('absent'));
+		const tmpOther = joinBeacon(tmpHub, 'ps.nk-other');
+		const tmpItem = tmpHub.Coordinator.enqueueWorkItem(strictDeploy('ps.nk-target'));
+
+		tmpHub.Scheduler._dispatchTick();
+		tmpHub.Coordinator._dispatchPendingWorkItems();
+		const tmpPolled = tmpHub.Coordinator.pollForWork(tmpOther.BeaconID);
+
+		Expect(tmpPolled).to.equal(null);
+		Expect(tmpItem.Status).to.equal('Pending');
+		Expect(tmpItem.AssignedBeaconID || null).to.equal(null);
+		Expect(tmpOther.CurrentWorkItems).to.deep.equal([]);
+		Expect(tmpHub.Pushed).to.deep.equal([]);
+	});
+
+	test('the named beacon returns and the next dispatch tick hands it the item', function ()
+	{
+		const tmpHub = buildHub(cleanStorePath('returns'));
+		joinBeacon(tmpHub, 'ps.nk-other');
+		const tmpItem = tmpHub.Coordinator.enqueueWorkItem(strictDeploy('ps.nk-target'));
+		tmpHub.Scheduler._dispatchTick();
+		Expect(tmpItem.Status).to.equal('Pending');
+
+		const tmpTarget = joinBeacon(tmpHub, 'ps.nk-target');
+		tmpHub.Scheduler._dispatchTick();
+
+		Expect(tmpItem.Status).to.equal('Dispatched');
+		Expect(tmpItem.AssignedBeaconID).to.equal(tmpTarget.BeaconID);
+		Expect(tmpHub.Pushed).to.deep.equal([ { BeaconID: tmpTarget.BeaconID, WorkItemHash: tmpItem.WorkItemHash } ]);
+	});
+
+	test('a clean deregistration releases the item to Pending, and only the named beacon gets it back', function ()
+	{
+		const tmpHub = buildHub(cleanStorePath('deregister'));
+		const tmpTarget = joinBeacon(tmpHub, 'ps.nk-target');
+		joinBeacon(tmpHub, 'ps.nk-other');
+		const tmpItem = tmpHub.Coordinator.enqueueWorkItem(strictDeploy('ps.nk-target'));
+		Expect(tmpItem.Status).to.equal('Running');
+		Expect(tmpItem.AssignedBeaconID).to.equal(tmpTarget.BeaconID);
+
+		// A stopped node sends Deregister: the hub drops its record and releases its work.
+		tmpHub.Coordinator.deregisterBeacon(tmpTarget.BeaconID);
+		Expect(tmpItem.Status).to.equal('Pending');
+		tmpHub.Pushed.length = 0;
+
+		tmpHub.Scheduler._dispatchTick();
+		Expect(tmpItem.Status).to.equal('Pending');
+		Expect(tmpHub.Pushed).to.deep.equal([]);
+
+		const tmpBack = joinBeacon(tmpHub, 'ps.nk-target');
+		tmpHub.Scheduler._dispatchTick();
+		Expect(tmpItem.AssignedBeaconID).to.equal(tmpBack.BeaconID);
+		Expect(tmpHub.Pushed.map((pPush) => pPush.BeaconID)).to.deep.equal([ tmpBack.BeaconID ]);
+	});
+
+	test('RequireAffinityMatch with an empty AffinityKey is never dispatched (enqueue push, scheduler, slot-free re-dispatch, poll)', function ()
+	{
+		const tmpHub = buildHub(cleanStorePath('empty-key'));
+		const tmpOther = joinBeacon(tmpHub, 'ps.nk-other');
+		const tmpItem = tmpHub.Coordinator.enqueueWorkItem(strictDeploy(''));
+
+		tmpHub.Scheduler._dispatchTick();
+		tmpHub.Coordinator._dispatchPendingWorkItems();
+		const tmpPolled = tmpHub.Coordinator.pollForWork(tmpOther.BeaconID);
+
+		Expect(tmpPolled).to.equal(null);
+		Expect(tmpItem.Status).to.equal('Pending');
+		Expect(tmpItem.AssignedBeaconID || null).to.equal(null);
+		Expect(tmpHub.Pushed).to.deep.equal([]);
+	});
+
+	test('without RequireAffinityMatch an unmatched AffinityKey still falls back to a capable beacon', function ()
+	{
+		// Scheduler path: no push channel, so only the dispatch tick can place it.
+		const tmpTickHub = buildHub(cleanStorePath('fallback-tick'));
+		tmpTickHub.Coordinator.setWorkItemPushHandler(null);
+		const tmpTickOther = joinBeacon(tmpTickHub, 'ps.nk-other');
+		const tmpTickItem = tmpTickHub.Coordinator.enqueueWorkItem({ Capability: 'plansheet.deploy', Action: 'DeployDev', Settings: {}, AffinityKey: 'ps.nk-target' });
+		Expect(tmpTickItem.Status).to.equal('Pending');
+		tmpTickHub.Scheduler._dispatchTick();
+		Expect(tmpTickItem.Status).to.equal('Dispatched');
+		Expect(tmpTickItem.AssignedBeaconID).to.equal(tmpTickOther.BeaconID);
+
+		// WebSocket path: pushed to the capable beacon at enqueue.
+		const tmpPushHub = buildHub(cleanStorePath('fallback-push'));
+		const tmpPushOther = joinBeacon(tmpPushHub, 'ps.nk-other');
+		const tmpPushItem = tmpPushHub.Coordinator.enqueueWorkItem({ Capability: 'plansheet.deploy', Action: 'DeployDev', Settings: {}, AffinityKey: 'ps.nk-target' });
+		Expect(tmpPushItem.AssignedBeaconID).to.equal(tmpPushOther.BeaconID);
+		Expect(tmpPushHub.Pushed.map((pPush) => pPush.BeaconID)).to.deep.equal([ tmpPushOther.BeaconID ]);
+	});
+
+	test('the scheduler push itself refuses a beacon the item does not name', function ()
+	{
+		const tmpHub = buildHub(cleanStorePath('push-guard'));
+		const tmpOther = joinBeacon(tmpHub, 'ps.nk-other');
+		const tmpItem = tmpHub.Coordinator.enqueueWorkItem(strictDeploy('ps.nk-target'));
+
+		tmpHub.Scheduler._dispatchItemToBeacon(tmpItem, tmpOther, tmpHub.Coordinator);
+
+		Expect(tmpItem.Status).to.equal('Pending');
+		Expect(tmpItem.AssignedBeaconID || null).to.equal(null);
+		Expect(tmpOther.CurrentWorkItems).to.deep.equal([]);
+		Expect(tmpHub.Pushed).to.deep.equal([]);
+	});
+
+	test('an item carrying another beacon id is still not delivered to that beacon', function ()
+	{
+		const tmpHub = buildHub(cleanStorePath('wrong-id'));
+		const tmpOther = joinBeacon(tmpHub, 'ps.nk-other');
+		const tmpPending = tmpHub.Coordinator.enqueueWorkItem(strictDeploy('ps.nk-target'));
+		const tmpAssigned = tmpHub.Coordinator.enqueueWorkItem(strictDeploy('ps.nk-target'));
+		// No path writes these states for a strict item; the delivery paths check anyway.
+		tmpPending.AssignedBeaconID = tmpOther.BeaconID;
+		tmpAssigned.Status = 'Assigned';
+		tmpAssigned.AssignedBeaconID = tmpOther.BeaconID;
+
+		tmpHub.Scheduler._dispatchTick();
+		tmpHub.Coordinator._dispatchPendingWorkItems();
+		const tmpPolled = tmpHub.Coordinator.pollForWork(tmpOther.BeaconID);
+
+		Expect(tmpPolled).to.equal(null);
+		Expect(tmpPending.Status).to.equal('Pending');
+		Expect(tmpAssigned.Status).to.equal('Assigned');
+		Expect(tmpHub.Pushed).to.deep.equal([]);
+	});
+
+	test('RequireAffinityMatch survives a hub restart: the replayed item still waits for its named beacon', function ()
+	{
+		const tmpPath = cleanStorePath('restart');
+		const tmpBefore = buildHub(tmpPath);
+		joinBeacon(tmpBefore, 'ps.nk-target');
+		const tmpItem = tmpBefore.Coordinator.enqueueWorkItem(strictDeploy('ps.nk-target'));
+		Expect(tmpItem.Status).to.equal('Running');
+
+		// A new process replays the journal. Beacons rejoin in whatever order they reconnect.
+		const tmpAfter = buildHub(tmpPath);
+		tmpAfter.Coordinator.restoreFromJournal();
+		const tmpRestored = tmpAfter.Coordinator.getWorkItem(tmpItem.WorkItemHash);
+		Expect(tmpRestored.Status).to.equal('Pending');
+		Expect(tmpRestored.RequireAffinityMatch).to.equal(true);
+
+		joinBeacon(tmpAfter, 'ps.nk-other');
+		tmpAfter.Scheduler._dispatchTick();
+		tmpAfter.Coordinator._dispatchPendingWorkItems();
+		Expect(tmpRestored.Status).to.equal('Pending');
+		Expect(tmpAfter.Pushed).to.deep.equal([]);
+
+		const tmpBack = joinBeacon(tmpAfter, 'ps.nk-target');
+		tmpAfter.Scheduler._dispatchTick();
+		Expect(tmpAfter.Pushed.map((pPush) => pPush.BeaconID)).to.deep.equal([ tmpBack.BeaconID ]);
+	});
+
+	test('RequireAffinityMatch survives journal compaction', function ()
+	{
+		const tmpPath = cleanStorePath('compact');
+		const tmpBefore = buildHub(tmpPath);
+		const tmpItem = tmpBefore.Coordinator.enqueueWorkItem(strictDeploy('ps.nk-target'));
+		tmpBefore.Journal.compact(tmpBefore.Coordinator._WorkQueue, tmpBefore.Coordinator._AffinityBindings);
+
+		const tmpAfter = buildHub(tmpPath);
+		tmpAfter.Coordinator.restoreFromJournal();
+		Expect(tmpAfter.Coordinator.getWorkItem(tmpItem.WorkItemHash).RequireAffinityMatch).to.equal(true);
+	});
+});
+
+suite('A canceled work item stays canceled', function ()
+{
+	suiteTeardown(function () { if (libFS.existsSync(TEST_BASE_PATHS)) { libFS.rmSync(TEST_BASE_PATHS, { recursive: true, force: true }); } });
+
+	test('a hub restart does not bring it back, and its beacon never receives it', function ()
+	{
+		const tmpPath = cleanStorePath('cancel-restart');
+		const tmpBefore = buildHub(tmpPath);
+		const tmpItem = tmpBefore.Coordinator.enqueueWorkItem(strictDeploy('ps.nk-target'));
+		Expect(tmpBefore.Scheduler.requestCancel(tmpItem.WorkItemHash, 'run #7 was stopped').Canceled).to.equal(true);
+
+		const tmpAfter = buildHub(tmpPath);
+		tmpAfter.Coordinator.restoreFromJournal();
+		Expect(tmpAfter.Coordinator.getWorkItem(tmpItem.WorkItemHash)).to.equal(null);
+
+		joinBeacon(tmpAfter, 'ps.nk-target');
+		tmpAfter.Scheduler._dispatchTick();
+		Expect(tmpAfter.Pushed).to.deep.equal([]);
+	});
+
+	test('canceling an Assigned item frees its slot on the beacon', function ()
+	{
+		const tmpHub = buildHub(cleanStorePath('cancel-slot'));
+		// No push channel, so the item stays Assigned to its beacon.
+		tmpHub.Coordinator.setWorkItemPushHandler(null);
+		const tmpTarget = joinBeacon(tmpHub, 'ps.nk-target');
+		const tmpItem = tmpHub.Coordinator.enqueueWorkItem(strictDeploy('ps.nk-target'));
+		Expect(tmpItem.Status).to.equal('Assigned');
+		Expect(tmpTarget.CurrentWorkItems).to.include(tmpItem.WorkItemHash);
+
+		Expect(tmpHub.Scheduler.requestCancel(tmpItem.WorkItemHash, 'stopped').Canceled).to.equal(true);
+
+		Expect(tmpItem.Status).to.equal('Canceled');
+		Expect(tmpTarget.CurrentWorkItems).to.not.include(tmpItem.WorkItemHash);
 	});
 });

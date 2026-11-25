@@ -222,7 +222,7 @@ class UltravisorBeaconScheduler extends libPictService
 		if (pItem.AssignedBeaconID)
 		{
 			let tmpBeacon = pCoordinator._Beacons[pItem.AssignedBeaconID];
-			if (tmpBeacon && this._beaconCanTake(tmpBeacon, pItem))
+			if (tmpBeacon && this._beaconCanTake(tmpBeacon, pItem) && this._affinityAllows(pItem, tmpBeacon, pCoordinator))
 			{
 				return tmpBeacon;
 			}
@@ -240,6 +240,17 @@ class UltravisorBeaconScheduler extends libPictService
 			{
 				return this._beaconCanTake(tmpNamed, pItem) ? tmpNamed : null;
 			}
+		}
+
+		// Strict affinity: the item names the one beacon that may run it,
+		// and no beacon of that Name is registered (stopped, misnamed, or
+		// not yet rejoined after a hub restart), or it names none at all.
+		// It waits Pending for that beacon. The least-loaded pick below
+		// would hand it to any Online beacon that advertises the
+		// capability, which is what RequireAffinityMatch forbids.
+		if (pItem.RequireAffinityMatch)
+		{
+			return null;
 		}
 
 		let tmpBestBeacon = null;
@@ -279,8 +290,44 @@ class UltravisorBeaconScheduler extends libPictService
 		return tmpActive < tmpMax;
 	}
 
+	/**
+	 * Whether a beacon may take an item under affinity rules. The rule
+	 * lives on the coordinator (_beaconSatisfiesAffinity) and every
+	 * coordinator delivery path asks it, so the scheduler asks the same
+	 * one. Without a coordinator to ask, a strict item is refused.
+	 *
+	 * @param {object} pItem
+	 * @param {object} pBeacon
+	 * @param {object} pCoordinator
+	 * @returns {boolean}
+	 */
+	_affinityAllows(pItem, pBeacon, pCoordinator)
+	{
+		if (pCoordinator && typeof pCoordinator._beaconSatisfiesAffinity === 'function')
+		{
+			return pCoordinator._beaconSatisfiesAffinity(pItem, pBeacon);
+		}
+		return !(pItem && pItem.RequireAffinityMatch);
+	}
+
+	/**
+	 * Hand an item to a beacon: stamp it Dispatched, take the beacon's
+	 * slot, and push it over the beacon's WebSocket when it has one.
+	 *
+	 * @returns {boolean} False when the beacon may not take the item, in
+	 * which case nothing about the item or the beacon changed.
+	 */
 	_dispatchItemToBeacon(pItem, pBeacon, pCoordinator)
 	{
+		// The last check before the work leaves the hub. _pickBeacon never
+		// offers a beacon that a strict item does not name; this is the
+		// push itself, so it asks again rather than trust every caller.
+		if (!this._affinityAllows(pItem, pBeacon, pCoordinator))
+		{
+			this.log.warn(`BeaconScheduler: refused to dispatch [${pItem.WorkItemHash}] to beacon [${pBeacon.BeaconID}] (Name=${pBeacon.Name}): it requires beacon [${pItem.AffinityKey}]. It stays ${pItem.Status}.`);
+			return false;
+		}
+
 		let tmpNow = Date.now();
 		let tmpNowIso = new Date(tmpNow).toISOString();
 		let tmpEnqueuedMs = pItem.EnqueuedAt ? Date.parse(pItem.EnqueuedAt) : tmpNow;
@@ -385,6 +432,8 @@ class UltravisorBeaconScheduler extends libPictService
 			Pushed: tmpPushed,
 			DispatchedAt: pItem.DispatchedAt
 		});
+
+		return true;
 	}
 
 	_markCanceled(pItem, pCoordinator, pReason)
@@ -395,6 +444,26 @@ class UltravisorBeaconScheduler extends libPictService
 		pItem.CanceledAt = pItem.CanceledAt || tmpNowIso;
 		pItem.CancelReason = pItem.CancelReason || pReason || '';
 		pItem.LastEventAt = tmpNowIso;
+
+		// Journal the cancel. Without it, a hub restart before the next
+		// compaction replays the item's enqueue entry, puts it back to
+		// Pending, and delivers it when its beacon joins. An ephemeral
+		// item was never journaled, so it has nothing to cancel there.
+		let tmpJournal = (pCoordinator && typeof pCoordinator._getJournal === 'function') ? pCoordinator._getJournal() : null;
+		if (tmpJournal && pItem.Ephemeral !== true)
+		{
+			tmpJournal.appendEntry('cancel', { WorkItemHash: pItem.WorkItemHash, CanceledAt: pItem.CanceledAt });
+		}
+
+		// An Assigned item holds a slot in its beacon's CurrentWorkItems
+		// (enqueue put it there), and an item that will never run has
+		// nothing else to free it. A Running item's slot is freed by
+		// confirmCancel once the beacon says it stopped.
+		if (tmpFromStatus === 'Assigned' && pItem.AssignedBeaconID
+			&& pCoordinator && typeof pCoordinator._removeWorkItemFromBeacon === 'function')
+		{
+			pCoordinator._removeWorkItemFromBeacon(pItem.AssignedBeaconID, pItem.WorkItemHash);
+		}
 
 		let tmpCancelBridge = this._getBridge();
 		if (tmpCancelBridge && !this._isMetaCapability(pItem.Capability) && pItem.Ephemeral !== true)

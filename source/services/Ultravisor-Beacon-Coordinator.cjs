@@ -1424,9 +1424,12 @@ class UltravisorBeaconCoordinator extends libPictService
 			else if (tmpWorkItem.RequireAffinityMatch)
 			{
 				// Strict routing: the designated beacon is not registered right
-				// now (offline / mid-restart). The item stays Pending and only
-				// that beacon may claim it when it returns — never another
-				// capable beacon. The normal work-item timeout bounds the wait.
+				// now (stopped, misnamed, or not yet rejoined after a hub
+				// restart). The item stays Pending and only that beacon may take
+				// it when it returns, never another capable beacon. The work-item
+				// timeout does not run on a Pending item (_checkTimeouts reads
+				// Running and Assigned only), so it waits until that beacon joins
+				// or the item is canceled.
 				this.log.warn(`BeaconCoordinator: work item [${tmpWorkItemHash}] requires beacon [${tmpWorkItem.AffinityKey}], which is not registered — holding pending until it returns.`);
 			}
 			else
@@ -1455,12 +1458,24 @@ class UltravisorBeaconCoordinator extends libPictService
 				}
 			}
 		}
+		else if (tmpWorkItem.RequireAffinityMatch)
+		{
+			// Strict routing that names no beacon. No beacon satisfies it
+			// (_beaconSatisfiesAffinity), so it stays Pending and is never
+			// dispatched. The HTTP routes refuse to queue one; only an
+			// in-process caller reaches this.
+			this.log.warn(`BeaconCoordinator: work item [${tmpWorkItemHash}] sets RequireAffinityMatch with no AffinityKey; no beacon may take it, so it will not be dispatched.`);
+		}
 
 		this._WorkQueue[tmpWorkItemHash] = tmpWorkItem;
 		this.log.info(`BeaconCoordinator: enqueued work item [${tmpWorkItemHash}] (${tmpWorkItem.Capability}/${tmpWorkItem.Action}) status=${tmpWorkItem.Status}.`);
 
 		// Journal the enqueue. An ephemeral item (see _isEphemeralDispatch)
 		// is not journaled, because this entry carries its Settings.
+		// RequireAffinityMatch is journaled with the AffinityKey it qualifies:
+		// replay puts every in-flight item back to Pending while the beacons
+		// are still rejoining, and an item that lost the flag there would go
+		// to whichever capable beacon rejoined first.
 		let tmpJournal = this._getJournal();
 		if (tmpJournal && tmpWorkItem.Ephemeral !== true)
 		{
@@ -1473,6 +1488,7 @@ class UltravisorBeaconCoordinator extends libPictService
 				Action: tmpWorkItem.Action,
 				Settings: tmpWorkItem.Settings,
 				AffinityKey: tmpWorkItem.AffinityKey,
+				RequireAffinityMatch: tmpWorkItem.RequireAffinityMatch,
 				AssignedBeaconID: tmpWorkItem.AssignedBeaconID,
 				Status: tmpWorkItem.Status,
 				TimeoutMs: tmpWorkItem.TimeoutMs,
@@ -1562,6 +1578,13 @@ class UltravisorBeaconCoordinator extends libPictService
 		{
 			return false;
 		}
+		if (!this._beaconSatisfiesAffinity(pWorkItem, tmpBeacon))
+		{
+			// No path assigns a strict item to a beacon it does not name, but
+			// this is the push itself, so it checks rather than trusts that.
+			this.log.warn(`BeaconCoordinator: refused to push work item [${pWorkItem.WorkItemHash}] to beacon [${tmpBeacon.BeaconID}] (Name=${tmpBeacon.Name}): it requires beacon [${pWorkItem.AffinityKey}].`);
+			return false;
+		}
 		let tmpMaxConcurrent = tmpBeacon.MaxConcurrent || 1;
 		if (this._runningCountForBeacon(pWorkItem.AssignedBeaconID) >= tmpMaxConcurrent)
 		{
@@ -1627,15 +1650,28 @@ class UltravisorBeaconCoordinator extends libPictService
 	 * AffinityKey keeps its dual role (name routing when matched, otherwise a
 	 * session-stickiness hint any capable beacon can seed).
 	 *
+	 * This is the one rule every delivery path asks: the WebSocket push, the
+	 * HTTP poll claim, the held-item push, and the scheduler's pick and push.
+	 *
+	 * A strict item with an empty AffinityKey names no beacon, so no beacon
+	 * satisfies it and it is never dispatched. It used to skip the check
+	 * instead, which handed it to any capable beacon. The HTTP routes refuse
+	 * such an item before it is queued (Ultravisor-API-Server
+	 * _refuseUnnamedStrictAffinity); this covers in-process callers.
+	 *
 	 * @param {object} pWorkItem
 	 * @param {object} pBeacon - a registered beacon record
 	 * @returns {boolean}
 	 */
 	_beaconSatisfiesAffinity(pWorkItem, pBeacon)
 	{
-		if (!pWorkItem || !pWorkItem.RequireAffinityMatch || !pWorkItem.AffinityKey)
+		if (!pWorkItem || !pWorkItem.RequireAffinityMatch)
 		{
 			return true;
+		}
+		if (!pWorkItem.AffinityKey)
+		{
+			return false;
 		}
 		return !!(pBeacon && pBeacon.Name === pWorkItem.AffinityKey);
 	}
@@ -1808,12 +1844,15 @@ class UltravisorBeaconCoordinator extends libPictService
 
 		let tmpWorkItemHashes = Object.keys(this._WorkQueue);
 
-		// First pass: check for affinity-assigned items for this Beacon
+		// First pass: check for affinity-assigned items for this Beacon.
+		// A strict item is handed only to the beacon it names, even when it
+		// carries this beacon's ID.
 		for (let i = 0; i < tmpWorkItemHashes.length; i++)
 		{
 			let tmpWorkItem = this._WorkQueue[tmpWorkItemHashes[i]];
 
-			if (tmpWorkItem.Status === 'Assigned' && tmpWorkItem.AssignedBeaconID === pBeaconID)
+			if (tmpWorkItem.Status === 'Assigned' && tmpWorkItem.AssignedBeaconID === pBeaconID
+				&& this._beaconSatisfiesAffinity(tmpWorkItem, tmpBeacon))
 			{
 				// This item was pre-assigned to us via affinity
 				let tmpPollNowIso = new Date().toISOString();

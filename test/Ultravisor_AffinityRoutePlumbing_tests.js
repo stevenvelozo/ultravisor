@@ -125,3 +125,72 @@ suite('Strict affinity — dispatch route plumbing', function ()
 		Expect(tmpHarness.captured[0].RequireAffinityMatch).to.equal(true);
 	});
 });
+
+/**
+ * Invoke a captured route handler and record what it answered: the status
+ * and body passed to send(), and whether it started a streamed response.
+ *
+ * @param {Function} pHandler
+ * @param {object} pBody
+ * @returns {{ Status: number|null, Body: object|null, Streamed: boolean }}
+ */
+function invokeRouteForAnswer(pHandler, pBody)
+{
+	let tmpAnswer = { Status: null, Body: null, Streamed: false };
+	let tmpRequest = { body: pBody, headers: {}, connection: { setTimeout: function () {} } };
+	let tmpResponse =
+	{
+		send: function (pStatusOrBody, pMaybeBody)
+		{
+			if (typeof pStatusOrBody === 'number')
+			{
+				tmpAnswer.Status = pStatusOrBody;
+				tmpAnswer.Body = pMaybeBody || null;
+			}
+			else
+			{
+				tmpAnswer.Status = 200;
+				tmpAnswer.Body = pStatusOrBody;
+			}
+		},
+		writeHead: function () { tmpAnswer.Streamed = true; },
+		write: function () {},
+		end: function () {}
+	};
+	pHandler(tmpRequest, tmpResponse, function () {});
+	return tmpAnswer;
+}
+
+suite('Strict affinity: a work item that names no beacon is refused at the door', function ()
+{
+	const ROUTES = [ 'POST /Beacon/Work/Enqueue', 'POST /Beacon/Work/Dispatch', 'POST /Beacon/Work/DispatchStream' ];
+	const BLANK_KEYS = [ { Label: 'an empty', Body: { AffinityKey: '' } }, { Label: 'a missing', Body: {} }, { Label: 'a whitespace-only', Body: { AffinityKey: '   ' } } ];
+
+	ROUTES.forEach(function (pRoute)
+	{
+		BLANK_KEYS.forEach(function (pBlank)
+		{
+			test(`${pRoute} answers 400 and queues nothing for RequireAffinityMatch with ${pBlank.Label} AffinityKey`, function ()
+			{
+				let tmpHarness = buildRouteHarness();
+				let tmpBody = Object.assign({ RunID: 'run-1', Capability: 'plansheet.deploy', Action: 'DeployProd', RequireAffinityMatch: true, Settings: {} }, pBlank.Body);
+				let tmpAnswer = invokeRouteForAnswer(tmpHarness.routes[pRoute], tmpBody);
+				Expect(tmpAnswer.Status).to.equal(400);
+				Expect(tmpAnswer.Body.Success).to.equal(false);
+				Expect(tmpAnswer.Body.Error).to.contain('AffinityKey');
+				Expect(tmpAnswer.Streamed).to.equal(false);
+				Expect(tmpHarness.captured.length, 'nothing reached the coordinator').to.equal(0);
+			});
+		});
+
+		test(`${pRoute} still takes an item with no AffinityKey when RequireAffinityMatch is not set`, function ()
+		{
+			let tmpHarness = buildRouteHarness();
+			let tmpAnswer = invokeRouteForAnswer(tmpHarness.routes[pRoute], { RunID: 'run-1', Capability: 'plansheet.deploy', Action: 'DeployDev', Settings: {} });
+			Expect(tmpAnswer.Status).to.not.equal(400);
+			Expect(tmpHarness.captured.length).to.equal(1);
+			Expect(tmpHarness.captured[0].AffinityKey).to.equal('');
+			Expect(tmpHarness.captured[0].RequireAffinityMatch).to.equal(false);
+		});
+	});
+});

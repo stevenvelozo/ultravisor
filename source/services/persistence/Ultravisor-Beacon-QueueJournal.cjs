@@ -13,13 +13,14 @@
  *   {"t":"<ISO timestamp>","op":"<operation>","d":{<payload>}}
  *
  * Operations:
- *   enqueue          — full work item record
- *   claim            — { WorkItemHash, BeaconID, ClaimedAt }
- *   complete         — { WorkItemHash }
- *   fail             — { WorkItemHash }
- *   affinity-create  — full affinity binding record
- *   affinity-clear   — { AffinityKey }
- *   compact          — (no inline data; full state in snapshot file)
+ *   enqueue          - full work item record
+ *   claim            - { WorkItemHash, BeaconID, ClaimedAt }
+ *   complete         - { WorkItemHash }
+ *   fail             - { WorkItemHash }
+ *   cancel           - { WorkItemHash, CanceledAt }
+ *   affinity-create  - full affinity binding record
+ *   affinity-clear   - { AffinityKey }
+ *   compact          - (no inline data; full state in snapshot file)
  *
  * @module Ultravisor-Beacon-QueueJournal
  */
@@ -332,6 +333,15 @@ class UltravisorBeaconQueueJournal extends libPictService
 				}
 				break;
 
+			case 'cancel':
+				// A canceled item is finished. Left in, replay would put it
+				// back to Pending and its beacon would receive it on rejoin.
+				if (tmpData.WorkItemHash)
+				{
+					delete pWorkQueue[tmpData.WorkItemHash];
+				}
+				break;
+
 			case 'affinity-create':
 				if (tmpData.AffinityKey)
 				{
@@ -419,6 +429,9 @@ class UltravisorBeaconQueueJournal extends libPictService
 					Action: tmpItem.Action,
 					Settings: tmpItem.Settings,
 					AffinityKey: tmpItem.AffinityKey,
+					// Kept with its AffinityKey: a replayed strict item must
+					// still wait for the beacon it names.
+					RequireAffinityMatch: !!tmpItem.RequireAffinityMatch,
 					AssignedBeaconID: tmpItem.AssignedBeaconID,
 					Status: tmpItem.Status,
 					TimeoutMs: tmpItem.TimeoutMs,
